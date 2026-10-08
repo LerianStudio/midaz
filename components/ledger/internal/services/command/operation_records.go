@@ -109,10 +109,12 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 // legRouteLabel returns the free-text route label the client sent on the leg a
 // primary row came from, verbatim. Only that leg's primary rows carry it: an
 // overdraft companion or a fee-debt row is a system movement, not a sent leg.
-// A reference that does not resolve to the same leg yields no label, because a
-// passive label must never fail the completion of an applied movement.
+// The origin must be the one the row's posting was built from: legs on the same
+// balance with equal amounts are otherwise indistinguishable. A reference that
+// does not resolve to the same leg yields no label, because a passive label must
+// never fail the completion of an applied movement.
 func legRouteLabel(input mtransaction.Transaction, context OperationRecordSpec) string {
-	if context.Role != accounting.RolePrimary {
+	if context.Role != accounting.RolePrimary || !postingRefFromOrigin(context.PostingRef, context.OriginRef) {
 		return ""
 	}
 

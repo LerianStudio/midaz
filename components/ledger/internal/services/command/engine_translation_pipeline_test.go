@@ -315,6 +315,7 @@ func TestEngineTranslationPipelineLeavesLabelEmptyWhenOriginDoesNotResolveTheLeg
 	}{
 		{"origin reference is not a leg position", func(p *TransactionCompletionPlan) { p.OperationSpecs[0].OriginRef = "from:first" }},
 		{"origin position is past the side's legs", func(p *TransactionCompletionPlan) { p.OperationSpecs[0].OriginRef = "from:7" }},
+		{"origin names another leg on the same balance", func(p *TransactionCompletionPlan) { p.OperationSpecs[0].OriginRef = "from:1" }},
 		{"leg at the origin is another balance", func(p *TransactionCompletionPlan) {
 			p.TransactionInput.Send.Source.From[0].AccountAlias = "0#@elsewhere#default"
 		}},

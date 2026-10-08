@@ -710,3 +710,15 @@ func TestOperationOriginRefRoundTrip(t *testing.T) {
 		assert.False(t, ok, "reference %q must not resolve a leg", ref)
 	}
 }
+
+func TestOperationPostingRefStaysBoundToItsOrigin(t *testing.T) {
+	t.Parallel()
+
+	postingRef := operationPostingRef(operationOriginRef(OperationSpecSideFrom, 10), accounting.PostingDebit)
+
+	assert.Equal(t, "from:10:debit", postingRef)
+	assert.True(t, postingRefFromOrigin(postingRef, "from:10"))
+	assert.False(t, postingRefFromOrigin(postingRef, "from:1"), "a shorter position must not claim the posting")
+	assert.False(t, postingRefFromOrigin(postingRef, "to:10"))
+	assert.False(t, postingRefFromOrigin(postingRef, ""))
+}

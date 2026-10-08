@@ -193,7 +193,7 @@ func appendLegTranslation(transaction *accounting.Transaction, projection *[]Ope
 	originRef := operationOriginRef(side, index)
 
 	for _, item := range plan.items {
-		postingRef := fmt.Sprintf("%s:%s", originRef, item.postingType)
+		postingRef := operationPostingRef(originRef, item.postingType)
 
 		drawPolicy := accounting.DrawForbidden
 		if item.postingType == accounting.PostingDebit && item.allowsOverdraftDraw {
@@ -321,6 +321,18 @@ func translationRouteID(validate *mtransaction.Responses, leg mtransaction.FromT
 // plan keeps the same input, so the reference finds the leg again at projection.
 func operationOriginRef(side string, index int) string {
 	return side + ":" + strconv.Itoa(index)
+}
+
+// operationPostingRef names one posting of a leg: the leg's origin reference
+// followed by the posting type, so each posting stays bound to the leg it came from.
+func operationPostingRef(originRef string, postingType accounting.PostingType) string {
+	return originRef + ":" + string(postingType)
+}
+
+// postingRefFromOrigin reports whether postingRef was built by operationPostingRef
+// from originRef.
+func postingRefFromOrigin(postingRef, originRef string) bool {
+	return strings.HasPrefix(postingRef, originRef+":")
 }
 
 // parseOperationOriginRef reads back a reference built by operationOriginRef.
