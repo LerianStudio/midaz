@@ -280,6 +280,7 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 			func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 		)
 		idempotency.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+		idempotency.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 		realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 		require.NoError(t, err)
 		executor := &pendingLifecycleAdapter{delegate: realAdapter}

@@ -480,13 +480,13 @@ func TestPendingTransitionEngineFailureBoundariesReleaseLock(t *testing.T) {
 func TestPendingTransactionLockReleaseOutlivesTheRequestContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
-	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(1)
-	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, _ string) error {
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).Return(true, nil).Times(1)
+	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, _, _ string) (bool, error) {
 		assert.NoError(t, ctx.Err(), "the release must not inherit the request cancellation")
 		assert.Equal(t, "tenant-release", tmcore.GetTenantIDContext(ctx), "the release must keep the tenant that namespaces the key")
 		_, bounded := ctx.Deadline()
 		assert.True(t, bounded, "the release must stay bounded")
-		return nil
+		return true, nil
 	}).Times(1)
 	uc := &UseCase{TransactionRedisRepo: redisRepo}
 
@@ -501,6 +501,48 @@ func TestPendingTransactionLockReleaseOutlivesTheRequestContext(t *testing.T) {
 
 	cancel()
 	unlock()
+}
+
+// TestPendingTransactionLockReleaseRemovesOnlyItsOwnLock covers a release that
+// outlives the lock TTL: by then another request may hold the key, and only a
+// release bound to the token this request stored leaves that lock in place.
+func TestPendingTransactionLockReleaseRemovesOnlyItsOwnLock(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	stored := map[string]string{}
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).DoAndReturn(
+		func(_ context.Context, key, token string, _ time.Duration) (bool, error) {
+			stored[key] = token
+			return true, nil
+		},
+	).Times(2)
+	released := map[string]string{}
+	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, key, token string) (bool, error) {
+			released[key] = token
+			return true, nil
+		},
+	).Times(2)
+	uc := &UseCase{TransactionRedisRepo: redisRepo}
+
+	runs := []*pendingTransitionRun{
+		{organizationID: uuid.New(), ledgerID: uuid.New(), tran: &transaction.Transaction{ID: uuid.NewString()}},
+		{organizationID: uuid.New(), ledgerID: uuid.New(), tran: &transaction.Transaction{ID: uuid.NewString()}},
+	}
+	for _, run := range runs {
+		unlock, err := uc.lockPendingTransaction(context.Background(), trace.SpanFromContext(context.Background()), libLog.NewNop(), run)
+		require.NoError(t, err)
+		unlock()
+	}
+
+	require.Len(t, stored, 2)
+	tokens := map[string]bool{}
+	for key, token := range stored {
+		assert.NotEmpty(t, token, "the lock must carry an owner token")
+		assert.Equal(t, token, released[key], "the release must present the token its acquisition stored")
+		tokens[token] = true
+	}
+	assert.Len(t, tokens, 2, "each acquisition must own a distinct token")
 }
 
 func TestPendingTransitionRejectsTerminalSQLAndResolvesGuardConflict(t *testing.T) {
@@ -645,7 +687,7 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 	// A transition that takes the pending-transaction lock releases it exactly
 	// once, whatever its outcome.
-	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer,
@@ -916,7 +958,7 @@ func TestPendingTransitionRefusesUnprojectedAnnotationLikeAPersistedOne(t *testi
 				ctrl := gomock.NewController(t)
 				redisRepo := txRedis.NewMockRedisRepository(ctrl)
 				redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-				redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+				redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 				uc := &UseCase{TransactionReader: reader, TransactionRedisRepo: redisRepo, Engine: executor}
 
 				_, err := test.call(uc, t.Context(), in)

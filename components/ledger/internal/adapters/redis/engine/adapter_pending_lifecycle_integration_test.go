@@ -366,7 +366,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 				func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 			)
 			redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-			redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+			redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 
 			realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
@@ -521,8 +521,8 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	redisRepository.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
 		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 	)
-	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(2)
-	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).Return(true, nil).Times(2)
+	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
@@ -720,13 +720,13 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 	)
 	lockAcquisitions := 0
-	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).DoAndReturn(
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).DoAndReturn(
 		func(context.Context, string, string, time.Duration) (bool, error) {
 			lockAcquisitions++
 			return true, nil
 		},
 	).Times(3)
-	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(3)
+	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
