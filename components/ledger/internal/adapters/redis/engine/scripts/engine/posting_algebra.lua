@@ -12,7 +12,8 @@ end
 -- applyCreditPosting applies a credit and repays existing overdraft usage before
 -- exposing the remaining amount as available on an internal credit-direction account.
 -- A posting marked repayForbidden adds the whole amount to available and keeps the debt.
-local function applyCreditPosting(current, nextState, posting)
+-- A posting marked repayRouteDenied refuses when it would repay any debt.
+local function applyCreditPosting(current, nextState, posting, transactionIndex, postingIndex)
     if current.direction == "debit" then
         nextState.available = sub_decimal(current.available, posting.amount)
     else
@@ -24,6 +25,9 @@ local function applyCreditPosting(current, nextState, posting)
     if posting.repayForbidden ~= true and current.direction ~= "debit" and current.accountType ~= "external" and cmp_decimal(current.overdraftUsed, "0") > 0 then
         local repay = min_decimal(posting.amount, current.overdraftUsed)
         if cmp_decimal(posting.overdraftAmount, "0") > 0 then repay = min_decimal(repay, posting.overdraftAmount) end
+        if posting.repayRouteDenied == true then
+            refuse("overdraft_repay_route_denied", transactionIndex, postingIndex, posting.balanceRef)
+        end
         nextState.overdraftUsed = sub_decimal(current.overdraftUsed, repay)
         nextState.available = sub_decimal(nextState.available, repay)
         primaryAmount, delta = sub_decimal(posting.amount, repay), sub_decimal("0", repay)

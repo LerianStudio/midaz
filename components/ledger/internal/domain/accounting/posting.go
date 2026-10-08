@@ -70,6 +70,11 @@ type Posting struct {
 	// RepayForbidden (credit only, with a zero OverdraftAmount) adds the whole
 	// credit to available and leaves any outstanding overdraft untouched.
 	RepayForbidden bool `json:"repayForbidden,omitempty"`
+	// RepayRouteDenied (credit only, never with RepayForbidden) refuses the
+	// posting when it would repay outstanding overdraft, because the applied
+	// route carries no overdraft credit rubric. A credit that repays nothing is
+	// unaffected.
+	RepayRouteDenied bool `json:"repayRouteDenied,omitempty"`
 	// DeferShortfall (debit only) moves at most the payer's available funds and
 	// opens the unfunded rest as a fee debt instead of refusing.
 	DeferShortfall bool `json:"deferShortfall,omitempty"`

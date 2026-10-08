@@ -274,7 +274,7 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 	tests := []struct {
 		name, direction, accountType, available, onHold, debt, amount, override, companion string
 		posting                                                                            accounting.PostingType
-		repayForbidden                                                                     bool
+		repayForbidden, repayRouteDenied                                                   bool
 		want                                                                               integrationState
 		wantCompanion, wantAmount, wantDelta, failure                                      string
 	}{
@@ -299,6 +299,10 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 		{name: "repay remainder", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "70", companion: "50", want: s("20", "0", "0", "1"), wantCompanion: "0", wantAmount: "20", wantDelta: "-50"},
 		{name: "credit with repayment forbidden keeps debt", posting: accounting.PostingCredit, repayForbidden: true, available: "0", debt: "50", amount: "20", want: s("20", "0", "50", "1"), wantAmount: "20"},
 		{name: "credit legacy cap", posting: accounting.PostingCredit, available: "0", debt: "50", amount: "30", override: "10", companion: "50", want: s("20", "0", "40", "1"), wantCompanion: "40", wantAmount: "20", wantDelta: "-10"},
+		{name: "repay through a denied route refuses", posting: accounting.PostingCredit, repayRouteDenied: true, available: "0", debt: "50", amount: "20", companion: "50", failure: "overdraft_repay_route_denied"},
+		{name: "capped repay through a denied route refuses", posting: accounting.PostingCredit, repayRouteDenied: true, available: "0", debt: "50", amount: "30", override: "10", companion: "50", failure: "overdraft_repay_route_denied"},
+		{name: "credit through a denied route without debt", posting: accounting.PostingCredit, repayRouteDenied: true, available: "10", amount: "20", want: s("30", "0", "0", "1"), wantAmount: "20"},
+		{name: "debit direction credit through a denied route", direction: "debit", posting: accounting.PostingCredit, repayRouteDenied: true, available: "40", amount: "30", want: s("10", "0", "0", "1"), wantAmount: "30"},
 		{name: "hold refuses debt", posting: accounting.PostingHold, available: "100", amount: "101", failure: "insufficient_funds"},
 		{name: "missing companion", posting: accounting.PostingDebit, available: "0", amount: "50", failure: "overdraft_companion_missing"},
 		{name: "onhold underflow", posting: accounting.PostingUnreserve, available: "40", onHold: "49", amount: "50", failure: "onhold_underflow"},
@@ -329,7 +333,7 @@ func TestIntegrationEnginePostingAlgebra(t *testing.T) {
 			if tt.override != "" {
 				posting.OverdraftAmount = decimal.RequireFromString(tt.override)
 			}
-			posting.RepayForbidden = tt.repayForbidden
+			posting.RepayForbidden, posting.RepayRouteDenied = tt.repayForbidden, tt.repayRouteDenied
 			if tt.companion != "" {
 				f.addCompanion(tt.companion)
 			}
@@ -1423,7 +1427,7 @@ func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {
 		t.Skip("requires Valkey")
 	}
 	container := redistestutil.SetupReusableContainer(t)
-	for _, kind := range []string{"duplicate key", "trailing JSON", "array as object", "postings as object", "unknown posting", "unknown balance", "noncanonical amount", "repay forbidden on debit", "repay forbidden with cap", "repay forbidden not boolean", "malformed cache", "duplicate cached version"} {
+	for _, kind := range []string{"duplicate key", "trailing JSON", "array as object", "postings as object", "unknown posting", "unknown balance", "noncanonical amount", "repay forbidden on debit", "repay forbidden with cap", "repay forbidden not boolean", "repay route denied on debit", "repay route denied with repay forbidden", "repay route denied not boolean", "malformed cache", "duplicate cached version"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newIntegrationFixture(t, container.Client)
 			raw := string(f.prepared(t).Payload)
@@ -1459,6 +1463,14 @@ func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {
 			case "repay forbidden not boolean":
 				raw = strings.Replace(raw, `"type":"debit"`, `"type":"credit"`, 1)
 				raw = strings.Replace(raw, `"overdraftAmount":"0"`, `"overdraftAmount":"0","repayForbidden":"true"`, 1)
+			case "repay route denied on debit":
+				raw = strings.Replace(raw, `"drawPolicy":"allowed"`, `"drawPolicy":"allowed","repayRouteDenied":true`, 1)
+			case "repay route denied with repay forbidden":
+				raw = strings.Replace(raw, `"type":"debit"`, `"type":"credit"`, 1)
+				raw = strings.Replace(raw, `"overdraftAmount":"0"`, `"overdraftAmount":"0","repayForbidden":true,"repayRouteDenied":true`, 1)
+			case "repay route denied not boolean":
+				raw = strings.Replace(raw, `"type":"debit"`, `"type":"credit"`, 1)
+				raw = strings.Replace(raw, `"overdraftAmount":"0"`, `"overdraftAmount":"0","repayRouteDenied":"true"`, 1)
 			case "malformed cache", "duplicate cached version":
 				cache := `{"Version":01}`
 				if kind == "duplicate cached version" {
