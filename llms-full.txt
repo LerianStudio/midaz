@@ -951,7 +951,7 @@ are set programmatically by `applyConfigDefaults()`.
 | RABBITMQ_VHOST | — | Virtual host (empty = default "/") |
 | RABBITMQ_NUMBERS_OF_WORKERS | 5 | Consumer worker count |
 | RABBITMQ_NUMBERS_OF_PREFETCH | 10 | Prefetch count per worker |
-| RABBITMQ_HEALTH_CHECK_URL | — | Health check URL |
+| RABBITMQ_HEALTH_CHECK_URL | — | Management URL for the /readyz probe; a root URL is normalized to `/api/health/checks/alarms` (an `alarms`/`local-alarms` suffix is kept); authenticated with RABBITMQ_DEFAULT_USER/PASS (credentials embedded in the URL are ignored with a Warn); invalid = Warn at boot and check down; empty = check skipped |
 | RABBITMQ_TLS | false | Enable TLS |
 | RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE | — | Balance operation queue name |
 | RABBITMQ_TRANSACTION_ASYNC | false | Enable async transaction processing |
