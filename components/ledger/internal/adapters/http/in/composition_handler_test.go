@@ -598,13 +598,50 @@ func TestCreateHolderAccount_AccountFailureReleasesSlot(t *testing.T) {
 	status, _, got := postCRMCreate(t, app, path, withIdempotencyKey("c3"), testCompositionAccountBody)
 	assert.Equal(t, http.StatusNotFound, status)
 	assert.Equal(t, cn.ErrAssetCodeNotFound.Error(), got["code"])
-	assert.NotContains(t, slots.store, slotKey, "a failed account create must release its slot")
+	assert.NotContains(t, slots.store, slotKey, "a rejected account create must release its slot")
 
 	status, replayed, _ := postCRMCreate(t, app, path, withIdempotencyKey("c3"), testCompositionAccountBody)
 	assert.Equal(t, http.StatusCreated, status)
 	assert.Equal(t, "false", replayed, "the retry ran the composition, it is not a replay")
 	assert.Equal(t, 2, accounts.calls)
 	assert.Contains(t, slots.store, slotKey)
+}
+
+// A technical account-create failure may follow a persisted account, so the slot
+// stays claimed and a retry with the same key meets the in-flight conflict.
+func TestCreateHolderAccount_TechnicalAccountFailureKeepsSlot(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "plain error", err: errors.New("metadata store unavailable")},
+		{name: "account creation failed", err: pkg.ValidateBusinessError(cn.ErrAccountCreationFailed, cn.EntityAccount)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			holderID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			accounts := &countingAccountCreator{failures: 1, err: tt.err}
+			slots := newFakeCRMIdempotencyRepo()
+			app := buildHumaCompositionApp(t, newIdempotentCompositionHandler(t, accounts, &countingInstrumentCreator{}, slots), true)
+			path := compositionURL(orgID, ledgerID, holderID)
+			slotKey := services.CompositionIdempotencyKey(orgID.String(), ledgerID.String(), holderID.String(), "c6")
+
+			status, _, _ := postCRMCreate(t, app, path, withIdempotencyKey("c6"), testCompositionAccountBody)
+			assert.GreaterOrEqual(t, status, http.StatusInternalServerError)
+			require.Contains(t, slots.store, slotKey, "a technical failure must not release its slot")
+			assert.Empty(t, slots.store[slotKey], "a failed create must not store a replay value")
+
+			status, _, got := postCRMCreate(t, app, path, withIdempotencyKey("c6"), testCompositionAccountBody)
+			assert.Equal(t, http.StatusConflict, status)
+			assert.Equal(t, cn.ErrIdempotencyKey.Error(), got["code"])
+			assert.Equal(t, 1, accounts.calls, "the retry must not open another account")
+		})
+	}
 }
 
 // Scenario "Alias em uso e retentativa com a mesma chave repete o conflito".

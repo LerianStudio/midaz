@@ -25,7 +25,8 @@ import (
 
 // CompositionIdempotency is the CRM idempotency slot the composition claims when
 // the client sends X-Idempotency: claim or replay, store the answered response,
-// and release a slot whose account was not created.
+// and release the slot of a rejected account create. A technical failure keeps
+// the slot until its TTL because the account may have been persisted.
 type CompositionIdempotency interface {
 	CreateOrCheckCRMIdempotency(ctx context.Context, organizationID, internalKey, token string, ttl time.Duration) (*services.CRMIdempotencyResult, error)
 	SetCRMIdempotencyValue(ctx context.Context, organizationID, internalKey, valueJSON string, ttl time.Duration)
@@ -51,7 +52,11 @@ type CompositionHandler struct {
 //
 // Only a non-empty clientKey claims an idempotency slot. The answered 201,
 // complete or partial, is stored for replay because the account was persisted;
-// a failed account create releases the slot. replayed reports a cached answer.
+// a rejected account create (a business error) releases the slot, so a retry
+// with the same key runs the composition again. A technical failure keeps the
+// slot until its TTL because the account may have been persisted, so a retry
+// with the same key meets the in-flight conflict instead of opening a second
+// account. replayed reports a cached answer.
 func (handler *CompositionHandler) createHolderAccount(ctx context.Context, organizationID, ledgerID, holderID uuid.UUID, payload *mmodel.CreateHolderAccountInput, token, clientKey string, ttl time.Duration) (*mmodel.HolderAccountResponse, bool, error) {
 	logger, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -93,7 +98,9 @@ func (handler *CompositionHandler) createHolderAccount(ctx context.Context, orga
 
 	out, err := handler.callCreateHolderAccount(ctx, span, logger, organizationID, ledgerID, holderID, payload, token)
 	if err != nil {
-		handler.Idempotency.ReleaseCRMIdempotency(ctx, internalKey)
+		if pkg.IsBusinessError(err) {
+			handler.Idempotency.ReleaseCRMIdempotency(ctx, internalKey)
+		}
 
 		return nil, false, err
 	}
