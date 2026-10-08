@@ -65,7 +65,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 	span trace.Span,
 	logger libLog.Logger,
 	run *pendingTransitionRun,
-	unlock func(),
 	tracerEligible bool,
 ) (*transaction.Transaction, error) {
 	// The transition reloads the balances of the pending transaction. A cache miss
@@ -76,7 +75,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 
 	transition, err := uc.preparePendingEngineTransition(ctx, run)
 	if err != nil {
-		unlock()
 		return nil, err
 	}
 
@@ -97,7 +95,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 		},
 	})
 	if err != nil {
-		unlock()
 		return nil, err
 	}
 
@@ -105,7 +102,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 
 	prepared, err := buildPendingEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action, transition.dependencies)
 	if err != nil {
-		unlock()
 		return nil, err
 	}
 
@@ -114,17 +110,11 @@ func (uc *UseCase) transitionPendingWithEngine(
 
 	if executeErr != nil {
 		if !outcome.Executed {
-			unlock()
 			return nil, executeErr
 		}
 
 		if isConfirmedEngineTransitionConflict(executeErr) {
-			unlock()
 			return nil, uc.resolvePendingGuardConflict(ctx, run.organizationID, run.ledgerID, transition.transactionID)
-		}
-
-		if confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
-			unlock()
 		}
 
 		return nil, MapEngineError(prepared.Execution.Execution, executeErr)

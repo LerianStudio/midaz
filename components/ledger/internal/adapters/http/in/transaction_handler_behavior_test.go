@@ -371,8 +371,8 @@ func TestCommitTransaction_InvalidStatus_ReturnsError(t *testing.T) {
 
 			// Mock: Redis lock cleanup after error
 			mockRedisRepo.EXPECT().
-				Del(gomock.Any(), gomock.Any()).
-				Return(nil).
+				DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(true, nil).
 				Times(1)
 
 			// Write-behind cache miss (fall through to Postgres Find)
@@ -2296,8 +2296,8 @@ func TestCancelTransaction(t *testing.T) {
 
 				// Redis lock cleanup after error
 				redisRepo.EXPECT().
-					Del(gomock.Any(), gomock.Any()).
-					Return(nil).
+					DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(true, nil).
 					Times(1)
 			},
 			expectedStatus: 409,
