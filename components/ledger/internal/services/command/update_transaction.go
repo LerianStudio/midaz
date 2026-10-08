@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 
 	// UpdateTransaction update a transaction from the repository by given id.
@@ -76,7 +77,9 @@ func (uc *UseCase) UpdateTransaction(ctx context.Context, organizationID, ledger
 // A false return is not an error: the row is either no longer PENDING or not
 // inserted yet, because a transition loaded from the write-behind cache runs
 // before the asynchronous create persists its row. The caller tells those apart.
-func (uc *UseCase) UpdateTransactionStatusFromPending(ctx context.Context, tran *transaction.Transaction) (_ *transaction.Transaction, _ bool, err error) {
+//
+// The flip runs on dbTx, the caller's database transaction.
+func (uc *UseCase) UpdateTransactionStatusFromPending(ctx context.Context, dbTx repository.DBExecutor, tran *transaction.Transaction) (_ *transaction.Transaction, _ bool, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.update_transaction_status_from_pending")
@@ -116,7 +119,7 @@ func (uc *UseCase) UpdateTransactionStatusFromPending(ctx context.Context, tran 
 		return nil, false, err
 	}
 
-	updateTran, transitioned, err := uc.TransactionRepo.UpdateStatusFromPending(ctx, organizationID, ledgerID, transactionID, tran)
+	updateTran, transitioned, err := uc.TransactionRepo.UpdateStatusFromPendingTx(ctx, dbTx, organizationID, ledgerID, transactionID, tran)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update status transaction on repo by id", err)
 

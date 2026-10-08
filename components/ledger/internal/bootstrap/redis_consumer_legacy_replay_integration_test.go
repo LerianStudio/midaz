@@ -30,15 +30,17 @@ import (
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
-// unavailableTransactionRepository fails every transaction insert, the shape of
-// a PostgreSQL outage at the moment an annotation is written.
+// unavailableTransactionRepository refuses to open the database transaction
+// every transaction write runs in, the shape of a PostgreSQL outage at the
+// moment an annotation is written.
 type unavailableTransactionRepository struct {
 	transaction.Repository
 }
 
-func (unavailableTransactionRepository) Create(context.Context, *transaction.Transaction) (*transaction.Transaction, error) {
+func (unavailableTransactionRepository) BeginTx(context.Context) (repository.DBTransaction, error) {
 	return nil, errors.New("transaction database unavailable")
 }
 
@@ -166,13 +168,13 @@ func TestIntegrationLegacyBackupReplayResolvesTenantMongo(t *testing.T) {
 	}
 }
 
-// failTransactionWrites makes every transaction insert of the command use case
+// failTransactionWrites makes every transaction write of the command use case
 // fail until the returned function restores the real repository.
 func (infra *engineWriteBehindHTTPIntegration) failTransactionWrites() func() {
-	repository := infra.command.TransactionRepo
-	infra.command.TransactionRepo = unavailableTransactionRepository{Repository: repository}
+	available := infra.command.TransactionRepo
+	infra.command.TransactionRepo = unavailableTransactionRepository{Repository: available}
 
-	return func() { infra.command.TransactionRepo = repository }
+	return func() { infra.command.TransactionRepo = available }
 }
 
 // leaveAnnotationInLegacyBackup creates an annotation whose database write

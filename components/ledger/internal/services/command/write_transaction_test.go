@@ -124,11 +124,7 @@ func setupMocksForDirectWrite(
 ) {
 	// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-	// Mock TransactionRepo.Create
-	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(tran, nil).
-		AnyTimes()
+	expectLegacyTransactionWrite(mockTransactionRepo, true)
 
 	// Mock MetadataRepo.Create for transaction metadata
 	mockMetadataRepo.EXPECT().
@@ -191,7 +187,7 @@ func TestWriteTransaction(t *testing.T) {
 
 			backupRemoved := make(chan struct{})
 
-			mockTransactionRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(td.tran, nil).Times(1)
+			dbTx := expectLegacyTransactionWrite(mockTransactionRepo, true)
 			mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			mockRedisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), gomock.Any()).Return(backup, nil).AnyTimes()
 			mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
@@ -205,6 +201,7 @@ func TestWriteTransaction(t *testing.T) {
 
 			err = uc.WriteTransaction(context.Background(), organizationID, ledgerID, td.transactionInput, td.validate, td.balances, nil, td.tran)
 			require.NoError(t, err)
+			assert.True(t, dbTx.commitCalled)
 
 			select {
 			case <-backupRemoved:
@@ -231,8 +228,10 @@ func TestWriteTransaction(t *testing.T) {
 			TransactionRedisRepo: redis.NewMockRedisRepository(ctrl),
 		}
 
+		dbTx := &mockDBTransaction{}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil).Times(1)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, errors.New("database connection failed")).
 			Times(1)
 
@@ -303,9 +302,11 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// TransactionRepo.Create fails (not a duplicate key error)
+		// The transaction insert fails (not a duplicate key)
+		dbTx := &mockDBTransaction{}
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil).Times(1)
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, errors.New("failed to create transaction")).
 			Times(1)
 
@@ -313,6 +314,8 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to create transaction")
+		assert.True(t, dbTx.rollbackCalled)
+		assert.False(t, dbTx.commitCalled)
 	})
 
 	t.Run("success_with_single_balance", func(t *testing.T) {
@@ -375,11 +378,7 @@ func TestWriteTransactionSync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
-			AnyTimes()
+		expectLegacyTransactionWrite(mockTransactionRepo, true)
 
 		// Mock MetadataRepo.Create
 		mockMetadataRepo.EXPECT().
