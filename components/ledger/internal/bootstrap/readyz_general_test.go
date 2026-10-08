@@ -478,20 +478,244 @@ func TestRabbitMQChecker_ProbeInvalidURLDoesNotExposeCredentials(t *testing.T) {
 	)
 
 	rawURL := "http://" + embeddedUser + ":" + embeddedPass + "@rabbitmq:bad port/"
-	checker := NewRabbitMQChecker("rabbitmq", rawURL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	tests := []struct {
+		name      string
+		checker   *RabbitMQChecker
+		wantError string
+	}{
+		{
+			name:      "rejected_at_construction",
+			checker:   NewRabbitMQChecker("rabbitmq", rawURL, "", testRabbitMQUser, testRabbitMQPass, nil),
+			wantError: "invalid health check URL: malformed url",
+		},
+		{
+			name: "rejected_when_building_the_request",
+			checker: &RabbitMQChecker{
+				name:           "rabbitmq",
+				healthCheckURL: rawURL,
+				user:           testRabbitMQUser,
+				pass:           testRabbitMQPass,
+				httpClient:     &http.Client{},
+			},
+			wantError: "failed to create request: invalid health check URL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := tt.checker.Check(context.Background())
+
+			require.Equal(t, StatusDown, result.Status)
+			assert.Equal(t, tt.wantError, result.Error)
+
+			body, err := json.Marshal(result)
+			require.NoError(t, err)
+
+			for _, secret := range []string{embeddedUser, embeddedPass, rawURL, testRabbitMQUser, testRabbitMQPass} {
+				assert.NotContains(t, result.Error, secret)
+				assert.NotContains(t, string(body), secret)
+			}
+		})
+	}
+}
+
+func TestParseRabbitMQHealthURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		raw             string
+		wantURL         string
+		wantHasUserinfo bool
+		wantErr         error
+	}{
+		{name: "empty", raw: ""},
+		{name: "root", raw: "http://rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "root_with_trailing_slash", raw: "http://rabbitmq:15672/", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "https_root", raw: "https://rabbitmq:15671", wantURL: "https://rabbitmq:15671/api/health/checks/alarms"},
+		{name: "upper_case_scheme", raw: "HTTP://rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "already_alarms", raw: "http://rabbitmq:15672/api/health/checks/alarms", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "already_local_alarms", raw: "http://rabbitmq:15672/api/health/checks/local-alarms", wantURL: "http://rabbitmq:15672/api/health/checks/local-alarms"},
+		{name: "userinfo_is_stripped", raw: "http://embedded-user:embedded-pass@rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms", wantHasUserinfo: true},
+		{name: "user_only_is_stripped", raw: "http://embedded-user@rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms", wantHasUserinfo: true},
+		{name: "no_scheme", raw: "midaz-rabbitmq:3004", wantErr: errRabbitMQHealthURLUnsupportedScheme},
+		{name: "ftp_scheme", raw: "ftp://rabbitmq:21", wantErr: errRabbitMQHealthURLUnsupportedScheme},
+		{name: "missing_host", raw: "http://", wantErr: errRabbitMQHealthURLMissingHost},
+		{name: "port_without_host", raw: "http://:15672", wantErr: errRabbitMQHealthURLMissingHost},
+		{name: "userinfo_with_missing_host", raw: "http://user@/path", wantErr: errRabbitMQHealthURLMissingHost},
+		{name: "malformed_port", raw: "http://embedded-user:embedded-pass@rabbitmq:bad port/", wantErr: errRabbitMQHealthURLMalformed},
+		{name: "control_character", raw: "http://rabbitmq:15672/\x7f", wantErr: errRabbitMQHealthURLMalformed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotURL, gotHasUserinfo, err := parseRabbitMQHealthURL(tt.raw)
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				assert.Empty(t, gotURL)
+				assert.NotContains(t, err.Error(), tt.raw)
+				assert.NotContains(t, err.Error(), "embedded")
+				assert.NotContains(t, err.Error(), "user")
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantURL, gotURL)
+			assert.Equal(t, tt.wantHasUserinfo, gotHasUserinfo)
+			assert.NotContains(t, gotURL, "embedded")
+		})
+	}
+}
+
+func TestRabbitMQChecker_InvalidHealthURLIsDownWithoutRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		raw              string
+		cbManager        libCircuitBreaker.Manager
+		wantError        string
+		wantBreakerState string
+	}{
+		{
+			name:      "no_scheme_without_breaker",
+			raw:       "midaz-rabbitmq:3004",
+			wantError: "invalid health check URL: unsupported scheme",
+		},
+		{
+			name:             "ftp_scheme_with_open_breaker",
+			raw:              "ftp://rabbitmq:21",
+			cbManager:        &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen},
+			wantError:        "invalid health check URL: unsupported scheme",
+			wantBreakerState: "open",
+		},
+		{
+			name:             "missing_host_with_closed_breaker",
+			raw:              "http://",
+			cbManager:        &mockCircuitBreakerManager{state: libCircuitBreaker.StateClosed},
+			wantError:        "invalid health check URL: missing host",
+			wantBreakerState: "closed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checker := NewRabbitMQChecker("rabbitmq", tt.raw, "", testRabbitMQUser, testRabbitMQPass, tt.cbManager)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, StatusDown, result.Status)
+			assert.Equal(t, tt.wantError, result.Error)
+			assert.Equal(t, tt.wantBreakerState, result.BreakerState)
+			assert.Nil(t, result.LatencyMs, "no request is attempted for an invalid URL")
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeIgnoresCredentialsEmbeddedInURL(t *testing.T) {
+	t.Parallel()
+
+	srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+	embeddedURL := strings.Replace(srv.URL, "http://", "http://embedded-user:embedded-pass@", 1)
+	checker := NewRabbitMQChecker("rabbitmq", embeddedURL, "", testRabbitMQUser, testRabbitMQPass, nil)
 
 	result := checker.Check(context.Background())
 
-	require.Equal(t, StatusDown, result.Status)
-	assert.Equal(t, "failed to create request: invalid health check URL", result.Error)
+	assert.Equal(t, StatusUp, result.Status)
+	assert.Equal(t, "/api/health/checks/alarms", lastRequest().path)
+	assert.Equal(t, basicAuthHeader(testRabbitMQUser, testRabbitMQPass), lastRequest().authorization)
+	assert.NotContains(t, checker.healthCheckURL, "embedded")
+	assert.NotContains(t, checker.healthCheckURL, "@")
+}
 
-	body, err := json.Marshal(result)
-	require.NoError(t, err)
+func TestWarnRabbitMQHealthURL(t *testing.T) {
+	t.Parallel()
 
-	for _, secret := range []string{embeddedUser, embeddedPass, rawURL, testRabbitMQUser, testRabbitMQPass} {
-		assert.NotContains(t, result.Error, secret)
-		assert.NotContains(t, string(body), secret)
+	tests := []struct {
+		name       string
+		raw        string
+		wantWarns  int
+		wantReason string
+	}{
+		{name: "empty", raw: ""},
+		{name: "root", raw: "http://rabbitmq:15672"},
+		{name: "root_with_trailing_slash", raw: "http://rabbitmq:15672/"},
+		{name: "https_root", raw: "https://rabbitmq:15671"},
+		{name: "already_alarms", raw: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "no_scheme", raw: "midaz-rabbitmq:3004", wantWarns: 1, wantReason: "unsupported scheme"},
+		{name: "ftp_scheme", raw: "ftp://rabbitmq:21", wantWarns: 1, wantReason: "unsupported scheme"},
+		{name: "missing_host", raw: "http://", wantWarns: 1, wantReason: "missing host"},
+		{name: "malformed_with_credentials", raw: "http://leaky-user:leaky-pass@rabbitmq:bad port/", wantWarns: 1, wantReason: "malformed url"},
+		{name: "embedded_credentials", raw: "http://leaky-user:leaky-pass@rabbitmq:15672", wantWarns: 1},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := &cleanupCapturingLogger{Logger: libLog.NewNop()}
+
+			warnRabbitMQHealthURL(context.Background(), logger, tt.raw)
+
+			warnings := logger.at(libLog.LevelWarn)
+			require.Len(t, warnings, tt.wantWarns)
+
+			for _, warning := range warnings {
+				assert.Equal(t, "RABBITMQ_HEALTH_CHECK_URL", warning.fields["variable"])
+				assert.Contains(t, warning.msg, "RabbitMQ health check URL")
+				assert.NotContains(t, warning.msg, "leaky")
+
+				if tt.wantReason != "" {
+					assert.Equal(t, tt.wantReason, warning.fields["reason"])
+				}
+
+				for _, value := range warning.fields {
+					assert.NotContains(t, fmt.Sprint(value), "leaky")
+					assert.NotEqual(t, tt.raw, fmt.Sprint(value))
+				}
+			}
+		})
+	}
+}
+
+func TestBuildReadyzHandler_InvalidRabbitMQHealthURLStillBuilds(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		DeploymentMode:         DeploymentModeLocal,
+		CrmPrefixedMongoURI:    "mongodb://localhost:27017",
+		RabbitMQHealthCheckURL: "midaz-rabbitmq:3004",
+		RabbitMQUser:           testRabbitMQUser,
+		RabbitMQPass:           testRabbitMQPass,
+	}
+	logger := &cleanupCapturingLogger{Logger: libLog.NewNop()}
+
+	handler, err := buildReadyzHandler(cfg, logger, nil,
+		&onboardingPostgresComponents{}, &transactionPostgresComponents{},
+		&onboardingMongoComponents{}, &transactionMongoComponents{},
+		&crmComponents{}, nil, nil, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+
+	warnings := logger.at(libLog.LevelWarn)
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "unsupported scheme", warnings[0].fields["reason"])
+
+	require.Len(t, handler.checkers, 1)
+	result := handler.checkers[0].Check(context.Background())
+	assert.Equal(t, "rabbitmq", handler.checkers[0].Name())
+	assert.Equal(t, StatusDown, result.Status)
+	assert.Equal(t, "invalid health check URL: unsupported scheme", result.Error)
 }
 
 // testRabbitMQUser and testRabbitMQPass are distinctive placeholders so that

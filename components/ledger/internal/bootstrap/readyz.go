@@ -468,6 +468,8 @@ func buildReadyzHandler(
 		cbManager = rmq.circuitBreakerManager.Manager
 	}
 
+	warnRabbitMQHealthURL(context.Background(), logger, cfg.RabbitMQHealthCheckURL)
+
 	checkers = append(checkers,
 		NewRabbitMQChecker("rabbitmq", cfg.RabbitMQHealthCheckURL, rmqURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cbManager))
 
@@ -503,6 +505,28 @@ func buildReadyzHandler(
 		DeploymentMode: cfg.DeploymentMode,
 		MetricsFactory: metricsFactory,
 	}), nil
+}
+
+// warnRabbitMQHealthURL logs a boot-time Warn when RABBITMQ_HEALTH_CHECK_URL
+// is invalid or embeds credentials. Boot continues either way: an invalid URL
+// makes the rabbitmq check report down. The configured value is never logged
+// because it may carry credentials.
+func warnRabbitMQHealthURL(ctx context.Context, logger libLog.Logger, rawURL string) {
+	_, hasUserinfo, err := parseRabbitMQHealthURL(rawURL)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelWarn,
+			"Invalid RabbitMQ health check URL, the rabbitmq readiness check will report down",
+			libLog.String("variable", "RABBITMQ_HEALTH_CHECK_URL"),
+			libLog.String("reason", err.Error()))
+
+		return
+	}
+
+	if hasUserinfo {
+		logger.Log(ctx, libLog.LevelWarn,
+			"Credentials embedded in the RabbitMQ health check URL are ignored, the probe authenticates with RABBITMQ_DEFAULT_USER and RABBITMQ_DEFAULT_PASS",
+			libLog.String("variable", "RABBITMQ_HEALTH_CHECK_URL"))
+	}
 }
 
 // appendFeesMongoChecker appends a fees Mongo readiness checker when a static fees
