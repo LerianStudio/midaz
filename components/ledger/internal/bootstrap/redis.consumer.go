@@ -441,7 +441,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 }
 
 // processMessage handles a single Redis backup queue message: rebuilds balances
-// and operations, and writes the transaction via the async path.
+// and operations, and writes the transaction directly to the database.
 // Duplicate-processing prevention is handled at the cycle level by acquireCycleLock;
 // only the leader pod reaches this method.
 //
@@ -650,12 +650,14 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	utils.SanitizeAccountAliases(&m.TransactionInput)
 
-	if err := r.Command.WriteTransactionAsync(
+	// The replay writes directly: republishing to the legacy queue would rest
+	// the record's only durable copy on a publish without broker confirmation.
+	if err := r.Command.WriteTransactionSync(
 		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(msgSpan, "Failed sending message to queue", err)
+		libOpentelemetry.HandleSpanError(msgSpan, "Failed to write replayed transaction", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed sending message to queue", libLog.String("key", key), libLog.Err(err))
+		logger.Log(ctx, libLog.LevelError, "Failed to write replayed transaction; record left in backup queue", libLog.String("key", key), libLog.Err(err))
 
 		return
 	}
@@ -663,9 +665,9 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	logger.Log(ctx, libLog.LevelDebug, "Transaction message processed", libLog.String("key", key))
 
 	// Success: a previously-failing record has now replayed. Clear its attempts
-	// counter so it does not accrue toward the quarantine threshold. The backup
-	// record itself is removed downstream by the async write path after the
-	// confirmed Postgres persist (RemoveTransactionFromRedisQueueIfStatus).
+	// counter so it does not accrue toward the quarantine threshold. The write
+	// path removes the backup record itself once PostgreSQL has the transaction
+	// (RemoveTransactionFromRedisQueueIfStatus).
 	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
 }
 

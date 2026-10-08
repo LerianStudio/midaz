@@ -1139,8 +1139,8 @@ inside the ledger binary as a launcher app, not as a separate service, and depen
 - Replay prefers the materialized operations and only rebuilds them via
   `command.BuildOperations` when they are missing, recording that fallback with the
   `redis_backup_replay_recomputed_balances_after_total` metric.
-- Persists via `WriteTransactionAsync`: publishes to RabbitMQ and, if publishing fails,
-  writes directly to Postgres.
+- Persists via `WriteTransactionSync`, writing directly to Postgres; it never republishes
+  to RabbitMQ. A failed write leaves the entry for the next cycle.
 - A poison entry counts attempts and moves to the Postgres quarantine table after 3
   consecutive failures (`QuarantineThreshold`); cycle health is exposed via the
   `redis_backup_queue_depth`, `redis_backup_queue_oldest_age_seconds`, and
