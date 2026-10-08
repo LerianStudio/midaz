@@ -34,7 +34,7 @@ const (
 	// StatusDown indicates the dependency probe failed.
 	StatusDown DependencyStatus = "down"
 
-	// StatusDegraded indicates the dependency is in a degraded state (e.g., circuit breaker half-open).
+	// StatusDegraded indicates the dependency is in a degraded state (e.g., a partially available dependency).
 	StatusDegraded DependencyStatus = "degraded"
 
 	// StatusSkipped indicates the dependency is optional and was not probed (e.g., disabled by config).

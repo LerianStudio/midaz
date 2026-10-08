@@ -247,6 +247,8 @@ const (
 )
 
 // RabbitMQChecker probes the RabbitMQ management alarms endpoint with Basic auth.
+// The publish circuit breaker state is reported as diagnostic only and never
+// changes the check status.
 type RabbitMQChecker struct {
 	name           string
 	healthCheckURL string
@@ -287,32 +289,14 @@ func (c *RabbitMQChecker) TLSEnabled() bool {
 	return c.tlsEnabled
 }
 
-// Check probes the RabbitMQ management alarms endpoint and reports the
-// circuit breaker state when a manager is configured.
+// Check probes the RabbitMQ management alarms endpoint. The status comes only
+// from the probe; the circuit breaker state, when a manager is configured, is
+// attached to every result as BreakerState.
 func (c *RabbitMQChecker) Check(ctx context.Context) DependencyCheck {
 	var breakerState string
 
 	if c.cbManager != nil {
-		state := c.cbManager.GetState(rabbitmq.CircuitBreakerServiceName)
-		breakerState = mapCircuitBreakerState(state)
-
-		// If circuit breaker is open, report as degraded
-		if state == libCircuitBreaker.StateOpen {
-			return DependencyCheck{
-				Status:       StatusDegraded,
-				Reason:       "circuit breaker is open",
-				BreakerState: breakerState,
-			}
-		}
-
-		// If half-open, report as degraded
-		if state == libCircuitBreaker.StateHalfOpen {
-			return DependencyCheck{
-				Status:       StatusDegraded,
-				Reason:       "circuit breaker is half-open",
-				BreakerState: breakerState,
-			}
-		}
+		breakerState = mapCircuitBreakerState(c.cbManager.GetState(rabbitmq.CircuitBreakerServiceName))
 	}
 
 	check := c.probe(ctx)

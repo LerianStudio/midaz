@@ -105,54 +105,70 @@ func (c *slowChecker) Check(ctx context.Context) DependencyCheck {
 func TestRabbitMQChecker_CircuitBreakerClosed(t *testing.T) {
 	t.Parallel()
 
-	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateClosed}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
+	assertRabbitMQBreakerIsDiagnostic(t, libCircuitBreaker.StateClosed, "closed")
 
-	result := checker.Check(context.Background())
+	t.Run("empty_url_is_skipped_with_breaker_state", func(t *testing.T) {
+		t.Parallel()
 
-	// With closed circuit breaker and no health URL, should be skipped (not degraded)
-	assert.Equal(t, StatusSkipped, result.Status)
-	assert.Equal(t, "closed", result.BreakerState)
-	assert.Contains(t, result.Reason, "RABBITMQ_HEALTH_CHECK_URL not configured")
+		cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateClosed}
+		checker := NewRabbitMQChecker("rabbitmq", "", "", testRabbitMQUser, testRabbitMQPass, cbManager)
+
+		result := checker.Check(context.Background())
+
+		assert.Equal(t, StatusSkipped, result.Status)
+		assert.Equal(t, "closed", result.BreakerState)
+		assert.Equal(t, "RABBITMQ_HEALTH_CHECK_URL not configured", result.Reason)
+	})
 }
 
 func TestRabbitMQChecker_CircuitBreakerOpen(t *testing.T) {
 	t.Parallel()
 
-	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
-
-	result := checker.Check(context.Background())
-
-	assert.Equal(t, StatusDegraded, result.Status)
-	assert.Equal(t, "open", result.BreakerState)
-	assert.Equal(t, "circuit breaker is open", result.Reason)
+	assertRabbitMQBreakerIsDiagnostic(t, libCircuitBreaker.StateOpen, "open")
 }
 
 func TestRabbitMQChecker_CircuitBreakerHalfOpen(t *testing.T) {
 	t.Parallel()
 
-	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateHalfOpen}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
-
-	result := checker.Check(context.Background())
-
-	assert.Equal(t, StatusDegraded, result.Status)
-	assert.Equal(t, "half-open", result.BreakerState)
-	assert.Equal(t, "circuit breaker is half-open", result.Reason)
+	assertRabbitMQBreakerIsDiagnostic(t, libCircuitBreaker.StateHalfOpen, "half-open")
 }
 
 func TestRabbitMQChecker_NilCircuitBreakerManager(t *testing.T) {
 	t.Parallel()
 
-	// When cbManager is nil, should not panic and should check health URL
-	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", nil)
+	tests := []struct {
+		name        string
+		probeStatus int
+		wantStatus  DependencyStatus
+	}{
+		{"healthy_probe_is_up", http.StatusOK, StatusUp},
+		{"failing_probe_is_down", http.StatusServiceUnavailable, StatusDown},
+	}
 
-	result := checker.Check(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Without health URL and no circuit breaker, should be skipped
-	assert.Equal(t, StatusSkipped, result.Status)
-	assert.Empty(t, result.BreakerState)
+			srv, _ := newRabbitMQProbeServer(t, tt.probeStatus)
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, tt.wantStatus, result.Status)
+			assert.Empty(t, result.BreakerState)
+		})
+	}
+
+	t.Run("empty_url_is_skipped_without_breaker_state", func(t *testing.T) {
+		t.Parallel()
+
+		checker := NewRabbitMQChecker("rabbitmq", "", "", testRabbitMQUser, testRabbitMQPass, nil)
+
+		result := checker.Check(context.Background())
+
+		assert.Equal(t, StatusSkipped, result.Status)
+		assert.Empty(t, result.BreakerState)
+	})
 }
 
 func TestMapCircuitBreakerState(t *testing.T) {
@@ -178,16 +194,15 @@ func TestMapCircuitBreakerState(t *testing.T) {
 	}
 }
 
-func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
+func TestRabbitMQChecker_OpenBreakerWithHealthyProbeKeepsGlobalHealth(t *testing.T) {
 	t.Parallel()
 
-	// Create a checker that will report degraded status
+	srv, _ := newRabbitMQProbeServer(t, http.StatusOK)
 	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen}
-	degradedChecker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
+	rabbitChecker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, cbManager)
 
 	latency := int64(5)
 
-	// Healthy checker
 	healthyChecker := &mockChecker{
 		name:       "redis",
 		tlsEnabled: false,
@@ -196,29 +211,31 @@ func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
 
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
-		Checkers:       []DependencyChecker{healthyChecker, degradedChecker},
+		Checkers:       []DependencyChecker{healthyChecker, rabbitChecker},
 		DeploymentMode: "local",
 	})
 
-	// Simulate handling the request
-	checks := make(map[string]DependencyCheck)
-	allHealthy := true
+	app := fiber.New()
+	app.Get("/readyz", handler.HandleReadyz)
 
-	for _, checker := range handler.checkers {
-		check := checker.Check(context.Background())
-		checks[checker.Name()] = check
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
 
-		if check.Status == StatusDown || check.Status == StatusDegraded {
-			allHealthy = false
-		}
-	}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	assert.False(t, allHealthy, "degraded should affect overall health")
-	assert.Equal(t, StatusDegraded, checks["rabbitmq"].Status)
-	assert.Equal(t, StatusUp, checks["redis"].Status)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response ReadyzResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+
+	assert.Equal(t, "healthy", response.Status)
+	assert.Equal(t, StatusUp, response.Checks["rabbitmq"].Status)
+	assert.Equal(t, "open", response.Checks["rabbitmq"].BreakerState)
+	assert.Empty(t, response.Checks["rabbitmq"].Reason)
+	assert.Equal(t, StatusUp, response.Checks["redis"].Status)
 }
-
-// =============================================================================
 
 // =============================================================================
 // RabbitMQ Probe Tests
@@ -514,6 +531,38 @@ func newRabbitMQProbeServer(t *testing.T, status int) (*httptest.Server, func() 
 		defer mu.Unlock()
 
 		return last
+	}
+}
+
+// assertRabbitMQBreakerIsDiagnostic asserts that the probe alone decides the
+// status while the breaker state is reported on every result.
+func assertRabbitMQBreakerIsDiagnostic(t *testing.T, state libCircuitBreaker.State, wantBreakerState string) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		probeStatus int
+		wantStatus  DependencyStatus
+	}{
+		{"healthy_probe_is_up", http.StatusOK, StatusUp},
+		{"failing_probe_is_down", http.StatusServiceUnavailable, StatusDown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, _ := newRabbitMQProbeServer(t, tt.probeStatus)
+			cbManager := &mockCircuitBreakerManager{state: state}
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, cbManager)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, tt.wantStatus, result.Status)
+			assert.Equal(t, wantBreakerState, result.BreakerState)
+			assert.Empty(t, result.Reason)
+			assert.NotNil(t, result.LatencyMs)
+		})
 	}
 }
 
