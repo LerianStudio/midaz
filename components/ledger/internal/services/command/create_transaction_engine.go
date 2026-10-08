@@ -384,6 +384,7 @@ func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bo
 			accounting.FailureOverdraftLimitExceeded,
 			accounting.FailureOverdraftNotEligible,
 			accounting.FailureOverdraftCompanionMissing,
+			accounting.FailureOverdraftRepayRouteDenied,
 			accounting.FailureBalanceDeleted,
 			accounting.FailureAccountBlocked,
 			accounting.FailureOnHoldUnderflow,

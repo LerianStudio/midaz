@@ -522,7 +522,7 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 func validateFailure(failure accounting.Failure, request accounting.Execution) error {
 	switch failure.Code {
 	case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded, accounting.FailureOverdraftNotEligible,
-		accounting.FailureOverdraftCompanionMissing, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked, accounting.FailureOnHoldUnderflow,
+		accounting.FailureOverdraftCompanionMissing, accounting.FailureOverdraftRepayRouteDenied, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked, accounting.FailureOnHoldUnderflow,
 		accounting.FailureBalanceMissing, accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed,
 		accounting.FailureReceivingNotAllowed, accounting.FailureExternalHoldNotAllowed,
 		accounting.FailureAccountBlockExceptionInvalid:
