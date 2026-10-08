@@ -518,8 +518,11 @@ seam in full.
 
 Composition accepts `X-Idempotency` and `X-TTL` and answers `X-Idempotency-Replayed`, like the
 holder and instrument creates, but claims a slot **only** when `X-Idempotency` is sent: without it
-nothing is cached, and identical calls open distinct accounts. With it, a failed account create
-releases the slot, so a retry with the same key runs the composition again. Once the account is
+nothing is cached, and identical calls open distinct accounts. With it, a rejected account create
+(a business error) releases the slot, so a retry with the same key runs the composition again. A
+technical failure keeps the slot until its TTL, because the account may already be persisted (a
+metadata write failure, or a default-balance failure whose compensation did not land), so a retry
+with the same key answers the in-flight conflict. Once the account is
 persisted the answered `201` is stored and replayed as answered, the partial one included (account
 persisted, `instrument` null, `instrumentError` set): the replay opens no account and does not retry
 the instrument. A partial is repaired through `POST /v2/organizations/{organization_id}/holders/{holder_id}/instruments`
