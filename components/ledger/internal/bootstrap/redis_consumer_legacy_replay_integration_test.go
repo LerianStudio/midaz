@@ -74,6 +74,14 @@ func TestIntegrationLegacyBackupReplayPersistsAnnotationWithoutPublishing(t *tes
 	restoreTransactionRepo := infra.failTransactionWrites()
 	transactionID := infra.leaveAnnotationInLegacyBackup(t, ctx, app)
 
+	// Until the replay writes it, the annotation lives only in its backup and
+	// write-behind entries, and must still read and refuse transitions as a
+	// persisted one.
+	infra.requireAnnotationServed(t, app, transactionID)
+	infra.requireAnnotationTransitionsRefused(t, app, transactionID)
+	infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
+	assert.Zero(t, len(producer.messages), "a failed annotation write must not publish")
+
 	replay := NewRedisQueueConsumer(&libLog.GoLogger{}, infra.command, infra.query).newLegacyBackupConsumer()
 
 	stats := replay.Consume(ctx)
@@ -81,6 +89,7 @@ func TestIntegrationLegacyBackupReplayPersistsAnnotationWithoutPublishing(t *tes
 	require.Zero(t, stats.tooYoung)
 	infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
 	infra.requireSingleLegacyBackupEntry(t, ctx)
+	infra.requireNoBackupAttempts(t, ctx)
 	assert.Zero(t, len(producer.messages), "a replay that cannot write must not publish")
 
 	restoreTransactionRepo()
@@ -145,6 +154,7 @@ func TestIntegrationLegacyBackupReplayResolvesTenantMongo(t *testing.T) {
 			if !testCase.written {
 				infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
 				infra.requireSingleLegacyBackupEntry(t, ctx)
+				infra.requireNoBackupAttempts(t, ctx)
 
 				return
 			}
@@ -216,6 +226,18 @@ func (infra *engineWriteBehindHTTPIntegration) requireSingleLegacyBackupEntry(tb
 	}
 
 	return "", mmodel.TransactionRedisQueue{}
+}
+
+// requireNoBackupAttempts asserts that no record counts toward quarantine: a
+// write or tenant-resolution failure is infrastructure, not a poison record, and
+// must not push a sound record out of the replay during a long outage.
+func (infra *engineWriteBehindHTTPIntegration) requireNoBackupAttempts(tb testing.TB, ctx context.Context) {
+	tb.Helper()
+	t := tb
+
+	attempts, err := tmvalkey.GetKeyContext(ctx, txRedis.TransactionBackupAttemptsQueue)
+	require.NoError(t, err)
+	assert.Zero(t, infra.redis.HLen(ctx, attempts).Val(), "a failed replay write must not count toward quarantine")
 }
 
 // waitForEmptyLegacyBackupQueue waits for the entry removal that follows a

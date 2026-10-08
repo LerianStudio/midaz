@@ -456,27 +456,8 @@ func TestIntegrationEngineWriteBehindHTTPPersistsAnnotationBeforeAnswering(t *te
 	require.NoError(t, infra.db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, transactionID).Scan(&projected))
 	require.Equal(t, constant.NOTED, projected)
 
-	for _, version := range []string{"v1", "v2"} {
-		get := infra.getTransaction(t, app, version, transactionID)
-		require.Equalf(t, http.StatusOK, get.status, "%s GET must find the annotation: %s", version, get.body)
-		assert.Equal(t, transactionID.String(), get.decoded["id"])
-		status, ok := get.decoded["status"].(map[string]any)
-		require.Truef(t, ok, "response must carry a status object: %s", get.body)
-		assert.Equal(t, constant.NOTED, status["code"])
-	}
-
-	for _, call := range []struct{ version, action string }{
-		{"v1", "commit"},
-		{"v1", "cancel"},
-		{"v1", "revert"},
-		{"v2", "commit"},
-		{"v2", "cancel"},
-		{"v2", "revert"},
-	} {
-		response := infra.postTransition(t, app, call.version, transactionID, call.action)
-		assert.Equalf(t, http.StatusConflict, response.status, "%s %s of an annotation: %s", call.version, call.action, response.body)
-		assert.Equalf(t, constant.ErrCommitTransactionNotPending.Error(), response.decoded["code"], "%s %s of an annotation: %s", call.version, call.action, response.body)
-	}
+	infra.requireAnnotationServed(t, app, transactionID)
+	infra.requireAnnotationTransitionsRefused(t, app, transactionID)
 
 	infra.requireProjection(t, ctx, transactionID, 1, 2, 1)
 	assert.Zero(t, len(producer.messages), "refused transitions must not publish")
@@ -850,6 +831,42 @@ func (infra *engineWriteBehindHTTPIntegration) postTransition(tb testing.TB, app
 	path := "/" + version + "/organizations/" + infra.organization.String() + "/ledgers/" + infra.ledger.String() + "/transactions/" + transactionID.String() + "/" + action
 
 	return performEngineWriteBehindHTTPRequest(t, app, httptest.NewRequest(http.MethodPost, path, nil))
+}
+
+// requireAnnotationServed asserts that both API versions return the annotation
+// as NOTED, whether it is read from PostgreSQL or from its write-behind entry.
+func (infra *engineWriteBehindHTTPIntegration) requireAnnotationServed(tb testing.TB, app *fiber.App, transactionID uuid.UUID) {
+	tb.Helper()
+	t := tb
+
+	for _, version := range []string{"v1", "v2"} {
+		get := infra.getTransaction(t, app, version, transactionID)
+		require.Equalf(t, http.StatusOK, get.status, "%s GET must find the annotation: %s", version, get.body)
+		assert.Equal(t, transactionID.String(), get.decoded["id"])
+		status, ok := get.decoded["status"].(map[string]any)
+		require.Truef(t, ok, "response must carry a status object: %s", get.body)
+		assert.Equal(t, constant.NOTED, status["code"])
+	}
+}
+
+// requireAnnotationTransitionsRefused asserts that commit, cancel, and revert
+// refuse the annotation on both API versions as a non-pending transaction.
+func (infra *engineWriteBehindHTTPIntegration) requireAnnotationTransitionsRefused(tb testing.TB, app *fiber.App, transactionID uuid.UUID) {
+	tb.Helper()
+	t := tb
+
+	for _, call := range []struct{ version, action string }{
+		{"v1", "commit"},
+		{"v1", "cancel"},
+		{"v1", "revert"},
+		{"v2", "commit"},
+		{"v2", "cancel"},
+		{"v2", "revert"},
+	} {
+		response := infra.postTransition(t, app, call.version, transactionID, call.action)
+		assert.Equalf(t, http.StatusConflict, response.status, "%s %s of an annotation: %s", call.version, call.action, response.body)
+		assert.Equalf(t, constant.ErrCommitTransactionNotPending.Error(), response.decoded["code"], "%s %s of an annotation: %s", call.version, call.action, response.body)
+	}
 }
 
 func (infra *engineWriteBehindHTTPIntegration) requireBalance(tb testing.TB, ctx context.Context, alias string, available, onHold int64) {
