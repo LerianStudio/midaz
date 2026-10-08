@@ -238,25 +238,39 @@ func (c *RedisChecker) Check(ctx context.Context) DependencyCheck {
 	}
 }
 
-// RabbitMQChecker probes RabbitMQ using the health check URL.
+const (
+	// rabbitMQAlarmsHealthPath is the cluster-wide management alarms health check endpoint.
+	rabbitMQAlarmsHealthPath = "/api/health/checks/alarms"
+
+	// rabbitMQLocalAlarmsHealthPath is the node-local management alarms health check endpoint.
+	rabbitMQLocalAlarmsHealthPath = "/api/health/checks/local-alarms"
+)
+
+// RabbitMQChecker probes the RabbitMQ management alarms endpoint with Basic auth.
 type RabbitMQChecker struct {
 	name           string
 	healthCheckURL string
 	uri            string
+	user           string
+	pass           string
 	tlsEnabled     bool
 	httpClient     *http.Client
 	cbManager      libCircuitBreaker.Manager
 }
 
 // NewRabbitMQChecker creates a new RabbitMQ health checker.
-// If healthCheckURL is empty, the checker returns "skipped" status.
-func NewRabbitMQChecker(name, healthCheckURL, uri string, cbManager libCircuitBreaker.Manager) *RabbitMQChecker {
+// healthCheckURL is normalized to the management alarms endpoint; when it is
+// empty, the checker returns "skipped" status. user and pass authenticate the
+// probe against the management API.
+func NewRabbitMQChecker(name, healthCheckURL, uri, user, pass string, cbManager libCircuitBreaker.Manager) *RabbitMQChecker {
 	tlsEnabled, _ := detectAMQPTLS(uri)
 
 	return &RabbitMQChecker{
 		name:           name,
-		healthCheckURL: healthCheckURL,
+		healthCheckURL: normalizeRabbitMQHealthURL(healthCheckURL),
 		uri:            uri,
+		user:           user,
+		pass:           pass,
 		tlsEnabled:     tlsEnabled,
 		httpClient:     &http.Client{},
 		cbManager:      cbManager,
@@ -273,9 +287,9 @@ func (c *RabbitMQChecker) TLSEnabled() bool {
 	return c.tlsEnabled
 }
 
-// Check probes RabbitMQ via the health check URL.
+// Check probes the RabbitMQ management alarms endpoint and reports the
+// circuit breaker state when a manager is configured.
 func (c *RabbitMQChecker) Check(ctx context.Context) DependencyCheck {
-	// Include circuit breaker state if available
 	var breakerState string
 
 	if c.cbManager != nil {
@@ -301,17 +315,20 @@ func (c *RabbitMQChecker) Check(ctx context.Context) DependencyCheck {
 		}
 	}
 
+	check := c.probe(ctx)
+	check.BreakerState = breakerState
+
+	return check
+}
+
+// probe performs the authenticated GET on the normalized health check URL and
+// maps the outcome to a DependencyCheck without breaker information.
+func (c *RabbitMQChecker) probe(ctx context.Context) DependencyCheck {
 	if c.healthCheckURL == "" {
-		check := DependencyCheck{
+		return DependencyCheck{
 			Status: StatusSkipped,
 			Reason: "RABBITMQ_HEALTH_CHECK_URL not configured",
 		}
-
-		if breakerState != "" {
-			check.BreakerState = breakerState
-		}
-
-		return check
 	}
 
 	start := time.Now()
@@ -320,34 +337,24 @@ func (c *RabbitMQChecker) Check(ctx context.Context) DependencyCheck {
 	if err != nil {
 		latencyMs := time.Since(start).Milliseconds()
 
-		check := DependencyCheck{
+		return DependencyCheck{
 			Status:    StatusDown,
 			LatencyMs: &latencyMs,
-			Error:     fmt.Sprintf("failed to create request: %v", err),
+			Error:     "failed to create request: invalid health check URL",
 		}
-
-		if breakerState != "" {
-			check.BreakerState = breakerState
-		}
-
-		return check
 	}
+
+	req.SetBasicAuth(c.user, c.pass)
 
 	resp, err := c.httpClient.Do(req)
 	latencyMs := time.Since(start).Milliseconds()
 
 	if err != nil {
-		check := DependencyCheck{
+		return DependencyCheck{
 			Status:    StatusDown,
 			LatencyMs: &latencyMs,
 			Error:     fmt.Sprintf("health check request failed: %v", err),
 		}
-
-		if breakerState != "" {
-			check.BreakerState = breakerState
-		}
-
-		return check
 	}
 
 	defer func() {
@@ -357,29 +364,36 @@ func (c *RabbitMQChecker) Check(ctx context.Context) DependencyCheck {
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		check := DependencyCheck{
+		return DependencyCheck{
 			Status:    StatusDown,
 			LatencyMs: &latencyMs,
 			Error:     fmt.Sprintf("health check returned status %d", resp.StatusCode),
 		}
-
-		if breakerState != "" {
-			check.BreakerState = breakerState
-		}
-
-		return check
 	}
 
-	check := DependencyCheck{
+	return DependencyCheck{
 		Status:    StatusUp,
 		LatencyMs: &latencyMs,
 	}
+}
 
-	if breakerState != "" {
-		check.BreakerState = breakerState
+// normalizeRabbitMQHealthURL points a management URL at the alarms health check
+// endpoint. A URL that already ends with the cluster-wide or node-local alarms
+// path is kept as-is (without a trailing slash); any other non-empty URL gets
+// the cluster-wide alarms path appended. An empty URL stays empty.
+func normalizeRabbitMQHealthURL(raw string) string {
+	if raw == "" {
+		return ""
 	}
 
-	return check
+	normalized := strings.TrimSuffix(raw, "/")
+
+	if strings.HasSuffix(normalized, rabbitMQAlarmsHealthPath) ||
+		strings.HasSuffix(normalized, rabbitMQLocalAlarmsHealthPath) {
+		return normalized
+	}
+
+	return normalized + rabbitMQAlarmsHealthPath
 }
 
 // mapCircuitBreakerState maps lib-commons circuit breaker state to string.

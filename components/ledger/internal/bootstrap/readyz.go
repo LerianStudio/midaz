@@ -469,7 +469,7 @@ func buildReadyzHandler(
 	}
 
 	checkers = append(checkers,
-		NewRabbitMQChecker("rabbitmq", cfg.RabbitMQHealthCheckURL, rmqURI, cbManager))
+		NewRabbitMQChecker("rabbitmq", cfg.RabbitMQHealthCheckURL, rmqURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cbManager))
 
 	// Build TLS validation results from already-created checkers.
 	tlsResults := make([]TLSValidationResult, 0, len(checkers))

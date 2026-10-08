@@ -8,10 +8,13 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -103,7 +106,7 @@ func TestRabbitMQChecker_CircuitBreakerClosed(t *testing.T) {
 	t.Parallel()
 
 	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateClosed}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
+	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
 
 	result := checker.Check(context.Background())
 
@@ -117,7 +120,7 @@ func TestRabbitMQChecker_CircuitBreakerOpen(t *testing.T) {
 	t.Parallel()
 
 	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
+	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
 
 	result := checker.Check(context.Background())
 
@@ -130,7 +133,7 @@ func TestRabbitMQChecker_CircuitBreakerHalfOpen(t *testing.T) {
 	t.Parallel()
 
 	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateHalfOpen}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
+	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
 
 	result := checker.Check(context.Background())
 
@@ -143,7 +146,7 @@ func TestRabbitMQChecker_NilCircuitBreakerManager(t *testing.T) {
 	t.Parallel()
 
 	// When cbManager is nil, should not panic and should check health URL
-	checker := NewRabbitMQChecker("rabbitmq", "", "", nil)
+	checker := NewRabbitMQChecker("rabbitmq", "", "", "", "", nil)
 
 	result := checker.Check(context.Background())
 
@@ -180,7 +183,7 @@ func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
 
 	// Create a checker that will report degraded status
 	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen}
-	degradedChecker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
+	degradedChecker := NewRabbitMQChecker("rabbitmq", "", "", "", "", cbManager)
 
 	latency := int64(5)
 
@@ -213,6 +216,309 @@ func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
 	assert.False(t, allHealthy, "degraded should affect overall health")
 	assert.Equal(t, StatusDegraded, checks["rabbitmq"].Status)
 	assert.Equal(t, StatusUp, checks["redis"].Status)
+}
+
+// =============================================================================
+
+// =============================================================================
+// RabbitMQ Probe Tests
+// =============================================================================
+
+func TestNormalizeRabbitMQHealthURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"root", "http://rabbitmq:15672", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"root_with_trailing_slash", "http://rabbitmq:15672/", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"https_root", "https://rabbitmq:15671", "https://rabbitmq:15671/api/health/checks/alarms"},
+		{"already_alarms", "http://rabbitmq:15672/api/health/checks/alarms", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"already_alarms_with_trailing_slash", "http://rabbitmq:15672/api/health/checks/alarms/", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"already_local_alarms", "http://rabbitmq:15672/api/health/checks/local-alarms", "http://rabbitmq:15672/api/health/checks/local-alarms"},
+		{"already_local_alarms_with_trailing_slash", "http://rabbitmq:15672/api/health/checks/local-alarms/", "http://rabbitmq:15672/api/health/checks/local-alarms"},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, normalizeRabbitMQHealthURL(tt.raw))
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeRootURLUsesAlarmsPathWithBasicAuth(t *testing.T) {
+	t.Parallel()
+
+	srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL+"/", "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusUp, result.Status)
+	assert.NotNil(t, result.LatencyMs)
+	assert.Empty(t, result.Error)
+
+	got := lastRequest()
+	assert.Equal(t, "/api/health/checks/alarms", got.path)
+	assert.Equal(t, basicAuthHeader(testRabbitMQUser, testRabbitMQPass), got.authorization)
+}
+
+func TestRabbitMQChecker_ProbeFullURLKeptAsIs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"alarms", "/api/health/checks/alarms"},
+		{"local_alarms", "/api/health/checks/local-alarms"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL+tt.path, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, StatusUp, result.Status)
+			assert.Equal(t, tt.path, lastRequest().path)
+			assert.Equal(t, basicAuthHeader(testRabbitMQUser, testRabbitMQPass), lastRequest().authorization)
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeEmptyCredentialsStillSendsRequest(t *testing.T) {
+	t.Parallel()
+
+	srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", "", "", nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusUp, result.Status)
+	assert.Equal(t, "/api/health/checks/alarms", lastRequest().path)
+	assert.Equal(t, basicAuthHeader("", ""), lastRequest().authorization)
+}
+
+func TestRabbitMQChecker_ProbeNonSuccessStatusIsDown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{"unauthorized", http.StatusUnauthorized},
+		{"forbidden", http.StatusForbidden},
+		{"resource_alarm", http.StatusServiceUnavailable},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, _ := newRabbitMQProbeServer(t, tt.status)
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, StatusDown, result.Status)
+			assert.NotNil(t, result.LatencyMs)
+			assert.Equal(t, fmt.Sprintf("health check returned status %d", tt.status), result.Error)
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeConnectionRefusedIsDown(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	closedURL := srv.URL
+	srv.Close()
+
+	checker := NewRabbitMQChecker("rabbitmq", closedURL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusDown, result.Status)
+	assert.NotNil(t, result.LatencyMs)
+	assert.True(t, strings.HasPrefix(result.Error, "health check request failed: "), result.Error)
+}
+
+func TestRabbitMQChecker_ProbeContextCanceledIsDown(t *testing.T) {
+	t.Parallel()
+
+	srv, _ := newRabbitMQProbeServer(t, http.StatusOK)
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := checker.Check(ctx)
+
+	assert.Equal(t, StatusDown, result.Status)
+	assert.True(t, strings.HasPrefix(result.Error, "health check request failed: "), result.Error)
+	assert.Contains(t, result.Error, context.Canceled.Error())
+}
+
+func TestRabbitMQChecker_ProbeContextDeadlineIsDown(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	result := checker.Check(ctx)
+
+	assert.Equal(t, StatusDown, result.Status)
+	assert.True(t, strings.HasPrefix(result.Error, "health check request failed: "), result.Error)
+	assert.Contains(t, result.Error, context.DeadlineExceeded.Error())
+}
+
+func TestRabbitMQChecker_ProbeEmptyURLIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	checker := NewRabbitMQChecker("rabbitmq", "", "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusSkipped, result.Status)
+	assert.Equal(t, "RABBITMQ_HEALTH_CHECK_URL not configured", result.Reason)
+	assert.Empty(t, result.Error)
+	assert.Nil(t, result.LatencyMs)
+}
+
+func TestRabbitMQChecker_ProbeDoesNotExposeCredentials(t *testing.T) {
+	t.Parallel()
+
+	unauthorized, _ := newRabbitMQProbeServer(t, http.StatusUnauthorized)
+
+	refused := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	refusedURL := refused.URL
+	refused.Close()
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{"rejected_credentials", unauthorized.URL},
+		{"connection_refused", refusedURL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checker := NewRabbitMQChecker("rabbitmq", tt.url, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+			require.Equal(t, StatusDown, result.Status)
+
+			body, err := json.Marshal(result)
+			require.NoError(t, err)
+
+			authHeader := basicAuthHeader(testRabbitMQUser, testRabbitMQPass)
+
+			for _, secret := range []string{testRabbitMQUser, testRabbitMQPass, authHeader} {
+				assert.NotContains(t, checker.healthCheckURL, secret)
+				assert.NotContains(t, result.Error, secret)
+				assert.NotContains(t, string(body), secret)
+			}
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeInvalidURLDoesNotExposeCredentials(t *testing.T) {
+	t.Parallel()
+
+	const (
+		embeddedUser = "embedded-url-user"
+		embeddedPass = "embedded-url-pass"
+	)
+
+	rawURL := "http://" + embeddedUser + ":" + embeddedPass + "@rabbitmq:bad port/"
+	checker := NewRabbitMQChecker("rabbitmq", rawURL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	require.Equal(t, StatusDown, result.Status)
+	assert.Equal(t, "failed to create request: invalid health check URL", result.Error)
+
+	body, err := json.Marshal(result)
+	require.NoError(t, err)
+
+	for _, secret := range []string{embeddedUser, embeddedPass, rawURL, testRabbitMQUser, testRabbitMQPass} {
+		assert.NotContains(t, result.Error, secret)
+		assert.NotContains(t, string(body), secret)
+	}
+}
+
+// testRabbitMQUser and testRabbitMQPass are distinctive placeholders so that
+// leak assertions cannot match unrelated text.
+const (
+	testRabbitMQUser = "readyz-probe-user"
+	testRabbitMQPass = "readyz-probe-pass"
+)
+
+// rabbitMQProbeRequest captures what the fake management API received.
+type rabbitMQProbeRequest struct {
+	path          string
+	authorization string
+}
+
+// newRabbitMQProbeServer starts a fake management API that answers every
+// request with status and returns an accessor for the last request received.
+func newRabbitMQProbeServer(t *testing.T, status int) (*httptest.Server, func() rabbitMQProbeRequest) {
+	t.Helper()
+
+	var (
+		mu   sync.Mutex
+		last rabbitMQProbeRequest
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		last = rabbitMQProbeRequest{path: r.URL.Path, authorization: r.Header.Get("Authorization")}
+		mu.Unlock()
+
+		w.WriteHeader(status)
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv, func() rabbitMQProbeRequest {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return last
+	}
+}
+
+func basicAuthHeader(user, pass string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+pass))
 }
 
 // =============================================================================
