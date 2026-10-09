@@ -14,7 +14,7 @@ Tracer provides instant ALLOW/DENY/REVIEW decisions for financial transactions. 
 ## AI Agent Guides
 
 - [AGENTS.md](AGENTS.md): Universal AI agent entry point — quick start, architecture, conventions, what not to do
-- [CLAUDE.md](CLAUDE.md): Deep reference for AI agents — code patterns, interfaces, commands, configuration, debugging
+- [docs/AGENTS-REFERENCE.md](docs/AGENTS-REFERENCE.md): Deep reference for AI agents — code patterns, interfaces, commands, configuration, debugging
 
 ## API
 
