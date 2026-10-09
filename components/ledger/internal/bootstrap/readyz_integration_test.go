@@ -9,9 +9,11 @@ package bootstrap
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,9 +22,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	tcexec "github.com/testcontainers/testcontainers-go/exec"
 
 	mongoContainer "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	pgContainer "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
+	rabbitmqContainer "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 	redisContainer "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
@@ -365,4 +369,206 @@ func TestReadyz_Integration_ClosedConnection(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, StatusSkipped, response.Checks["redis"].Status)
+}
+
+// Covers the normalized root URL, latency and TLS shape against a real broker;
+// WrongCredentials and ResourceAlarm are the tests an unauthenticated root probe fails.
+func TestReadyz_Integration_RabbitMQ_RootURLHealthy(t *testing.T) {
+	t.Parallel()
+
+	rmq := setupReadyzRabbitMQContainer(t)
+	checker := NewRabbitMQChecker("rabbitmq", rabbitMQManagementRootURL(rmq), rmq.URI,
+		readyzRabbitMQUser, readyzRabbitMQPass, nil)
+
+	statusCode, _, response := serveReadyzRabbitMQ(t, checker, libLog.NewNop())
+
+	assert.Equal(t, http.StatusOK, statusCode)
+	assert.Equal(t, "healthy", response.Status)
+
+	check := response.Checks["rabbitmq"]
+	assert.Equal(t, StatusUp, check.Status)
+	assert.NotNil(t, check.LatencyMs)
+	require.NotNil(t, check.TLS)
+	assert.False(t, *check.TLS)
+	assert.Empty(t, check.Error)
+	assert.Empty(t, check.BreakerState)
+}
+
+func TestReadyz_Integration_RabbitMQ_WrongCredentials(t *testing.T) {
+	t.Parallel()
+
+	const wrongPass = "readyz-it-wrong-pass"
+
+	rmq := setupReadyzRabbitMQContainer(t)
+	checker := NewRabbitMQChecker("rabbitmq", rabbitMQManagementRootURL(rmq), rmq.URI,
+		readyzRabbitMQUser, wrongPass, nil)
+	logger := &cleanupCapturingLogger{Logger: libLog.NewNop()}
+
+	statusCode, body, response := serveReadyzRabbitMQ(t, checker, logger)
+
+	assert.Equal(t, http.StatusServiceUnavailable, statusCode)
+	assert.Equal(t, "unhealthy", response.Status)
+
+	check := response.Checks["rabbitmq"]
+	assert.Equal(t, StatusDown, check.Status)
+	assert.True(t, strings.Contains(check.Error, "status 401"), "rabbitmq error must report status 401")
+
+	warnings := logger.at(libLog.LevelWarn)
+	require.NotEmpty(t, warnings)
+
+	secrets := []struct{ name, value string }{
+		{"broker password", readyzRabbitMQPass},
+		{"wrong password", wrongPass},
+	}
+
+	for _, secret := range secrets {
+		assert.False(t, strings.Contains(string(body), secret.value), "/readyz body must not contain the %s", secret.name)
+
+		for _, entry := range warnings {
+			assert.False(t, strings.Contains(entry.msg, secret.value), "Warn message must not contain the %s", secret.name)
+
+			for key, value := range entry.fields {
+				assert.False(t, strings.Contains(fmt.Sprint(value), secret.value), "Warn field %q must not contain the %s", key, secret.name)
+			}
+		}
+	}
+}
+
+func TestReadyz_Integration_RabbitMQ_ResourceAlarm(t *testing.T) {
+	t.Parallel()
+
+	// Isolated container: the test raises a broker-wide memory alarm.
+	rmq := setupReadyzRabbitMQContainer(t)
+
+	execRabbitMQ(t, rmq, "rabbitmqctl", "set_vm_memory_high_watermark", "0.0000001")
+
+	t.Cleanup(func() {
+		execRabbitMQ(t, rmq, "rabbitmqctl", "set_vm_memory_high_watermark", "0.4")
+		waitForRabbitMQMemoryAlarm(t, rmq, false)
+	})
+
+	waitForRabbitMQMemoryAlarm(t, rmq, true)
+
+	checker := NewRabbitMQChecker("rabbitmq", rabbitMQManagementRootURL(rmq), rmq.URI,
+		readyzRabbitMQUser, readyzRabbitMQPass, nil)
+
+	statusCode, _, response := serveReadyzRabbitMQ(t, checker, libLog.NewNop())
+
+	assert.Equal(t, http.StatusServiceUnavailable, statusCode)
+	assert.Equal(t, "unhealthy", response.Status)
+
+	check := response.Checks["rabbitmq"]
+	assert.Equal(t, StatusDown, check.Status)
+	assert.Contains(t, check.Error, "status 503")
+}
+
+func TestReadyz_Integration_RabbitMQ_FullURLKept(t *testing.T) {
+	t.Parallel()
+
+	rmq := setupReadyzRabbitMQContainer(t)
+	fullURL := rabbitMQManagementRootURL(rmq) + "/api/health/checks/local-alarms"
+	checker := NewRabbitMQChecker("rabbitmq", fullURL, rmq.URI,
+		readyzRabbitMQUser, readyzRabbitMQPass, nil)
+
+	assert.Equal(t, fullURL, checker.healthCheckURL)
+
+	statusCode, _, response := serveReadyzRabbitMQ(t, checker, libLog.NewNop())
+
+	assert.Equal(t, http.StatusOK, statusCode)
+	assert.Equal(t, StatusUp, response.Checks["rabbitmq"].Status)
+	assert.NotNil(t, response.Checks["rabbitmq"].LatencyMs)
+}
+
+// readyzRabbitMQUser and readyzRabbitMQPass are distinctive broker credentials
+// so leak assertions cannot match unrelated response or log text.
+const (
+	readyzRabbitMQUser = "readyz-it-user"
+	readyzRabbitMQPass = "readyz-it-pass"
+
+	rabbitMQAlarmWaitTimeout  = 30 * time.Second
+	rabbitMQAlarmPollInterval = 500 * time.Millisecond
+	rabbitMQExecTimeout       = 30 * time.Second
+)
+
+func setupReadyzRabbitMQContainer(t *testing.T) *rabbitmqContainer.ContainerResult {
+	t.Helper()
+
+	cfg := rabbitmqContainer.DefaultContainerConfig()
+	cfg.User = readyzRabbitMQUser
+	cfg.Password = readyzRabbitMQPass
+
+	return rabbitmqContainer.SetupContainerWithConfig(t, cfg)
+}
+
+func rabbitMQManagementRootURL(rmq *rabbitmqContainer.ContainerResult) string {
+	return "http://" + rmq.Host + ":" + rmq.MgmtPort
+}
+
+// serveReadyzRabbitMQ runs a single /readyz request against a handler holding
+// only the given RabbitMQ checker and returns the status code, raw body and
+// decoded response.
+func serveReadyzRabbitMQ(t *testing.T, checker *RabbitMQChecker, logger libLog.Logger) (int, []byte, ReadyzResponse) {
+	t.Helper()
+
+	handler := newReadyHandler(ReadyzHandlerConfig{
+		Logger:         logger,
+		Checkers:       []DependencyChecker{checker},
+		DeploymentMode: "local",
+	})
+
+	app := fiber.New()
+	app.Get("/readyz", handler.HandleReadyz)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 10000 * time.Millisecond, FailOnTimeout: true})
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response ReadyzResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+
+	return resp.StatusCode, body, response
+}
+
+// execRabbitMQ runs a command inside the broker container and fails the test on
+// a non-zero exit code, returning the combined output.
+func execRabbitMQ(t *testing.T, rmq *rabbitmqContainer.ContainerResult, cmd ...string) string {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), rabbitMQExecTimeout)
+	defer cancel()
+
+	exitCode, reader, err := rmq.Container.Exec(ctx, cmd, tcexec.Multiplexed())
+	require.NoError(t, err, "exec %v", cmd)
+
+	output, err := io.ReadAll(reader)
+	require.NoError(t, err, "read exec output %v", cmd)
+	require.Zero(t, exitCode, "exec %v: %s", cmd, output)
+
+	return string(output)
+}
+
+// waitForRabbitMQMemoryAlarm polls the broker until its memory alarm is active
+// (want=true) or cleared (want=false), failing after rabbitMQAlarmWaitTimeout.
+func waitForRabbitMQMemoryAlarm(t *testing.T, rmq *rabbitmqContainer.ContainerResult, want bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(rabbitMQAlarmWaitTimeout)
+
+	var output string
+
+	for time.Now().Before(deadline) {
+		output = execRabbitMQ(t, rmq, "rabbitmq-diagnostics", "alarms")
+		if strings.Contains(strings.ToLower(output), "memory") == want {
+			return
+		}
+
+		time.Sleep(rabbitMQAlarmPollInterval)
+	}
+
+	t.Fatalf("memory alarm active=%t not observed within %s; last output: %s", want, rabbitMQAlarmWaitTimeout, output)
 }
