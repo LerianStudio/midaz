@@ -59,6 +59,12 @@ type Service struct {
 	// client) so Run() can skip registering a no-op Launcher app. Non-nil
 	// only for transports that expose Close() error.
 	TracerClose func() error
+	// SystemFacts holds the System Facts producer wiring: the recorder the
+	// completion Store records through (always non-nil) and the producer whose
+	// forwarder drains the outbox (nil when SYSTEM_FACTS_ENABLED=false). The
+	// forwarder is not started yet; a later unit registers its Launcher app
+	// and readiness probe from here.
+	SystemFacts *systemFactsComponents
 	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
 	// invoke Register/Deregister/Resolve unconditionally. The concrete Manager

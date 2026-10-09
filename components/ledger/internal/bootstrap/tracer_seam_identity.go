@@ -53,8 +53,12 @@ type tracerSeamDeps struct {
 	authClient          *middleware.AuthClient
 	minter              tracerclient.TokenMinter
 	tenantServiceName   string
-	newAWSSecretsClient func(ctx context.Context) (secretsmanager.SecretsManagerClient, error)
+	newAWSSecretsClient awsSecretsClientFactory
 }
+
+// awsSecretsClientFactory builds the AWS Secrets Manager client a tenant M2M
+// credential reader uses when AWS is the custody backend.
+type awsSecretsClientFactory func(ctx context.Context) (secretsmanager.SecretsManagerClient, error)
 
 // buildTracerSeamIdentity selects the one credential every seam call carries.
 // With PLUGIN_AUTH_ENABLED=true it is an Access Manager application token: the
@@ -150,7 +154,7 @@ func buildTracerSeamCredentials(ctx context.Context, cfg *Config, deps tracerSea
 		return "", nil, errors.New("reservation seam tenant credentials require APPLICATION_NAME, the ledger's tenant-manager service name")
 	}
 
-	reader, err := buildM2MSecretsReader(ctx, cfg, deps)
+	reader, err := buildM2MSecretsReader(ctx, cfg, deps.newAWSSecretsClient)
 	if err != nil {
 		return "", nil, err
 	}
@@ -169,8 +173,10 @@ func buildTracerSeamCredentials(ctx context.Context, cfg *Config, deps tracerSea
 // M2M_SECRETS_BACKEND selects: AWS Secrets Manager by default, or Vault KV v2
 // under M2M_VAULT_MOUNT, connected through Vault's own environment (VAULT_ADDR,
 // VAULT_TOKEN, VAULT_CACERT, VAULT_NAMESPACE). An unknown backend refuses boot;
-// a selected backend that cannot be built never falls back to the other.
-func buildM2MSecretsReader(ctx context.Context, cfg *Config, deps tracerSeamDeps) (secretsmanager.SecretsManagerClient, error) {
+// a selected backend that cannot be built never falls back to the other. It
+// serves every tenant M2M credential the ledger reads (tracer seam, System
+// Facts); newAWSClient overrides the default AWS credential chain.
+func buildM2MSecretsReader(ctx context.Context, cfg *Config, newAWSClient awsSecretsClientFactory) (secretsmanager.SecretsManagerClient, error) {
 	backend, err := secretsmanager.ParseBackend(cfg.M2MSecretsBackend)
 	if err != nil {
 		return nil, fmt.Errorf("M2M_SECRETS_BACKEND: %w", err)
@@ -179,14 +185,13 @@ func buildM2MSecretsReader(ctx context.Context, cfg *Config, deps tracerSeamDeps
 	var awsClient secretsmanager.SecretsManagerClient
 
 	if backend == secretsmanager.BackendAWS {
-		newAWSClient := deps.newAWSSecretsClient
 		if newAWSClient == nil {
 			newAWSClient = newAWSSecretsManagerClient
 		}
 
 		awsClient, err = newAWSClient(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("build the secret store client for the reservation seam M2M credentials: %w", err)
+			return nil, fmt.Errorf("build the secret store client for the tenant M2M credentials: %w", err)
 		}
 	}
 
@@ -197,7 +202,7 @@ func buildM2MSecretsReader(ctx context.Context, cfg *Config, deps tracerSeamDeps
 
 	reader, err := custody.NewReader(awsClient)
 	if err != nil {
-		return nil, fmt.Errorf("build the secret store reader for the reservation seam M2M credentials: %w", err)
+		return nil, fmt.Errorf("build the secret store reader for the tenant M2M credentials: %w", err)
 	}
 
 	return reader, nil

@@ -376,6 +376,36 @@ type Config struct {
 	TracerAPIKey            string `env:"TRACER_API_KEY" json:"-"`
 	M2MSecretsBackend       string `env:"M2M_SECRETS_BACKEND"`
 	M2MVaultMount           string `env:"M2M_VAULT_MOUNT"`
+
+	// --- System Facts producer ---
+	// SYSTEM_FACTS_ENABLED is the escape hatch for the System Facts integration
+	// as a whole: false (the default) wires the kit's no-op emitter, builds no
+	// producer and reads none of the other SYSTEM_FACTS_* values. When true,
+	// SystemFactsURL is the service the outbox forwarder delivers to and the
+	// registry the boot-time preflight reads; the producer authenticates with an
+	// Access Manager application token, so PLUGIN_AUTH_ENABLED=true is required.
+	// The credential is SystemFactsM2MClientID/SystemFactsM2MClientSecret in
+	// single-tenant mode (both required), or each tenant's own credential in the
+	// secret store in multi-tenant mode (M2MSecretsBackend, M2MVaultMount), at
+	// tenants/{ENV_NAME}/{tenant}/{APPLICATION_NAME}/m2m/system-facts/credentials.
+	// SystemFactsInsecureHTTP admits a plaintext http:// URL to a non-loopback
+	// host (the token and the client secret ride every call) and is accepted
+	// only under DEPLOYMENT_MODE=local; loopback never needs it.
+	// SystemFactsPreflightTimeoutMs bounds the read-only contract preflight at
+	// boot (default 10000, allowed 1000..60000). A preflight that does not
+	// answer OK keeps emission off and never refuses boot.
+	// SystemFactsRetentionInvalidHours is how long the forwarder keeps INVALID
+	// outbox records before sweeping them; 0 (the default, and the kit's) keeps
+	// them. Those records hold the fact payload, so the value is Security's to
+	// decide and is left at the kit default until then.
+	// SystemFactsM2MClientSecret MUST NOT be logged, span-attached or serialized.
+	SystemFactsEnabled               bool   `env:"SYSTEM_FACTS_ENABLED"`
+	SystemFactsURL                   string `env:"SYSTEM_FACTS_URL"`
+	SystemFactsM2MClientID           string `env:"SYSTEM_FACTS_M2M_CLIENT_ID"`
+	SystemFactsM2MClientSecret       string `env:"SYSTEM_FACTS_M2M_CLIENT_SECRET" json:"-"`
+	SystemFactsInsecureHTTP          bool   `env:"SYSTEM_FACTS_INSECURE_HTTP"`
+	SystemFactsPreflightTimeoutMs    int    `env:"SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS"`
+	SystemFactsRetentionInvalidHours int    `env:"SYSTEM_FACTS_RETENTION_INVALID_HOURS"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -428,6 +458,48 @@ func validateBootAuthGates(cfg *Config) error {
 	return nil
 }
 
+// validateSystemFactsConfig enforces the invariants of an enabled System Facts
+// producer before any infrastructure opens. With SYSTEM_FACTS_ENABLED=false
+// nothing else is read, so a disabled deployment never trips on stale values.
+func validateSystemFactsConfig(cfg *Config) error {
+	if !cfg.SystemFactsEnabled {
+		return nil
+	}
+
+	if strings.TrimSpace(cfg.SystemFactsURL) == "" {
+		return errors.New("SYSTEM_FACTS_ENABLED=true requires SYSTEM_FACTS_URL, the System Facts service the producer delivers to")
+	}
+
+	if !cfg.AuthEnabled {
+		return errors.New("SYSTEM_FACTS_ENABLED=true requires PLUGIN_AUTH_ENABLED=true: the producer authenticates with an Access Manager application token")
+	}
+
+	if !cfg.MultiTenantEnabled {
+		if strings.TrimSpace(cfg.SystemFactsM2MClientID) == "" {
+			return errors.New("SYSTEM_FACTS_ENABLED=true requires SYSTEM_FACTS_M2M_CLIENT_ID in single-tenant mode")
+		}
+
+		if strings.TrimSpace(cfg.SystemFactsM2MClientSecret) == "" {
+			return errors.New("SYSTEM_FACTS_ENABLED=true requires SYSTEM_FACTS_M2M_CLIENT_SECRET in single-tenant mode")
+		}
+	}
+
+	if cfg.SystemFactsInsecureHTTP && !isLocalDeployment(cfg.DeploymentMode) {
+		return fmt.Errorf("SYSTEM_FACTS_INSECURE_HTTP=true is only allowed when DEPLOYMENT_MODE=local (got %q): the token and the client secret ride every call",
+			ResolveDeploymentMode(cfg.DeploymentMode))
+	}
+
+	if _, err := systemFactsPreflightTimeout(cfg); err != nil {
+		return err
+	}
+
+	if cfg.SystemFactsRetentionInvalidHours < 0 {
+		return fmt.Errorf("invalid SYSTEM_FACTS_RETENTION_INVALID_HOURS %d: expected 0 or more", cfg.SystemFactsRetentionInvalidHours)
+	}
+
+	return nil
+}
+
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
 // It directly initializes all infrastructure (PG, Mongo, Redis, RabbitMQ) instead of delegating
 // to onboarding/transaction sub-modules.
@@ -447,6 +519,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	}
 
 	if err := validateBootAuthGates(cfg); err != nil {
+		return nil, err
+	}
+
+	if err := validateSystemFactsConfig(cfg); err != nil {
 		return nil, err
 	}
 
@@ -1149,6 +1225,26 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.TracerReserver = tracerReserver
 	commandUseCase.TracerClientTimeout = time.Duration(cfg.TracerTimeoutMs) * time.Millisecond
 
+	// === System Facts producer ===
+	// Built after the Access Manager client, which mints the producer token,
+	// and before the completion Store, which records through its recorder.
+	// With SYSTEM_FACTS_ENABLED=false the recorder wraps the kit's no-op emitter
+	// and no producer exists, mirroring the streaming NoopEmitter escape hatch.
+	systemFactsTracer, systemFactsMeterProvider := systemFactsTelemetry(telemetry)
+
+	systemFacts, err := buildSystemFacts(context.Background(), cfg, logger, systemFactsTracer, systemFactsMeterProvider,
+		txnPG.connection, txnPG.pgManager, systemFactsDeps{
+			authClient:        auth,
+			tenantServiceName: internalOpts.TenantServiceName,
+			tenantClient:      internalOpts.TenantClient,
+			metricsFactory:    metricsFactory,
+		})
+	if err != nil {
+		doCleanup()
+
+		return nil, fmt.Errorf("system facts: %w", err)
+	}
+
 	// === Multi-tenant middleware ===
 
 	routeSetup, err := buildUnifiedRouteSetup(cfg, logger, onbPG.pgManager, txnPG.pgManager, onbMgo.mongoManager, txnMgo.mongoManager, crmMgo.mongoManager, feeMgo.mongoManager, tenantCache, tenantLoader)
@@ -1265,7 +1361,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		recoveryMongo = txnMgo.mongoManager
 	}
 
-	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo, feeMgo.feeDebtRepo, cfg.BulkRecorderMaxRowsPerInsert); err != nil {
+	if err := configureAppliedTransactionCompletion(redisConsumer, commandUseCase, cfg.MultiTenantEnabled, recoveryMongo, feeMgo.feeDebtRepo, systemFacts.recorder, cfg.BulkRecorderMaxRowsPerInsert); err != nil {
 		doCleanup()
 
 		return nil, fmt.Errorf("failed to configure engine finalization: %w", err)
@@ -1364,6 +1460,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		StreamingEnabled:         cfg.StreamingEnabled,
 		DeclarationStops:         declarationStops,
 		TracerClose:              tracerClose,
+		SystemFacts:              systemFacts,
 		ServiceDiscovery:         sd.manager,
 		ServiceDiscoveryEnabled:  sd.enabled,
 		ServiceDescriptor:        sd.descriptor,
