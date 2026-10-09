@@ -6,11 +6,10 @@ package command
 
 import (
 	"context"
-	"os"
-	"strings"
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/vmihailenco/msgpack/v5"
@@ -19,12 +18,12 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// WriteTransaction routes the transaction to sync or async execution
-	// based on the RABBITMQ_TRANSACTION_ASYNC environment variable.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// WriteTransaction persists an annotation before the caller answers. It writes
+// directly to the database whatever RABBITMQ_TRANSACTION_ASYNC says: the legacy
+// queue publish has no broker confirmation, so a successful publish would not
+// prove the annotation is durable.
 func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) (err error) {
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -34,84 +33,7 @@ func (uc *UseCase) WriteTransaction(ctx context.Context, organizationID, ledgerI
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_transaction", start, err)
 	}()
 
-	if strings.ToLower(os.Getenv("RABBITMQ_TRANSACTION_ASYNC")) == "true" {
-		return uc.WriteTransactionAsync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
-	}
-
 	return uc.WriteTransactionSync(ctx, organizationID, ledgerID, transactionInput, validate, blc, blcAfter, tran)
-}
-
-// WriteTransactionAsync publishes the transaction payload to RabbitMQ
-// for asynchronous processing. Falls back to direct DB write if queue fails.
-func (uc *UseCase) WriteTransactionAsync(ctx context.Context, organizationID, ledgerID uuid.UUID, transactionInput *mtransaction.Transaction, validate *mtransaction.Responses, blc []*mmodel.Balance, blcAfter []*mmodel.Balance, tran *transaction.Transaction) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "command.write_transaction_async")
-	defer span.End()
-
-	queueData := make([]mmodel.QueueData, 0, 1)
-
-	value := transaction.TransactionProcessingPayload{
-		Validate:      validate,
-		Balances:      blc,
-		BalancesAfter: blcAfter,
-		Transaction:   tran,
-		Input:         transactionInput,
-		Version:       "v2",
-	}
-
-	marshal, err := msgpack.Marshal(value)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to marshal transaction to JSON string", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to marshal validate to JSON string", libLog.Err(err))
-
-		return err
-	}
-
-	queueData = append(queueData, mmodel.QueueData{
-		ID:    tran.IDtoUUID(),
-		Value: marshal,
-	})
-
-	queueMessage := mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		QueueData:      queueData,
-	}
-
-	message, err := msgpack.Marshal(queueMessage)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to marshal exchange message struct", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to marshal exchange message struct")
-
-		return err
-	}
-
-	// ProducerDefaultWithContext handles scoped timeout internally.
-	// If it fails, we fall back to direct DB write using the original context
-	// which still has remaining HTTP timeout.
-	if _, err := uc.RabbitMQRepo.ProducerDefaultWithContext(
-		ctx,
-		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_EXCHANGE"),
-		os.Getenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_KEY"),
-		message,
-	); err != nil {
-		logger.Log(ctx, libLog.LevelWarn, "Failed to send message to queue", libLog.Err(err))
-
-		// Use original context for fallback - it still has remaining HTTP timeout
-		err = uc.CreateBalanceTransactionOperationsAsync(ctx, queueMessage)
-		if err != nil {
-			recordCommandError(ctx, span, logger, "Failed to send message directly to database", err)
-
-			return err
-		}
-
-		return nil
-	}
-
-	return nil
 }
 
 // WriteTransactionSync performs direct database writes for balance updates,

@@ -171,7 +171,7 @@ func TestCreateBalanceTransactionOperationsAsync_EmitterFanOutDrains(t *testing.
 		QueueData:      []mmodel.QueueData{{ID: uuid.New(), Value: payloadBytes}},
 	}
 
-	mockTransactionRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(tran, nil).AnyTimes()
+	expectLegacyTransactionWrite(mockTransactionRepo, true)
 	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockRabbitMQRepo.EXPECT().
 		ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).

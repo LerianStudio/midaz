@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
@@ -22,10 +24,11 @@ import (
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 -source=producer.rabbitmq.go -destination=producer.rabbitmq_mock.go -package=rabbitmq
 type ProducerRepository interface {
+	// ProducerDefault publishes a persistent message and returns only after the
+	// broker confirms it. A nack, a channel closed before the confirmation, or a
+	// wait that outlives the caller's deadline or the producer's confirmation
+	// ceiling is returned as an error.
 	ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error)
-	// ProducerDefaultWithContext sends message with explicit context timeout control.
-	// The context deadline/timeout controls how long to wait for RabbitMQ connection.
-	ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error)
 	CheckRabbitMQHealth() bool
 	// Close releases any resources held by the producer (AMQP channel and connection).
 	// Safe to call multiple times or on nil receivers.
@@ -34,18 +37,25 @@ type ProducerRepository interface {
 
 // ProducerRabbitMQRepository is a rabbitmq implementation of the producer
 type ProducerRabbitMQRepository struct {
-	conn *libRabbitmq.RabbitMQConnection
+	conn           *libRabbitmq.RabbitMQConnection
+	confirmTimeout time.Duration
+
+	// confirmMu guards confirmingChannel, the last shared channel put in
+	// confirm mode; a channel recreated by a reconnect is a different pointer.
+	confirmMu         sync.Mutex
+	confirmingChannel *amqp.Channel
 }
 
 // NewProducerRabbitMQ returns a new instance of ProducerRabbitMQRepository using the given rabbitmq connection.
 // Returns an error if the connection cannot be established.
-func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection) (*ProducerRabbitMQRepository, error) {
+func NewProducerRabbitMQ(c *libRabbitmq.RabbitMQConnection, opts ...ProducerOption) (*ProducerRabbitMQRepository, error) {
 	if c == nil {
 		return nil, fmt.Errorf("rabbitmq connection cannot be nil")
 	}
 
 	prmq := &ProducerRabbitMQRepository{
-		conn: c,
+		conn:           c,
+		confirmTimeout: newProducerSettings(opts).confirmTimeout,
 	}
 
 	_, err := c.GetNewConnect()
@@ -70,7 +80,9 @@ func (prmq *ProducerRabbitMQRepository) CheckRabbitMQHealth() bool {
 	return healthy
 }
 
-// ProducerDefault sends a message to a RabbitMQ queue for further processing.
+// ProducerDefault publishes on the connection's shared channel. Concurrent
+// publishers keep their own confirmation through the per-message deferred
+// confirmation, so the channel is never serialized around the wait.
 func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -102,7 +114,17 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 		return nil, err
 	}
 
-	err := ch.Publish(
+	publishCtx, cancel := context.WithTimeout(ctx, prmq.confirmTimeout)
+	defer cancel()
+
+	if err := prmq.ensureConfirmMode(ch); err != nil {
+		libOpentelemetry.HandleSpanError(spanProducer, "Failed to enable publisher confirms", err)
+
+		return nil, err
+	}
+
+	confirmation, err := ch.PublishWithDeferredConfirmWithContext(
+		publishCtx,
 		exchange,
 		key,
 		false,
@@ -116,6 +138,12 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanProducer, "Failed to publish message", err)
+
+		return nil, err
+	}
+
+	if err := awaitDeferredConfirmation(publishCtx, confirmation, ch.IsClosed); err != nil {
+		libOpentelemetry.HandleSpanError(spanProducer, "Publish was not confirmed by the broker", err)
 
 		return nil, err
 	}
@@ -123,58 +151,21 @@ func (prmq *ProducerRabbitMQRepository) ProducerDefault(ctx context.Context, exc
 	return nil, nil
 }
 
-// ProducerDefaultWithContext sends a message to RabbitMQ with context-aware timeout.
-// Uses EnsureChannelWithContext to respect context deadline for connection attempts.
-func (prmq *ProducerRabbitMQRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+func (prmq *ProducerRabbitMQRepository) ensureConfirmMode(ch *amqp.Channel) error {
+	prmq.confirmMu.Lock()
+	defer prmq.confirmMu.Unlock()
 
-	// Rebind ctx: the publish span's trace context is injected into the message
-	// headers below so the consumer can continue the trace.
-	ctx, spanProducer := tracer.Start(ctx, "rabbitmq.producer.publish_message_with_context")
-	defer spanProducer.End()
-
-	headers := amqp.Table{
-		libConstants.HeaderID: reqId,
+	if prmq.confirmingChannel == ch {
+		return nil
 	}
 
-	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
-
-	if err := prmq.conn.EnsureChannelContext(ctx); err != nil {
-		libOpentelemetry.HandleSpanError(spanProducer, "Failed to ensure channel with context", err)
-
-		return nil, err
+	if err := ch.Confirm(false); err != nil {
+		return fmt.Errorf("enable publisher confirms: %w", err)
 	}
 
-	// Use ChannelSnapshot to get a consistent channel reference under lock,
-	// avoiding a TOCTOU race where another goroutine's reconnection could
-	// replace the channel between EnsureChannelContext and Publish.
-	ch := prmq.conn.ChannelSnapshot()
-	if ch == nil {
-		err := fmt.Errorf("rabbitmq channel unavailable after ensure")
-		libOpentelemetry.HandleSpanError(spanProducer, "Channel snapshot returned nil", err)
+	prmq.confirmingChannel = ch
 
-		return nil, err
-	}
-
-	err := ch.Publish(
-		exchange,
-		key,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType:  "application/json",
-			DeliveryMode: amqp.Persistent,
-			Headers:      headers,
-			Body:         message,
-		},
-	)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanProducer, "Failed to publish message", err)
-
-		return nil, err
-	}
-
-	return nil, nil
+	return nil
 }
 
 // Close releases AMQP channel and connection resources.

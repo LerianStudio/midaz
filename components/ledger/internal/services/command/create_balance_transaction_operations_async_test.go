@@ -13,7 +13,6 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
 // Int64Ptr returns a pointer to the given int64 value
@@ -47,6 +47,23 @@ func (m *MockLogger) WithGroup(_ string) libLog.Logger { return m }
 func (m *MockLogger) Enabled(_ int) bool { return true }
 
 func (m *MockLogger) Sync(_ context.Context) error { return nil }
+
+// expectLegacyTransactionWrite expects the database transaction of one legacy
+// write and its transaction insert, reporting the row as inserted or as already
+// present. The returned double records whether the write committed.
+func expectLegacyTransactionWrite(repo *transaction.MockRepository, rowInserted bool) *mockDBTransaction {
+	dbTx := &mockDBTransaction{}
+	result := &repository.BulkInsertResult{Attempted: 1, Ignored: 1}
+
+	if rowInserted {
+		result = &repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{"inserted"}}
+	}
+
+	repo.EXPECT().BeginTx(gomock.Any()).Return(dbTx, nil).Times(1)
+	repo.EXPECT().CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).Return(result, nil).Times(1)
+
+	return dbTx
+}
 
 func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 	t.Run("success_append_only_transaction_and_operations", func(t *testing.T) {
@@ -159,11 +176,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
-			Times(1)
+		dbTx := expectLegacyTransactionWrite(mockTransactionRepo, true)
 
 		// Mock MetadataRepo.Create for transaction metadata
 		mockMetadataRepo.EXPECT().
@@ -193,9 +206,11 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err)
+		assert.True(t, dbTx.commitCalled, "the write must commit")
+		assert.False(t, dbTx.rollbackCalled)
 	})
 
-	t.Run("error_duplicate_transaction", func(t *testing.T) {
+	t.Run("existing_transaction_row_is_an_idempotent_noop", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -284,14 +299,10 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create with duplicate key error
-		pgErr := &pgconn.PgError{Code: "23505"}
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
-			Times(1)
+		// The insert reports the row as already present.
+		dbTx := expectLegacyTransactionWrite(mockTransactionRepo, false)
 
-		// Mock MetadataRepo.Create for transaction metadata (should be called even with duplicate error)
+		// Mock MetadataRepo.Create for transaction metadata (written again on a retry)
 		mockMetadataRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any(), gomock.Any()).
 			Return(nil).
@@ -317,7 +328,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		assert.NoError(t, err)
+		assert.True(t, dbTx.commitCalled)
 	})
 
 	t.Run("success_with_multiple_operations", func(t *testing.T) {
@@ -489,11 +501,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
-			Times(1)
+		dbTx := expectLegacyTransactionWrite(mockTransactionRepo, true)
 
 		// Mock MetadataRepo.Create for transaction metadata
 		mockMetadataRepo.EXPECT().
@@ -501,7 +509,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for both operations and assert versions exist.
+		// Mock OperationRepo.CreateBulkTx for both operations and assert versions exist.
 		// Identity is asserted by ID inside DoAndReturn — direct struct equality
 		// against operation1 / operation2 isn't usable here because the
 		// transaction payload survives a msgpack round-trip via the queue, and
@@ -517,34 +525,38 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			operation2.ID: operation2,
 		}
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, op *operation.Operation) (*operation.Operation, error) {
-				exp, ok := expectedOps[op.ID]
-				require.True(t, ok, "unexpected operation ID: %s", op.ID)
-				delete(expectedOps, op.ID)
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ repository.DBExecutor, ops []*operation.Operation) (*repository.BulkInsertResult, error) {
+				require.Len(t, ops, 2)
 
-				assert.NotNil(t, op.Balance.Version)
-				assert.NotNil(t, op.BalanceAfter.Version)
+				for _, op := range ops {
+					exp, ok := expectedOps[op.ID]
+					require.True(t, ok, "unexpected operation ID: %s", op.ID)
+					delete(expectedOps, op.ID)
 
-				// Always-populated snapshot contract: msgpack must preserve snapshot fields.
-				assert.Equal(t, exp.Snapshot.OverdraftUsedBefore, op.Snapshot.OverdraftUsedBefore,
-					"msgpack must preserve Snapshot.OverdraftUsedBefore for op %s", op.ID)
-				assert.Equal(t, exp.Snapshot.OverdraftUsedAfter, op.Snapshot.OverdraftUsedAfter,
-					"msgpack must preserve Snapshot.OverdraftUsedAfter for op %s", op.ID)
+					assert.NotNil(t, op.Balance.Version)
+					assert.NotNil(t, op.BalanceAfter.Version)
 
-				// Decimal-aware equality survives msgpack big.Int normalization
-				// (decimal.Zero{} vs decimal.NewFromInt(0) are .Equal() but not
-				// reflect.DeepEqual).
-				assert.True(t, op.Balance.OverdraftUsed.Equal(exp.Balance.OverdraftUsed),
-					"msgpack must preserve Balance.OverdraftUsed for op %s: got %s want %s",
-					op.ID, op.Balance.OverdraftUsed.String(), exp.Balance.OverdraftUsed.String())
-				assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed),
-					"msgpack must preserve BalanceAfter.OverdraftUsed for op %s: got %s want %s",
-					op.ID, op.BalanceAfter.OverdraftUsed.String(), exp.BalanceAfter.OverdraftUsed.String())
+					// Always-populated snapshot contract: msgpack must preserve snapshot fields.
+					assert.Equal(t, exp.Snapshot.OverdraftUsedBefore, op.Snapshot.OverdraftUsedBefore,
+						"msgpack must preserve Snapshot.OverdraftUsedBefore for op %s", op.ID)
+					assert.Equal(t, exp.Snapshot.OverdraftUsedAfter, op.Snapshot.OverdraftUsedAfter,
+						"msgpack must preserve Snapshot.OverdraftUsedAfter for op %s", op.ID)
 
-				return op, nil
+					// Decimal-aware equality survives msgpack big.Int normalization
+					// (decimal.Zero{} vs decimal.NewFromInt(0) are .Equal() but not
+					// reflect.DeepEqual).
+					assert.True(t, op.Balance.OverdraftUsed.Equal(exp.Balance.OverdraftUsed),
+						"msgpack must preserve Balance.OverdraftUsed for op %s: got %s want %s",
+						op.ID, op.Balance.OverdraftUsed.String(), exp.Balance.OverdraftUsed.String())
+					assert.True(t, op.BalanceAfter.OverdraftUsed.Equal(exp.BalanceAfter.OverdraftUsed),
+						"msgpack must preserve BalanceAfter.OverdraftUsed for op %s: got %s want %s",
+						op.ID, op.BalanceAfter.OverdraftUsed.String(), exp.BalanceAfter.OverdraftUsed.String())
+				}
+
+				return &repository.BulkInsertResult{Attempted: 2, Inserted: 2}, nil
 			}).
-			Times(2)
+			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata
 		mockMetadataRepo.EXPECT().
@@ -574,9 +586,10 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
 		assert.NoError(t, err)
+		assert.True(t, dbTx.commitCalled)
 	})
 
-	t.Run("error_creating_operation", func(t *testing.T) {
+	t.Run("error_creating_operation_rolls_back_and_writes_no_metadata", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -703,33 +716,25 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
-			Times(1)
+		dbTx := expectLegacyTransactionWrite(mockTransactionRepo, true)
 
-		// Mock MetadataRepo.Create for transaction metadata
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
-
-		// Mock OperationRepo.Create to return an error for the first operation
+		// No metadata expectation: nothing is written to MongoDB before the
+		// database transaction commits.
 		operationError := errors.New("failed to create operation")
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 			Return(nil, operationError).
 			Times(1)
 
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create operation")
+		require.ErrorIs(t, err, operationError)
+		assert.False(t, dbTx.commitCalled, "a failed operation insert must not commit the transaction row")
+		assert.True(t, dbTx.rollbackCalled)
 	})
 
-	t.Run("error_duplicate_operation", func(t *testing.T) {
+	t.Run("existing_operation_still_gets_its_metadata", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -856,36 +861,23 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
+		dbTx := expectLegacyTransactionWrite(mockTransactionRepo, false)
+
+		// One of the two operations is already persisted.
+		mockOperationRepo.EXPECT().
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 2, Inserted: 1, Ignored: 1}, nil).
 			Times(1)
 
-		// Mock MetadataRepo.Create for transaction metadata
+		metadataWritten := map[string]string{}
 		mockMetadataRepo.EXPECT().
 			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+			DoAndReturn(func(_ context.Context, collection string, meta *mongodb.Metadata) error {
+				metadataWritten[meta.EntityID] = collection
 
-		// Mock OperationRepo.Create to return a duplicate key error for the first operation
-		pgErr := &pgconn.PgError{Code: "23505"}
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(nil, pgErr).
-			Times(1)
-
-		// Mock OperationRepo.Create for the second operation
-		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation2, nil).
-			Times(1)
-
-		// Mock MetadataRepo.Create for operation metadata (only for second operation)
-		mockMetadataRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any(), gomock.Any()).
-			Return(nil).
-			Times(1)
+				return nil
+			}).
+			Times(3)
 
 		// Mock RabbitMQRepo.ProducerDefault for transaction events (goroutine will still be called)
 		mockRabbitMQRepo.EXPECT().
@@ -908,7 +900,13 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.NoError(t, err) // Duplicate key errors are handled gracefully
+		require.NoError(t, err)
+		assert.True(t, dbTx.commitCalled)
+		assert.Equal(t, map[string]string{
+			transactionID: constant.EntityTransaction,
+			operation1.ID: constant.EntityOperation,
+			operation2.ID: constant.EntityOperation,
+		}, metadataWritten, "every operation gets its metadata, including one already persisted")
 	})
 
 	t.Run("error_creating_operation_metadata", func(t *testing.T) {
@@ -1017,11 +1015,7 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 
 		// Note: Balance updates are handled by BalanceSyncWorker, not in this flow
 
-		// Mock TransactionRepo.Create
-		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(tran, nil).
-			Times(1)
+		dbTx := expectLegacyTransactionWrite(mockTransactionRepo, true)
 
 		// Mock MetadataRepo.Create for transaction metadata
 		mockMetadataRepo.EXPECT().
@@ -1029,10 +1023,9 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 			Return(nil).
 			Times(1)
 
-		// Mock OperationRepo.Create for the operation
 		mockOperationRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			Return(operation1, nil).
+			CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
+			Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1}, nil).
 			Times(1)
 
 		// Mock MetadataRepo.Create for operation metadata to return an error
@@ -1045,8 +1038,8 @@ func TestCreateBalanceTransactionOperationsAsync(t *testing.T) {
 		// Call the method
 		err := uc.CreateBalanceTransactionOperationsAsync(ctx, queue)
 
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to create operation metadata")
+		require.ErrorIs(t, err, metadataError)
+		assert.True(t, dbTx.commitCalled, "metadata is written after the rows commit")
 	})
 }
 
@@ -1094,7 +1087,7 @@ func TestCreateBalanceTransactionOperationsAsync_BackupCleanupSurvivesCancelledC
 		payloadBytes, err := msgpack.Marshal(payload)
 		require.NoError(t, err)
 
-		mockTransactionRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(tran, nil).Times(1)
+		expectLegacyTransactionWrite(mockTransactionRepo, true)
 		mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mockRabbitMQRepo.EXPECT().ProducerDefault(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 		mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -1339,10 +1332,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(tran, nil).
-		AnyTimes()
+	expectLegacyTransactionWrite(mockTransactionRepo, true)
 
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -1367,8 +1357,7 @@ func TestCreateBTOAsync(t *testing.T) {
 		Return(nil).
 		AnyTimes()
 
-	// Call the method - this should not panic
-	uc.CreateBTOSync(ctx, queue)
+	require.NoError(t, uc.CreateBTOSync(ctx, queue))
 }
 
 func TestUpdateTransactionBackupOperations(t *testing.T) {
