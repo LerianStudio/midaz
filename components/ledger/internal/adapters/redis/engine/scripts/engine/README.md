@@ -474,8 +474,9 @@ and each survives any client update of transaction or operation metadata,
 including one that sends no metadata.
 
 Completion projects the result's changes through `FeeDebtRecorder` after the
-metadata is confirmed and before any event. Production always wires it; a nil
-recorder exists only in tests and skips the projection.
+metadata is confirmed. Events are published earlier, once SQL commits, so a
+consumer can receive one before the fee debt is recorded. Production always
+wires it; a nil recorder exists only in tests and skips the projection.
 
 ### Revert
 

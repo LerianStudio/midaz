@@ -6,7 +6,7 @@ Universal entry point for any AI coding agent working on the Tracer codebase.
 
 **Tracer** is a real-time transaction validation and fraud prevention API built by Lerian Studio. It provides instant ALLOW/DENY/REVIEW decisions for financial transactions using CEL rule expressions, multi-scope spending limits, and an immutable audit trail with hash chain verification for SOX/GLBA compliance.
 
-- **Language**: Go 1.27.0 (single root `go.mod` for the midaz monorepo, module `github.com/LerianStudio/midaz/v4` — tracer has no own go.mod)
+- **Language**: Go 1.27.0, toolchain 1.27.2 in Docker builders and CI (single root `go.mod` for the midaz monorepo, module `github.com/LerianStudio/midaz/v4` — tracer has no own go.mod)
 - **Architecture**: Hexagonal Architecture (Ports & Adapters) + CQRS
 - **Database**: PostgreSQL 17
 - **Rule Engine**: Google CEL (cel-go v0.28.1) with in-memory cache
@@ -132,12 +132,48 @@ Always start with tracking + span. Enrich logger with trace context.
 - Run `make generate-docs` from the repo root if the API changed (regenerates ledger, tracer, and reporter together)
 - All code, comments, and docs in English
 
+## Product Console Impact (cross-repo, mandatory)
+
+`product-console` (`LerianStudio/product-console`) is the single admin UI that unifies the product
+frontends. It owns no business data: it consumes this service through a BFF adapter and renders
+it. Tracer is served through `src/core/infrastructure/tracer/` (`TRACER_BASE_PATH`; screens under `src/app/(routes)/tracer/`, lane `develop-tracer`).
+
+**Rule: every backend change in this repo must be evaluated for Product Console impact before the
+PR is opened. When impact exists, the backend change ships together with the matching
+`product-console` change, and the PRs are merged together, never one alone.**
+
+1. **Evaluate.** There is impact when the change alters anything the console consumes or shows:
+   routes, request or response fields, enums and status values, validation rules,
+   pagination/filter/sort, error codes and messages, authorization resources and permissions,
+   the OpenAPI contract, event payloads the UI renders, and config, feature flags or readiness the
+   UI reflects. There is no impact for internal refactors, performance work, tests, CI, infra,
+   observability and docs-only changes, but only when they leave what the console consumes or
+   shows untouched: a docs change that edits the OpenAPI contract, or an infra change that alters
+   a readiness signal the UI reflects, is still impact.
+2. **Record the verdict in every backend PR description**, under a `Product Console impact`
+   heading: `None - <one-line reason>` or `Required - LerianStudio/product-console#<n>`. A backend
+   PR without a verdict is incomplete.
+3. **When the verdict is `Required`, open the console PR in the same working session.** Branch `<type>/<slug>` from the product
+   lane (`develop-<product>` when it exists, `develop-core` otherwise) and target that same lane.
+   `product-console` AGENTS.md section 8 is authoritative for lanes, PR title scopes and promotion.
+   Cross-link both PRs (`Paired with <repo>#<n>`) in both descriptions.
+4. **When the verdict is `Required`, merge together.** Neither PR merges until both are green and ready; then merge them
+   back-to-back in the same window. Rollout is not atomic, so keep the contract additive and
+   backward compatible (new fields optional, no removal or rename without a compatibility
+   window) so each side keeps working against the other's previously released version. If a
+   breaking change is unavoidable, say so in both PR descriptions and coordinate the release
+   order before merging.
+5. **When the verdict is `Required`, validate integrated before merge.** Run the console BFF against this backend on a live
+   stack and drive the affected flow with Playwright (`product-console` AGENTS.md section 6). A
+   green run against a mocked backend does not count.
+6. **Never defer the console side** to a follow-up ticket when the verdict is `Required`.
+
 ## Key Files to Read
 
 | Priority | File | Why |
 |----------|------|-----|
 | 1 | `AGENTS.md` (this file) | Quick orientation |
-| 2 | `CLAUDE.md` | Deep patterns, interfaces, commands, debugging |
+| 2 | `docs/AGENTS-REFERENCE.md` | Deep patterns, interfaces, commands, debugging (`CLAUDE.md` is a symlink to `AGENTS.md`) |
 | 3 | `../../docs/PROJECT_RULES.md` | Monorepo-wide architectural rules and testing standards |
 | 3 | `../../docs/tracer/INVARIANTS.md` | Tracer-specific invariants (CEL, hash-chained audit, migration renumbering, latency budget) |
 | 4 | `.env.example` | All configuration variables |
