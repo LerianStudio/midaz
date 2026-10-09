@@ -49,7 +49,7 @@ func TestIntegrationAbortAtomicTransactionBatchConfirmedRefusal(t *testing.T) {
 		require.NoError(t, container.Client.Del(ctx, recordKey, indexKey, receiptKey, recoveryKey).Err())
 
 		claim := atomicBatchIdempotencyClaim("a")
-		_, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
+		_, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim, "")
 		require.NoError(t, err)
 		prepared := atomicBatchPreparedRecord(false)
 		_, err = repository.TransitionAtomicTransactionBatch(

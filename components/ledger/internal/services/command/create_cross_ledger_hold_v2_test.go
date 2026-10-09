@@ -75,11 +75,16 @@ func TestCreateCrossLedgerHoldV2_PersistsIntentAndExecutesOnlyOrigins(t *testing
 			Debits:  []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerA}},
 			Credits: []CrossLedgerLegScope{{OrganizationID: organizationID, LedgerID: ledgerB}},
 		},
-		IdempotencyKey: "hold-key",
-		IdempotencyTTL: time.Minute,
+		CanonicalRequest:        []byte(`HOLD-raw`),
+		KeyedRequestFingerprint: "keyed-hold-fingerprint",
+		IdempotencyKey:          "hold-key",
+		IdempotencyTTL:          time.Minute,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, groupID, result.BatchID)
+	assert.Equal(t, []byte(`HOLD-raw`), capturedBatch.CanonicalRequest)
+	assert.Equal(t, "keyed-hold-fingerprint", capturedBatch.KeyedRequestFingerprint)
+	assert.Empty(t, capturedBatch.RequestFingerprint)
 	require.Len(t, capturedBatch.Transactions, 1)
 	assert.Equal(t, ledgerA, capturedBatch.Transactions[0].LedgerID)
 	assert.Equal(t, constant.ActionHold, capturedBatch.Transactions[0].Action)
