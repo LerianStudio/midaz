@@ -34,3 +34,44 @@ func assertInvalidQueryParameterResponse(t *testing.T, body []byte) {
 	assert.Equal(t, "Invalid Query Parameter", errResp["title"])
 	assert.Contains(t, errResp["message"], "query parameters")
 }
+
+// assertEmptyOffsetPage asserts the 200 body an offset-paginated list returns
+// when nothing matches: items is a present, non-null empty array and the
+// requested limit and page are echoed.
+func assertEmptyOffsetPage(t *testing.T, body []byte, wantLimit, wantPage int) {
+	t.Helper()
+
+	got := assertEmptyItems(t, body)
+
+	assert.EqualValues(t, wantLimit, got["limit"], "body: %s", string(body))
+	assert.EqualValues(t, wantPage, got["page"], "body: %s", string(body))
+}
+
+// assertEmptyCursorPage asserts the 200 body a cursor-paginated list returns
+// when nothing matches: items is a present, non-null empty array, the requested
+// limit is echoed and no cursor points past the empty page.
+func assertEmptyCursorPage(t *testing.T, body []byte, wantLimit int) {
+	t.Helper()
+
+	got := assertEmptyItems(t, body)
+
+	assert.EqualValues(t, wantLimit, got["limit"], "body: %s", string(body))
+	assert.Empty(t, got["next_cursor"], "body: %s", string(body))
+	assert.Empty(t, got["prev_cursor"], "body: %s", string(body))
+}
+
+func assertEmptyItems(t *testing.T, body []byte) map[string]any {
+	t.Helper()
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(body, &got), "body: %s", string(body))
+
+	raw, present := got["items"]
+	require.True(t, present, "items must be present, body: %s", string(body))
+
+	items, ok := raw.([]any)
+	require.True(t, ok, "items must be a JSON array, not null, body: %s", string(body))
+	assert.Equal(t, []any{}, items)
+
+	return got
+}

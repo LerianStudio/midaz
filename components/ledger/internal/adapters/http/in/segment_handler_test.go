@@ -490,7 +490,7 @@ func TestGetSegmentByID_ServiceError_Canonical404(t *testing.T) {
 
 func TestGetAllSegments_MetadataFilter(t *testing.T) {
 	// NOT parallel: process-global huma state. getAllSegments' metadata branch
-	// resolves the matched IDs via FindByIDs, not FindAll.
+	// resolves the matched IDs through FindAll, scoped to the path's ledger.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -501,10 +501,13 @@ func TestGetAllSegments_MetadataFilter(t *testing.T) {
 	segmentRepo := segment.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntitySegment, gomock.Any()).
-		Return([]*mongodb.Metadata{{EntityID: seg1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
-	segmentRepo.EXPECT().FindByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntitySegment, gomock.Any(), "", gomock.Any()).
+		Return([]string{seg1}, nil).Times(1)
+	segmentRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return([]*mmodel.Segment{{ID: seg1, OrganizationID: orgID.String(), LedgerID: ledgerID.String(), Name: "Premium One"}}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntitySegment, []string{seg1}).
+		Return([]*mongodb.Metadata{{EntityID: seg1, Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &SegmentHandler{Query: &query.UseCase{SegmentRepo: segmentRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -525,8 +528,9 @@ func TestGetAllSegments_MetadataFilter(t *testing.T) {
 	assert.Len(t, items, 1)
 }
 
-func TestGetAllSegments_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
-	// NOT parallel: process-global huma state. The metadata branch's error path.
+func TestGetAllSegments_MetadataFilter_NoMatch_EmptyPage(t *testing.T) {
+	// NOT parallel: process-global huma state. A metadata filter that matches
+	// nothing in the path's scope answers 200 with an empty page.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -534,7 +538,8 @@ func TestGetAllSegments_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntitySegment, gomock.Any()).Return(nil, nil).Times(1)
+	// No metadata matches, so the PostgreSQL read is never reached.
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntitySegment, gomock.Any(), "", gomock.Any()).Return([]string{}, nil).Times(1)
 
 	handler := &SegmentHandler{Query: &query.UseCase{
 		SegmentRepo:            segment.NewMockRepository(ctrl),
@@ -543,12 +548,14 @@ func TestGetAllSegments_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 
 	app := buildHumaSegmentApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, segmentsPath(orgID, ledgerID, "?metadata.tier=nonexistent"), nil)
+	req := httptest.NewRequest(http.MethodGet, segmentsPath(orgID, ledgerID, "?metadata.tier=nonexistent&limit=5&page=2"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+	assertEmptyOffsetPage(t, respBody, 5, 2)
 }
 
 func TestGetAllSegments_ServiceError_Canonical404(t *testing.T) {

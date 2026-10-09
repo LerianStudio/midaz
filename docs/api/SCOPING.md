@@ -634,6 +634,19 @@ by id answers `404`, and a metadata-filtered listing no longer returns the entit
 served the delete. The stored keys are kept, never exposed again, and cannot be revived: a PATCH on
 a deleted entity is refused by the entity lookup before any metadata is touched.
 
+A metadata-filtered listing (`?metadata.<key>=<value>`) answers for the organization and ledger in
+its path and for nothing else: an entity of another ledger or organization that carries the same key
+and value is never returned and does not change the answer. When nothing in that scope matches, the
+listing answers `200` with an empty page on both contracts, the same answer as any other filter on
+the route — `items: []` with the requested `limit` and `page` on an offset listing, and no
+`next_cursor` on a cursor listing. The metadata-filtered offset listings (organizations, ledgers,
+portfolios, accounts, assets, segments) are ordered by entity id in `sort_order` — on accounts too,
+whose unfiltered listing orders by `created_at` then id — and paged with `limit` and `page` over the
+matching live entities of the path's organization and ledger, combined with any other filter of the
+route (a `start_date`/`end_date` range, an entity column such as `status`, and on accounts the
+`portfolio_id`/`segment_id` of the path). The cursor listing of account types pages as the
+unfiltered listing does.
+
 ## Summary
 
 One rule, no exceptions: **every organization-scoped surface in the unified binary — ledger,

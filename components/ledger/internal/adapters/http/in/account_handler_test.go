@@ -738,10 +738,13 @@ func TestGetAllAccounts_MetadataFilter(t *testing.T) {
 	accountRepo := account.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	metadataRepo.EXPECT().FindList(gomock.Any(), cn.EntityAccount, gomock.Any()).
-		Return([]*mongodb.Metadata{{EntityID: acc1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), cn.EntityAccount, gomock.Any(), "", gomock.Any()).
+		Return([]string{acc1}, nil).Times(1)
 	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Account{{ID: acc1, Name: "Premium One", AssetCode: "USD", Type: "deposit"}}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), cn.EntityAccount, []string{acc1}).
+		Return([]*mongodb.Metadata{{EntityID: acc1, Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 

@@ -6,77 +6,30 @@ package query
 
 import (
 	"context"
-	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// GetAllMetadataSegments fetches all segments from the repository.
+// GetAllMetadataSegments fetches the page of segments of the ledger whose metadata matches the filter.
+// No match yields an empty, non-nil page.
+// The page is ordered by entity id in the filter's sort order.
 func (uc *UseCase) GetAllMetadataSegments(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_segments")
 	defer span.End()
 
-	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntitySegment, filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo by query params", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo")
-
-		return nil, err
-	}
-
-	if len(metadata) == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
-
-		return nil, err
-	}
-
-	uuids := make([]uuid.UUID, len(metadata))
-	metadataMap := make(map[string]map[string]any, len(metadata))
-
-	for i, meta := range metadata {
-		uuids[i] = uuid.MustParse(meta.EntityID)
-		metadataMap[meta.EntityID] = meta.Data
-	}
-
-	segments, err := uc.SegmentRepo.FindByIDs(ctx, organizationID, ledgerID, uuids)
-	if err != nil {
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo by query params", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No segments found")
-
-			return nil, err
-		}
-
-		logger.Log(ctx, libLog.LevelError, "Error getting segments on repo")
-
-		libOpentelemetry.HandleSpanError(span, "Failed to get segments on repo by query params", err)
-
-		return nil, err
-	}
-
-	for i := range segments {
-		if data, ok := metadataMap[segments[i].ID]; ok {
-			segments[i].Metadata = data
-		}
-	}
-
-	return segments, nil
+	return listMetadataWindow(ctx, span, logger, uc, filter, metadataListWindow[*mmodel.Segment]{
+		collection: constant.EntitySegment,
+		findAll: func(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Segment, error) {
+			return uc.SegmentRepo.FindAll(ctx, organizationID, ledgerID, filter)
+		},
+		entityID: func(s *mmodel.Segment) string { return s.ID },
+		attach:   func(s *mmodel.Segment, data map[string]any) { s.Metadata = data },
+	})
 }

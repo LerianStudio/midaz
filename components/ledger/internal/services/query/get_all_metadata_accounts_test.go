@@ -11,7 +11,6 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -55,17 +54,17 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			portfolioID:    nil,
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"group": "cash"}},
-						{EntityID: acc2ID.String(), Data: map[string]any{"group": "ops"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String(), acc2ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Account 1", Status: mmodel.Status{Code: "ACTIVE"}},
 						{ID: acc2ID.String(), Name: "Account 2", Status: mmodel.Status{Code: "ACTIVE"}},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String(), acc2ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"group": "cash"}}, {EntityID: acc2ID.String(), Data: map[string]any{"group": "ops"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -88,21 +87,22 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			portfolioID:    nil,
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{
-							EntityID: acc1ID.String(),
-							Data: map[string]any{
-								"user": map[string]any{"role": "admin"},
-								"tags": []string{"vip"},
-							},
-						},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Admin Account"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{
+						EntityID: acc1ID.String(),
+						Data: map[string]any{
+							"user": map[string]any{"role": "admin"},
+							"tags": []string{"vip"},
+						},
+					}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -117,15 +117,16 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			portfolioID:    func() *uuid.UUID { id := uuid.New(); return &id }(),
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Portfolio Account"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -142,15 +143,16 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			segmentID:      func() *uuid.UUID { id := uuid.New(); return &id }(),
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"key": "seg-value"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Segment Account"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"key": "seg-value"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -167,15 +169,16 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			segmentID:      func() *uuid.UUID { id := uuid.New(); return &id }(),
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"key": "both-value"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Not(gomock.Nil()), gomock.Not(gomock.Nil()), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Both Filters Account"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"key": "both-value"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -185,17 +188,19 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			},
 		},
 		{
-			name:           "error - metadata not found returns nil",
+			name:           "success - no matching metadata returns an empty non-nil slice",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return(nil, nil) // nil metadata triggers error
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{}, nil)
 			},
-			expectErr:   true,
-			errContains: "No accounts were found",
+			expectErr: false,
+			validate: func(t *testing.T, result []*mmodel.Account) {
+				assert.Empty(t, result)
+			},
 		},
 		{
 			name:           "error - metadata repository returns error",
@@ -204,29 +209,11 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			portfolioID:    nil,
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
 					Return(nil, errors.New("mongodb connection failed"))
 			},
 			expectErr:   true,
 			errContains: "mongodb connection failed",
-		},
-		{
-			name:           "error - account repository returns ErrDatabaseItemNotFound",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			portfolioID:    nil,
-			mockSetup: func() {
-				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
-				mockAccountRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, services.ErrDatabaseItemNotFound)
-			},
-			expectErr:   true,
-			errContains: "No accounts were found",
 		},
 		{
 			name:           "error - account repository returns generic error",
@@ -235,10 +222,8 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			portfolioID:    nil,
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, errors.New("database connection timeout"))
@@ -254,16 +239,16 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			mockSetup: func() {
 				// Metadata has 2 entries, but repo only returns 1 account
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"found": true}},
-						{EntityID: acc2ID.String(), Data: map[string]any{"found": true}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String(), acc2ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Only This One"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"found": true}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -278,22 +263,24 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			filter: http.QueryHeader{
+				Limit:       10,
+				Page:        1,
 				UseMetadata: true,
 				Status:      func() *string { s := "ACTIVE"; return &s }(),
 			},
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"tier": "premium"}},
-						{EntityID: acc2ID.String(), Data: map[string]any{"tier": "basic"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String(), acc2ID.String()}, nil)
 				// The key assertion: entityIDs are in filter.EntityIDs AND filter.Status is forwarded
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Premium Active", Status: mmodel.Status{Code: "ACTIVE"}},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"tier": "premium"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -308,21 +295,24 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			filter: http.QueryHeader{
+				Limit:       10,
+				Page:        1,
 				UseMetadata: true,
 				AssetCode:   func() *string { s := "USD"; return &s }(),
 			},
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"region": "US"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				// entityIDs AND AssetCode filter are both passed to FindAll
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "USD Account", AssetCode: "USD"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"region": "US"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -337,20 +327,23 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			filter: http.QueryHeader{
+				Limit:       10,
+				Page:        1,
 				UseMetadata: true,
 				Type:        func() *string { s := "deposit"; return &s }(),
 			},
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"category": "savings"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Deposit Account", Type: "deposit"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"category": "savings"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -365,20 +358,23 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			filter: http.QueryHeader{
+				Limit:       10,
+				Page:        1,
 				UseMetadata: true,
 				Alias:       func() *string { s := "main-account"; return &s }(),
 			},
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"priority": "high"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Main Account", Alias: func() *string { s := "main-account"; return &s }()},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"priority": "high"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -393,6 +389,8 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			filter: http.QueryHeader{
+				Limit:       10,
+				Page:        1,
 				UseMetadata: true,
 				Status:      func() *string { s := "ACTIVE"; return &s }(),
 				AssetCode:   func() *string { s := "BRL"; return &s }(),
@@ -400,16 +398,17 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			},
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"limit": 5000}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				// All filters combined: entityIDs + status + asset_code + type
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "BRL Credit Card", AssetCode: "BRL", Type: "creditCard", Status: mmodel.Status{Code: "ACTIVE"}},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"limit": 5000}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -426,20 +425,23 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			filter: http.QueryHeader{
+				Limit:       10,
+				Page:        1,
 				UseMetadata: true,
 				Blocked:     func() *bool { b := true; return &b }(),
 			},
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"reason": "fraud"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return([]*mmodel.Account{
 						{ID: acc1ID.String(), Name: "Blocked Account"},
 					}, nil)
+				mockMetadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), "Account", []string{acc1ID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: acc1ID.String(), Data: map[string]any{"reason": "fraud"}}}, nil)
 			},
 			expectErr: false,
 			validate: func(t *testing.T, result []*mmodel.Account) {
@@ -453,27 +455,33 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			ledgerID:       uuid.New(),
 			portfolioID:    nil,
 			filter: http.QueryHeader{
+				Limit:       10,
+				Page:        1,
 				UseMetadata: true,
 				Status:      func() *string { s := "INACTIVE"; return &s }(),
 			},
 			mockSetup: func() {
 				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), "Account", gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: acc1ID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
+					FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+					Return([]string{acc1ID.String()}, nil)
 				// Metadata found IDs but status filter excludes all
 				mockAccountRepo.EXPECT().
 					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, services.ErrDatabaseItemNotFound)
+					Return(nil, nil)
 			},
-			expectErr:   true,
-			errContains: "No accounts were found",
+			expectErr: false,
+			validate: func(t *testing.T, result []*mmodel.Account) {
+				assert.Empty(t, result)
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.filter.Limit == 0 {
+				tt.filter.Limit, tt.filter.Page = 10, 1
+			}
+
 			tt.mockSetup()
 
 			ctx := context.Background()
@@ -494,4 +502,35 @@ func TestGetAllMetadataAccounts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetAllMetadataAccounts_PassesLedgerScope(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	mockMetadataRepo.EXPECT().
+		FindEntityIDs(gomock.Any(), "Account", gomock.Any(), "", metadataListBatchSize).
+		Return([]string{accountID.String()}, nil)
+	mockAccountRepo.EXPECT().
+		FindAll(gomock.Any(), organizationID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Cond(func(qh http.QueryHeader) bool {
+			return len(qh.EntityIDs) == 1 && qh.EntityIDs[0] == accountID
+		}), mmodel.HolderOnV2).
+		Return([]*mmodel.Account{{ID: accountID.String()}}, nil)
+	mockMetadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), "Account", []string{accountID.String()}).
+		Return([]*mongodb.Metadata{{EntityID: accountID.String(), Data: map[string]any{"group": "cash"}}}, nil)
+
+	uc := &UseCase{AccountRepo: mockAccountRepo, OnboardingMetadataRepo: mockMetadataRepo}
+
+	result, err := uc.GetAllMetadataAccounts(context.Background(), organizationID, ledgerID, nil, nil, http.QueryHeader{UseMetadata: true, Limit: 10, Page: 1}, mmodel.HolderOnV2)
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, "cash", result[0].Metadata["group"])
 }
