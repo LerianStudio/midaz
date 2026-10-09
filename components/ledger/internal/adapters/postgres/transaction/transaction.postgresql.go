@@ -130,7 +130,7 @@ type Repository interface {
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
-	// UpdateStatusFromPending writes the same status columns Update does, but only
+	// UpdateStatusFromPendingTx writes the same status columns Update does, but only
 	// onto a row that is still PENDING. It is the durable backstop of the
 	// commit/cancel transition: the compare-and-set is what stops a second
 	// transition from flipping a transaction that another one already settled.
@@ -142,7 +142,10 @@ type Repository interface {
 	// write-behind cache runs before its own row exists. The caller does that
 	// triage. The backup consumer treats zero rows as already-applied and carries
 	// on.
-	UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
+	//
+	// It runs on the caller's database transaction, so the flip commits or rolls
+	// back together with the operations the transition writes.
+	UpdateStatusFromPendingTx(ctx context.Context, tx repository.DBExecutor, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
