@@ -81,7 +81,7 @@ type systemFactsPreflightFunc func(ctx context.Context, m *manifest.Manifest, c 
 
 // systemFactsComponents is what the ledger wires from the System Facts
 // producer: the recorder the completion Store records through, and the
-// producer whose forwarder a later unit runs.
+// producer whose forwarder the Launcher runs and the readiness probe reads.
 type systemFactsComponents struct {
 	// recorder is always non-nil: it wraps the validating emitter when the
 	// preflight answered OK and the kit's no-op emitter otherwise.

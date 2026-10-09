@@ -62,8 +62,8 @@ type Service struct {
 	// SystemFacts holds the System Facts producer wiring: the recorder the
 	// completion Store records through (always non-nil) and the producer whose
 	// forwarder drains the outbox (nil when SYSTEM_FACTS_ENABLED=false). The
-	// forwarder is not started yet; a later unit registers its Launcher app
-	// and readiness probe from here.
+	// forwarder runs as the "System Facts Forwarder" Launcher app and is probed
+	// by the system_facts_forwarder readiness check.
 	SystemFacts *systemFactsComponents
 	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
@@ -183,6 +183,16 @@ func (s *Service) launcherApps() []launcherApp {
 		apps = append(apps, launcherApp{
 			"Streaming Producer",
 			&streamingProducerRunnable{close: s.StreamingClose, logger: s.Logger},
+		})
+	}
+
+	// System Facts forwarder: registered whenever the producer built a forwarder,
+	// even with emission off (a failed contract preflight wires the no-op
+	// emitter), because a backlog recorded before that preflight still drains.
+	if s.SystemFacts != nil && s.SystemFacts.producer != nil && s.SystemFacts.producer.Forwarder() != nil {
+		apps = append(apps, launcherApp{
+			"System Facts Forwarder",
+			newSystemFactsForwarderRunnable(s.SystemFacts.producer.Forwarder(), s.Logger),
 		})
 	}
 

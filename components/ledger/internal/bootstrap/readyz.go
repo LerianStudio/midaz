@@ -377,6 +377,7 @@ func buildReadyzHandler(
 	crmMgo *crmComponents,
 	feeMgo *feesMongoComponents,
 	rmq *rabbitMQComponents,
+	systemFacts *systemFactsComponents,
 	metricsFactory *metrics.MetricsFactory,
 ) (*ReadyzHandler, error) {
 	// Build DSN strings for TLS detection
@@ -470,6 +471,10 @@ func buildReadyzHandler(
 
 	checkers = append(checkers,
 		NewRabbitMQChecker("rabbitmq", cfg.RabbitMQHealthCheckURL, rmqURI, cbManager))
+
+	// System Facts forwarder checker - present only with SYSTEM_FACTS_ENABLED=true,
+	// so a forwarder that stopped is visible and a disabled producer adds no entry.
+	checkers = appendSystemFactsForwarderChecker(checkers, cfg, systemFacts, logger)
 
 	// Build TLS validation results from already-created checkers.
 	tlsResults := make([]TLSValidationResult, 0, len(checkers))

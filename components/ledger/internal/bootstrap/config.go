@@ -1326,7 +1326,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// === Readyz handler ===
 
 	// metricsFactory derived once with the use cases (nil-safe: checked inside handler).
-	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, crmMgo, feeMgo, rmq, metricsFactory)
+	readyzHandler, err := buildReadyzHandler(cfg, logger, redisConnection, onbPG, txnPG, onbMgo, txnMgo, crmMgo, feeMgo, rmq, systemFacts, metricsFactory)
 	if err != nil {
 		doCleanup()
 
