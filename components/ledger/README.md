@@ -307,11 +307,11 @@ for CRM envelope encryption.
 ## Documentation
 
 This README is an orientation layer. The authoritative, deeper references live at the repo root — do
-not look for a component `CLAUDE.md` or `AGENTS.md` here; the root ones cover the ledger:
+not look for a component `CLAUDE.md` or `AGENTS.md` here; the root ones cover the ledger (`CLAUDE.md` is a symlink to `AGENTS.md`):
 
 | Document | Purpose |
 |----------|---------|
-| [`../../CLAUDE.md`](../../CLAUDE.md) | Agent reference: architecture, coding rules, streaming, multi-tenancy |
+| [`../../docs/AGENTS-REFERENCE.md`](../../docs/AGENTS-REFERENCE.md) | Agent reference: architecture, coding rules, streaming, multi-tenancy |
 | [`../../AGENTS.md`](../../AGENTS.md) | Concise agent overview |
 | [`../../docs/PROJECT_RULES.md`](../../docs/PROJECT_RULES.md) | Architecture patterns, domain model, testing standards |
 | [`../../docs/standards/`](../../docs/standards/) | Binding telemetry (T1–T13) and error-handling (E1–E14) standards |
