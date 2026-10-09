@@ -66,7 +66,7 @@ The three deploy units form one core banking platform in one monorepo:
 - [Ledger .env.example](components/ledger/.env.example): Ledger env (PostgreSQL, MongoDB, Redis, RabbitMQ, OTEL, streaming, multi-tenant) + folded CRM (`MONGO_CRM_*`) and fees (`MONGO_FEES_*`)
 - [Tracer .env.example](components/tracer/.env.example): Tracer env (own PostgreSQL, API key, OTEL)
 - [Infra .env.example](components/infra/.env.example): Infrastructure environment variables
-- [Linter Config](.golangci.yml): golangci-lint v2.13.2 configuration
+- [Linter Config](.golangci.yml): golangci-lint v2.14.0 configuration
 - [Infra Docker Compose](components/infra/docker-compose.yml): Full backing stack (single source)
 
 ## Development

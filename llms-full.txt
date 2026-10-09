@@ -1220,7 +1220,7 @@ one Warn elsewhere; see
 
 - Go 1.27.0 (`go.mod` `go 1.27.0`; component Docker builders and CI use toolchain 1.27.2, `golang:1.27.2-alpine`)
 - Docker (with `docker compose`)
-- golangci-lint v2.13.2
+- golangci-lint v2.14.0
 
 ### 7.2 Makefile Commands
 
