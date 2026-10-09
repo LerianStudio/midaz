@@ -13,14 +13,6 @@ import (
 // CircuitBreakerServiceName is the service identifier for RabbitMQ producer circuit breaker.
 const CircuitBreakerServiceName = "rabbitmq-producer"
 
-// DefaultOperationTimeout is the default timeout for RabbitMQ connection and publish operations.
-// This ensures fallback can execute within HTTP request timeout.
-const DefaultOperationTimeout = 5 * time.Second
-
-// MaxOperationTimeout is the maximum allowed timeout for RabbitMQ operations.
-// This prevents misconfiguration that could cause fallback to never have time to execute.
-const MaxOperationTimeout = 30 * time.Second
-
 // CircuitBreakerConfig holds the configuration parameters for the RabbitMQ circuit breaker.
 type CircuitBreakerConfig struct {
 	ConsecutiveFailures uint32        // Opens circuit after N consecutive failures
@@ -31,7 +23,6 @@ type CircuitBreakerConfig struct {
 	Timeout             time.Duration // Time in OPEN before HALF-OPEN (lazy, on next request)
 	HealthCheckInterval time.Duration // Active health check polling interval
 	HealthCheckTimeout  time.Duration // Timeout per health check probe
-	OperationTimeout    time.Duration // Timeout for connection and publish operations
 }
 
 // RabbitMQCircuitBreakerConfig creates circuit breaker settings from provided configuration.

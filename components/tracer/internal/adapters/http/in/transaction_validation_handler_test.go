@@ -469,7 +469,7 @@ func TestTransactionValidationHandler_ListTransactionValidations(t *testing.T) {
 		},
 		{
 			name:        "error - invalid transactionType value",
-			queryParams: "?transaction_type=INVALID",
+			queryParams: "?transaction_type=bad%20value!",
 			mockSetup: func(ctrl *gomock.Controller) *mocks.MockTransactionValidationService {
 				return mocks.NewMockTransactionValidationService(ctrl)
 			},
@@ -947,10 +947,10 @@ func TestListTransactionValidationsInput_Validate(t *testing.T) {
 		{
 			name: "error - invalid transactionType",
 			input: ListTransactionValidationsInput{
-				TransactionType: "INVALID",
+				TransactionType: "bad value!",
 			},
 			wantErr: true,
-			errMsg:  "transaction_type must be one of [CARD, WIRE, PIX, CRYPTO]",
+			errMsg:  "transaction_type",
 		},
 		{
 			name: "valid - transactionType CRYPTO",

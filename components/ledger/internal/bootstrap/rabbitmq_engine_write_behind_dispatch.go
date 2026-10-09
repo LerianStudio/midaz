@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -216,6 +218,7 @@ func (dispatcher *rabbitTransactionDispatcher) handleBulk(ctx context.Context, d
 	engineGroups := make(map[string][]rabbitEngineUnit)
 	legacyPayloads := make([]postgresTransaction.TransactionProcessingPayload, 0)
 	legacyMessages := make(map[int]struct{})
+	legacyMessagesByTransactionID := make(map[string][]int)
 
 	for messageIndex, message := range decoded {
 		if !results[messageIndex].Success {
@@ -231,6 +234,12 @@ func (dispatcher *rabbitTransactionDispatcher) handleBulk(ctx context.Context, d
 			legacyMessages[messageIndex] = struct{}{}
 
 			legacyPayloads = append(legacyPayloads, message.legacy...)
+
+			for _, payload := range message.legacy {
+				if payload.Transaction != nil {
+					legacyMessagesByTransactionID[payload.Transaction.ID] = append(legacyMessagesByTransactionID[payload.Transaction.ID], messageIndex)
+				}
+			}
 		}
 	}
 
@@ -274,6 +283,7 @@ func (dispatcher *rabbitTransactionDispatcher) handleBulk(ctx context.Context, d
 			}
 		} else if result != nil {
 			recordBulkOTelMetrics(ctx, dispatcher.metricsFactory, result, legacyPayloads, time.Since(startedAt))
+			markRabbitLegacyMetadataFailed(results, legacyMessagesByTransactionID, result.MetadataFailedTransactionIDs)
 		}
 	}
 
@@ -285,6 +295,35 @@ func markRabbitEngineUnitsFailed(results []rabbitmq.BulkMessageResult, units []r
 		results[unit.messageIndex].Success = false
 		results[unit.messageIndex].Error = err
 	}
+}
+
+// markRabbitLegacyMetadataFailed fails every legacy message carrying a transaction whose metadata was not confirmed,
+// including every message of the batch that repeats it. Each failed message gets one error naming its failed transactions
+// in sorted order. The error is technical so the consumer retries the message and dead-letters it once retries run out.
+func markRabbitLegacyMetadataFailed(results []rabbitmq.BulkMessageResult, messagesByTransactionID map[string][]int, failedTransactionIDs map[string]struct{}) {
+	failedByMessage := make(map[int][]string)
+
+	for transactionID := range failedTransactionIDs {
+		for _, messageIndex := range messagesByTransactionID[transactionID] {
+			failedByMessage[messageIndex] = append(failedByMessage[messageIndex], transactionID)
+		}
+	}
+
+	for messageIndex, transactionIDs := range failedByMessage {
+		slices.Sort(transactionIDs)
+
+		results[messageIndex].Success = false
+		results[messageIndex].Error = legacyMetadataNotConfirmedError(transactionIDs)
+	}
+}
+
+// legacyMetadataNotConfirmedError names the transactions of one message whose metadata was not confirmed.
+func legacyMetadataNotConfirmedError(transactionIDs []string) error {
+	if len(transactionIDs) == 1 {
+		return fmt.Errorf("legacy transaction %s metadata not confirmed", transactionIDs[0])
+	}
+
+	return fmt.Errorf("legacy transactions %s metadata not confirmed", strings.Join(transactionIDs, ", "))
 }
 
 func decodeRabbitTransactionMessage(body []byte) (decodedRabbitTransactionMessage, error) {

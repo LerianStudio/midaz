@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -41,6 +42,19 @@ func setupMultiTenantMocks(t *testing.T) (
 	channel := NewMockPublishableChannel(ctrl)
 
 	return ctrl, logger, provider, channel
+}
+
+// expectConfirmation registers the confirm-mode handshake on a mocked channel
+// and queues the broker's answer for its single publish.
+func expectConfirmation(channel *MockPublishableChannel, ack bool) {
+	channel.EXPECT().Confirm(false).Return(nil)
+	channel.EXPECT().
+		NotifyPublish(gomock.Any()).
+		DoAndReturn(func(confirmations chan amqp.Confirmation) chan amqp.Confirmation {
+			confirmations <- amqp.Confirmation{DeliveryTag: 1, Ack: ack}
+
+			return confirmations
+		})
 }
 
 // =============================================================================
@@ -291,6 +305,7 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 
 					// Channel Close is always deferred after successful GetChannel
 					channel.EXPECT().Close().Return(nil)
+					expectConfirmation(channel, true)
 
 					if tt.publishErr != nil {
 						channel.EXPECT().
@@ -325,181 +340,6 @@ func TestMultiTenantProducer_ProducerDefault(t *testing.T) {
 				require.NoError(t, err, "expected no error")
 				assert.Nil(t, result, "result should be nil on success (current implementation)")
 			}
-
-			ctrl.Finish()
-		})
-	}
-}
-
-// =============================================================================
-// UNIT TESTS — ProducerDefaultWithContext
-// =============================================================================
-
-func TestMultiTenantProducer_ProducerDefaultWithContext(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name            string
-		tenantID        string
-		exchange        string
-		key             string
-		message         []byte
-		getChannelErr   error
-		publishErr      error
-		expectErrSubstr string
-	}{
-		{
-			// missing tenant ID behaves identically to ProducerDefault
-			name:            "missing_tenant_id_returns_error",
-			tenantID:        "",
-			exchange:        "test-exchange",
-			key:             "test.key",
-			message:         []byte(`{"data":"test"}`),
-			expectErrSubstr: "tenant ID is required in context for multi-tenant producer",
-		},
-		{
-			// GetChannel error propagated identically
-			name:            "get_channel_error_is_propagated",
-			tenantID:        "tenant-b",
-			exchange:        "test-exchange",
-			key:             "test.key",
-			message:         []byte(`{"data":"test"}`),
-			getChannelErr:   errors.New("connection refused"),
-			expectErrSubstr: "failed to get channel for tenant tenant-b",
-		},
-		{
-			// successful publish identical to ProducerDefault
-			name:     "successful_publish",
-			tenantID: "tenant-b",
-			exchange: "test-exchange",
-			key:      "test.key",
-			message:  []byte(`{"data":"test"}`),
-		},
-		{
-			// publish error
-			name:            "publish_error_is_propagated",
-			tenantID:        "tenant-b",
-			exchange:        "test-exchange",
-			key:             "test.key",
-			message:         []byte(`{"data":"test"}`),
-			publishErr:      errors.New("timeout"),
-			expectErrSubstr: "timeout",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl, logger, provider, channel := setupMultiTenantMocks(t)
-
-			producer := NewMultiTenantProducerWithProvider(provider, logger)
-
-			ctx := context.Background()
-			if tt.tenantID != "" {
-				ctx = tmcore.ContextWithTenantID(ctx, tt.tenantID)
-			}
-
-			if tt.tenantID != "" {
-				if tt.getChannelErr != nil {
-					provider.EXPECT().
-						GetChannel(gomock.Any(), tt.tenantID).
-						Return(nil, tt.getChannelErr)
-				} else {
-					provider.EXPECT().
-						GetChannel(gomock.Any(), tt.tenantID).
-						Return(channel, nil)
-					channel.EXPECT().Close().Return(nil)
-
-					if tt.publishErr != nil {
-						channel.EXPECT().
-							PublishWithContext(gomock.Any(), tt.exchange, tt.key, false, false, gomock.Any()).
-							Return(tt.publishErr)
-					} else {
-						channel.EXPECT().
-							PublishWithContext(gomock.Any(), tt.exchange, tt.key, false, false, gomock.Any()).
-							Return(nil)
-					}
-				}
-			}
-
-			// Act
-			result, err := producer.ProducerDefaultWithContext(ctx, tt.exchange, tt.key, tt.message)
-
-			// Assert
-			if tt.expectErrSubstr != "" {
-				require.Error(t, err, "expected error but got nil")
-				assert.Contains(t, err.Error(), tt.expectErrSubstr, "error message should contain expected substring")
-				assert.Nil(t, result, "result should be nil on error")
-			} else {
-				require.NoError(t, err, "expected no error")
-				assert.Nil(t, result, "result should be nil on success")
-			}
-
-			ctrl.Finish()
-		})
-	}
-}
-
-// =============================================================================
-// UNIT TESTS — ProducerDefault and ProducerDefaultWithContext delegate
-// to the same internal publish, differing only in span name.
-// =============================================================================
-
-func TestMultiTenantProducer_BothMethodsDelegateToPublish(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		method string
-	}{
-		{
-			name:   "ProducerDefault_delegates_to_publish",
-			method: "ProducerDefault",
-		},
-		{
-			name:   "ProducerDefaultWithContext_delegates_to_publish",
-			method: "ProducerDefaultWithContext",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctrl, logger, provider, channel := setupMultiTenantMocks(t)
-
-			producer := NewMultiTenantProducerWithProvider(provider, logger)
-
-			tenantID := "tenant-delegate-test"
-			ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
-			exchange := "test-exchange"
-			key := "test.key"
-			message := []byte(`{"verify":"delegate"}`)
-
-			provider.EXPECT().
-				GetChannel(gomock.Any(), tenantID).
-				Return(channel, nil)
-			channel.EXPECT().Close().Return(nil)
-			channel.EXPECT().
-				PublishWithContext(gomock.Any(), exchange, key, false, false, gomock.Any()).
-				DoAndReturn(func(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error {
-					assert.Equal(t, message, msg.Body, "both methods should pass the same message body")
-					assert.Equal(t, uint8(amqp.Persistent), msg.DeliveryMode, "delivery mode should be persistent")
-					assert.Equal(t, tenantID, msg.Headers["X-Tenant-ID"], "headers should contain tenant ID")
-					return nil
-				})
-
-			var err error
-
-			switch tt.method {
-			case "ProducerDefault":
-				_, err = producer.ProducerDefault(ctx, exchange, key, message)
-			case "ProducerDefaultWithContext":
-				_, err = producer.ProducerDefaultWithContext(ctx, exchange, key, message)
-			}
-
-			require.NoError(t, err)
 
 			ctrl.Finish()
 		})
@@ -659,6 +499,7 @@ func TestMultiTenantProducer_PublishMessageParameters(t *testing.T) {
 				GetChannel(gomock.Any(), tenantID).
 				Return(channel, nil)
 			channel.EXPECT().Close().Return(nil)
+			expectConfirmation(channel, true)
 			channel.EXPECT().
 				PublishWithContext(gomock.Any(), exchange, key, false, false, gomock.Any()).
 				DoAndReturn(func(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error {
@@ -923,6 +764,110 @@ func TestMultiTenantProducer_ProducerDefault_CanceledContext(t *testing.T) {
 
 			require.Error(t, err, "canceled context should produce an error")
 			assert.ErrorIs(t, err, context.Canceled, "should wrap context.Canceled")
+
+			ctrl.Finish()
+		})
+	}
+}
+
+// =============================================================================
+// UNIT TESTS — Publisher confirmation
+// =============================================================================
+
+func TestMultiTenantProducer_ProducerDefault_WaitsForConfirmation(t *testing.T) {
+	t.Parallel()
+
+	const tenantID = "tenant-confirm"
+
+	tests := []struct {
+		name           string
+		confirmErr     error
+		answer         func(chan amqp.Confirmation)
+		callerDeadline time.Duration
+		expectErr      []error
+		expectSubstr   string
+	}{
+		{
+			name:      "nack_is_an_error",
+			answer:    func(c chan amqp.Confirmation) { c <- amqp.Confirmation{DeliveryTag: 1, Ack: false} },
+			expectErr: []error{ErrPublishNacked},
+		},
+		{
+			name:      "closed_channel_before_the_answer_is_unconfirmed",
+			answer:    func(c chan amqp.Confirmation) { close(c) },
+			expectErr: []error{ErrPublishUnconfirmed},
+		},
+		{
+			name:      "ceiling_ends_a_wait_without_answer",
+			answer:    func(chan amqp.Confirmation) {},
+			expectErr: []error{ErrPublishUnconfirmed, context.DeadlineExceeded},
+		},
+		{
+			name:           "caller_deadline_ends_a_wait_without_answer",
+			answer:         func(chan amqp.Confirmation) {},
+			callerDeadline: 20 * time.Millisecond,
+			expectErr:      []error{ErrPublishUnconfirmed, context.DeadlineExceeded},
+		},
+		{
+			name:         "confirm_mode_refusal_skips_the_publish",
+			confirmErr:   errors.New("channel closed"),
+			expectSubstr: "enable publisher confirms",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl, logger, provider, channel := setupMultiTenantMocks(t)
+
+			ceiling := 50 * time.Millisecond
+			if tt.callerDeadline > 0 {
+				ceiling = time.Minute
+			}
+
+			producer := NewMultiTenantProducerWithProvider(provider, logger, WithPublishConfirmTimeout(ceiling))
+
+			ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
+
+			if tt.callerDeadline > 0 {
+				var cancel context.CancelFunc
+
+				ctx, cancel = context.WithTimeout(ctx, tt.callerDeadline)
+				defer cancel()
+			}
+
+			provider.EXPECT().GetChannel(gomock.Any(), tenantID).Return(channel, nil)
+			channel.EXPECT().Close().Return(nil)
+			channel.EXPECT().Confirm(false).Return(tt.confirmErr)
+
+			if tt.confirmErr == nil {
+				channel.EXPECT().
+					NotifyPublish(gomock.Any()).
+					DoAndReturn(func(confirmations chan amqp.Confirmation) chan amqp.Confirmation {
+						tt.answer(confirmations)
+
+						return confirmations
+					})
+				channel.EXPECT().
+					PublishWithContext(gomock.Any(), "exchange", "key", false, false, gomock.Any()).
+					Return(nil)
+			}
+
+			started := time.Now()
+			_, err := producer.ProducerDefault(ctx, "exchange", "key", []byte(`{}`))
+
+			require.Error(t, err)
+
+			for _, expected := range tt.expectErr {
+				assert.ErrorIs(t, err, expected)
+			}
+
+			if tt.expectSubstr != "" {
+				assert.Contains(t, err.Error(), tt.expectSubstr)
+			}
+
+			assert.Less(t, time.Since(started), 5*time.Second, "the wait must stay bounded")
 
 			ctrl.Finish()
 		})

@@ -327,11 +327,14 @@ func TestDeleteTransactionRoute_204Empty(t *testing.T) {
 	trRepo.EXPECT().FindByID(gomock.Any(), orgID, id).
 		Return(&mmodel.TransactionRoute{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Settlement"}, nil).Times(1)
 	trRepo.EXPECT().Delete(gomock.Any(), orgID, id, gomock.Any()).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityTransactionRoute, id.String()).Return(nil).Times(1)
 	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 	handler := &TransactionRouteHandler{Command: &command.UseCase{
-		TransactionRouteRepo: trRepo,
-		TransactionRedisRepo: redisRepo,
+		TransactionRouteRepo:    trRepo,
+		TransactionRedisRepo:    redisRepo,
+		TransactionMetadataRepo: metadataRepo,
 	}}
 
 	app := buildHumaTransactionRouteApp(t, handler, true)
@@ -489,9 +492,9 @@ func TestUpdateTransactionRoute_Success(t *testing.T) {
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 	redisRepo := redis.NewMockRedisRepository(ctrl)
 
-	trRepo.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
-	trRepo.EXPECT().Update(gomock.Any(), orgID, id, gomock.Any(), gomock.Any(), gomock.Any()).
+	trRepo.EXPECT().FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]transactionroute.OperationRouteLink{}, nil).AnyTimes()
+	trRepo.EXPECT().Update(gomock.Any(), orgID, id, gomock.Any(), gomock.Any()).
 		Return(&mmodel.TransactionRoute{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Renamed Route"}, nil).Times(1)
 	metadataRepo.EXPECT().FindByEntity(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	metadataRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
@@ -532,7 +535,7 @@ func TestUpdateTransactionRoute_NotFound_Canonical404(t *testing.T) {
 	id := uuid.Must(libCommons.GenerateUUIDv7())
 
 	trRepo := transactionroute.NewMockRepository(ctrl)
-	trRepo.EXPECT().Update(gomock.Any(), orgID, id, gomock.Any(), gomock.Any(), gomock.Any()).
+	trRepo.EXPECT().Update(gomock.Any(), orgID, id, gomock.Any(), gomock.Any()).
 		Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)).Times(1)
 
 	handler := &TransactionRouteHandler{Command: &command.UseCase{TransactionRouteRepo: trRepo}}
@@ -597,8 +600,8 @@ func TestGetAllTransactionRoutes_MetadataFilter(t *testing.T) {
 	trRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Nil(), gomock.Any()).
 		Return([]*mmodel.TransactionRoute{{ID: id, OrganizationID: orgID, LedgerID: &ledgerID, Title: "Premium"}},
 			libHTTP.CursorPagination{}, nil).Times(1)
-	trRepo.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-		Return(map[uuid.UUID][]uuid.UUID{}, nil).AnyTimes()
+	trRepo.EXPECT().FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(map[uuid.UUID][]transactionroute.OperationRouteLink{}, nil).AnyTimes()
 
 	handler := &TransactionRouteHandler{Query: &query.UseCase{
 		TransactionRouteRepo:    trRepo,

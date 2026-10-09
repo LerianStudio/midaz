@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
@@ -28,9 +31,16 @@ func newDeleteOrganizationStreamingTestUseCase(t *testing.T, ctrl *gomock.Contro
 		Delete(gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOrganization, gomock.Any()).
+		Return(nil).AnyTimes()
+
 	return &UseCase{
-		OrganizationRepo: mockOrganizationRepo,
-		Streaming:        emitter,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+		OrganizationRepo:       mockOrganizationRepo,
+		Streaming:              emitter,
 	}
 }
 
@@ -92,4 +102,29 @@ func TestDeleteOrganizationByID_NilStreamingDoesNotPanic(t *testing.T) {
 
 	err := uc.DeleteOrganizationByID(context.Background(), uuid.New())
 	require.NoError(t, err)
+}
+
+// TestDeleteOrganizationByID_MetadataSoftDeleteFailureStillEmits verifies that a
+// metadata soft delete failing on every attempt neither fails the request nor
+// suppresses the deleted event.
+func TestDeleteOrganizationByID_MetadataSoftDeleteFailureStillEmits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newDeleteOrganizationStreamingTestUseCase(t, ctrl, mockEmitter)
+
+	failingMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	failingMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOrganization, gomock.Any()).
+		Return(errors.New("mongo unavailable")).
+		Times(fastMetadataDeleteRetryPolicy().Attempts)
+
+	uc.OnboardingMetadataRepo = failingMetadataRepo
+
+	err := uc.DeleteOrganizationByID(context.Background(), uuid.New())
+	require.NoError(t, err, "a metadata soft delete failure must not fail the delete")
+
+	require.Len(t, mockEmitter.Events(), 1)
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "organization", "deleted")
 }

@@ -52,8 +52,8 @@ const legacyHeadVersion = 12
 const legacyFixtureRoot = "testdata/legacy_dual_runner"
 
 // headVersion is the expected final schema_migrations.version after applying
-// the HEAD migrations (unified single-runner, 000001..000027).
-const headVersion = 27
+// the HEAD migrations (unified single-runner, 000001..000032).
+const headVersion = 32
 
 // legacyFixtureManifestSHA256 pins the manifest for the immutable historical
 // migration fixture under testdata/legacy_dual_runner. The SQL files were

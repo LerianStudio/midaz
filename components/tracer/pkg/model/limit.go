@@ -291,13 +291,7 @@ func newLimitBase(
 		normalizedDescription = &trimmed
 	}
 
-	// Defensive copy of scopes to prevent external mutation.
-	// SubType is normalized to trimmed lowercase canonical form so DB state is
-	// symmetric with runtime case-insensitive matching.
-	scopesCopy := append([]Scope(nil), scopes...)
-	for i := range scopesCopy {
-		normalizeScopeSubType(&scopesCopy[i])
-	}
+	scopesCopy := copyAndNormalizeLimitScopes(scopes)
 
 	limit := &Limit{
 		ID:          uuid.New(),
@@ -332,12 +326,25 @@ func validateScopes(scopes []Scope) error {
 			return constant.ErrLimitInvalidScope
 		}
 
-		if scope.TransactionType != nil && !scope.TransactionType.IsValid() {
-			return constant.ErrLimitInvalidScope
+		if err := validateScopeScheme(scope, constant.ErrLimitInvalidScope); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+// copyAndNormalizeLimitScopes returns a defensive copy of scopes with SubType
+// lowercased (symmetric with case-insensitive matching) and the scheme alias
+// canonicalized; validateScopes then reports anything left invalid.
+func copyAndNormalizeLimitScopes(scopes []Scope) []Scope {
+	scopesCopy := append([]Scope(nil), scopes...)
+	for i := range scopesCopy {
+		normalizeScopeSubType(&scopesCopy[i])
+		canonicalizeScopeScheme(&scopesCopy[i])
+	}
+
+	return scopesCopy
 }
 
 // NewLimit creates a new Limit entity with validation.
@@ -700,16 +707,10 @@ func (l *Limit) Update(
 	}
 
 	if scopes != nil {
-		if err := validateScopes(*scopes); err != nil {
-			return err
-		}
+		scopesCopy := copyAndNormalizeLimitScopes(*scopes)
 
-		// Defensive copy to prevent external mutation.
-		// SubType is normalized to trimmed lowercase canonical form so DB state is
-		// symmetric with runtime case-insensitive matching.
-		scopesCopy := append([]Scope(nil), *scopes...)
-		for i := range scopesCopy {
-			normalizeScopeSubType(&scopesCopy[i])
+		if err := validateScopes(scopesCopy); err != nil {
+			return err
 		}
 
 		l.Scopes = scopesCopy

@@ -52,14 +52,23 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID uu
 		UpdatedAt:      now,
 	}
 
-	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, payload.OperationRouteIDs())
+	if err := rejectRouteInBothLinkLists(payload.OperationRoutes, payload.OptionalOperationRoutes); err != nil {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation route listed as required and optional", err)
+		logger.Log(ctx, libLog.LevelWarn, "Operation route listed as required and optional", libLog.Err(err))
+
+		return nil, err
+	}
+
+	optionalIDs := uniqueIDs(payload.OptionalOperationRoutes)
+
+	operationRouteList, err := uc.OperationRouteRepo.FindByIDs(ctx, organizationID, append(payload.OperationRouteIDs(), optionalIDs...))
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to find operation routes", err)
 
 		return nil, err
 	}
 
-	if err := validateOperationRouteTypes(operationRouteList); err != nil {
+	if err := validateOperationRouteTypes(operationRouteList, idSet(optionalIDs)); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate operation route types", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate operation route types", libLog.Err(err))
 
@@ -72,6 +81,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID uu
 	}
 
 	transactionRoute.OperationRoutes = operationRoutes
+	transactionRoute.OptionalOperationRouteIDs = optionalIDs
 
 	createdTransactionRoute, err := uc.TransactionRouteRepo.Create(ctx, organizationID, ledgerID, transactionRoute)
 	if err != nil {
@@ -84,6 +94,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID uu
 	// entity, but be explicit in case that contract loosens — the
 	// streaming event below relies on this field being populated.
 	createdTransactionRoute.OperationRoutes = operationRoutes
+	createdTransactionRoute.OptionalOperationRouteIDs = optionalIDs
 
 	uc.emitTransactionRouteCreatedEvent(ctx, span, logger, createdTransactionRoute)
 
@@ -132,11 +143,12 @@ func (uc *UseCase) emitTransactionRouteCreatedEvent(ctx context.Context, span tr
 		})
 }
 
-// validateOperationRouteTypes validates operation route types for a transaction route.
-// It ensures that the set of operation routes has at least one source and one destination
-// (bidirectional counts as both, the cross-ledger bridge route as neither), and at most one
-// cross-ledger bridge route.
-func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute) error {
+// validateOperationRouteTypes validates the operation route types of a transaction
+// route's links. Its required links need at least one source and one destination
+// (bidirectional counts as both, the cross-ledger bridge route as neither), an optional link
+// counts for neither because a transaction may leave it unused, and all the links together
+// carry at most one cross-ledger bridge route, which cannot be optional.
+func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute, optional map[uuid.UUID]bool) error {
 	hasSource := false
 	hasDestination := false
 	bridgeRoutes := 0
@@ -144,9 +156,18 @@ func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute) error {
 	for _, route := range opRoutes {
 		// The bridge route classifies only the synthetic bridge legs of a
 		// cross-ledger group, never a client leg, so it cannot stand in for the
-		// route's source or destination.
+		// route's source or destination, and it can never be left unused.
 		if isCrossLedgerBridgeRoute(route) {
+			if optional[route.ID] {
+				return errOptionalCrossLedgerBridgeRoute()
+			}
+
 			bridgeRoutes++
+
+			continue
+		}
+
+		if optional[route.ID] {
 			continue
 		}
 
@@ -178,6 +199,53 @@ func validateOperationRouteTypes(opRoutes []*mmodel.OperationRoute) error {
 
 func isCrossLedgerBridgeRoute(route *mmodel.OperationRoute) bool {
 	return route != nil && route.AccountingEntries != nil && route.AccountingEntries.CrossLedger != nil
+}
+
+func errOptionalCrossLedgerBridgeRoute() error {
+	return pkg.ValidateBusinessError(constant.ErrInvalidCrossLedgerRoute, constant.EntityTransactionRoute,
+		"An operation route with a crossLedger entry cannot be optional: the ledger generates the bridge legs itself.")
+}
+
+// rejectRouteInBothLinkLists refuses a route listed as required and as optional.
+func rejectRouteInBothLinkLists(required, optional []uuid.UUID) error {
+	requiredIDs := idSet(required)
+
+	for _, id := range optional {
+		if requiredIDs[id] {
+			return pkg.ValidateBusinessError(constant.ErrOperationRouteBothRequiredAndOptional, constant.EntityTransactionRoute, id.String())
+		}
+	}
+
+	return nil
+}
+
+// uniqueIDs is ids without repetitions, in first-seen order.
+func uniqueIDs(ids []uuid.UUID) []uuid.UUID {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	seen := make(map[uuid.UUID]bool, len(ids))
+	unique := make([]uuid.UUID, 0, len(ids))
+
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+
+			unique = append(unique, id)
+		}
+	}
+
+	return unique
+}
+
+func idSet(ids []uuid.UUID) map[uuid.UUID]bool {
+	set := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+
+	return set
 }
 
 func errMultipleCrossLedgerBridgeRoutes() error {

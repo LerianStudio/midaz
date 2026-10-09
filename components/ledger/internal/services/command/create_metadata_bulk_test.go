@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"testing"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -135,9 +137,10 @@ func TestCreateMetadataBulk_Success(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 func TestCreateMetadataBulk_EmptyEntries(t *testing.T) {
@@ -148,9 +151,10 @@ func TestCreateMetadataBulk_EmptyEntries(t *testing.T) {
 	ctx := context.Background()
 
 	// Empty entries should return nil without calling repo
-	err := uc.createMetadataBulk(ctx, []MetadataEntry{})
+	failed, err := uc.createMetadataBulk(ctx, []MetadataEntry{})
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 func TestCreateMetadataBulk_NilMetadataSkipped(t *testing.T) {
@@ -190,9 +194,10 @@ func TestCreateMetadataBulk_NilMetadataSkipped(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 func TestCreateMetadataBulk_AllNilData(t *testing.T) {
@@ -208,9 +213,10 @@ func TestCreateMetadataBulk_AllNilData(t *testing.T) {
 		{EntityID: uuid.New().String(), Collection: "Operation", Data: nil},
 	}
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 func TestCreateMetadataBulk_InfrastructureError_SkipsFallback(t *testing.T) {
@@ -249,10 +255,11 @@ func TestCreateMetadataBulk_InfrastructureError_SkipsFallback(t *testing.T) {
 	// Create should NOT be called — infrastructure errors skip fallback.
 	// gomock strict controller will panic if Create is called unexpectedly.
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create 2 of 2 metadata entries")
+	assert.ElementsMatch(t, entries, failed, "an infrastructure error leaves every entry of the collection unconfirmed")
 }
 
 func TestCreateMetadataBulk_FallbackOnBulkFailure(t *testing.T) {
@@ -294,9 +301,10 @@ func TestCreateMetadataBulk_FallbackOnBulkFailure(t *testing.T) {
 		Return(nil).
 		Times(2)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 func TestCreateMetadataBulk_FallbackPartialFailure(t *testing.T) {
@@ -342,11 +350,12 @@ func TestCreateMetadataBulk_FallbackPartialFailure(t *testing.T) {
 			Return(errors.New("individual create failed")),
 	)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	// Should return error for partial failure in fallback
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create 1 of 2 metadata entries")
+	assert.Equal(t, []MetadataEntry{entries[1]}, failed, "only the entry whose individual create failed is unconfirmed")
 }
 
 func TestCreateMetadataBulk_SingleEntry_UsesCreate(t *testing.T) {
@@ -378,9 +387,171 @@ func TestCreateMetadataBulk_SingleEntry_UsesCreate(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
+}
+
+func TestCreateMetadataBulk_SingleEntryFailure_ReturnsEntry(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	ctx := context.Background()
+
+	txID := uuid.New().String()
+
+	entries := []MetadataEntry{
+		{
+			EntityID:      txID,
+			Collection:    "Transaction",
+			Data:          map[string]any{"key1": "value1"},
+			TransactionID: txID,
+		},
+	}
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Transaction", gomock.Any()).
+		Return(errors.New("create failed")).
+		Times(1)
+
+	failed, err := uc.createMetadataBulk(ctx, entries)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create 1 of 1 metadata entries")
+	assert.Equal(t, entries, failed)
+}
+
+func TestCreateMetadataBulk_FailureInOneCollection_ReturnsOnlyItsEntries(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	ctx := context.Background()
+
+	txID := uuid.New().String()
+
+	txEntry := MetadataEntry{EntityID: txID, Collection: "Transaction", Data: map[string]any{"a": 1}, TransactionID: txID}
+	opEntry1 := MetadataEntry{EntityID: uuid.New().String(), Collection: "Operation", Data: map[string]any{"b": 2}, TransactionID: txID}
+	opEntry2 := MetadataEntry{EntityID: uuid.New().String(), Collection: "Operation", Data: map[string]any{"c": 3}, TransactionID: txID}
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Transaction", gomock.Any()).
+		Return(nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), "Operation", gomock.Len(2)).
+		Return(nil, context.DeadlineExceeded).
+		Times(1)
+
+	failed, err := uc.createMetadataBulk(ctx, []MetadataEntry{txEntry, opEntry1, opEntry2})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create 2 of 3 metadata entries")
+	assert.ElementsMatch(t, []MetadataEntry{opEntry1, opEntry2}, failed)
+}
+
+func TestCreateMetadataBulk_InvalidEntryInMixedBatch_ReturnsEveryDataEntry(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	ctx := context.Background()
+
+	validEntry := MetadataEntry{EntityID: uuid.New().String(), Collection: "Transaction", Data: map[string]any{"a": 1}}
+	nilDataEntry := MetadataEntry{EntityID: uuid.New().String(), Collection: "Transaction", Data: nil}
+	emptyDataEntry := MetadataEntry{EntityID: uuid.New().String(), Collection: "Operation", Data: map[string]any{}}
+	invalidEntry := MetadataEntry{EntityID: "not-a-valid-uuid", Collection: "Operation", Data: map[string]any{"b": 2}}
+
+	// Validation aborts before any write, so the repository is never called.
+	failed, err := uc.createMetadataBulk(ctx, []MetadataEntry{validEntry, nilDataEntry, emptyDataEntry, invalidEntry})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid metadata entry at index 3")
+	assert.Contains(t, err.Error(), "invalid entity ID format")
+	assert.Equal(t, []MetadataEntry{validEntry, invalidEntry}, failed,
+		"every entry carrying data is unconfirmed, not only the invalid one; nil and empty data carry nothing")
+}
+
+func TestCreateMetadataBulk_EmptyMapData_NothingToPersist(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// No expectation is set: any repository call fails the test.
+	uc := &UseCase{
+		TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}
+
+	entries := []MetadataEntry{
+		{EntityID: uuid.New().String(), Collection: "Transaction", Data: map[string]any{}},
+		{EntityID: uuid.New().String(), Collection: "Operation", Data: map[string]any{}},
+	}
+
+	failed, err := uc.createMetadataBulk(context.Background(), entries)
+
+	require.NoError(t, err)
+	assert.Nil(t, failed)
+}
+
+func TestCreateMetadataBulk_FallbackAllFail_ReturnsAllEntries(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	ctx := context.Background()
+
+	entries := []MetadataEntry{
+		{EntityID: uuid.New().String(), Collection: "Transaction", Data: map[string]any{"a": 1}},
+		{EntityID: uuid.New().String(), Collection: "Transaction", Data: map[string]any{"b": 2}},
+	}
+
+	// Document-level bulk error triggers the fallback; every individual create fails.
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), "Transaction", gomock.Len(2)).
+		Return(nil, errors.New("bulk insert failed")).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Transaction", gomock.Any()).
+		Return(errors.New("individual create failed")).
+		Times(4)
+
+	failed, err := uc.createMetadataBulk(ctx, entries)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create 2 of 2 metadata entries")
+	assert.Equal(t, entries, failed)
+
+	fallbackFailed, fallbackErr := uc.fallbackToIndividualMetadataCreate(ctx, nil, "Transaction", entries)
+
+	require.Error(t, fallbackErr)
+	assert.Contains(t, fallbackErr.Error(), "failed to create 2 of 2 metadata entries in fallback")
+	assert.Equal(t, entries, fallbackFailed)
 }
 
 func TestCreateMetadataBulk_PartialSuccess_ReturnsInsertedCount(t *testing.T) {
@@ -417,10 +588,11 @@ func TestCreateMetadataBulk_PartialSuccess_ReturnsInsertedCount(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	// Partial success should NOT return error - duplicates are OK
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 func TestCreateMetadataBulk_MultipleCollections_ProcessesAll(t *testing.T) {
@@ -463,9 +635,10 @@ func TestCreateMetadataBulk_MultipleCollections_ProcessesAll(t *testing.T) {
 		Return(nil).
 		Times(1)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 func TestCreateMetadataBulk_InvalidEntityID_ReturnsError(t *testing.T) {
@@ -484,10 +657,11 @@ func TestCreateMetadataBulk_InvalidEntityID_ReturnsError(t *testing.T) {
 		},
 	}
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "entity ID is required")
+	assert.Equal(t, entries, failed, "an invalid entry aborts the batch before any write")
 }
 
 func TestCreateMetadataBulk_InvalidUUIDFormat_ReturnsError(t *testing.T) {
@@ -506,10 +680,11 @@ func TestCreateMetadataBulk_InvalidUUIDFormat_ReturnsError(t *testing.T) {
 		},
 	}
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid entity ID format")
+	assert.Equal(t, entries, failed, "an invalid entry aborts the batch before any write")
 }
 
 func TestCreateMetadataBulk_EmptyCollection_ReturnsError(t *testing.T) {
@@ -528,10 +703,11 @@ func TestCreateMetadataBulk_EmptyCollection_ReturnsError(t *testing.T) {
 		},
 	}
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "collection is required")
+	assert.Equal(t, entries, failed, "an invalid entry aborts the batch before any write")
 }
 
 func TestCreateMetadataBulk_ExceedsMaxEntries_ChunksProcessing(t *testing.T) {
@@ -578,9 +754,10 @@ func TestCreateMetadataBulk_ExceedsMaxEntries_ChunksProcessing(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	err := uc.createMetadataBulk(ctx, entries)
+	failed, err := uc.createMetadataBulk(ctx, entries)
 
 	require.NoError(t, err)
+	assert.Empty(t, failed)
 }
 
 // TestCollectMetadataFromPayloads_Success tests that metadata entries are correctly
@@ -625,13 +802,7 @@ func TestCollectMetadataFromPayloads_Success(t *testing.T) {
 		},
 	}
 
-	// All transactions were inserted
-	insertedTxIDs := map[string]struct{}{
-		tx1ID: {},
-		tx2ID: {},
-	}
-
-	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
+	entries := collectMetadataFromPayloads(payloads)
 
 	// Should have 2 transaction entries + 3 operation entries = 5 total
 	require.Len(t, entries, 5)
@@ -645,10 +816,58 @@ func TestCollectMetadataFromPayloads_Success(t *testing.T) {
 	require.Len(t, opEntries, 3)
 }
 
-// TestCollectMetadataFromPayloads_SkipsDuplicateTxMetadata tests that transaction-level
-// metadata for transactions not in insertedTxIDs is skipped, while their operation
-// metadata is still collected.
-func TestCollectMetadataFromPayloads_SkipsDuplicateTxMetadata(t *testing.T) {
+// TestCollectMetadataFromPayloads_AttributesEntriesToOwningTransaction tests that every
+// entry carries the transaction that owns it: the transaction itself for transaction
+// metadata and the parent transaction for operation metadata.
+func TestCollectMetadataFromPayloads_AttributesEntriesToOwningTransaction(t *testing.T) {
+	t.Parallel()
+
+	tx1ID := uuid.New().String()
+	tx2ID := uuid.New().String()
+	op1ID := uuid.New().String()
+	op2ID := uuid.New().String()
+	op3ID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       tx1ID,
+				Metadata: map[string]any{"tx1_key": "tx1_value"},
+				Operations: []*operation.Operation{
+					{ID: op1ID, Metadata: map[string]any{"op1_key": "op1_value"}},
+					{ID: op2ID, Metadata: map[string]any{"op2_key": "op2_value"}},
+				},
+			},
+		},
+		{
+			Transaction: &transaction.Transaction{
+				ID: tx2ID,
+				Operations: []*operation.Operation{
+					{ID: op3ID, Metadata: map[string]any{"op3_key": "op3_value"}},
+				},
+			},
+		},
+	}
+
+	entries := collectMetadataFromPayloads(payloads)
+
+	owners := make(map[string]string, len(entries))
+	for _, e := range entries {
+		owners[e.EntityID] = e.TransactionID
+	}
+
+	assert.Equal(t, map[string]string{
+		tx1ID: tx1ID,
+		op1ID: tx1ID,
+		op2ID: tx1ID,
+		op3ID: tx2ID,
+	}, owners)
+}
+
+// TestCollectMetadataFromPayloads_CollectsDuplicateTxMetadata tests that transaction-level
+// metadata is collected for a transaction that is already persisted (redelivery), so a
+// previously unconfirmed write can be repaired.
+func TestCollectMetadataFromPayloads_CollectsDuplicateTxMetadata(t *testing.T) {
 	t.Parallel()
 
 	tx1ID := uuid.New().String()
@@ -671,7 +890,7 @@ func TestCollectMetadataFromPayloads_SkipsDuplicateTxMetadata(t *testing.T) {
 		},
 		{
 			Transaction: &transaction.Transaction{
-				ID:       tx2ID, // Not in insertedTxIDs (duplicate/status-transition)
+				ID:       tx2ID, // Already persisted (duplicate on insert)
 				Metadata: map[string]any{"tx2_key": "tx2_value"},
 				Operations: []*operation.Operation{
 					{
@@ -683,39 +902,32 @@ func TestCollectMetadataFromPayloads_SkipsDuplicateTxMetadata(t *testing.T) {
 		},
 	}
 
-	// Only tx1 was inserted, tx2 was a duplicate
-	insertedTxIDs := map[string]struct{}{
-		tx1ID: {},
-	}
+	entries := collectMetadataFromPayloads(payloads)
 
-	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
+	// tx-level metadata: both tx1 and the duplicate tx2.
+	txEntries := filterEntriesByCollection(entries, constant.EntityTransaction)
+	require.Len(t, txEntries, 2)
 
-	transactionTypeName := constant.EntityTransaction
-	operationTypeName := constant.EntityOperation
+	txIDs := []string{txEntries[0].EntityID, txEntries[1].EntityID}
+	assert.ElementsMatch(t, []string{tx1ID, tx2ID}, txIDs)
 
-	// tx-level metadata: only tx1 (1 entry). tx2's metadata is skipped.
-	txEntries := filterEntriesByCollection(entries, transactionTypeName)
-	require.Len(t, txEntries, 1)
-	assert.Equal(t, tx1ID, txEntries[0].EntityID)
-
-	// op-level metadata: both op1 and op2 (2 entries). Operations are always collected.
-	opEntries := filterEntriesByCollection(entries, operationTypeName)
+	// op-level metadata: both op1 and op2.
+	opEntries := filterEntriesByCollection(entries, constant.EntityOperation)
 	require.Len(t, opEntries, 2)
 }
 
 // TestCollectMetadataFromPayloads_MixedInsertAndStatusTransition tests that in a batch
 // containing both newly inserted transactions and status-transitioned (updated) ones,
-// operation metadata is preserved for all payloads while transaction-level metadata is
-// only collected for newly inserted transactions.
+// transaction and operation metadata are collected for all payloads.
 func TestCollectMetadataFromPayloads_MixedInsertAndStatusTransition(t *testing.T) {
 	t.Parallel()
 
-	// tx1 is newly inserted (present in insertedTxIDs)
+	// tx1 is newly inserted
 	tx1ID := uuid.New().String()
 	op1ID := uuid.New().String()
 	op2ID := uuid.New().String()
 
-	// tx2 is a status-transition (NOT in insertedTxIDs)
+	// tx2 is a status-transition
 	tx2ID := uuid.New().String()
 	op3ID := uuid.New().String()
 
@@ -741,23 +953,17 @@ func TestCollectMetadataFromPayloads_MixedInsertAndStatusTransition(t *testing.T
 		},
 	}
 
-	// Only tx1 was newly inserted; tx2 is a status-transition (update)
-	insertedTxIDs := map[string]struct{}{
-		tx1ID: {},
-	}
+	entries := collectMetadataFromPayloads(payloads)
 
-	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
+	// Transaction metadata: both tx1 (inserted) and tx2 (status-transition)
+	txEntries := filterEntriesByCollection(entries, constant.EntityTransaction)
+	require.Len(t, txEntries, 2, "inserted and status-transitioned transactions must both have tx-level metadata")
 
-	transactionTypeName := constant.EntityTransaction
-	operationTypeName := constant.EntityOperation
-
-	// Transaction metadata: only tx1 (newly inserted), NOT tx2 (status-transition)
-	txEntries := filterEntriesByCollection(entries, transactionTypeName)
-	require.Len(t, txEntries, 1, "only the newly inserted transaction should have tx-level metadata")
-	assert.Equal(t, tx1ID, txEntries[0].EntityID)
+	txIDs := []string{txEntries[0].EntityID, txEntries[1].EntityID}
+	assert.ElementsMatch(t, []string{tx1ID, tx2ID}, txIDs)
 
 	// Operation metadata: all 3 operations from BOTH transactions
-	opEntries := filterEntriesByCollection(entries, operationTypeName)
+	opEntries := filterEntriesByCollection(entries, constant.EntityOperation)
 	require.Len(t, opEntries, 3, "operations from both inserted and status-transitioned transactions must be collected")
 
 	opIDs := make(map[string]bool, len(opEntries))
@@ -793,47 +999,82 @@ func TestCollectMetadataFromPayloads_SkipsNilMetadata(t *testing.T) {
 		},
 	}
 
-	insertedTxIDs := map[string]struct{}{
-		tx1ID: {},
-	}
-
-	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
+	entries := collectMetadataFromPayloads(payloads)
 
 	// Should have only 1 operation entry (transaction metadata was nil)
 	require.Len(t, entries, 1)
 	assert.Equal(t, op1ID, entries[0].EntityID)
 }
 
-// TestCollectMetadataFromPayloads_EmptyInsertedTxIDs tests that when insertedTxIDs
-// is empty, all payloads are processed (fallback/status-update scenarios).
-func TestCollectMetadataFromPayloads_EmptyInsertedTxIDs(t *testing.T) {
+// TestCollectMetadataFromPayloads_EmptyMetadataYieldsNoEntries tests that empty and nil
+// metadata maps carry nothing to persist.
+func TestCollectMetadataFromPayloads_EmptyMetadataYieldsNoEntries(t *testing.T) {
 	t.Parallel()
-
-	tx1ID := uuid.New().String()
-	tx2ID := uuid.New().String()
 
 	payloads := []transaction.TransactionProcessingPayload{
 		{
 			Transaction: &transaction.Transaction{
-				ID:       tx1ID,
-				Metadata: map[string]any{"tx1_key": "tx1_value"},
-			},
-		},
-		{
-			Transaction: &transaction.Transaction{
-				ID:       tx2ID,
-				Metadata: map[string]any{"tx2_key": "tx2_value"},
+				ID:       uuid.New().String(),
+				Metadata: map[string]any{},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), Metadata: map[string]any{}},
+					{ID: uuid.New().String(), Metadata: nil},
+				},
 			},
 		},
 	}
 
-	// Empty insertedTxIDs means process all
-	insertedTxIDs := map[string]struct{}{}
+	assert.Empty(t, collectMetadataFromPayloads(payloads))
+}
 
-	entries := collectMetadataFromPayloads(payloads, insertedTxIDs)
+// TestCollectMetadataFromPayloads_MixedEmptyAndRealMetadata tests that in a batch where one
+// transaction has an empty metadata map and another has real metadata, only the real one is
+// collected.
+func TestCollectMetadataFromPayloads_MixedEmptyAndRealMetadata(t *testing.T) {
+	t.Parallel()
 
-	// Should have 2 transaction entries (all processed when insertedTxIDs is empty)
-	require.Len(t, entries, 2)
+	emptyTxID := uuid.New().String()
+	realTxID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{Transaction: &transaction.Transaction{ID: emptyTxID, Metadata: map[string]any{}}},
+		{Transaction: &transaction.Transaction{ID: realTxID, Metadata: map[string]any{"k": "v"}}},
+	}
+
+	entries := collectMetadataFromPayloads(payloads)
+
+	require.Len(t, entries, 1)
+	assert.Equal(t, realTxID, entries[0].EntityID)
+	assert.Equal(t, realTxID, entries[0].TransactionID)
+}
+
+// TestCollectMetadataFromPayloads_EmptyTxMetadataKeepsOperationMetadata tests that an empty
+// transaction metadata map does not drop the metadata of that transaction's operations.
+func TestCollectMetadataFromPayloads_EmptyTxMetadataKeepsOperationMetadata(t *testing.T) {
+	t.Parallel()
+
+	txID := uuid.New().String()
+	opID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       txID,
+				Metadata: map[string]any{},
+				Operations: []*operation.Operation{
+					{ID: opID, Metadata: map[string]any{"leg": "debit"}},
+					{ID: uuid.New().String(), Metadata: map[string]any{}},
+				},
+			},
+		},
+	}
+
+	entries := collectMetadataFromPayloads(payloads)
+
+	require.Len(t, entries, 1)
+	assert.Equal(t, opID, entries[0].EntityID)
+	assert.Equal(t, constant.EntityOperation, entries[0].Collection)
+	assert.Equal(t, txID, entries[0].TransactionID)
 }
 
 // filterEntriesByCollection is a test helper to filter metadata entries by collection.
@@ -894,11 +1135,6 @@ func TestProcessMetadataAndEventsBulk_UsesBulkOperations(t *testing.T) {
 		},
 	}
 
-	insertedTxIDs := map[string]struct{}{
-		tx1ID: {},
-		tx2ID: {},
-	}
-
 	// Expect CreateBulk for Transaction collection (2 entries)
 	mockMetadataRepo.EXPECT().
 		CreateBulk(gomock.Any(), "Transaction", gomock.Len(2)).
@@ -917,14 +1153,14 @@ func TestProcessMetadataAndEventsBulk_UsesBulkOperations(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	// Call the bulk processing method (no error return - logs warnings internally)
-	uc.processMetadataAndEventsBulk(ctx, nil, payloads, insertedTxIDs)
+	failedTxIDs := uc.processMetadataAndEventsBulk(ctx, nil, payloads)
+
+	assert.Empty(t, failedTxIDs)
 }
 
-// TestProcessMetadataAndEventsBulk_SkipsDuplicateTxMetadata tests that duplicate transaction
-// metadata (those not in insertedTxIDs) is not processed, while their operation metadata is
-// still created.
-func TestProcessMetadataAndEventsBulk_SkipsDuplicateTxMetadata(t *testing.T) {
+// TestProcessMetadataAndEventsBulk_CollectsDuplicateTxMetadata tests that transaction
+// metadata of a transaction already persisted is written alongside the rest of the batch.
+func TestProcessMetadataAndEventsBulk_CollectsDuplicateTxMetadata(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
@@ -939,7 +1175,7 @@ func TestProcessMetadataAndEventsBulk_SkipsDuplicateTxMetadata(t *testing.T) {
 	ctx := context.Background()
 
 	tx1ID := uuid.New().String()
-	tx2ID := uuid.New().String() // Not in insertedTxIDs (duplicate/status-transition)
+	tx2ID := uuid.New().String() // Already persisted (duplicate on insert)
 	op1ID := uuid.New().String()
 	op2ID := uuid.New().String()
 
@@ -964,18 +1200,17 @@ func TestProcessMetadataAndEventsBulk_SkipsDuplicateTxMetadata(t *testing.T) {
 		},
 	}
 
-	// Only tx1 was inserted
-	insertedTxIDs := map[string]struct{}{
-		tx1ID: {},
-	}
-
-	// Only 1 transaction metadata entry (tx1), single entry uses Create
+	// 2 transaction metadata entries (tx1 + duplicate tx2)
 	mockMetadataRepo.EXPECT().
-		Create(gomock.Any(), "Transaction", gomock.Any()).
-		Return(nil).
+		CreateBulk(gomock.Any(), "Transaction", gomock.Len(2)).
+		Return(&repository.MongoDBBulkInsertResult{
+			Attempted: 2,
+			Inserted:  1,
+			Matched:   1,
+		}, nil).
 		Times(1)
 
-	// 2 operation metadata entries (op1 + op2) — operations are always collected
+	// 2 operation metadata entries (op1 + op2)
 	mockMetadataRepo.EXPECT().
 		CreateBulk(gomock.Any(), "Operation", gomock.Len(2)).
 		Return(&repository.MongoDBBulkInsertResult{
@@ -984,7 +1219,211 @@ func TestProcessMetadataAndEventsBulk_SkipsDuplicateTxMetadata(t *testing.T) {
 		}, nil).
 		Times(1)
 
-	uc.processMetadataAndEventsBulk(ctx, nil, payloads, insertedTxIDs)
+	failedTxIDs := uc.processMetadataAndEventsBulk(ctx, nil, payloads)
+
+	assert.Empty(t, failedTxIDs)
+}
+
+// TestProcessMetadataAndEventsBulk_OperationFailureMarksParentTransaction tests that an
+// unconfirmed operation metadata write reports the parent transaction, even when the
+// transaction's own metadata was written.
+func TestProcessMetadataAndEventsBulk_OperationFailureMarksParentTransaction(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	ctx := context.Background()
+
+	tx1ID := uuid.New().String()
+	tx2ID := uuid.New().String()
+	op1ID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       tx1ID,
+				Metadata: map[string]any{"tx1_key": "tx1_value"},
+				Operations: []*operation.Operation{
+					{ID: op1ID, Metadata: map[string]any{"op1_key": "op1_value"}},
+				},
+			},
+		},
+		{
+			Transaction: &transaction.Transaction{
+				ID:       tx2ID,
+				Metadata: map[string]any{"tx2_key": "tx2_value"},
+			},
+		},
+	}
+
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), "Transaction", gomock.Len(2)).
+		Return(&repository.MongoDBBulkInsertResult{Attempted: 2, Inserted: 2}, nil).
+		Times(1)
+
+	// Single operation entry uses Create; it fails.
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Operation", gomock.Any()).
+		Return(errors.New("create failed")).
+		Times(1)
+
+	failedTxIDs := uc.processMetadataAndEventsBulk(ctx, nil, payloads)
+
+	assert.Equal(t, map[string]struct{}{tx1ID: {}}, failedTxIDs)
+}
+
+// TestProcessMetadataAndEventsBulk_TransactionFailureMarksTransaction tests that an
+// unconfirmed transaction metadata write reports that transaction only.
+func TestProcessMetadataAndEventsBulk_TransactionFailureMarksTransaction(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	ctx := context.Background()
+
+	tx1ID := uuid.New().String()
+	tx2ID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{Transaction: &transaction.Transaction{ID: tx1ID, Metadata: map[string]any{"tx1_key": "tx1_value"}}},
+		{Transaction: &transaction.Transaction{ID: tx2ID, Metadata: map[string]any{"tx2_key": "tx2_value"}}},
+	}
+
+	// Bulk insert hits a document-level error; the fallback confirms tx1 and fails tx2.
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), "Transaction", gomock.Len(2)).
+		Return(nil, errors.New("bulk insert failed")).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), "Transaction", gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, meta *mongodb.Metadata) error {
+			if meta.EntityID == tx2ID {
+				return errors.New("individual create failed")
+			}
+
+			return nil
+		}).
+		Times(2)
+
+	failedTxIDs := uc.processMetadataAndEventsBulk(ctx, nil, payloads)
+
+	assert.Equal(t, map[string]struct{}{tx2ID: {}}, failedTxIDs)
+}
+
+// TestProcessMetadataAndEventsBulk_WarnsPerTransactionWithoutMetadataContent tests that
+// each affected transaction gets one Warn carrying its ID, and that no metadata key or
+// value reaches any log line.
+func TestProcessMetadataAndEventsBulk_WarnsPerTransactionWithoutMetadataContent(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+	}
+
+	logger := &capturingLogger{}
+	ctx := libObservability.ContextWithLogger(context.Background(), logger)
+
+	tx1ID := uuid.New().String()
+	tx2ID := uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       tx1ID,
+				Metadata: map[string]any{"secret_tx_key": "secret_tx_value"},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), Metadata: map[string]any{"secret_op_key": "secret_op_value"}},
+					{ID: uuid.New().String(), Metadata: map[string]any{"secret_op_key2": "secret_op_value2"}},
+				},
+			},
+		},
+		{
+			Transaction: &transaction.Transaction{
+				ID:       tx2ID,
+				Metadata: map[string]any{"secret_tx2_key": "secret_tx2_value"},
+			},
+		},
+	}
+
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), gomock.Any(), gomock.Len(2)).
+		Return(nil, context.DeadlineExceeded).
+		Times(2)
+
+	failedTxIDs := uc.processMetadataAndEventsBulk(ctx, logger, payloads)
+
+	assert.Equal(t, map[string]struct{}{tx1ID: {}, tx2ID: {}}, failedTxIDs)
+
+	var warnLines []capturedLogLine
+
+	for _, line := range logger.snapshot() {
+		if line.Level == libLog.LevelWarn && line.Msg == "Transaction metadata not confirmed" {
+			warnLines = append(warnLines, line)
+		}
+	}
+
+	require.Len(t, warnLines, 2, "one Warn per affected transaction")
+
+	warns := rendered(warnLines)
+	assert.Contains(t, warns, tx1ID)
+	assert.Contains(t, warns, tx2ID)
+
+	all := rendered(logger.snapshot())
+	for _, secret := range []string{"secret_tx_key", "secret_tx_value", "secret_op_key", "secret_op_value", "secret_tx2_key", "secret_tx2_value"} {
+		assert.NotContains(t, all, secret)
+	}
+}
+
+// TestProcessMetadataAndEventsBulk_EmptyMetadataConfirmedWithoutWrites tests that a payload
+// whose transaction and operation metadata are empty or nil is confirmed without touching
+// the repository.
+func TestProcessMetadataAndEventsBulk_EmptyMetadataConfirmedWithoutWrites(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// No expectation is set: any repository call fails the test.
+	uc := &UseCase{
+		TransactionMetadataRepo: mongodb.NewMockRepository(ctrl),
+	}
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{
+			Transaction: &transaction.Transaction{
+				ID:       uuid.New().String(),
+				Metadata: map[string]any{},
+				Operations: []*operation.Operation{
+					{ID: uuid.New().String(), Metadata: map[string]any{}},
+					{ID: uuid.New().String(), Metadata: nil},
+				},
+			},
+		},
+	}
+
+	failedTxIDs := uc.processMetadataAndEventsBulk(context.Background(), nil, payloads)
+
+	assert.Empty(t, failedTxIDs)
 }
 
 // TestProcessMetadataAndEventsBulk_EmptyPayloads tests that empty payloads
@@ -996,8 +1435,9 @@ func TestProcessMetadataAndEventsBulk_EmptyPayloads(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Should not panic or cause issues
-	uc.processMetadataAndEventsBulk(ctx, nil, []transaction.TransactionProcessingPayload{}, nil)
+	failedTxIDs := uc.processMetadataAndEventsBulk(ctx, nil, []transaction.TransactionProcessingPayload{})
+
+	assert.Empty(t, failedTxIDs)
 }
 
 // TestProcessMetadataAndEventsBulk_HandlesAllNilMetadata tests that payloads
@@ -1023,10 +1463,7 @@ func TestProcessMetadataAndEventsBulk_HandlesAllNilMetadata(t *testing.T) {
 		},
 	}
 
-	insertedTxIDs := map[string]struct{}{
-		tx1ID: {},
-	}
+	failedTxIDs := uc.processMetadataAndEventsBulk(ctx, nil, payloads)
 
-	// Should not panic or cause issues
-	uc.processMetadataAndEventsBulk(ctx, nil, payloads, insertedTxIDs)
+	assert.Empty(t, failedTxIDs)
 }

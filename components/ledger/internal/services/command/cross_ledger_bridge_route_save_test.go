@@ -49,11 +49,11 @@ func TestValidateOperationRouteTypes_AtMostOneBridgeRoute(t *testing.T) {
 	source := &mmodel.OperationRoute{ID: uuid.New(), OperationType: constant.OperationRouteTypeSource}
 	destination := &mmodel.OperationRoute{ID: uuid.New(), OperationType: constant.OperationRouteTypeDestination}
 
-	require.NoError(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, destination}))
-	require.NoError(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, destination, bridgeOperationRoute(uuid.New())}))
+	require.NoError(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, destination}, nil))
+	require.NoError(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, destination, bridgeOperationRoute(uuid.New())}, nil))
 	requireInvalidCrossLedgerRoute(t, validateOperationRouteTypes([]*mmodel.OperationRoute{
 		source, destination, bridgeOperationRoute(uuid.New()), bridgeOperationRoute(uuid.New()),
-	}))
+	}, nil))
 }
 
 // The bridge route is bidirectional, but it only ever classifies the synthetic
@@ -75,10 +75,10 @@ func TestValidateOperationRouteTypes_TheBridgeRouteIsNeitherSourceNorDestination
 		assert.Equal(t, want.Error(), businessErr.Code)
 	}
 
-	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, bridge}), constant.ErrNoDestinationForAction)
-	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{bridge, destination}), constant.ErrNoSourceForAction)
-	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{bridge}), constant.ErrNoSourceForAction)
-	require.NoError(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, destination, bridge}))
+	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, bridge}, nil), constant.ErrNoDestinationForAction)
+	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{bridge, destination}, nil), constant.ErrNoSourceForAction)
+	requireBusinessCode(t, validateOperationRouteTypes([]*mmodel.OperationRoute{bridge}, nil), constant.ErrNoSourceForAction)
+	require.NoError(t, validateOperationRouteTypes([]*mmodel.OperationRoute{source, destination, bridge}, nil))
 }
 
 func TestCreateTransactionRoute_RejectsASecondBridgeRoute(t *testing.T) {
@@ -136,7 +136,7 @@ func TestUpdateTransactionRoute_RejectsASecondBridgeRoute(t *testing.T) {
 
 	result, err := uc.UpdateTransactionRoute(context.Background(), organizationID, transactionRouteID, &mmodel.UpdateTransactionRouteInput{
 		OperationRoutes: &ids,
-	})
+	}, LinksFullSetV1)
 
 	assert.Nil(t, result)
 	requireInvalidCrossLedgerRoute(t, err)
@@ -155,8 +155,8 @@ func TestUpdateOperationRoute_BridgeEntryKeepsOneBridgePerTransactionRoute(t *te
 		transactionRoutes := transactionroute.NewMockRepository(ctrl)
 
 		operationRoutes.EXPECT().FindTransactionRouteIDs(gomock.Any(), operationRouteID).Return([]uuid.UUID{transactionRouteID}, nil)
-		transactionRoutes.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{transactionRouteID}).
-			Return(map[uuid.UUID][]uuid.UUID{transactionRouteID: {operationRouteID, otherRouteID}}, nil)
+		transactionRoutes.EXPECT().FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{transactionRouteID}).
+			Return(requiredLinkMap(map[uuid.UUID][]uuid.UUID{transactionRouteID: {operationRouteID, otherRouteID}}), nil)
 		operationRoutes.EXPECT().FindByIDs(gomock.Any(), organizationID, []uuid.UUID{otherRouteID}).
 			Return([]*mmodel.OperationRoute{bridgeOperationRoute(otherRouteID)}, nil)
 
@@ -179,8 +179,8 @@ func TestUpdateOperationRoute_BridgeEntryKeepsOneBridgePerTransactionRoute(t *te
 		// Once for the one-bridge check, once to refresh the linked transaction
 		// route's cache with the new entry.
 		operationRoutes.EXPECT().FindTransactionRouteIDs(gomock.Any(), operationRouteID).Return([]uuid.UUID{transactionRouteID}, nil).Times(2)
-		transactionRoutes.EXPECT().FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{transactionRouteID}).
-			Return(map[uuid.UUID][]uuid.UUID{transactionRouteID: {operationRouteID, otherRouteID}}, nil)
+		transactionRoutes.EXPECT().FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{transactionRouteID}).
+			Return(requiredLinkMap(map[uuid.UUID][]uuid.UUID{transactionRouteID: {operationRouteID, otherRouteID}}), nil)
 		operationRoutes.EXPECT().FindByIDs(gomock.Any(), organizationID, []uuid.UUID{otherRouteID}).
 			Return([]*mmodel.OperationRoute{{ID: otherRouteID, OperationType: constant.OperationRouteTypeSource}}, nil)
 		operationRoutes.EXPECT().Update(gomock.Any(), organizationID, operationRouteID, gomock.Any()).

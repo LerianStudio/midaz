@@ -34,6 +34,10 @@ const (
 	recoveryCleanupRescheduled int64 = 3
 )
 
+// recoveryCleanupRetryDelay matches the delay the cleanup script applies to an
+// execution blocked by a pending predecessor.
+const recoveryCleanupRetryDelay = time.Minute
+
 //go:embed scripts/cleanup_engine_recovery.lua
 var cleanupEngineRecoveryLua string
 
@@ -45,10 +49,30 @@ type RecoveryCleanupResult struct {
 	Cleaned     int
 	Stale       int
 	Rescheduled int
+	// Failed counts executions whose cleanup proof was rejected. They keep every
+	// artifact and are retried after recoveryCleanupRetryDelay.
+	Failed int
+	// FirstFailure is the rejection of the first execution counted in Failed.
+	FirstFailure error
 }
 
+// RecoveryCleanupBacklog describes the executions whose cleanup is due.
+type RecoveryCleanupBacklog struct {
+	Due int64
+	// OldestDueMs is the earliest due deadline in unix milliseconds, or zero
+	// when nothing is due.
+	OldestDueMs int64
+}
+
+// errRecoveryCleanupRejected marks a failure confined to one scheduled
+// execution: its receipt or the cleanup script rejected the proof.
+var errRecoveryCleanupRejected = errors.New("engine recovery cleanup proof rejected")
+
 // CleanupEngineRecovery removes only execution artifacts whose frozen cleanup
-// proof is due and still agrees with every transaction coordinator.
+// proof is due and still agrees with every transaction coordinator. An
+// execution whose proof is rejected keeps its artifacts and is rescheduled, so
+// it never blocks the executions behind it. Any other failure ends the pass and
+// returns the work done so far.
 func (rr *RedisConsumerRepository) CleanupEngineRecovery(ctx context.Context, now time.Time, limit int) (RecoveryCleanupResult, error) {
 	var result RecoveryCleanupResult
 	if err := ctx.Err(); err != nil {
@@ -80,24 +104,115 @@ func (rr *RedisConsumerRepository) CleanupEngineRecovery(ctx context.Context, no
 	result.Scanned = len(due)
 	for _, entry := range due {
 		status, cleanupErr := rr.cleanupEngineRecoveryEntry(ctx, client, dueKey, entry, now)
+		if errors.Is(cleanupErr, errRecoveryCleanupRejected) {
+			member, _ := entry.Member.(string)
+
+			rescheduled, rescheduleErr := rescheduleRejectedRecoveryCleanup(ctx, client, dueKey, member, now)
+			if rescheduleErr != nil {
+				return result, rescheduleErr
+			}
+
+			if rescheduled {
+				result.Failed++
+				if result.FirstFailure == nil {
+					result.FirstFailure = cleanupErr
+				}
+			}
+
+			continue
+		}
+
 		if cleanupErr != nil {
 			return result, cleanupErr
 		}
 
-		switch status {
-		case recoveryCleanupNoop:
-		case recoveryCleanupDeleted:
-			result.Cleaned++
-		case recoveryCleanupStale:
-			result.Stale++
-		case recoveryCleanupRescheduled:
-			result.Rescheduled++
-		default:
-			return result, fmt.Errorf("invalid engine recovery cleanup result")
+		if err := result.count(status); err != nil {
+			return result, err
 		}
 	}
 
 	return result, nil
+}
+
+func (result *RecoveryCleanupResult) count(status int64) error {
+	switch status {
+	case recoveryCleanupNoop:
+	case recoveryCleanupDeleted:
+		result.Cleaned++
+	case recoveryCleanupStale:
+		result.Stale++
+	case recoveryCleanupRescheduled:
+		result.Rescheduled++
+	default:
+		return fmt.Errorf("invalid engine recovery cleanup result")
+	}
+
+	return nil
+}
+
+// EngineRecoveryCleanupBacklog reads how many executions are due for cleanup
+// at now and the earliest due deadline, without changing the schedule.
+func (rr *RedisConsumerRepository) EngineRecoveryCleanupBacklog(ctx context.Context, now time.Time) (RecoveryCleanupBacklog, error) {
+	var backlog RecoveryCleanupBacklog
+	if err := ctx.Err(); err != nil {
+		return backlog, err
+	}
+
+	if now.IsZero() || now.UnixMilli() < 1 {
+		return backlog, fmt.Errorf("invalid engine recovery cleanup backlog request")
+	}
+
+	dueKey, err := tenantKeyFromContextOrError(ctx, EngineRecoveryCleanupSchedule)
+	if err != nil {
+		return backlog, fmt.Errorf("resolve engine recovery cleanup schedule: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return backlog, fmt.Errorf("get engine recovery cleanup client: %w", err)
+	}
+
+	var (
+		dueCount *redis.IntCmd
+		oldest   *redis.ZSliceCmd
+	)
+
+	if _, err := client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+		dueCount = pipe.ZCount(ctx, dueKey, "-inf", strconv.FormatInt(now.UnixMilli(), 10))
+		oldest = pipe.ZRangeWithScores(ctx, dueKey, 0, 0)
+
+		return nil
+	}); err != nil {
+		return backlog, fmt.Errorf("read engine recovery cleanup backlog: %w", err)
+	}
+
+	backlog.Due = dueCount.Val()
+	if backlog.Due > 0 && len(oldest.Val()) == 1 {
+		backlog.OldestDueMs = int64(oldest.Val()[0].Score)
+	}
+
+	return backlog, nil
+}
+
+// rescheduleRejectedRecoveryCleanup moves a rejected execution forward by
+// recoveryCleanupRetryDelay. XX never revives a member another cleaner already
+// removed, and GT never pulls an already later retry backward; either case
+// reports false.
+func rescheduleRejectedRecoveryCleanup(
+	ctx context.Context,
+	client redis.UniversalClient,
+	dueKey, member string,
+	now time.Time,
+) (bool, error) {
+	changed, err := client.ZAddArgs(ctx, dueKey, redis.ZAddArgs{
+		XX: true, GT: true, Ch: true,
+		Members: []redis.Z{{Score: float64(now.Add(recoveryCleanupRetryDelay).UnixMilli()), Member: member}},
+	}).Result()
+	if err != nil {
+		return false, fmt.Errorf("reschedule rejected engine recovery cleanup: %w", err)
+	}
+
+	return changed == 1, nil
 }
 
 //nolint:gocognit,gocyclo // cleanup validates the complete scoped receipt and key inventory before one atomic script
@@ -162,7 +277,7 @@ func (rr *RedisConsumerRepository) cleanupEngineRecoveryEntry(
 		}
 		if json.Unmarshal(rawReceipt, &receipt) == nil {
 			if len(receipt.Protection.Scopes) > 0 && len(receipt.Protection.Scopes) != len(receipt.Protection.Transactions) {
-				return recoveryCleanupNoop, fmt.Errorf("invalid engine recovery cleanup receipt scopes")
+				return recoveryCleanupNoop, fmt.Errorf("%w: invalid receipt scopes", errRecoveryCleanupRejected)
 			}
 
 			for index, transactionID := range receipt.Protection.Transactions {
@@ -175,7 +290,7 @@ func (rr *RedisConsumerRepository) cleanupEngineRecoveryEntry(
 				if len(receipt.Protection.Scopes) > 0 {
 					part := receipt.Protection.Scopes[index]
 					if part.OrganizationID == uuid.Nil || part.LedgerID == uuid.Nil {
-						return recoveryCleanupNoop, fmt.Errorf("invalid engine recovery cleanup transaction scope")
+						return recoveryCleanupNoop, fmt.Errorf("%w: invalid transaction scope", errRecoveryCleanupRejected)
 					}
 
 					partScope = part.OrganizationID.String() + ":" + part.LedgerID.String()
@@ -220,11 +335,31 @@ func (rr *RedisConsumerRepository) cleanupEngineRecoveryEntry(
 		ledgerID.String(),
 		executionID.String(),
 	).Int64()
+	if isRecoveryCleanupScriptRejection(err) {
+		return recoveryCleanupNoop, fmt.Errorf("%w: %w", errRecoveryCleanupRejected, err)
+	}
+
 	if err != nil {
 		return recoveryCleanupNoop, fmt.Errorf("cleanup engine recovery execution: %w", err)
 	}
 
 	return status, nil
+}
+
+// isRecoveryCleanupScriptRejection reports whether the cleanup script itself
+// refused the execution: one of its proof replies, a type mismatch, or a Lua
+// runtime error while decoding the execution's artifacts. Transport failures,
+// cancellation, and server states such as LOADING, READONLY, BUSY, or OOM are
+// not entry failures and must end the pass.
+func isRecoveryCleanupScriptRejection(err error) bool {
+	var reply redis.Error
+	if err == nil || errors.Is(err, redis.Nil) || !errors.As(err, &reply) {
+		return false
+	}
+
+	message := reply.Error()
+
+	return strings.HasPrefix(message, "ERR ") || strings.HasPrefix(message, "WRONGTYPE ")
 }
 
 func recoveryCleanupMember(organizationID, ledgerID, executionID uuid.UUID) string {

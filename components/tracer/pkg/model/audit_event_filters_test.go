@@ -5,12 +5,15 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 func TestAuditEventFilters_Validate(t *testing.T) {
@@ -346,4 +349,40 @@ func TestAuditEventFilters_Constants(t *testing.T) {
 	t.Run("DefaultAuditEventDateRangeDays is 90", func(t *testing.T) {
 		assert.Equal(t, 90, DefaultAuditEventDateRangeDays)
 	})
+}
+
+func TestAuditEventFilters_Validate_TransactionType_TableCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		raw     TransactionType
+		want    TransactionType
+		wantErr bool
+	}{
+		{name: "free-form scheme is accepted", raw: "BOLETO", want: "BOLETO"},
+		{name: "lowercase padded scheme is normalized", raw: " boleto ", want: "BOLETO"},
+		{name: "punctuation is rejected", raw: "bad value!", wantErr: true},
+		{name: "51 characters is rejected", raw: TransactionType(strings.Repeat("A", 51)), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			raw := tt.raw
+			filters := &AuditEventFilters{TransactionType: &raw, Limit: 10}
+
+			err := filters.Validate()
+			if tt.wantErr {
+				require.ErrorIs(t, err, constant.ErrInvalidAuditEventFilters)
+				assert.Contains(t, err.Error(), "invalid transaction_type")
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, filters.TransactionType)
+			assert.Equal(t, tt.want, *filters.TransactionType)
+		})
+	}
 }

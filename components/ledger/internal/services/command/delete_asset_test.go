@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -19,7 +20,7 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func setupDeleteAssetUseCase(t *testing.T) (*UseCase, *asset.MockRepository, *account.MockRepository) {
+func setupDeleteAssetUseCase(t *testing.T) (*UseCase, *asset.MockRepository, *account.MockRepository, *onbMongo.MockRepository) {
 	t.Helper()
 
 	ctrl := gomock.NewController(t)
@@ -27,11 +28,14 @@ func setupDeleteAssetUseCase(t *testing.T) (*UseCase, *asset.MockRepository, *ac
 
 	mockAssetRepo := asset.NewMockRepository(ctrl)
 	mockAccountRepo := account.NewMockRepository(ctrl)
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
 
 	return &UseCase{
-		AssetRepo:   mockAssetRepo,
-		AccountRepo: mockAccountRepo,
-	}, mockAssetRepo, mockAccountRepo
+		AssetRepo:              mockAssetRepo,
+		AccountRepo:            mockAccountRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+	}, mockAssetRepo, mockAccountRepo, mockMetadataRepo
 }
 
 func TestDeleteAssetByID(t *testing.T) {
@@ -40,7 +44,7 @@ func TestDeleteAssetByID(t *testing.T) {
 		organizationID uuid.UUID
 		ledgerID       uuid.UUID
 		assetID        uuid.UUID
-		mockSetup      func(org, ledger uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository)
+		mockSetup      func(org, ledger, assetID uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *onbMongo.MockRepository)
 		expectErr      bool
 	}{
 		{
@@ -48,7 +52,7 @@ func TestDeleteAssetByID(t *testing.T) {
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			assetID:        uuid.New(),
-			mockSetup: func(org, ledger uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository) {
+			mockSetup: func(org, ledger, assetID uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *onbMongo.MockRepository) {
 				mockAssetRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Asset{ID: uuid.New().String(), Code: "asset123"}, nil)
@@ -74,6 +78,15 @@ func TestDeleteAssetByID(t *testing.T) {
 				mockAssetRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAsset, assetID.String()).
+					Return(nil).
+					Times(1)
+				// Only the asset's metadata is soft-deleted; the external
+				// accounts never carry a metadata document.
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAccount, gomock.Any()).
+					Times(0)
 			},
 			expectErr: false,
 		},
@@ -82,7 +95,7 @@ func TestDeleteAssetByID(t *testing.T) {
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			assetID:        uuid.New(),
-			mockSetup: func(org, ledger uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository) {
+			mockSetup: func(org, ledger, assetID uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *onbMongo.MockRepository) {
 				mockAssetRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Asset{ID: uuid.New().String(), Code: "asset123"}, nil)
@@ -92,6 +105,10 @@ func TestDeleteAssetByID(t *testing.T) {
 				mockAssetRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAsset, assetID.String()).
+					Return(nil).
+					Times(1)
 			},
 			expectErr: false,
 		},
@@ -100,10 +117,13 @@ func TestDeleteAssetByID(t *testing.T) {
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			assetID:        uuid.New(),
-			mockSetup: func(org, ledger uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository) {
+			mockSetup: func(org, ledger, assetID uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *onbMongo.MockRepository) {
 				mockAssetRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(nil, services.ErrDatabaseItemNotFound)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAsset, assetID.String()).
+					Times(0)
 			},
 			expectErr: true,
 		},
@@ -112,13 +132,16 @@ func TestDeleteAssetByID(t *testing.T) {
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			assetID:        uuid.New(),
-			mockSetup: func(org, ledger uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository) {
+			mockSetup: func(org, ledger, assetID uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *onbMongo.MockRepository) {
 				mockAssetRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Asset{ID: uuid.New().String(), Code: "asset123"}, nil)
 				mockAccountRepo.EXPECT().
 					ListExternalAccountsByAssetCode(gomock.Any(), gomock.Any(), gomock.Any(), "asset123").
 					Return(nil, errors.New("error listing accounts"))
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAsset, assetID.String()).
+					Times(0)
 			},
 			expectErr: true,
 		},
@@ -127,7 +150,7 @@ func TestDeleteAssetByID(t *testing.T) {
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			assetID:        uuid.New(),
-			mockSetup: func(org, ledger uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository) {
+			mockSetup: func(org, ledger, assetID uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *onbMongo.MockRepository) {
 				mockAssetRepo.EXPECT().
 					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(&mmodel.Asset{ID: uuid.New().String(), Code: "asset123"}, nil)
@@ -137,15 +160,41 @@ func TestDeleteAssetByID(t *testing.T) {
 				mockAccountRepo.EXPECT().
 					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Return(errors.New("error deleting account"))
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAsset, assetID.String()).
+					Times(0)
 			},
 			expectErr: true,
+		},
+		{
+			name:           "Success - metadata soft delete failure does not fail the delete",
+			organizationID: uuid.New(),
+			ledgerID:       uuid.New(),
+			assetID:        uuid.New(),
+			mockSetup: func(org, ledger, assetID uuid.UUID, mockAssetRepo *asset.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *onbMongo.MockRepository) {
+				mockAssetRepo.EXPECT().
+					Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(&mmodel.Asset{ID: assetID.String(), Code: "asset123"}, nil)
+				mockAccountRepo.EXPECT().
+					ListExternalAccountsByAssetCode(gomock.Any(), gomock.Any(), gomock.Any(), "asset123").
+					Return([]*mmodel.Account{}, nil)
+				mockAssetRepo.EXPECT().
+					Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil).
+					Times(1)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAsset, assetID.String()).
+					Return(errors.New("mongo unavailable")).
+					Times(3)
+			},
+			expectErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc, mockAssetRepo, mockAccountRepo := setupDeleteAssetUseCase(t)
-			tt.mockSetup(tt.organizationID, tt.ledgerID, mockAssetRepo, mockAccountRepo)
+			uc, mockAssetRepo, mockAccountRepo, mockMetadataRepo := setupDeleteAssetUseCase(t)
+			tt.mockSetup(tt.organizationID, tt.ledgerID, tt.assetID, mockAssetRepo, mockAccountRepo, mockMetadataRepo)
 
 			ctx := context.Background()
 			err := uc.DeleteAssetByID(ctx, tt.organizationID, tt.ledgerID, tt.assetID)

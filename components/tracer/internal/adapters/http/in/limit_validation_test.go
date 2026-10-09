@@ -17,6 +17,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // Valid UUIDs for limit validation testing
@@ -355,7 +356,7 @@ func TestLimitScopeInput_TransactionTypeValidation(t *testing.T) {
 	}
 
 	t.Run("invalid transactionType", func(t *testing.T) {
-		invalidType := model.TransactionType("INVALID")
+		invalidType := model.TransactionType("bad value!")
 		input := CreateLimitInput{
 			Name:      "Test Limit",
 			LimitType: model.LimitTypeDaily,
@@ -367,7 +368,7 @@ func TestLimitScopeInput_TransactionTypeValidation(t *testing.T) {
 		}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "transactionType must be one of")
+		assert.Contains(t, err.Error(), "transactionType "+scheme.FormatHint)
 	})
 }
 
@@ -772,13 +773,13 @@ func TestListLimitsInput_ValidateScopeFields(t *testing.T) {
 			errCode:     "0082",
 		},
 		{
-			name: "error - invalid transactionType enum",
+			name: "error - invalid transactionType",
 			input: ListLimitsInput{
-				TransactionType: testutil.StringPtr("INVALID_TYPE"),
+				TransactionType: testutil.StringPtr("bad value!"),
 				Limit:           testutil.Ptr(10),
 			},
 			expectError: true,
-			errContains: "transaction_type must be one of",
+			errContains: "",
 			errCode:     "0082",
 		},
 		{

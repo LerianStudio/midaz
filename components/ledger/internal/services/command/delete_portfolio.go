@@ -53,6 +53,8 @@ func (uc *UseCase) DeletePortfolioByID(ctx context.Context, organizationID, ledg
 		return err
 	}
 
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntityPortfolio, id.String())
+
 	uc.emitPortfolioDeletedEvent(ctx, span, logger, id.String(), organizationID.String(), ledgerID.String(), time.Now())
 
 	return nil

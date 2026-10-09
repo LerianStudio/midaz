@@ -56,7 +56,7 @@ func TestValidationRequest_Validate(t *testing.T) {
 		{
 			name: "invalid transactionType fails",
 			modify: func(r *ValidationRequest) {
-				r.TransactionType = TransactionType("INVALID")
+				r.TransactionType = TransactionType("BAD VALUE!")
 			},
 			expectedErr: constant.ErrValidationInvalidTransactionType,
 		},
@@ -308,9 +308,9 @@ func TestValidationRequest_ValidateForReserve(t *testing.T) {
 			expectedErr: nil,
 		},
 		{
-			name: "INVALID (non-empty, non-enum) transactionType still fails",
+			name: "charset-invalid transactionType still fails",
 			modify: func(r *ValidationRequest) {
-				r.TransactionType = TransactionType("PIXIE")
+				r.TransactionType = TransactionType("BAD VALUE!")
 			},
 			expectedErr: constant.ErrValidationInvalidTransactionType,
 		},

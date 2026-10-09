@@ -25,6 +25,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libRabbitmq "github.com/LerianStudio/lib-commons/v7/commons/rabbitmq"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
@@ -36,7 +37,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vmihailenco/msgpack/v5"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
@@ -53,6 +53,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	ledgerRabbitMQ "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	transactionRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -60,7 +61,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -74,6 +74,7 @@ type engineWriteBehindHTTPIntegration struct {
 	redisRepo           *transactionRedis.RedisConsumerRepository
 	command             *command.UseCase
 	query               *query.UseCase
+	quarantine          transactionquarantine.Repository
 	handler             *httpin.TransactionHandler
 	organization        uuid.UUID
 	ledger              uuid.UUID
@@ -115,6 +116,39 @@ func (engine *integrationCountingEngine) Execute(ctx context.Context, input comm
 
 	return engine.delegate.Execute(ctx, input)
 }
+
+// answerLostAfterApplyEngine executes through the real engine and then reports
+// an indeterminate outcome, the shape of a response lost after Redis ran the
+// script.
+type answerLostAfterApplyEngine struct {
+	delegate command.Engine
+	calls    atomic.Int32
+}
+
+func (engine *answerLostAfterApplyEngine) Execute(ctx context.Context, input command.EngineExecution) (*accounting.ExecutionResult, error) {
+	engine.calls.Add(1)
+
+	if _, err := engine.delegate.Execute(ctx, input); err != nil {
+		return nil, err
+	}
+
+	return nil, lostEngineAnswer{}
+}
+
+func (engine *answerLostAfterApplyEngine) EnsureTransactionGuard(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID, nextToken string) error {
+	bootstrapper, ok := engine.delegate.(command.EngineGuardBootstrapper)
+	if !ok {
+		return fmt.Errorf("engine %T does not bootstrap transaction guards", engine.delegate)
+	}
+
+	return bootstrapper.EnsureTransactionGuard(ctx, organizationID, ledgerID, transactionID, nextToken)
+}
+
+type lostEngineAnswer struct{}
+
+func (lostEngineAnswer) Error() string              { return "engine answer lost after execution" }
+func (lostEngineAnswer) EngineFailureCode() string  { return "transport" }
+func (lostEngineAnswer) OutcomeIndeterminate() bool { return true }
 
 type integrationCountingCompleter struct {
 	individual      command.AppliedTransactionCompleter
@@ -308,9 +342,9 @@ func TestIntegrationEngineWriteBehindHTTPCommitsAndCancelsBeforeProjection(t *te
 
 			repeated := infra.postTransition(t, app, testCase.version, transactionID, testCase.action)
 			require.NotEqualf(t, http.StatusCreated, repeated.status, "a second %s must be refused: %s", testCase.action, repeated.body)
-			// The pending lock still held by the first transition or the terminal
-			// status refuses the repeat; either way no second movement happens.
-			assert.Contains(t, []any{constant.ErrPendingTransactionLocked.Error(), constant.ErrCommitTransactionNotPending.Error()}, repeated.decoded["code"])
+			// The first transition released its pending lock, so the terminal
+			// status refuses the repeat and no second movement happens.
+			assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), repeated.decoded["code"])
 
 			for range 2 {
 				delivery, queued, err := infra.rabbit.Channel.Get(infra.queue, false)
@@ -337,7 +371,11 @@ func TestIntegrationEngineWriteBehindHTTPCommitsAndCancelsBeforeProjection(t *te
 	}
 }
 
-func TestIntegrationEngineWriteBehindHTTPServesAnnotationBeforeProjection(t *testing.T) {
+// TestIntegrationEngineWriteBehindHTTPRetryAfterIndeterminateTransitionIsAnsweredFromState
+// loses the engine's answer to a commit that Redis did apply. The request fails,
+// but its pending lock does not outlive it: an immediate retry of either
+// transition is refused from the transaction state, and the held funds move once.
+func TestIntegrationEngineWriteBehindHTTPRetryAfterIndeterminateTransitionIsAnsweredFromState(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
 	}
@@ -347,7 +385,64 @@ func TestIntegrationEngineWriteBehindHTTPServesAnnotationBeforeProjection(t *tes
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
 
 	infra := setupEngineWriteBehindHTTPIntegration(t)
-	producer := &heldBalanceOperationProducer{}
+	producer, err := ledgerRabbitMQ.NewSingleTenantEngineWriteBehindProducer(
+		infra.rabbitConn, infra.exchange, infra.routingKey, time.Second,
+	)
+	require.NoError(t, err)
+	infra.command.TransactionWriteBehindDispatcher = engineWriteBehindDispatcher{publisher: producer}
+	app := infra.newHTTPApp("")
+
+	for _, version := range []string{"v1", "v2"} {
+		t.Run(version, func(t *testing.T) {
+			ctx := context.Background()
+			aliases := infra.seedTransfer(t, "lost-answer-"+version+"-"+strings.ReplaceAll(uuid.NewString(), "-", "")[:8])
+			created := infra.postPendingCreate(t, app, version, aliases)
+			require.Equalf(t, http.StatusCreated, created.status, "pending create must return 201: %s", created.body)
+			transactionID := created.transactionID(t)
+			infra.requireBalance(t, ctx, aliases.source, 900, 100)
+
+			lostAnswer := &answerLostAfterApplyEngine{delegate: infra.engine}
+			infra.command.Engine = lostAnswer
+			t.Cleanup(func() { infra.command.Engine = infra.engine })
+
+			committed := infra.postTransition(t, app, version, transactionID, "commit")
+			require.Equalf(t, http.StatusInternalServerError, committed.status, "a lost engine answer must fail the request: %s", committed.body)
+			infra.requireBalance(t, ctx, aliases.source, 900, 0)
+			infra.requireBalance(t, ctx, aliases.destination, 100, 0)
+
+			lockKey, err := tmvalkey.GetKeyContext(ctx, utils.PendingTransactionLockKey(infra.organization, infra.ledger, transactionID.String()))
+			require.NoError(t, err)
+			assert.Zero(t, infra.redis.Exists(ctx, lockKey).Val(), "the failed request must release its pending lock")
+
+			for _, action := range []string{"commit", "cancel"} {
+				retried := infra.postTransition(t, app, version, transactionID, action)
+				assert.Equalf(t, http.StatusConflict, retried.status, "retried %s: %s", action, retried.body)
+				assert.Equalf(t, constant.ErrCommitTransactionNotPending.Error(), retried.decoded["code"],
+					"a retried %s must be refused from the transaction state, not the lock: %s", action, retried.body)
+			}
+
+			assert.Equal(t, int32(1), lostAnswer.calls.Load(), "the refused retries must not reach the engine")
+			infra.requireBalance(t, ctx, aliases.source, 900, 0)
+			infra.requireBalance(t, ctx, aliases.destination, 100, 0)
+		})
+	}
+}
+
+// TestIntegrationEngineWriteBehindHTTPPersistsAnnotationBeforeAnswering runs in
+// async mode, where an annotation still answers only after its transaction,
+// operations, and metadata reach the databases: the legacy queue publish has no
+// broker confirmation to stand on.
+func TestIntegrationEngineWriteBehindHTTPPersistsAnnotationBeforeAnswering(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
+	}
+
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "true")
+
+	infra := setupEngineWriteBehindHTTPIntegration(t)
+	producer := &recordingBalanceOperationProducer{}
 	infra.command.RabbitMQRepo = producer
 	app := infra.newHTTPApp("")
 	ctx := context.Background()
@@ -356,54 +451,18 @@ func TestIntegrationEngineWriteBehindHTTPServesAnnotationBeforeProjection(t *tes
 	created := infra.postAnnotationCreate(t, app, aliases)
 	require.Equalf(t, http.StatusCreated, created.status, "async annotation create must return 201: %s", created.body)
 	transactionID := created.transactionID(t)
-	infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
-	require.Len(t, producer.messages, 1, "the annotation must be queued for projection, not written")
-
-	for _, version := range []string{"v1", "v2"} {
-		get := infra.getTransaction(t, app, version, transactionID)
-		require.Equalf(t, http.StatusOK, get.status, "%s GET before projection must find the annotation: %s", version, get.body)
-		assert.Equal(t, transactionID.String(), get.decoded["id"])
-		status, ok := get.decoded["status"].(map[string]any)
-		require.Truef(t, ok, "response must carry a status object: %s", get.body)
-		assert.Equal(t, constant.NOTED, status["code"])
-	}
-
-	lifecycle := []struct{ version, action string }{
-		{"v1", "commit"},
-		{"v1", "cancel"},
-		{"v1", "revert"},
-		{"v2", "commit"},
-		{"v2", "cancel"},
-		{"v2", "revert"},
-	}
-	refuse := func(stage string) map[string]engineWriteBehindHTTPResponse {
-		refusals := make(map[string]engineWriteBehindHTTPResponse, len(lifecycle))
-		for _, call := range lifecycle {
-			response := infra.postTransition(t, app, call.version, transactionID, call.action)
-			assert.Equalf(t, http.StatusConflict, response.status, "%s %s %s of an annotation: %s", stage, call.version, call.action, response.body)
-			assert.Equalf(t, constant.ErrCommitTransactionNotPending.Error(), response.decoded["code"], "%s %s %s of an annotation: %s", stage, call.version, call.action, response.body)
-			refusals[call.version+" "+call.action] = response
-		}
-
-		return refusals
-	}
-
-	beforeProjection := refuse("before projection")
-	infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
-
-	var queued mmodel.Queue
-	require.NoError(t, msgpack.Unmarshal(producer.messages[0], &queued))
-	require.NoError(t, infra.command.CreateBalanceTransactionOperationsAsync(ctx, queued))
+	infra.requireProjection(t, ctx, transactionID, 1, 2, 1)
+	assert.Zero(t, len(producer.messages), "the annotation must be written, not queued")
 
 	var projected string
 	require.NoError(t, infra.db.QueryRow(`SELECT status FROM transaction WHERE id = $1`, transactionID).Scan(&projected))
 	require.Equal(t, constant.NOTED, projected)
 
-	afterProjection := refuse("after projection")
-	for call, response := range afterProjection {
-		assert.Equalf(t, response.status, beforeProjection[call].status, "%s must refuse the same way before and after projection", call)
-		assert.Equalf(t, response.decoded["code"], beforeProjection[call].decoded["code"], "%s must refuse the same way before and after projection", call)
-	}
+	infra.requireAnnotationServed(t, app, transactionID)
+	infra.requireAnnotationTransitionsRefused(t, app, transactionID)
+
+	infra.requireProjection(t, ctx, transactionID, 1, 2, 1)
+	assert.Zero(t, len(producer.messages), "refused transitions must not publish")
 }
 
 func TestIntegrationEngineWriteBehindConsumerWiring(t *testing.T) {
@@ -596,6 +655,7 @@ func setupEngineWriteBehindHTTPIntegration(tb testing.TB) *engineWriteBehindHTTP
 	return &engineWriteBehindHTTPIntegration{
 		db: pgContainer.DB, mongo: mongoContainer.Database, redisRepo: redisRepo,
 		command: commandUseCase, query: queryUseCase,
+		quarantine:   transactionquarantine.NewQuarantinePostgreSQLRepository(pgClient),
 		handler:      &httpin.TransactionHandler{Command: commandUseCase, Query: queryUseCase, TransactionBatchMaxSize: 50},
 		organization: organizationID, ledger: ledgerID,
 		rabbit: rabbitContainer, rabbitConn: rabbitConnection,
@@ -741,7 +801,7 @@ func (infra *engineWriteBehindHTTPIntegration) postAnnotationCreate(tb testing.T
 	tb.Helper()
 	t := tb
 	path := "/v1/organizations/" + infra.organization.String() + "/ledgers/" + infra.ledger.String() + "/transactions/annotation"
-	body := fmt.Sprintf(`{"description":"async annotation","send":{"asset":"USD","value":"100","source":{"from":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]},"distribute":{"to":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]}}}`, aliases.source, aliases.destination)
+	body := fmt.Sprintf(`{"description":"async annotation","metadata":{"proof":"annotation"},"send":{"asset":"USD","value":"100","source":{"from":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]},"distribute":{"to":[{"accountAlias":%q,"amount":{"asset":"USD","value":"100"}}]}}}`, aliases.source, aliases.destination)
 
 	request := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	request.Header.Set("Content-Type", "application/json")
@@ -774,6 +834,42 @@ func (infra *engineWriteBehindHTTPIntegration) postTransition(tb testing.TB, app
 	path := "/" + version + "/organizations/" + infra.organization.String() + "/ledgers/" + infra.ledger.String() + "/transactions/" + transactionID.String() + "/" + action
 
 	return performEngineWriteBehindHTTPRequest(t, app, httptest.NewRequest(http.MethodPost, path, nil))
+}
+
+// requireAnnotationServed asserts that both API versions return the annotation
+// as NOTED, whether it is read from PostgreSQL or from its write-behind entry.
+func (infra *engineWriteBehindHTTPIntegration) requireAnnotationServed(tb testing.TB, app *fiber.App, transactionID uuid.UUID) {
+	tb.Helper()
+	t := tb
+
+	for _, version := range []string{"v1", "v2"} {
+		get := infra.getTransaction(t, app, version, transactionID)
+		require.Equalf(t, http.StatusOK, get.status, "%s GET must find the annotation: %s", version, get.body)
+		assert.Equal(t, transactionID.String(), get.decoded["id"])
+		status, ok := get.decoded["status"].(map[string]any)
+		require.Truef(t, ok, "response must carry a status object: %s", get.body)
+		assert.Equal(t, constant.NOTED, status["code"])
+	}
+}
+
+// requireAnnotationTransitionsRefused asserts that commit, cancel, and revert
+// refuse the annotation on both API versions as a non-pending transaction.
+func (infra *engineWriteBehindHTTPIntegration) requireAnnotationTransitionsRefused(tb testing.TB, app *fiber.App, transactionID uuid.UUID) {
+	tb.Helper()
+	t := tb
+
+	for _, call := range []struct{ version, action string }{
+		{"v1", "commit"},
+		{"v1", "cancel"},
+		{"v1", "revert"},
+		{"v2", "commit"},
+		{"v2", "cancel"},
+		{"v2", "revert"},
+	} {
+		response := infra.postTransition(t, app, call.version, transactionID, call.action)
+		assert.Equalf(t, http.StatusConflict, response.status, "%s %s of an annotation: %s", call.version, call.action, response.body)
+		assert.Equalf(t, constant.ErrCommitTransactionNotPending.Error(), response.decoded["code"], "%s %s of an annotation: %s", call.version, call.action, response.body)
+	}
 }
 
 func (infra *engineWriteBehindHTTPIntegration) requireBalance(tb testing.TB, ctx context.Context, alias string, available, onHold int64) {
@@ -872,26 +968,22 @@ func (infra *engineWriteBehindHTTPIntegration) requireProjection(tb testing.TB, 
 	assert.Equal(t, metadata, metadataCount)
 }
 
-// heldBalanceOperationProducer accepts the legacy projection message without
-// delivering it, so a test controls when the annotation reaches PostgreSQL.
-type heldBalanceOperationProducer struct {
+// recordingBalanceOperationProducer keeps every legacy publish without
+// delivering it, so a test can assert that nothing was published.
+type recordingBalanceOperationProducer struct {
 	messages [][]byte
 }
 
-func (producer *heldBalanceOperationProducer) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	return producer.ProducerDefaultWithContext(ctx, exchange, key, message)
-}
-
-func (producer *heldBalanceOperationProducer) ProducerDefaultWithContext(_ context.Context, _, _ string, message []byte) (*string, error) {
+func (producer *recordingBalanceOperationProducer) ProducerDefault(_ context.Context, _, _ string, message []byte) (*string, error) {
 	producer.messages = append(producer.messages, bytes.Clone(message))
 
 	return nil, nil
 }
 
-func (*heldBalanceOperationProducer) CheckRabbitMQHealth() bool { return true }
+func (*recordingBalanceOperationProducer) CheckRabbitMQHealth() bool { return true }
 
-func (*heldBalanceOperationProducer) Close() error { return nil }
+func (*recordingBalanceOperationProducer) Close() error { return nil }
 
-var _ ledgerRabbitMQ.ProducerRepository = (*heldBalanceOperationProducer)(nil)
+var _ ledgerRabbitMQ.ProducerRepository = (*recordingBalanceOperationProducer)(nil)
 
 var _ ledgerRabbitMQ.ChannelProvider = integrationTenantChannelProvider{}

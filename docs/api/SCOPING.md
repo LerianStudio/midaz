@@ -198,6 +198,22 @@ The reserve request carries the fee-inclusive `amount` and `asset`, the transact
   whose action is `revert`), omitted otherwise. The tracer skips its CEL rules for a revert and
   still reserves its limits: limits measure gross activity, and a rule that could refuse a revert
   would leave an applied movement impossible to correct.
+- `transactionType` — the `scheme` the `/v2` create body declared, normalized (trimmed,
+  upper-cased, `^[A-Z0-9_-]{1,50}$`) and free-form: `CARD`, `WIRE`, `PIX`, `CRYPTO` are
+  examples, not a closed set (for a card payment the value is `CARD`, never the card brand),
+  omitted when the body declared none. A `/v2` revert sends the ORIGINAL transaction's scheme: the reversal is
+  measured against the same limits as the movement it undoes. The ledger calls the field `scheme`
+  on the body, the row and the response; the tracer calls it `transactionType`, and
+  `reserveTransaction` is the only point that translates one into the other. With an empty
+  value the tracer matches only limits and rules whose scope names no `transactionType`; with
+  `PIX` it also matches scopes naming `PIX`. `subType` is never sent, and confirm and release
+  address the transaction by id and carry no type. A `/v1` body cannot declare it (see below).
+
+Upgrade order: deploy the tracer first — its migrations `000028`–`000032` and image — then the
+ledger. A ledger that sends a scheme outside `CARD`/`WIRE`/`PIX`/`CRYPTO` to a tracer that still
+enforces the closed set is refused as invalid (`0532`, whatever `failPosture`). During the tracer
+rollout, pods of the previous build may fail reads of rows written with a free-form scheme until
+every pod runs the new build.
 
 The asset follows the ledger's asset code grammar exactly: uppercase Unicode letters, at most 100
 characters. An asset the ledger accepts is never refused by the tracer for its shape.
@@ -336,6 +352,13 @@ reservation, and neither runs on `/v1`, so the field has nothing to mean there. 
 body naming `skip` is rejected by the decoder as an unknown field: **HTTP 400**
 (`ErrUnexpectedFieldsInTheRequest`), the same answer any other unknown field gets — not the
 422 an unpermitted skip earns on `/v2`.
+
+`scheme` is the other `/v2`-only create field: the transaction's free-form payment scheme. The
+value is trimmed and upper-cased, and must then match `^[A-Z0-9_-]{1,50}$` (anything else is
+**HTTP 400**); `CARD`, `WIRE`, `PIX`, `CRYPTO` are examples, not a closed set. It is persisted
+normalized on the row, returned as `scheme` on `/v2` responses (omitted when absent), withheld on `/v1` responses,
+carried as `scheme` on the `transaction.*` streaming payload, and forwarded to the tracer as the
+reserve's `transactionType`. A `/v1` body naming `scheme` gets the same unknown-field 400.
 
 The consequence is durable, not just transport-level: `transaction.fees_skipped` and
 `transaction.tracer_skipped` can only be `true` on a row created through `/v2`. On a `/v1`
@@ -493,6 +516,20 @@ holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/
 served on `/v2` only and are unaffected: composition exists to link a holder, so it contracts the
 seam in full.
 
+Composition accepts `X-Idempotency` and `X-TTL` and answers `X-Idempotency-Replayed`, like the
+holder and instrument creates, but claims a slot **only** when `X-Idempotency` is sent: without it
+nothing is cached, and identical calls open distinct accounts. With it, a rejected account create
+(a business error) releases the slot, so a retry with the same key runs the composition again. A
+technical failure keeps the slot until its TTL, because the account may already be persisted (a
+metadata write failure, or a default-balance failure whose compensation did not land), so a retry
+with the same key answers the in-flight conflict. Once the account is
+persisted the answered `201` is stored and replayed as answered, the partial one included (account
+persisted, `instrument` null, `instrumentError` set): the replay opens no account and does not retry
+the instrument. A partial is repaired through `POST /v2/organizations/{organization_id}/holders/{holder_id}/instruments`
+with the returned `accountId`. The release is a plain delete, as on the transaction routes, with no
+compare-and-delete: a low `X-TTL` can expire a slot while its request is still in flight, and the
+release of that request, if it fails, can delete the response another request stored in the meantime.
+
 Two account-adjacent write paths are **outside** the seam on both contracts, and stay that way. The
 implicit **external account** that asset creation opens is built and persisted directly through
 `AccountRepo`, bypassing the account-create use case, so it carries no holder — which is also what
@@ -534,6 +571,45 @@ by an older pod clears only the per-ledger key and leaves the newer pods' entry 
 and deletes until the rollout completes, or delete the two-segment `accounting_routes` keys once
 afterwards.
 
+## Optional operation routes: registered on `/v2`, honored on both contracts
+
+A transaction route link is required or optional. A transaction may leave an optional route unused
+(a fee route when the fee does not apply), and a leg that uses one is validated like any other.
+Validation reads the link from the route cache, so it holds for `/v1` and `/v2` transactions alike;
+the flag is only **registered** through `/v2`:
+
+| Surface | `/v1` | `/v2` |
+| --- | --- | --- |
+| Create / update body | `operationRoutes` only; `optionalOperationRoutes` is an unknown field (`0053`) | `operationRoutes` (required) and `optionalOperationRoutes` (optional) |
+| Response | `operationRoutes` lists every link, optional ones included | `operationRoutes` lists the required links, `optionalOperationRoutes` the optional ones |
+| PATCH with `operationRoutes` | the full link set: a kept link keeps its optionality, a new one is required, an omitted one is removed | replaces the required links only |
+
+A `/v2` PATCH applies each list as a JSON merge patch of its own:
+
+| Body | Effect |
+| --- | --- |
+| neither list | links and optionality unchanged |
+| `operationRoutes: [...]` | replaces the required links; optional links stay |
+| `optionalOperationRoutes: [...]` | replaces the optional links; required links stay |
+| `optionalOperationRoutes: []` | removes the optional links |
+| `null` for either list | no effect, like `metadata: null` on `/v2` |
+
+The resulting links are validated as a create: a route in both lists is `0541`, fewer than two links
+`0104`, no required source or destination `0153`/`0154`, an optional `crossLedger` route `0256`. To
+move a route between the lists, send both.
+
+**Rollout:** the flag is a column of `operation_transaction_route` (`optional`, default `false`) and a
+field of the route cache entry. A pod older than this change reads every link as required, and when
+it rewrites a cache entry (a route update, an operation-route update, a cache miss) it writes the
+entry without the flag, so the route is strict again until a newer pod rewrites it. Do not mark links
+optional until every pod runs a version that knows the flag. If a link was marked during the rollout,
+delete that transaction route's `accounting_routes:{organization:route}` key once every older pod has
+stopped: the next read reloads the entry, flag included, from the database.
+
+Rolling back the schema refuses while any active link is optional (the down migration raises before
+dropping the column), because every link would become required and the transactions that leave
+those links unused would be refused. Make the links required, or remove them, before rolling back.
+
 ## Metadata on a PATCH: `null` is a `/v2` no-op
 
 Every PATCH whose body carries `metadata` applies it as an RFC 7396 merge patch: organization,
@@ -552,6 +628,11 @@ The other patched fields apply in every row. `/v2` clears metadata one key at a 
 whose serializer writes an unset map as `null` cannot erase it by accident; `/v1` keeps the reading
 it shipped with. Fee packages, billing packages and balances carry no `metadata` on their PATCH, and
 the asset rate is a `/v1` `PUT`.
+
+Deleting an entity hides its metadata on both contracts. The `DELETE` keeps answering `204`, a read
+by id answers `404`, and a metadata-filtered listing no longer returns the entity, whichever mount
+served the delete. The stored keys are kept, never exposed again, and cannot be revived: a PATCH on
+a deleted entity is refused by the entity lookup before any metadata is touched.
 
 ## Summary
 

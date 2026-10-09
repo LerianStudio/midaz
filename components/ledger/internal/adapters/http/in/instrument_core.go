@@ -41,6 +41,7 @@ type InstrumentHandler struct {
 // idempotency slot, so the handler can set the X-Idempotency-Replayed header.
 // Instruments are namespaced by (organization, holder), matching
 // services.InstrumentIdempotencyKey.
+// A failed create releases the slot so a retry runs the create again.
 func (handler *InstrumentHandler) createInstrument(ctx context.Context, organizationID, holderID uuid.UUID, payload *mmodel.CreateInstrumentInput, clientKey string, ttl time.Duration) (instrument *mmodel.Instrument, replayed bool, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -95,6 +96,8 @@ func (handler *InstrumentHandler) createInstrument(ctx context.Context, organiza
 	out, err := handler.Service.CreateInstrument(ctx, organizationID.String(), holderID, payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create instrument", err)
+
+		handler.Service.ReleaseCRMIdempotency(ctx, internalKey)
 
 		return nil, false, err
 	}

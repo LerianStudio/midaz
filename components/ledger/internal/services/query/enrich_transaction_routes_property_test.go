@@ -98,8 +98,8 @@ func setupMocksForScenario(
 
 	if len(s.routes) > 0 {
 		mockTRRepo.EXPECT().
-			FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-			Return(s.junctionMap, nil)
+			FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+			Return(requiredLinkMap(s.junctionMap), nil)
 
 		if len(s.opRoutes) > 0 {
 			mockORRepo.EXPECT().

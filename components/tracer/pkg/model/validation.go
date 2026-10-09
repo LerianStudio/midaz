@@ -69,8 +69,13 @@ const (
 // Use NewValidationRequest() to construct - ensures validation and normalization.
 // SubType is normalized to lowercase canonical form; matching is case-insensitive.
 type ValidationRequest struct {
-	RequestID       uuid.UUID       `json:"requestId" validate:"required" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
-	TransactionType TransactionType `json:"transactionType" validate:"required" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	RequestID uuid.UUID `json:"requestId" validate:"required" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
+	// TransactionType is the deprecated name of Scheme. Either may be sent; when
+	// both are, they must carry the same value. After normalization both hold it.
+	TransactionType TransactionType `json:"transactionType" swaggertype:"string" maxLength:"50" example:"PIX"`
+	// Scheme is the payment scheme the transaction rides on: 1 to 50 characters
+	// of A-Z, 0-9, _ or - after trimming and upper-casing.
+	Scheme string `json:"scheme,omitempty" maxLength:"50" example:"PIX"`
 	// SubType is normalized to lowercase canonical form; matching is case-insensitive.
 	SubType              *string           `json:"subType,omitempty" validate:"omitempty,max=50" maxLength:"50" extensions:"x-normalization=lowercase" example:"purchase"`
 	Amount               decimal.Decimal   `json:"amount" validate:"required" swaggertype:"string" example:"100.00"`
@@ -86,6 +91,7 @@ type ValidationRequest struct {
 // NewValidationRequest creates a new ValidationRequest with validation and normalization.
 // Asset is normalized to uppercase and trimmed (auto-corrects case).
 // SubType is trimmed and lowercased (canonical form) if provided; matching is case-insensitive.
+// transactionType is trimmed and upper-cased, and Scheme carries the same value.
 // Metadata is shallow-copied (top-level keys only) to detach from the original map.
 // Note: nested maps/slices within metadata values remain shared references.
 // Returns error if validation fails after normalization.
@@ -128,9 +134,12 @@ func NewValidationRequest(
 	portfolioCopy := portfolio.Clone()
 	merchantCopy := merchant.Clone()
 
+	normalizedTransactionType, normalizedScheme := canonicalSchemePair(string(transactionType), "")
+
 	req := &ValidationRequest{
 		RequestID:            requestID,
-		TransactionType:      transactionType,
+		TransactionType:      TransactionType(normalizedTransactionType),
+		Scheme:               normalizedScheme,
 		SubType:              normalizedSubType,
 		Amount:               amount,
 		Asset:                normalizedAsset,
@@ -196,8 +205,14 @@ func (r *ValidationRequest) normalizeAndValidateWith(now time.Time, validate fun
 		maps.Copy(metadataCopy, r.Metadata)
 	}
 
+	// Scheme and its deprecated alias transactionType are resolved to one
+	// trimmed, upper-cased value carried by both fields.
+	normalizedTransactionType, normalizedScheme := canonicalSchemePair(string(r.TransactionType), r.Scheme)
+
 	// Create temporary copy with normalized values for validation
 	temp := *r
+	temp.TransactionType = TransactionType(normalizedTransactionType)
+	temp.Scheme = normalizedScheme
 	temp.SubType = normalizedSubType
 	temp.Metadata = metadataCopy
 
@@ -212,6 +227,8 @@ func (r *ValidationRequest) normalizeAndValidateWith(now time.Time, validate fun
 	}
 
 	// Only apply changes if validation succeeded (atomic commit)
+	r.TransactionType = temp.TransactionType
+	r.Scheme = temp.Scheme
 	r.SubType = normalizedSubType
 	r.Metadata = metadataCopy
 	r.Segment = temp.Segment
@@ -334,8 +351,8 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 		return constant.ErrValidationRequestIDRequired
 	}
 
-	if !r.TransactionType.IsValid() {
-		return constant.ErrValidationInvalidTransactionType
+	if err := r.validateScheme(true); err != nil {
+		return err
 	}
 
 	if err := r.validateAmountAsset(); err != nil {
@@ -366,10 +383,9 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 // positive amount, asset code, non-future timestamp) but relaxes three
 // constraints the ledger legitimately cannot satisfy at the reserve anchor:
 //
-//   - transactionType: optional. The ledger is a double-entry ledger with no
-//     card-rail nature; when empty the tracer matches account-scoped limits
-//     without a transaction-type constraint. When present it must still be a
-//     valid type.
+//   - scheme (or its alias transactionType): optional. When empty the tracer
+//     matches account-scoped limits without a scheme constraint. When present
+//     it must still be a valid scheme.
 //   - account: optional. A ledger transaction whose only source is an external
 //     account has no internal account UUID to scope on; when absent the tracer
 //     matches non-account-scoped (segment/portfolio/global) limits. When
@@ -392,8 +408,8 @@ func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 		return err
 	}
 
-	if r.TransactionType != "" && !r.TransactionType.IsValid() {
-		return constant.ErrValidationInvalidTransactionType
+	if err := r.validateScheme(false); err != nil {
+		return err
 	}
 
 	if err := r.validateOptionalFields(); err != nil {
@@ -407,9 +423,37 @@ func (r *ValidationRequest) ValidateForReserve(now time.Time) error {
 	return r.validateMetadata()
 }
 
+// validateScheme checks the scheme and its deprecated alias transactionType:
+// ErrValidationSchemeAliasConflict when both are set to different values,
+// ErrValidationInvalidTransactionType when a set value is not canonical or when
+// required and neither is set.
+func (r *ValidationRequest) validateScheme(required bool) error {
+	if schemeAliasConflict(string(r.TransactionType), r.Scheme) {
+		return constant.ErrValidationSchemeAliasConflict
+	}
+
+	if r.TransactionType == "" && r.Scheme == "" {
+		if required {
+			return constant.ErrValidationInvalidTransactionType
+		}
+
+		return nil
+	}
+
+	if r.TransactionType != "" && !r.TransactionType.Valid() {
+		return constant.ErrValidationInvalidTransactionType
+	}
+
+	if r.Scheme != "" && !TransactionType(r.Scheme).Valid() {
+		return constant.ErrValidationInvalidTransactionType
+	}
+
+	return nil
+}
+
 // validateAmountAsset validates the value/asset core shared by the synchronous
 // validate path and the reserve path: a positive amount and a ledger asset
-// code. The requestId, transactionType-enum, and account-presence checks live
+// code. The requestId, scheme, and account-presence checks live
 // in the orchestrators (Validate / ValidateForReserve) because their
 // requiredness differs between the two paths.
 func (r *ValidationRequest) validateAmountAsset() error {

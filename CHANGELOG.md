@@ -1,5 +1,16 @@
 # Midaz Changelog
 
+## [4.2.1](https://github.com/LerianStudio/midaz/releases/tag/v4.2.1)
+
+Fixes:
+
+- Bound each cleanup pass by the drain budget to ensure efficient resource management during the cleanup process. (@fredcamaral)
+- Improved the engine recovery process by ensuring that the cleanup drains are executed during each cycle, enhancing system stability. (@fredcamaral)
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v4.2.0...v4.2.1)
+
+---
+
 ## [4.2.0](https://github.com/LerianStudio/midaz/releases/tag/v4.2.0)
 
 Features:

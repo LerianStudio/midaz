@@ -89,6 +89,7 @@ type ScopeInput struct {
 	PortfolioID     *string `json:"portfolioId,omitempty"`
 	MerchantID      *string `json:"merchantId,omitempty"`
 	TransactionType *string `json:"transactionType,omitempty"`
+	Scheme          *string `json:"scheme,omitempty"`
 	SubType         *string `json:"subType,omitempty"`
 }
 
@@ -113,6 +114,7 @@ type ScopeResponse struct {
 	PortfolioID     *string `json:"portfolioId,omitempty"`
 	MerchantID      *string `json:"merchantId,omitempty"`
 	TransactionType *string `json:"transactionType,omitempty"`
+	Scheme          *string `json:"scheme,omitempty"`
 	SubType         *string `json:"subType,omitempty"`
 }
 
@@ -697,6 +699,7 @@ type ValidationSummary struct {
 	Amount           decimal.Decimal `json:"amount"`
 	Asset            string          `json:"asset"`
 	TransactionType  string          `json:"transactionType"`
+	Scheme           string          `json:"scheme"`
 	AccountID        string          `json:"accountId"`
 	SegmentID        string          `json:"segmentId,omitempty"`
 	PortfolioID      string          `json:"portfolioId,omitempty"`
@@ -1018,6 +1021,30 @@ func CleanupLimit(t *testing.T, limitID string) {
 		bodyBytes, _ := io.ReadAll(deleteResp.Body)
 		t.Logf("Cleanup: DELETE limit %s returned status %d: %s", limitID, deleteResp.StatusCode, string(bodyBytes))
 	}
+}
+
+// GetLimit retrieves a limit by ID and returns the response and body.
+func GetLimit(t *testing.T, limitID string) (*http.Response, []byte) {
+	t.Helper()
+
+	return doRequest(t, http.MethodGet, GetBaseURL()+"/v1/limits/"+limitID, nil, map[string]string{
+		"X-API-Key": GetAPIKey(),
+	})
+}
+
+// ListLimits lists limits with optional query parameters and returns the
+// response and body.
+func ListLimits(t *testing.T, queryParams string) (*http.Response, []byte) {
+	t.Helper()
+
+	url := GetBaseURL() + "/v1/limits"
+	if queryParams != "" {
+		url += "?" + queryParams
+	}
+
+	return doRequest(t, http.MethodGet, url, nil, map[string]string{
+		"X-API-Key": GetAPIKey(),
+	})
 }
 
 // CreateLimitWithScope creates a DAILY limit with arbitrary scopes for integration testing.

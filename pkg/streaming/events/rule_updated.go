@@ -19,7 +19,7 @@ import (
 var RuleUpdatedDefinition = Definition{
 	ResourceType:  "rule",
 	EventType:     "updated",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // RuleUpdatedPayload is the wire payload for rule.updated. It shares the

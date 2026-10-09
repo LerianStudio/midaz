@@ -78,7 +78,7 @@ func TestReserveTransaction_ClassifiesDenials(t *testing.T) {
 
 			out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{}, tc.settings,
 				uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp,
-				reservationTTLDefault, reservationForCreate, false)
+				reservationTTLDefault, reservationForCreate, false, "")
 
 			assert.Empty(t, out.Handle.ReservationIDs, "a denied result holds no capacity")
 			assert.False(t, out.Handle.Unanswered, "a denied result was answered, so nothing is left to settle")

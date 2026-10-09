@@ -464,7 +464,7 @@ func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 		{ID: uuid.New(), OperationType: "destination"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.NoError(t, err)
 }
 
@@ -474,7 +474,7 @@ func TestValidateOperationRouteTypesBidirectionalOnly(t *testing.T) {
 		{ID: uuid.New(), OperationType: "bidirectional"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.NoError(t, err)
 }
 
@@ -485,7 +485,7 @@ func TestValidateOperationRouteTypesBidirectionalWithSource(t *testing.T) {
 		{ID: uuid.New(), OperationType: "source"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.NoError(t, err)
 }
 
@@ -496,7 +496,7 @@ func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 		{ID: uuid.New(), OperationType: "destination"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.Error(t, err)
 	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
@@ -509,7 +509,7 @@ func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 		{ID: uuid.New(), OperationType: "source"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.Error(t, err)
 	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
@@ -519,6 +519,6 @@ func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 func TestValidateOperationRouteTypesEmpty(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.Error(t, err, "empty routes should fail — no source or destination")
 }

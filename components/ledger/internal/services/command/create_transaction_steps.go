@@ -272,6 +272,7 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 		RouteID:                  run.input.RouteID,
 		FeesSkipped:              run.honoredFeeSkip,
 		TracerSkipped:            run.honoredTracerSkip,
+		Scheme:                   run.input.Scheme,
 		Metadata:                 run.input.Metadata,
 		Status: transaction.Status{
 			Code:        run.status,
@@ -317,13 +318,12 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 
 	err = uc.WriteTransaction(ctx, run.organizationID, run.ledgerID, &run.input, run.validate, balancesBefore, balancesAfter, &writeTran)
 	if err != nil {
-		// Log the original error for debugging. WriteTransaction may fail due to:
-		// - msgpack serialization error
-		// - RabbitMQ publish failure + DB fallback failure (async mode)
-		// - Direct DB write failure (sync mode)
+		// Log the original error for debugging. WriteTransaction fails on a
+		// msgpack serialization error or a database write failure; the backup
+		// entry stays for the legacy replay either way.
 		// The sanitized error uses ErrMessageBrokerUnavailable as a generic
 		// "persistence failed" signal — a more accurate error code should be
-		// introduced to cover the sync/DB failure cases as well.
+		// introduced to cover the database failure case as well.
 		libOpentelemetry.HandleSpanError(span, "Failed to write transaction", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to write transaction", libLog.String("transaction_id", tran.ID), libLog.Err(err))
 

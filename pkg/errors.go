@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // EntityNotFoundError records an error indicating an entity was not found in any case that caused it.
@@ -1397,6 +1398,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Missing Operation Routes in Request",
 			Message:    "Your request must include at least one operation route of each type (debit and credit). Please refer to the documentation to ensure these fields are properly populated.",
 		},
+		constant.ErrOperationRouteBothRequiredAndOptional: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrOperationRouteBothRequiredAndOptional.Error(),
+			Title:      "Operation Route Both Required and Optional",
+			Message:    fmt.Sprintf("The operation route %v is listed in both operationRoutes and optionalOperationRoutes. Each linked operation route must be either required or optional.", args...),
+		},
 		constant.ErrTransactionRouteNotFound: EntityNotFoundError{
 			EntityType: entityType,
 			Code:       constant.ErrTransactionRouteNotFound.Error(),
@@ -2727,7 +2734,7 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrCheckLimitsInvalidTransactionType.Error(),
 			Title:      "Check Limits Invalid Transaction Type",
-			Message:    "Check limits transactionType must be valid.",
+			Message:    "scheme " + scheme.FormatHint,
 		},
 		constant.ErrCheckLimitsInvalidSubType: ValidationError{
 			EntityType: entityType,
@@ -2781,7 +2788,13 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			EntityType: entityType,
 			Code:       constant.ErrValidationInvalidTransactionType.Error(),
 			Title:      "Validation Invalid Transaction Type",
-			Message:    "Invalid transactionType.",
+			Message:    "scheme (or transactionType) is required and " + scheme.FormatHint,
+		},
+		constant.ErrValidationSchemeAliasConflict: ValidationError{
+			EntityType: entityType,
+			Code:       constant.ErrValidationSchemeAliasConflict.Error(),
+			Title:      "Scheme Alias Conflict",
+			Message:    "scheme and transactionType must carry the same value",
 		},
 		constant.ErrValidationAmountNonPositive: ValidationError{
 			EntityType: entityType,

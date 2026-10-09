@@ -139,7 +139,8 @@ revert, commit, or cancel that reaches the engine:
 9. SQL/MongoDB failure after accounting is confirmed is deferred to recovery and
    does not turn the already-applied financial operation into an HTTP failure.
    The recovery record was written atomically with accounting. Events are emitted
-   only after SQL and frozen metadata are confirmed. Multi-scope completion groups
+   once SQL commits, before frozen metadata and fee debts are projected, and only
+   by the attempt that wrote the operations. Multi-scope completion groups
    projections by each transaction's organization and ledger; recovery preserves
    those frozen per-transaction scopes and never re-derives them from the primary
    execution scope. Multi-scope batch recovery records also carry the
@@ -205,7 +206,7 @@ seams; they are not an operational rollout switch.
 | Authentication, tenant context, organization and ledger scoping | Go request/use-case layer |
 | Input targeting, cardinality, asset and sending/receiving validation | Go use cases over explicit transaction legs |
 | Fees, tracer, HTTP idempotency, transaction lifecycle and events | Go use cases |
-| Declarative posting-plan composition and route draw policy | Go command layer |
+| Declarative posting-plan composition and route draw and repay policy | Go command layer |
 | Live balance arithmetic, overdraft split/repayment, movement versions | Accounting engine |
 | Physical keys, cache codec, script transport, execution receipts and guards | Redis engine adapter |
 | Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal completion and recovery |
@@ -344,7 +345,11 @@ remainder to A and generate a companion credit for the real repayment. Existing
 debt can be repaid even when future draws have been disabled. A `credit` posting
 marked `RepayForbidden` never repays: it adds the whole x to A, leaves U
 unchanged, and generates no companion movement. It is valid only on a `credit`
-with a zero `OverdraftAmount`.
+with a zero `OverdraftAmount`. A `credit` marked `RepayRouteDenied` refuses with
+`overdraft_repay_route_denied` when its repayment would be positive and applies
+unchanged otherwise; Go sets it when route validation is on and the leg's route
+has no overdraft credit rubric. It is valid only on a `credit` and never together
+with `RepayForbidden`.
 
 `release` is not a general credit operation. With a zero override, it restores A
 and decreases H without repaying debt. Only a positive override on a non-external
@@ -380,7 +385,7 @@ In this table, ON/OFF means route validation enabled/disabled.
 
 | Path | Source postings | Destination postings | Row compatibility |
 | --- | --- | --- | --- |
-| Direct / revert | Conclusive `debit` | `credit` | Apply route draw policy; use live splits |
+| Direct / revert | Conclusive `debit` | `credit` | Apply route draw and repay policy; use live splits |
 | Pending OFF | `hold` | None | One source version increment |
 | Pending ON | `debit(DrawForbidden)`, `reserve` | None | Two source increments |
 | Commit OFF | `unreserve` | `credit` | Source row remains DEBIT |
@@ -832,6 +837,7 @@ automatically repair a partially executed commit.
 | insufficient_funds | 0018, not 0025 |
 | overdraft_limit_exceeded | 0167 |
 | overdraft_not_eligible | 0492 only for eligible-account route denial; 0018 for forbidden/ineligible paths, preserving validation precedence |
+| overdraft_repay_route_denied | 0492; only for a posting that carries `RepayRouteDenied` |
 | balance_deleted | 0019 |
 | account_blocked | 0502; evaluated from the live cache value inside Lua |
 | account_block_exception_invalid | 0508 on `Transaction`, correlated to the primary posting; the live grant is missing, malformed, consumed, expired, or has a divergent alias/amount; no state or grant is mutated |
@@ -976,9 +982,13 @@ durable completion rather than at its original EVAL.
 Once those conditions hold, ACK records `cleanupAfterMs` on the receipt and each
 transaction coordinator and adds the execution to a tenant-global, same-slot due
 index. Valkey 8.1 does not provide independent expiry for hash fields, while
-receipts and guards share hashes across executions, so the recovery consumer owns
-bounded cleanup instead of expiring a whole hash. Each consumer cycle sweeps due
-members even when either recovery hash is empty. Cleanup revalidates the exact due
+receipts and guards share hashes across executions, so a dedicated cleanup runner
+owns bounded cleanup instead of expiring a whole hash. It runs a pass at startup
+and every 10 seconds, independently of the recovery cycle and under its own lock.
+Each pass drains due members page by page within a 5-second budget, in
+round-robin turns across tenants, and needs only Redis. A due execution is
+therefore released within its retention window plus one tick and one pass.
+Cleanup revalidates the exact due
 score, receipt scope and membership, terminal acknowledgement proof, absence of
 every recovery member from both hashes, and every coordinator deadline in one atomic script. It
 removes only that receipt and its coordinator links. A transaction guard is
@@ -986,7 +996,9 @@ removed only when no other execution remains linked to that transaction, so an
 earlier deadline cannot erase a newer transition's protection; a revert's origin
 marker goes with the revert's own guard. Missing receipts
 remove only their stale due-index member; changed deadlines are rescheduled.
-Malformed or inconsistent proofs fail without artifact writes.
+Malformed or inconsistent proofs fail without artifact writes: the execution keeps
+everything, including a revert's origin marker, is rescheduled one minute later,
+and is counted as failed, so it never blocks the executions behind it.
 
 Legacy receipts never enter the due index and do not receive retroactive cleanup
 eligibility. Pending, partially acknowledged, and durably incomplete executions
@@ -1008,8 +1020,8 @@ insert, `updated` for a confirmed status transition, or `noop` for a verified
 replay. A concurrent insert won by another transaction is `noop`, not `created`.
 `FinalizeWithOutcome` exposes this information only after metadata verification;
 an error returns an empty outcome. The phase does not confirm broker publication,
-and it does not authorize receipt/guard expiry. These outcomes do not themselves
-change event dispatch or wire the posting engine into normal execution.
+and it does not authorize receipt/guard expiry. A `noop` outcome publishes no
+event: the attempt that wrote the operations already published them.
 
 ### Compatible recovery consumers
 
@@ -1061,8 +1073,9 @@ historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.
 
 `NewTransactionCompletionServiceWithEvents` optionally dispatches the existing
-transaction, overdraft, and balance-change emitters after SQL and captured metadata
-have both been confirmed. It requires a store reporting the actual committed
+transaction, overdraft, and balance-change emitters once SQL commits, before the
+captured metadata and fee debts are projected, so a projection failure retried as
+`noop` does not lose them. It requires a store reporting the actual committed
 `created`, `updated`, or `noop` lifecycle phase; an absent or unknown phase fails
 without dispatch. The original service constructor remains persistence-only.
 Both paths project the same deterministic rows and preserve the legacy public
@@ -1111,9 +1124,11 @@ compare-and-swap succeeded publishes.
 Immediate acknowledgment reduces the common-case cardinality of
 `recover`; it is not by itself a hard memory bound. Prolonged completion or
 Redis failures can still create a backlog, and receipt/guard/protection removal
-still depends on cleanup throughput. Bounded recovery scans, backlog age and
-cardinality monitoring, and cleanup-capacity alerts remain separate operational
-safeguards.
+still depends on cleanup throughput. The cleanup runner reports, per tenant, the
+due count (`engine_recovery_cleanup_due`), the age of the most overdue execution
+(`engine_recovery_cleanup_oldest_overdue`, exported in seconds), and handled
+executions by outcome (`engine_recovery_cleanup_entries_total`). Bounded recovery
+scans and alerts on those metrics remain separate operational safeguards.
 
 ## Compatibility changes and rollout
 

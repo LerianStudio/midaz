@@ -533,6 +533,12 @@ var (
 	// unblock by a new block, so the amount a block set aside never moves through
 	// a reversal.
 	ErrBlockUnblockNotRevertible = errors.New("0539")
+	// ErrValidationSchemeAliasConflict is returned when a request carries both
+	// scheme and its deprecated alias transactionType with different values.
+	ErrValidationSchemeAliasConflict = errors.New("0540")
+	// ErrOperationRouteBothRequiredAndOptional is returned when a transaction
+	// route would link the same operation route as required and as optional.
+	ErrOperationRouteBothRequiredAndOptional = errors.New("0541")
 	// ErrReservationAlreadySettled is returned when a reserve replays onto a
 	// row that already left RESERVED (confirmed, released or expired).
 	ErrReservationAlreadySettled = errors.New("0533")

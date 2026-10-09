@@ -215,7 +215,7 @@ func TestValidationHandler_Validate(t *testing.T) {
 			name: "error - invalid transaction type",
 			requestBody: map[string]any{
 				"requestId":            validRequestID.String(),
-				"transactionType":      "INVALID_TYPE",
+				"transactionType":      "bad value!",
 				"amount":               100,
 				"asset":                "USD",
 				"transactionTimestamp": now.Format(time.RFC3339),

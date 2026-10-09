@@ -7,6 +7,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"regexp"
 	"testing"
 	"time"
@@ -67,6 +68,32 @@ func newTestReservation(t *testing.T) *model.Reservation {
 	require.NoError(t, err)
 
 	return res
+}
+
+// counterExpiryArg matches the reserve CTE's expires_at argument ($11) exactly:
+// a nil want accepts only NULL, a non-nil want only that instant.
+type counterExpiryArg struct {
+	want *time.Time
+}
+
+func (a counterExpiryArg) Match(v driver.Value) bool {
+	if a.want == nil {
+		return v == nil
+	}
+
+	got, ok := v.(time.Time)
+
+	return ok && got.Equal(*a.want)
+}
+
+// reserveCTEArgs matches the reserve CTE's eleven arguments, pinning only $11.
+func reserveCTEArgs(expiresAt sqlmock.Argument) []driver.Value {
+	args := make([]driver.Value, 0, 11)
+	for range 10 {
+		args = append(args, sqlmock.AnyArg())
+	}
+
+	return append(args, expiresAt)
 }
 
 // reserveInsertSQL is the expected reservation-row INSERT, asserting the 4-tuple
@@ -149,12 +176,33 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true, "RESERVED"))
 		// A new row was inserted, so the reserve CTE (counter seed) follows and returns
-		// succeeded=true.
+		// succeeded=true. Its $11 is the caller's counter expiry, never the
+		// reservation's own lifetime.
+		counterExpiresAt := testutil.FixedTime().AddDate(0, 0, 90)
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WithArgs(reserveCTEArgs(counterExpiryArg{want: &counterExpiresAt})...).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
 
-		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, &counterExpiresAt)
 		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Nil counter expiry reaches the counter as NULL", func(t *testing.T) {
+		repo, db, mock, cleanup := setupUsageReservationRepository(t)
+		defer cleanup()
+
+		res := newTestReservation(t)
+
+		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
+			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(res.ID, true, "RESERVED"))
+		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
+			WithArgs(reserveCTEArgs(counterExpiryArg{want: nil})...).
+			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("400", true))
+
+		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
+		require.NoError(t, err)
+		require.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Replay - existing row suppresses the counter move", func(t *testing.T) {
@@ -174,7 +222,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(owningID, false, "RESERVED"))
 
-		replayed, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		replayed, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.NoError(t, err)
 		assert.True(t, replayed, "an existing RESERVED row is a replay")
 
@@ -200,7 +248,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 				mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 					WillReturnRows(sqlmock.NewRows(reserveInsertColumns()).AddRow(owningID, false, string(status)))
 
-				replayed, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+				replayed, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 				require.ErrorIs(t, err, constant.ErrReservationAlreadySettled)
 				assert.False(t, replayed, "a rejected reserve is not a replay")
 				assert.Equal(t, generatedID, res.ID, "a rejected reserve must keep the caller's handle untouched")
@@ -219,7 +267,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(reserveInsertSQL)).
 			WillReturnRows(sqlmock.NewRows(reserveInsertColumns()))
 
-		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no owning reservation row")
 	})
@@ -281,7 +329,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 			).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("10.5", true))
 
-		_, err = repo.ReserveWithTx(context.Background(), db, res, maxAmount)
+		_, err = repo.ReserveWithTx(context.Background(), db, res, maxAmount, nil)
 		require.NoError(t, err)
 	})
 
@@ -299,7 +347,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		mock.ExpectQuery(regexp.QuoteMeta(upsertReserveSQL)).
 			WillReturnRows(sqlmock.NewRows([]string{"reserved_usage", "succeeded"}).AddRow("1000", false))
 
-		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, res, maxAmountTest, nil)
 		require.ErrorIs(t, err, constant.ErrUsageCounterExceedsLimit)
 	})
 
@@ -307,7 +355,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		repo, _, _, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		_, err := repo.ReserveWithTx(context.Background(), nil, newTestReservation(t), maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), nil, newTestReservation(t), maxAmountTest, nil)
 		require.ErrorIs(t, err, pgdb.ErrNilConnection)
 	})
 
@@ -315,7 +363,7 @@ func TestUsageReservationRepository_Reserve(t *testing.T) {
 		repo, db, _, cleanup := setupUsageReservationRepository(t)
 		defer cleanup()
 
-		_, err := repo.ReserveWithTx(context.Background(), db, nil, maxAmountTest)
+		_, err := repo.ReserveWithTx(context.Background(), db, nil, maxAmountTest, nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "reservation cannot be nil")
 	})

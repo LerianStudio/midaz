@@ -12,15 +12,14 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 // This file is the Huma transport of the organization-level transaction-route surface
 // (/v2 only). Transaction routes belong to the organization: these shells resolve only
-// organization_id (+ id) and reach the same cores as the ledger-level shells in
-// transaction_route_handler.go, whose response envelopes they reuse so both paths
-// publish one TransactionRoute schema. A route created here has no ledger.
+// organization_id (+ id) and reach the same cores as the ledger-level /v2 shells in
+// transaction_route_contract_v2.go, so both paths publish one TransactionRouteV2 schema. A
+// route created here has no ledger.
 
 // CreateOrganizationTransactionRouteRequest is the organization-level POST envelope.
 type CreateOrganizationTransactionRouteRequest struct {
@@ -64,23 +63,13 @@ func (in *ListOrganizationTransactionRoutesRequest) Resolve(ctx huma.Context) []
 }
 
 // CreateOrganizationTransactionRoute creates a transaction route with no ledger.
-func (handler *TransactionRouteHandler) CreateOrganizationTransactionRoute(ctx context.Context, in *CreateOrganizationTransactionRouteRequest) (*CreateTransactionRouteResponse, error) {
+func (handler *TransactionRouteHandler) CreateOrganizationTransactionRoute(ctx context.Context, in *CreateOrganizationTransactionRouteRequest) (*TransactionRouteV2Response, error) {
 	orgID, err := parsePathUUID(in.OrganizationID, "organization_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	payload := new(mmodel.CreateTransactionRouteInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	transactionRoute, err := handler.createTransactionRoute(ctx, orgID, nil, payload)
-	if err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	return &CreateTransactionRouteResponse{Status: http.StatusCreated, Body: transactionRoute}, nil
+	return handler.createTransactionRouteV2(ctx, orgID, nil, in.RawBody)
 }
 
 // GetAllOrganizationTransactionRoutes lists every transaction route of the organization.
@@ -95,11 +84,11 @@ func (handler *TransactionRouteHandler) GetAllOrganizationTransactionRoutes(ctx 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &ListTransactionRoutesResponse{Status: http.StatusOK, Body: pagination}, nil
+	return &ListTransactionRoutesResponse{Status: http.StatusOK, Body: newTransactionRouteV2Items(pagination)}, nil
 }
 
 // GetOrganizationTransactionRouteByID retrieves a transaction route of the organization.
-func (handler *TransactionRouteHandler) GetOrganizationTransactionRouteByID(ctx context.Context, in *GetOrganizationTransactionRouteRequest) (*GetTransactionRouteResponse, error) {
+func (handler *TransactionRouteHandler) GetOrganizationTransactionRouteByID(ctx context.Context, in *GetOrganizationTransactionRouteRequest) (*TransactionRouteV2Response, error) {
 	orgID, id, err := parseOrganizationTransactionRoute(in.OrganizationID, in.TransactionRouteID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -110,27 +99,17 @@ func (handler *TransactionRouteHandler) GetOrganizationTransactionRouteByID(ctx 
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	return &GetTransactionRouteResponse{Status: http.StatusOK, Body: transactionRoute}, nil
+	return &TransactionRouteV2Response{Status: http.StatusOK, Body: newTransactionRouteV2(transactionRoute)}, nil
 }
 
 // UpdateOrganizationTransactionRoute updates a transaction route of the organization.
-func (handler *TransactionRouteHandler) UpdateOrganizationTransactionRoute(ctx context.Context, in *UpdateOrganizationTransactionRouteRequest) (*UpdateTransactionRouteResponse, error) {
+func (handler *TransactionRouteHandler) UpdateOrganizationTransactionRoute(ctx context.Context, in *UpdateOrganizationTransactionRouteRequest) (*TransactionRouteV2Response, error) {
 	orgID, id, err := parseOrganizationTransactionRoute(in.OrganizationID, in.TransactionRouteID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	payload := new(mmodel.UpdateTransactionRouteInput)
-	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullKeepsV2); err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	transactionRoute, err := handler.updateTransactionRoute(ctx, orgID, id, payload)
-	if err != nil {
-		return nil, pkgHTTP.HumaProblem(err)
-	}
-
-	return &UpdateTransactionRouteResponse{Status: http.StatusOK, Body: transactionRoute}, nil
+	return handler.updateTransactionRouteV2(ctx, orgID, id, in.RawBody)
 }
 
 // DeleteOrganizationTransactionRouteByID deletes a transaction route of the

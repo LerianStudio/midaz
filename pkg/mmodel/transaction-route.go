@@ -6,6 +6,7 @@ package mmodel
 
 import (
 	"bytes"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,6 +29,10 @@ type TransactionRoute struct {
 	Metadata map[string]any `json:"metadata,omitempty" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// An object containing accounting data of Operation Routes from the Transaction Route.
 	OperationRoutes []OperationRoute `json:"operationRoutes,omitempty"`
+	// OptionalOperationRouteIDs names the links in OperationRoutes that a transaction may leave
+	// unused. OperationRoutes always holds every link, optional ones included; every link not
+	// named here is required.
+	OptionalOperationRouteIDs []uuid.UUID `json:"-"`
 	// The timestamp when the transaction route was created.
 	CreatedAt time.Time `json:"createdAt" example:"2025-01-01T00:00:00Z"`
 	// The timestamp when the transaction route was last updated.
@@ -46,6 +51,9 @@ type CreateTransactionRouteInput struct {
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// A list of Operation Route IDs associated with the Transaction Route.
 	OperationRoutes []uuid.UUID `json:"operationRoutes,omitempty" validate:"required,dive,required" format:"uuid"`
+	// OptionalOperationRoutes are links a transaction may leave unused. Set by the /v2
+	// transport only; it is not part of the /v1 body.
+	OptionalOperationRoutes []uuid.UUID `json:"-"`
 }
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.
@@ -66,6 +74,9 @@ type UpdateTransactionRouteInput struct {
 	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
 	// A list of Operation Route IDs associated with the Transaction Route. Omit to leave existing associations unchanged. When provided, replaces all current associations with the supplied UUIDs.
 	OperationRoutes *[]uuid.UUID `json:"operationRoutes,omitempty" validate:"omitempty" format:"uuid"`
+	// OptionalOperationRoutes replaces the optional links when non-nil (empty removes them) and
+	// keeps them when nil. Set by the /v2 transport only; it is not part of the /v1 body.
+	OptionalOperationRoutes *[]uuid.UUID `json:"-"`
 }
 
 // OperationRouteIDs extracts the operation route UUIDs from the input.
@@ -119,6 +130,10 @@ type OperationRouteCache struct {
 	Code              string             `json:"code,omitempty" msgpack:"code"`
 	Description       string             `json:"description,omitempty" msgpack:"description"`
 	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty" msgpack:"accountingEntries"`
+	// Optional marks a link a transaction may leave unused. False is the strict reading on purpose:
+	// entries written before the flag existed, and any path that does not set it, keep every route
+	// required.
+	Optional bool `json:"optional,omitempty" msgpack:"optional,omitempty"`
 }
 
 // AccountingRouteUse is one leg's use of an operation route, as a route check
@@ -139,6 +154,11 @@ type AccountCache struct {
 	ValidIf  any    `json:"validIf" msgpack:"validIf"`
 }
 
+// IsOptional reports whether the link to the given operation route is optional.
+func (tr *TransactionRoute) IsOptional(operationRouteID uuid.UUID) bool {
+	return slices.Contains(tr.OptionalOperationRouteIDs, operationRouteID)
+}
+
 // ToCache converts the transaction route into a cache structure for Redis storage.
 // Actions are derived from each operation route's AccountingEntries: a route with
 // non-nil Direct and Hold entries appears in both Actions["direct"] and Actions["hold"].
@@ -153,6 +173,7 @@ func (tr *TransactionRoute) ToCache() TransactionRouteCache {
 			Code:              operationRoute.Code,
 			Description:       operationRoute.Description,
 			AccountingEntries: operationRoute.AccountingEntries,
+			Optional:          tr.IsOptional(operationRoute.ID),
 		}
 
 		if operationRoute.Account != nil {

@@ -294,29 +294,7 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		// op.Direction. The enrichment engine sets Direction="credit" on
 		// repayment companions so the resolver picks Overdraft.Credit
 		// without special-casing here.
-		resolvedAction := action
-
-		// Block/unblock operations carry the base action (direct) but a
-		// semantic OperationTypeOverride (BLOCK/UNBLOCK). When the route
-		// configures a dedicated Block/Unblock AccountingEntry, route the
-		// rubric lookup to it; otherwise leave resolvedAction unchanged so
-		// block/unblock keep resolving via the Direct rubric.
-		switch operationTypeOverride {
-		case constant.BLOCK:
-			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
-				return ae.Block != nil
-			}) {
-				resolvedAction = constant.ActionBlock
-			}
-		case constant.UNBLOCK:
-			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
-				return ae.Unblock != nil
-			}) {
-				resolvedAction = constant.ActionUnblock
-			}
-		}
-
-		resolvedAction = crossLedgerRubricAction(cache, *op.RouteID, resolvedAction)
+		resolvedAction := primaryRubricAction(cache, *op.RouteID, action, operationTypeOverride)
 
 		// The Overdraft BalanceKey override takes precedence: companion
 		// operations on the overdraft balance always resolve their rubric
@@ -353,6 +331,37 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 			}
 		}
 	}
+}
+
+// primaryRubricAction selects the accounting action whose rubric classifies a
+// primary operation of a transaction posted under the given base action.
+// Block/unblock operations carry the base action (direct) plus a semantic
+// OperationTypeOverride (BLOCK/UNBLOCK): when the route configures the
+// dedicated Block/Unblock AccountingEntry the rubric comes from it, otherwise
+// from the base action's entry. A cross-ledger bridge route keeps its
+// crossLedger entry over both. Overdraft companions are classified by the
+// Overdraft entry, not by this selection.
+func primaryRubricAction(cache *mmodel.TransactionRouteCache, routeID, action, operationTypeOverride string) string {
+	resolvedAction := action
+
+	if cache != nil && routeID != "" {
+		switch operationTypeOverride {
+		case constant.BLOCK:
+			if blockEntryConfigured(cache, action, routeID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Block != nil
+			}) {
+				resolvedAction = constant.ActionBlock
+			}
+		case constant.UNBLOCK:
+			if blockEntryConfigured(cache, action, routeID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Unblock != nil
+			}) {
+				resolvedAction = constant.ActionUnblock
+			}
+		}
+	}
+
+	return crossLedgerRubricAction(cache, routeID, resolvedAction)
 }
 
 // crossLedgerRubricAction selects the crossLedger entry for an operation posted

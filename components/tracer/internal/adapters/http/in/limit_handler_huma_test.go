@@ -54,10 +54,15 @@ type tenantSpyLimitService struct {
 	// assert imperative binding/defaults produced the same filter the Fiber path
 	// would.
 	listFilter *model.ListLimitsFilter
+	// createInput and updateInput capture the scopes the handler hands the
+	// service, so tests can assert the HTTP boundary normalized them.
+	createInput *command.CreateLimitInput
+	updateInput *command.UpdateLimitInput
 }
 
-func (s *tenantSpyLimitService) CreateLimit(ctx context.Context, _ *command.CreateLimitInput) (*model.Limit, error) {
+func (s *tenantSpyLimitService) CreateLimit(ctx context.Context, input *command.CreateLimitInput) (*model.Limit, error) {
 	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	s.createInput = input
 	return s.createResult, s.createErr
 }
 
@@ -72,8 +77,9 @@ func (s *tenantSpyLimitService) ListLimits(ctx context.Context, filter *model.Li
 	return s.listResult, s.listErr
 }
 
-func (s *tenantSpyLimitService) UpdateLimit(ctx context.Context, _ uuid.UUID, _ *command.UpdateLimitInput) (*model.Limit, error) {
+func (s *tenantSpyLimitService) UpdateLimit(ctx context.Context, _ uuid.UUID, input *command.UpdateLimitInput) (*model.Limit, error) {
 	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	s.updateInput = input
 	return s.updateResult, s.updateErr
 }
 

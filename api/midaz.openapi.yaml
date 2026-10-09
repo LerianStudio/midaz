@@ -10610,6 +10610,26 @@ paths:
           schema:
             description: Bearer token (forwarded to the composed account-create use case)
             type: string
+        - description: >-
+            Idempotency key to safely retry the composition; a retry with the
+            same key returns the original response, a partial 201 with its
+            instrumentError included, as first answered. Without it no
+            idempotency slot is reserved
+          in: header
+          name: X-Idempotency
+          schema:
+            description: >-
+              Idempotency key to safely retry the composition; a retry with the
+              same key returns the original response, a partial 201 with its
+              instrumentError included, as first answered. Without it no
+              idempotency slot is reserved
+            type: string
+        - description: Idempotency slot TTL in seconds (default 300)
+          in: header
+          name: X-TTL
+          schema:
+            description: Idempotency slot TTL in seconds (default 300)
+            type: string
       requestBody:
         content:
           application/json:
@@ -10623,6 +10643,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/HolderAccountResponse'
           description: Created
+          headers:
+            X-Idempotency-Replayed:
+              schema:
+                type: string
         '422':
           content:
             application/problem+json:
@@ -12191,14 +12215,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionRouteInput'
+              $ref: '#/components/schemas/CreateTransactionRouteInputV2'
         required: true
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionRoute'
+                $ref: '#/components/schemas/TransactionRouteV2'
           description: Created
         '422':
           content:
@@ -12303,7 +12327,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionRoute'
+                $ref: '#/components/schemas/TransactionRouteV2'
           description: OK
         '422':
           content:
@@ -12334,7 +12358,12 @@ paths:
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
         metadata sent as null also leaves the stored metadata as it is, so keys
-        are deleted one at a time.
+        are deleted one at a time. operationRoutes (required links) and
+        optionalOperationRoutes (links a transaction may leave unused) are each
+        applied as a JSON merge patch: an absent or null list keeps the stored
+        links, a present list replaces them and an empty list removes them. The
+        resulting links are validated as a create: a route in both lists, fewer
+        than two links, or no required source or destination is refused.
       operationId: updateTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -12362,14 +12391,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateTransactionRouteInput'
+              $ref: '#/components/schemas/UpdateTransactionRouteInputV2'
         required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionRoute'
+                $ref: '#/components/schemas/TransactionRouteV2'
           description: OK
         '422':
           content:
@@ -13426,14 +13455,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateTransactionRouteInput'
+              $ref: '#/components/schemas/CreateTransactionRouteInputV2'
         required: true
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionRoute'
+                $ref: '#/components/schemas/TransactionRouteV2'
           description: Created
         '422':
           content:
@@ -13524,7 +13553,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionRoute'
+                $ref: '#/components/schemas/TransactionRouteV2'
           description: OK
         '422':
           content:
@@ -13555,7 +13584,12 @@ paths:
         or with an empty metadata object, leaves the stored metadata as it is; a
         key sent as null is deleted; any other key is added or replaced;
         metadata sent as null also leaves the stored metadata as it is, so keys
-        are deleted one at a time.
+        are deleted one at a time. operationRoutes (required links) and
+        optionalOperationRoutes (links a transaction may leave unused) are each
+        applied as a JSON merge patch: an absent or null list keeps the stored
+        links, a present list replaces them and an empty list removes them. The
+        resulting links are validated as a create: a route in both lists, fewer
+        than two links, or no required source or destination is refused.
       operationId: updateOrganizationTransactionRouteV2
       parameters:
         - description: Organization ID (UUID)
@@ -13576,14 +13610,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateTransactionRouteInput'
+              $ref: '#/components/schemas/UpdateTransactionRouteInputV2'
         required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionRoute'
+                $ref: '#/components/schemas/TransactionRouteV2'
           description: OK
         '422':
           content:
@@ -14180,12 +14214,28 @@ paths:
           schema:
             description: Filter by portfolio ID (UUID)
             type: string
-        - description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+        - description: >-
+            Deprecated: use scheme. Same filter under its former name; when both
+            are sent they must carry the same value
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: >-
+              Deprecated: use scheme. Same filter under its former name; when
+              both are sent they must carry the same value
+            type: string
+        - description: >-
+            Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -,
+            trimmed and upper-cased before matching
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: >-
+              Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -,
+              trimmed and upper-cased before matching
             type: string
         - description: Filter by matched rule ID (UUID)
           explode: false
@@ -14340,8 +14390,9 @@ paths:
   /v1/dashboard/fraud-types:
     get:
       description: >-
-        Returns DENY + REVIEW decisions broken down by transaction type, with
-        each type's share of the flagged traffic.
+        Returns DENY + REVIEW decisions broken down by payment scheme, with each
+        scheme's share of the flagged traffic: the ten schemes that flag most,
+        plus one OTHER slice summing the rest.
       operationId: getDashboardFraudTypes
       parameters:
         - description: >-
@@ -14694,12 +14745,28 @@ paths:
           schema:
             description: Filter by scope merchant_id (UUID)
             type: string
-        - description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+        - description: >-
+            Deprecated: use scheme. Same filter under its former name; when both
+            are sent they must carry the same value
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: >-
+              Deprecated: use scheme. Same filter under its former name; when
+              both are sent they must carry the same value
+            type: string
+        - description: >-
+            Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or
+            -, trimmed and upper-cased before matching
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: >-
+              Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _
+              or -, trimmed and upper-cased before matching
             type: string
         - description: Filter by scope sub_type (case-insensitive; max 50 chars)
           explode: false
@@ -15157,12 +15224,28 @@ paths:
           schema:
             description: Filter by scope merchant_id (UUID)
             type: string
-        - description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+        - description: >-
+            Deprecated: use scheme. Same filter under its former name; when both
+            are sent they must carry the same value
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: >-
+              Deprecated: use scheme. Same filter under its former name; when
+              both are sent they must carry the same value
+            type: string
+        - description: >-
+            Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or
+            -, trimmed and upper-cased before matching
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: >-
+              Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _
+              or -, trimmed and upper-cased before matching
             type: string
         - description: Filter by scope sub_type (case-insensitive; max 50 chars)
           explode: false
@@ -15617,12 +15700,28 @@ paths:
           schema:
             description: Filter by portfolio ID (UUID)
             type: string
-        - description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+        - description: >-
+            Deprecated: use scheme. Same filter under its former name; when both
+            are sent they must carry the same value
           explode: false
           in: query
           name: transaction_type
           schema:
-            description: Filter by transaction type (CARD, WIRE, PIX, CRYPTO)
+            deprecated: true
+            description: >-
+              Deprecated: use scheme. Same filter under its former name; when
+              both are sent they must carry the same value
+            type: string
+        - description: >-
+            Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -,
+            trimmed and upper-cased before matching
+          explode: false
+          in: query
+          name: scheme
+          schema:
+            description: >-
+              Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -,
+              trimmed and upper-cased before matching
             type: string
       responses:
         '200':
@@ -16553,6 +16652,14 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          description: >-
+            Payment scheme the transaction declared, normalized to upper case;
+            absent when none.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         status:
           $ref: '#/components/schemas/TransactionStatus'
         tracerSkipped:
@@ -17246,6 +17353,16 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          description: >-
+            Optional payment scheme of the transaction, for example PIX, WIRE,
+            CARD or CRYPTO. Any value of up to 50 letters, digits, underscores
+            or hyphens is accepted; it is trimmed and upper-cased. CARD covers
+            any card payment and is never the card brand.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         skip:
           $ref: '#/components/schemas/TransactionSkip'
       required:
@@ -17757,6 +17874,37 @@ components:
       required:
         - metadata
       type: object
+    CreateTransactionRouteInputV2:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - 'null'
+        optionalOperationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - 'null'
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+      required:
+        - metadata
+      type: object
     CreateTransactionV2Input:
       additionalProperties: false
       description: >-
@@ -17812,6 +17960,16 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        scheme:
+          description: >-
+            Optional payment scheme of the transaction, for example PIX, WIRE,
+            CARD or CRYPTO. Any value of up to 50 letters, digits, underscores
+            or hyphens is accepted; it is trimmed and upper-cased. CARD covers
+            any card payment and is never the card brand.
+          examples:
+            - PIX
+          maxLength: 50
           type: string
         skip:
           $ref: '#/components/schemas/TransactionSkip'
@@ -20780,6 +20938,67 @@ components:
         - updatedAt
         - deletedAt
       type: object
+    TransactionRouteV2:
+      additionalProperties: false
+      properties:
+        createdAt:
+          examples:
+            - '2025-01-01T00:00:00Z'
+          format: date-time
+          type: string
+        deletedAt:
+          examples:
+            - '2025-01-01T00:00:00Z'
+          format: date-time
+          type:
+            - string
+            - 'null'
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        id:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        ledgerId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            $ref: '#/components/schemas/OperationRoute'
+          type:
+            - array
+            - 'null'
+        optionalOperationRoutes:
+          items:
+            $ref: '#/components/schemas/OperationRoute'
+          type:
+            - array
+            - 'null'
+        organizationId:
+          examples:
+            - 01965ed9-7fa4-75b2-8872-fc9e8509ab0a
+          type: string
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+        updatedAt:
+          examples:
+            - '2025-01-01T00:00:00Z'
+          format: date-time
+          type: string
+      required:
+        - optionalOperationRoutes
+        - createdAt
+        - updatedAt
+        - deletedAt
+      type: object
     TransactionSkip:
       additionalProperties: false
       properties:
@@ -20952,6 +21171,14 @@ components:
           examples:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
+          type: string
+        scheme:
+          description: >-
+            Payment scheme the transaction declared, normalized to upper case;
+            absent when none.
+          examples:
+            - PIX
+          maxLength: 50
           type: string
         status:
           $ref: '#/components/schemas/TransactionStatus'
@@ -21305,6 +21532,37 @@ components:
             format: uuid
             type: string
           type: array
+        title:
+          examples:
+            - Charge Settlement
+          type: string
+      required:
+        - metadata
+      type: object
+    UpdateTransactionRouteInputV2:
+      additionalProperties: false
+      properties:
+        description:
+          examples:
+            - Settlement route for service charges
+          type: string
+        metadata:
+          additionalProperties: {}
+          type: object
+        operationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - 'null'
+        optionalOperationRoutes:
+          items:
+            format: uuid
+            type: string
+          type:
+            - array
+            - 'null'
         title:
           examples:
             - Charge Settlement
@@ -22109,6 +22367,11 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         segmentId:
           examples:
             - 00000000-0000-0000-0000-000000000000
@@ -22121,7 +22384,8 @@ components:
           type: string
         transactionType:
           examples:
-            - CARD
+            - PIX
+          maxLength: 50
           type: string
       type: object
     SegmentContext:
@@ -22245,6 +22509,11 @@ components:
             - 00000000-0000-0000-0000-000000000000
           format: uuid
           type: string
+        scheme:
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         segment:
           $ref: '#/components/schemas/SegmentContext'
         subType:
@@ -22264,7 +22533,8 @@ components:
           type: string
         transactionType:
           examples:
-            - CARD
+            - PIX
+          maxLength: 50
           type: string
         truncated:
           examples:
@@ -22279,6 +22549,7 @@ components:
         - validationId
         - requestId
         - transactionType
+        - scheme
         - amount
         - asset
         - transactionTimestamp
@@ -22448,12 +22719,20 @@ components:
           examples:
             - All rules passed
           type: string
+        scheme:
+          description: Payment scheme of the validated transaction.
+          examples:
+            - PIX
+          maxLength: 50
+          type: string
         segmentId:
           format: uuid
           type: string
         transactionType:
+          description: Deprecated name of scheme; always carries the same value.
           examples:
-            - CARD
+            - PIX
+          maxLength: 50
           type: string
         validationId:
           format: uuid
@@ -22465,6 +22744,7 @@ components:
         - amount
         - asset
         - transactionType
+        - scheme
         - accountId
         - matchedRuleIds
         - exceededLimitIds
