@@ -39,10 +39,11 @@ func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, 
 const pendingTransactionUnlockTimeout = 5 * time.Second
 
 // lockPendingTransaction claims the per-transaction Redis lock that serialises
-// concurrent commit/cancel attempts; a lock already held is a 409. It only
-// serialises requests: the engine's lifecycle guard is what keeps a transition
-// from applying twice, so releasing the lock never re-opens a transition that
-// already applied. The returned closure releases it. The lock holds a token of
+// concurrent commit/cancel attempts; a lock already held is a 409. Among
+// releases that share the engine's lifecycle guard, the guard is what keeps a
+// transition from applying twice, so releasing the lock never re-opens a
+// transition that already applied; a release without that guard is held back
+// only by this lock. The returned closure releases it. The lock holds a token of
 // its own, so a release that outlives the TTL never removes a lock another
 // request acquired after it expired.
 func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun) (func(), error) {
@@ -80,4 +81,12 @@ func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, 
 	}
 
 	return unlock, nil
+}
+
+// releasePendingLockOnFailure releases the pending-transaction lock when the
+// transition failed and keeps it when the transition succeeded.
+func releasePendingLockOnFailure(unlock func(), err *error) {
+	if *err != nil {
+		unlock()
+	}
 }

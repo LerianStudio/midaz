@@ -125,7 +125,7 @@ func TestAccountBlockExceptionGrant_PendingFailureUnlocksBeforeEngine(t *testing
 	releasePos, resolvePos, enginePos := -1, -1, -1
 	returns := false
 	for i, stmt := range fn.Body.List {
-		if releasePos == -1 && stmtDefersFunction(stmt, "unlock") {
+		if releasePos == -1 && stmtDefersFunction(stmt, "releasePendingLockOnFailure") {
 			releasePos = i
 			continue
 		}
