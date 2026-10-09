@@ -86,7 +86,11 @@ type HumaMountDeps struct {
 
 	// Route-scoped protected options, one instance per role. In multi-tenant mode
 	// buildUnifiedRouteSetup builds nine distinct instances drawn from seven tenant
-	// middlewares; in single-tenant mode every field is nil.
+	// middlewares; in single-tenant mode every field is nil. Every option whose
+	// tenant middleware binds PostgreSQL chains WithTenantPoolResolution after
+	// WithTenantDB, replacing the same per-module PG keys with a pool re-resolved
+	// per operation; CRMOptions binds no PostgreSQL and LedgerOptions has no
+	// WithTenantDB, so neither carries it.
 	OnboardingOptions  *pkgHTTP.ProtectedRouteOptions
 	LedgerOptions      *pkgHTTP.ProtectedRouteOptions
 	TransactionOptions *pkgHTTP.ProtectedRouteOptions
@@ -111,10 +115,10 @@ type HumaMountDeps struct {
 // v1 contract. Each RegisterXxxRoutesToApp reproduces the same (resource, verb)
 // authz tuple and the same route options the pre-Huma inline route used:
 //   - organization/ledger/portfolio/segment/account/asset use OnboardingOptions
-//     ([authAssertion, WithTenantDB]).
+//     ([authAssertion, WithTenantDB, WithTenantPoolResolution]).
 //   - account-type uses OnboardingOptions too, authorizing against the "midaz"
 //     appName (protectedMidaz).
-//   - asset-rate uses TransactionOptions ([authAssertion, WithTenantDB]) — it is
+//   - asset-rate uses TransactionOptions ([authAssertion, WithTenantDB, WithTenantPoolResolution]) — it is
 //     MONEY-adjacent (exchange rates), so it shares the transaction tenant chain.
 //   - metadata-index uses LedgerOptions ([authAssertion] ONLY, no WithTenantDB).
 //     Passing OnboardingOptions here would inject tenant-DB middleware the inline
@@ -125,14 +129,14 @@ func (d HumaMountDeps) MountV1(group fiber.Router, api huma.API) {
 
 	// MONEY-WRITE: the twelve transaction ops (json/inflow/outflow/annotation/
 	// block/unblock CREATE, commit/cancel/revert STATE, PATCH update, GET-by-id + list).
-	// They carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
+	// They carry TransactionOptions ([authAssertion, WithTenantDB, WithTenantPoolResolution]) and authorize
 	// against the "midaz" appName (protectedMidaz).
 	RegisterTransactionHumaRoutesToApp(group, api, d.Auth, d.Transaction, d.TransactionOptions)
 }
 
 // registerOnboardingRoutes mounts the /v1 resources whose guard chain is the
 // onboarding one — organization, ledger, portfolio, segment, account, account-type
-// and asset all carry OnboardingOptions ([authAssertion, WithTenantDB]) — plus the
+// and asset all carry OnboardingOptions ([authAssertion, WithTenantDB, WithTenantPoolResolution]) — plus the
 // two members whose policy deviates and is therefore load-bearing at the call site:
 //
 //   - metadata-index carries LedgerOptions ([authAssertion] ONLY, no WithTenantDB).
@@ -157,7 +161,7 @@ func (d HumaMountDeps) registerOnboardingRoutes(group fiber.Router, api huma.API
 // registerMoneyReadRoutes mounts the /v1 resources that share the money-read guard
 // chain: balance, operation-read, transaction-count, operation-route,
 // transaction-route and dashboard. Every member carries TransactionOptions
-// ([authAssertion, WithTenantDB]) and authorizes against the "midaz" appName
+// ([authAssertion, WithTenantDB, WithTenantPoolResolution]) and authorizes against the "midaz" appName
 // (protectedMidaz) — a uniform policy, unlike the onboarding group above.
 //
 // dashboard is the one member whose authz RESOURCE is not its path's parent: it
@@ -199,7 +203,7 @@ func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API)
 // Passing OnboardingOptions here would inject tenant-DB middleware the route never had, so
 // LedgerOptions is load-bearing.
 //
-// The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB]) and
+// The transaction ops carry TransactionOptions ([authAssertion, WithTenantDB, WithTenantPoolResolution]) and
 // authorize against the "midaz" appName (protectedMidaz) — the same auth + tenant
 // chain the v1 transaction CREATE ops use, no new policy. RegisterTransactionMirrorV2RoutesToApp
 // additionally mirrors the three v1 ops that have no dedicated v2 wire shape — the PATCH update
@@ -227,7 +231,7 @@ func (d HumaMountDeps) registerMoneyReadRoutes(group fiber.Router, api huma.API)
 // carries CompositionOptions and authorizes under the "midaz" appName's "accounts"
 // resource; it is served ONLY on this /v2 contract (see RegisterCompositionV2RoutesToApp).
 //
-// operation-routes carry TransactionOptions ([authAssertion, WithTenantDB]) and authorize
+// operation-routes carry TransactionOptions ([authAssertion, WithTenantDB, WithTenantPoolResolution]) and authorize
 // against the "midaz" appName (protectedMidaz), exactly as on v1 (see registerMoneyReadRoutes /
 // RegisterOperationRouteRoutesToApp). transaction-routes likewise carry TransactionOptions
 // and authorize against the "midaz" appName (protectedMidaz), exactly as on v1 (see
