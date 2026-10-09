@@ -19,6 +19,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -564,7 +565,7 @@ func TestGetAllMetadataTransactions_PendingOverdraftAnswersTheSubmittedLegs(t *t
 }
 
 // TestGetAllMetadataTransactions_NoMetadata ensures that when metadata lookup
-// returns an empty (non-nil) slice, the use case returns no transactions and no error,
+// returns an empty slice, the use case returns an empty non-nil slice and no error,
 // and does not call the transaction repository.
 func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -595,8 +596,69 @@ func TestGetAllMetadataTransactions_NoMetadata(t *testing.T) {
 	result, cur, err := uc.GetAllMetadataTransactions(context.Background(), uuid.UUID{}, uuid.UUID{}, filter)
 
 	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+}
+
+// TestGetAllMetadataTransactions_MetadataRepoErrorIsTechnical ensures a metadata
+// store failure is returned unchanged.
+func TestGetAllMetadataTransactions_MetadataRepoErrorIsTechnical(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	repoErr := errors.New("mongodb connection failed")
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityTransaction, gomock.Any()).
+		Return(nil, repoErr)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo, // must not be called
+	}
+
+	result, cur, err := uc.GetAllMetadataTransactions(context.Background(), uuid.New(), uuid.New(), http.QueryHeader{Metadata: &bson.M{"k": "v"}, Limit: 10, Page: 1})
+
+	assert.ErrorIs(t, err, repoErr)
+	assert.False(t, pkg.IsBusinessError(err), "a metadata store failure must not be classified as a business error")
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
+}
+
+// TestGetAllMetadataTransactions_NoTransactionRows ensures that when PostgreSQL
+// returns no rows for the matched ids, the use case returns an empty non-nil slice.
+func TestGetAllMetadataTransactions_NoTransactionRows(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	txID := uuid.New()
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityTransaction, gomock.Any()).
+		Return([]*mongodb.Metadata{{ID: bson.NewObjectID(), EntityID: txID.String(), Data: map[string]any{"k": "v"}}}, nil)
+	mockTransactionRepo.EXPECT().
+		FindOrListAllWithOperations(gomock.Any(), orgID, ledgerID, []uuid.UUID{txID}, gomock.Any()).
+		Return(nil, libHTTP.CursorPagination{}, nil)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRepo:         mockTransactionRepo,
+	}
+
+	result, _, err := uc.GetAllMetadataTransactions(context.Background(), orgID, ledgerID, http.QueryHeader{Metadata: &bson.M{"k": "v"}, Limit: 10, Page: 1})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
 }
 
 // TestGetAllMetadataTransactions_AppliesDefaultDateRange ensures that when the

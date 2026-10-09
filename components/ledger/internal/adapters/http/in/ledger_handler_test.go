@@ -680,10 +680,13 @@ func TestGetAllLedgers_MetadataFilter(t *testing.T) {
 	ledgerRepo := ledger.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityLedger, gomock.Any()).
-		Return([]*mongodb.Metadata{{EntityID: ledger1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityLedger, gomock.Any(), "", gomock.Any()).
+		Return([]string{ledger1}, nil).Times(1)
 	ledgerRepo.EXPECT().FindAll(gomock.Any(), orgID, gomock.Any()).
 		Return([]*mmodel.Ledger{{ID: ledger1, OrganizationID: orgID.String(), Name: "Premium One", Status: mmodel.Status{Code: "ACTIVE"}}}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityLedger, []string{ledger1}).
+		Return([]*mongodb.Metadata{{EntityID: ledger1, Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &LedgerHandler{Query: &query.UseCase{LedgerRepo: ledgerRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -732,15 +735,17 @@ func TestGetAllLedgers_MetadataWithNameFilter_Canonical400(t *testing.T) {
 	assert.Equal(t, constant.ErrInvalidQueryParameter.Error(), got["code"])
 }
 
-func TestGetAllLedgers_MetadataFilter_ServiceError_Canonical404(t *testing.T) {
-	// NOT parallel: process-global huma state. The metadata branch's error path.
+func TestGetAllLedgers_MetadataFilter_NoMatch_EmptyPage(t *testing.T) {
+	// NOT parallel: process-global huma state. A metadata filter that matches
+	// nothing in the path's scope answers 200 with an empty page.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	orgID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityLedger, gomock.Any()).Return(nil, nil).Times(1)
+	// No metadata matches, so the PostgreSQL read is never reached.
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityLedger, gomock.Any(), "", gomock.Any()).Return([]string{}, nil).Times(1)
 
 	handler := &LedgerHandler{Query: &query.UseCase{
 		LedgerRepo:             ledger.NewMockRepository(ctrl),
@@ -749,17 +754,14 @@ func TestGetAllLedgers_MetadataFilter_ServiceError_Canonical404(t *testing.T) {
 
 	app := buildHumaLedgerApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, "?metadata.tier=nonexistent"), nil)
+	req := httptest.NewRequest(http.MethodGet, ledgersPath(orgID, "?metadata.tier=nonexistent&limit=5&page=2"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Contains(t, got, "code")
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+	assertEmptyOffsetPage(t, respBody, 5, 2)
 }
 
 func TestGetAllLedgers_ServiceError_Canonical404(t *testing.T) {

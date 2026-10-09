@@ -8,104 +8,155 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/mock/gomock"
 )
 
 func TestGetAllMetadataSegments(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	matchedID := uuid.New()
+	filter := http.QueryHeader{Limit: 5, Page: 1, UseMetadata: true}
 
-	mockSegmentRepo := segment.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	// PostgreSQL reads each batch of matched ids on one page sized to it.
+	pagedByMatchedIDs := gomock.Cond(func(q http.QueryHeader) bool {
+		return len(q.EntityIDs) == 1 && q.EntityIDs[0] == matchedID && q.Limit == 1 && q.Page == 1
+	})
 
-	uc := &UseCase{
-		SegmentRepo:            mockSegmentRepo,
-		OnboardingMetadataRepo: mockMetadataRepo,
-	}
+	// A created_at range reaches the metadata store unchanged and PostgreSQL applies it to the batch.
+	combinedFilter := filter
+	combinedFilter.StartDate = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	combinedFilter.EndDate = time.Date(2026, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	batchWithDateRange := gomock.Cond(func(q http.QueryHeader) bool {
+		return len(q.EntityIDs) == 1 && q.EntityIDs[0] == matchedID && q.Limit == 1 && q.Page == 1 && !q.StartDate.IsZero()
+	})
 
 	tests := []struct {
-		name           string
-		organizationID uuid.UUID
-		ledgerID       uuid.UUID
-		filter         http.QueryHeader
-		mockSetup      func()
-		expectErr      bool
-		expectedResult []*mmodel.Segment
+		name          string
+		filter        http.QueryHeader
+		mockSetup     func(metadataRepo *mongodb.MockRepository, segmentRepo *segment.MockRepository)
+		expectErr     bool
+		expectedCount int
+		expectMeta    bool
 	}{
 		{
-			name:           "Success - Retrieve segments with metadata",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			mockSetup: func() {
-				validUUID := uuid.New()
-				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
-				mockSegmentRepo.EXPECT().
-					FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
-					Return([]*mmodel.Segment{
-						{ID: validUUID.String(), Name: "Test Segment", Status: mmodel.Status{Code: "active"}},
-					}, nil)
+			name: "matched segments are paged by entity ids and carry their metadata",
+			mockSetup: func(metadataRepo *mongodb.MockRepository, segmentRepo *segment.MockRepository) {
+				metadataRepo.EXPECT().
+					FindEntityIDs(gomock.Any(), constant.EntitySegment, filter, "", metadataListBatchSize).
+					Return([]string{matchedID.String()}, nil)
+				segmentRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, pagedByMatchedIDs).
+					Return([]*mmodel.Segment{{ID: matchedID.String(), Name: "Test Segment"}}, nil)
+				metadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), constant.EntitySegment, []string{matchedID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: matchedID.String(), Data: map[string]any{"key": "value"}}}, nil)
 			},
-			expectErr: false,
-			expectedResult: []*mmodel.Segment{
-				{ID: "valid-uuid", Name: "Test Segment", Status: mmodel.Status{Code: "active"}, Metadata: map[string]any{"key": "value"}},
-			},
+			expectedCount: 1,
+			expectMeta:    true,
 		},
 		{
-			name:           "Error - No metadata found",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			mockSetup: func() {
-				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("error metadata no found"))
+			name: "no metadata match yields an empty page without querying postgres",
+			mockSetup: func(metadataRepo *mongodb.MockRepository, _ *segment.MockRepository) {
+				metadataRepo.EXPECT().
+					FindEntityIDs(gomock.Any(), constant.EntitySegment, filter, "", metadataListBatchSize).
+					Return([]string{}, nil)
 			},
-			expectErr:      true,
-			expectedResult: nil,
+			expectedCount: 0,
 		},
 		{
-			name:           "Error - Failed to retrieve segments",
-			organizationID: uuid.New(),
-			ledgerID:       uuid.New(),
-			mockSetup: func() {
-				validUUID := uuid.New()
-				mockMetadataRepo.EXPECT().
-					FindList(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return([]*mongodb.Metadata{
-						{EntityID: validUUID.String(), Data: map[string]any{"key": "value"}},
-					}, nil)
-				mockSegmentRepo.EXPECT().
-					FindByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq([]uuid.UUID{validUUID})).
+			name: "a matched id without a live row yields an empty page",
+			mockSetup: func(metadataRepo *mongodb.MockRepository, segmentRepo *segment.MockRepository) {
+				metadataRepo.EXPECT().
+					FindEntityIDs(gomock.Any(), constant.EntitySegment, filter, "", metadataListBatchSize).
+					Return([]string{matchedID.String()}, nil)
+				segmentRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, pagedByMatchedIDs).
+					Return(nil, nil)
+			},
+			expectedCount: 0,
+		},
+		{
+			name: "metadata repository failure is returned",
+			mockSetup: func(metadataRepo *mongodb.MockRepository, _ *segment.MockRepository) {
+				metadataRepo.EXPECT().
+					FindEntityIDs(gomock.Any(), constant.EntitySegment, filter, "", metadataListBatchSize).
+					Return(nil, errors.New("mongo error"))
+			},
+			expectErr: true,
+		},
+		{
+			name: "segment repository failure is returned",
+			mockSetup: func(metadataRepo *mongodb.MockRepository, segmentRepo *segment.MockRepository) {
+				metadataRepo.EXPECT().
+					FindEntityIDs(gomock.Any(), constant.EntitySegment, filter, "", metadataListBatchSize).
+					Return([]string{matchedID.String()}, nil)
+				segmentRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, pagedByMatchedIDs).
 					Return(nil, errors.New("database error"))
 			},
-			expectErr:      true,
-			expectedResult: nil,
+			expectErr: true,
+		},
+		{
+			name:   "a created_at range is applied by postgres to the batch",
+			filter: combinedFilter,
+			mockSetup: func(metadataRepo *mongodb.MockRepository, segmentRepo *segment.MockRepository) {
+				metadataRepo.EXPECT().
+					FindEntityIDs(gomock.Any(), constant.EntitySegment, combinedFilter, "", metadataListBatchSize).
+					Return([]string{matchedID.String()}, nil)
+				segmentRepo.EXPECT().
+					FindAll(gomock.Any(), organizationID, ledgerID, batchWithDateRange).
+					Return([]*mmodel.Segment{{ID: matchedID.String()}}, nil)
+				metadataRepo.EXPECT().
+					FindByEntityIDs(gomock.Any(), constant.EntitySegment, []string{matchedID.String()}).
+					Return([]*mongodb.Metadata{{EntityID: matchedID.String(), Data: map[string]any{"key": "value"}}}, nil)
+			},
+			expectedCount: 1,
+			expectMeta:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.mockSetup()
+			ctrl := gomock.NewController(t)
 
-			ctx := context.Background()
-			result, err := uc.GetAllMetadataSegments(ctx, tt.organizationID, tt.ledgerID, tt.filter)
+			mockSegmentRepo := segment.NewMockRepository(ctrl)
+			mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+			tt.mockSetup(mockMetadataRepo, mockSegmentRepo)
+
+			uc := &UseCase{SegmentRepo: mockSegmentRepo, OnboardingMetadataRepo: mockMetadataRepo}
+
+			requestFilter := filter
+			if tt.filter.UseMetadata {
+				requestFilter = tt.filter
+			}
+
+			result, err := uc.GetAllMetadataSegments(context.Background(), organizationID, ledgerID, requestFilter)
 
 			if tt.expectErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, result)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, result)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result, "an unmatched filter must yield an empty, non-nil page")
+			assert.Len(t, result, tt.expectedCount)
+
+			if tt.expectMeta {
+				assert.Equal(t, map[string]any{"key": "value"}, result[0].Metadata)
 			}
 		})
 	}

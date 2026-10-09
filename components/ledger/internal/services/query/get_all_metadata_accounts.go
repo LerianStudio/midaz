@@ -6,79 +6,30 @@ package query
 
 import (
 	"context"
-	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// GetAllMetadataAccounts fetches all accounts from the repository.
+// GetAllMetadataAccounts fetches the page of accounts of the ledger whose metadata matches the
+// filter, narrowed to the portfolio and segment when given. No match yields an empty, non-nil page.
+// The page is ordered by entity id in the filter's sort order.
 func (uc *UseCase) GetAllMetadataAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, filter http.QueryHeader, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_metadata_accounts")
 	defer span.End()
 
-	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccount, filter)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting metadata on repo", libLog.Err(err))
-
-		return nil, err
-	}
-
-	if len(metadata) == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No metadata found", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
-
-		return nil, err
-	}
-
-	uuids := make([]uuid.UUID, len(metadata))
-	metadataMap := make(map[string]map[string]any, len(metadata))
-
-	for i, meta := range metadata {
-		uuids[i] = uuid.MustParse(meta.EntityID)
-		metadataMap[meta.EntityID] = meta.Data
-	}
-
-	filter.EntityIDs = uuids
-
-	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter, holderPolicy)
-	if err != nil {
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)
-
-			logger.Log(ctx, libLog.LevelWarn, "No accounts found")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get accounts on repo", err)
-
-			return nil, err
-		}
-
-		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo", libLog.Err(err))
-
-		libOpentelemetry.HandleSpanError(span, "Failed to get accounts on repo", err)
-
-		return nil, err
-	}
-
-	for i := range accounts {
-		if data, ok := metadataMap[accounts[i].ID]; ok {
-			accounts[i].Metadata = data
-		}
-	}
-
-	return accounts, nil
+	return listMetadataWindow(ctx, span, logger, uc, filter, metadataListWindow[*mmodel.Account]{
+		collection: constant.EntityAccount,
+		findAll: func(ctx context.Context, filter http.QueryHeader) ([]*mmodel.Account, error) {
+			return uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter, holderPolicy)
+		},
+		entityID: func(a *mmodel.Account) string { return a.ID },
+		attach:   func(a *mmodel.Account, data map[string]any) { a.Metadata = data },
+	})
 }
