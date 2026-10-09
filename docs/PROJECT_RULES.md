@@ -916,7 +916,7 @@ make ledger COMMAND=lint
 
 ```dockerfile
 # Stage 1: Builder (multi-platform support)
-FROM --platform=$BUILDPLATFORM golang:1.27.0-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine AS builder
 WORKDIR /ledger-app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -1284,4 +1284,4 @@ Multi-tenancy is provided by `lib-commons/v6`:
 - **Project Structure:** `STRUCTURE.md`
 - **Linter Config:** `.golangci.yml`
 - **CRM Field Encryption / KMS:** `docs/architecture/crm-field-encryption.md`
-- **Go Version:** 1.27.0 (go.mod `go 1.27.0`)
+- **Go Version:** 1.27.0 (go.mod `go 1.27.0`); Docker builders and CI use toolchain 1.27.2
