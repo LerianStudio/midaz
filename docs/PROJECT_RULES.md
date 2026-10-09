@@ -1137,8 +1137,11 @@ inside the ledger binary as a launcher app, not as a separate service, and depen
   Lua: it only replays what those paths recorded, and the entry is removed by the
   persistence path (`CreateBalanceTransactionOperationsAsync`) once the write completes.
 - Replay prefers the materialized operations and only rebuilds them via
-  `command.BuildOperations` when they are missing, recording that fallback with the
-  `redis_backup_replay_recomputed_balances_after_total` metric.
+  `command.BuildOperations` from the entry's balance snapshots when they are missing,
+  recording that fallback with the `redis_backup_replay_recomputed_balances_after_total`
+  metric. A rebuild that yields no operation, from an entry without balance snapshots,
+  is never written, since it would persist a transaction without operations. It counts
+  as poison (`empty_rebuilt_operations`).
 - Persists via `WriteTransactionSync`, writing directly to Postgres; it never republishes
   to RabbitMQ. The transaction row and its operations commit in one database
   transaction, and the MongoDB metadata follows the commit. A failed write leaves the
