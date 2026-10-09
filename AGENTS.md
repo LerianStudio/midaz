@@ -188,3 +188,4 @@ design: [docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-
 - **[docs/api/SCOPING.md](docs/api/SCOPING.md)** — Path vs `X-Organization-Id` header scoping (R22)
 - **[docs/architecture/crm-field-encryption.md](docs/architecture/crm-field-encryption.md)** — CRM PII field encryption + Vault/Tink KMS subsystem (legacy vs envelope modes, key management, provisioning)
 - **[docs/architecture/engine.md](docs/architecture/engine.md)** — Default accounting engine, live-state Lua boundary, receipts, completion, recovery, and rollout compatibility
+- **[docs/architecture/system-facts.md](docs/architecture/system-facts.md)** — The `midaz.transaction_committed` System Facts producer: the fact, the completion seam, failure policy, configuration, rollout order and readiness

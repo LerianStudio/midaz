@@ -58,6 +58,16 @@ Handlers (HTTP) → Services (Command/Query) → Repositories (Postgres/Mongo/Re
 
 Dependencies flow inward. Inner layers must not depend on outer layers. Interfaces defined where used.
 
+**System Facts.** The ledger records the `midaz.transaction_committed@1.0.0` fact (producer
+`midaz`, namespace `lerian.midaz.transactions`) inside the same PostgreSQL transaction that commits
+an APPROVED transaction row: `completion.Store` hands every row it created or transitioned
+(actions `direct`, `commit`, `revert`; hold, cancel and NOTED are not facts) to the
+`command.TransactionFactRecorder` port, implemented over `lib-system-facts`, whose outbox table
+`system_facts_outbox` (migration `000046`) and forwarder deliver it to the System Facts service.
+Emission is enabled only when the boot-time contract preflight answers OK; otherwise the no-op
+emitter is wired with a Warn and the forwarder still drains the backlog. See
+[docs/architecture/system-facts.md](docs/architecture/system-facts.md).
+
 ### 2.3 Directory Structure
 
 ```
@@ -1089,6 +1099,19 @@ enabling discovery with an empty advertise address aborts boot
 | TRACER_API_KEY | — | Tracer `API_KEY` sent as `x-api-key` when `PLUGIN_AUTH_ENABLED=false`; refuses boot together with plugin auth |
 
 Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](docs/architecture/ledger-tracer-topology.md).
+
+#### System Facts producer (ledger → system-facts)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| SYSTEM_FACTS_ENABLED | `false` | Records the `midaz.transaction_committed` fact and runs the outbox forwarder; `false` wires the kit's no-op emitter, builds no producer and reads none of the other `SYSTEM_FACTS_*` values; `true` requires `PLUGIN_AUTH_ENABLED=true` |
+| SYSTEM_FACTS_URL | — | System Facts base URL: delivery target of the forwarder and registry of the boot-time contract preflight; required when enabled; plain `http://` only to a loopback host unless `SYSTEM_FACTS_INSECURE_HTTP=true` |
+| SYSTEM_FACTS_M2M_CLIENT_ID | — | Single-tenant Access Manager client id the producer token is minted with (required when enabled; multi-tenant reads each tenant's credential at `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/system-facts/credentials` on the `M2M_SECRETS_BACKEND` backend instead, never the static pair) |
+| SYSTEM_FACTS_M2M_CLIENT_SECRET | — | Secret of `SYSTEM_FACTS_M2M_CLIENT_ID`; never logged |
+| SYSTEM_FACTS_INSECURE_HTTP | `false` | Admits a plain `http://` URL to a non-loopback host (the token and the secret ride every call); accepted only with `DEPLOYMENT_MODE=local`, else boot refuses |
+| SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS | `10000` | Bound (ms) on the boot-time contract preflight; `1000..60000`, else boot refuses; a non-OK preflight keeps emission off with a Warn and `system_facts_preflight_total{outcome}` and never refuses boot |
+| SYSTEM_FACTS_RETENTION_INVALID_HOURS | `0` | Hours the forwarder keeps `INVALID` outbox records before sweeping them; `0` (the kit default) keeps them until Security sets a value; negative refuses boot |
+
+Fact, seam, rollout order and readiness: [docs/architecture/system-facts.md](docs/architecture/system-facts.md).
 
 ### 6.2 CRM + Fees (folded into the ledger binary)
 
