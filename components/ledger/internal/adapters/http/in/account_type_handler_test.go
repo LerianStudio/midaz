@@ -596,7 +596,7 @@ func TestGetAllAccountTypes_MetadataFilter_Success(t *testing.T) {
 	// A metadata filter routes the list through GetAllMetadataAccountType: FindList
 	// resolves the matching entity IDs, then FindAll fetches those account types.
 	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAccountType, gomock.Any()).
-		Return([]*mongodb.Metadata{{EntityID: accountTypeID.String(), Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+		Return([]*mongodb.Metadata{{EntityID: accountTypeID.String()}}, nil).Times(1)
 	accountTypeRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return([]*mmodel.AccountType{{
 			ID:             accountTypeID,
@@ -605,6 +605,9 @@ func TestGetAllAccountTypes_MetadataFilter_Success(t *testing.T) {
 			Name:           "Premium Account Type",
 			KeyValue:       "premium_key",
 		}}, libHTTP.CursorPagination{}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityAccountType, []string{accountTypeID.String()}).
+		Return([]*mongodb.Metadata{{EntityID: accountTypeID.String(), Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &AccountTypeHandler{Query: &query.UseCase{AccountTypeRepo: accountTypeRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -632,8 +635,9 @@ func TestGetAllAccountTypes_MetadataFilter_Success(t *testing.T) {
 	assert.Equal(t, "Premium Account Type", first["name"])
 }
 
-func TestGetAllAccountTypes_MetadataFilter_NoMatch_404(t *testing.T) {
-	// NOT parallel: process-global huma state.
+func TestGetAllAccountTypes_MetadataFilter_NoMatch_EmptyPage(t *testing.T) {
+	// NOT parallel: process-global huma state. A metadata filter that matches
+	// nothing in the path's scope answers 200 with an empty page.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -641,7 +645,7 @@ func TestGetAllAccountTypes_MetadataFilter_NoMatch_404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	// No metadata matches, so FindAll is never reached.
+	// No metadata matches, so the PostgreSQL read is never reached.
 	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAccountType, gomock.Any()).Return(nil, nil).Times(1)
 
 	handler := &AccountTypeHandler{Query: &query.UseCase{
@@ -651,17 +655,14 @@ func TestGetAllAccountTypes_MetadataFilter_NoMatch_404(t *testing.T) {
 
 	app := buildHumaAccountTypeApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types?metadata.tier=nonexistent", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/account-types?metadata.tier=nonexistent&limit=5", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, constant.ErrNoAccountTypesFound.Error(), got["code"])
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+	assertEmptyCursorPage(t, respBody, 5)
 }
 
 func TestGetAllAccountTypes_NotFound_404(t *testing.T) {

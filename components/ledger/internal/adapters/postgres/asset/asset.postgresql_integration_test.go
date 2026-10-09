@@ -400,7 +400,7 @@ func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
 	ctx := context.Background()
 
 	// Page 1: limit=2, page=1
-	page1Filter := http.Pagination{
+	page1Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      1,
 		SortOrder: "DESC",
@@ -413,7 +413,7 @@ func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, page1, 2, "page 1 should have 2 items")
 
 	// Page 2: limit=2, page=2
-	page2Filter := http.Pagination{
+	page2Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      2,
 		SortOrder: "DESC",
@@ -426,7 +426,7 @@ func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, page2, 2, "page 2 should have 2 items")
 
 	// Page 3: limit=2, page=3 (should have 1 item)
-	page3Filter := http.Pagination{
+	page3Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      3,
 		SortOrder: "DESC",
@@ -452,6 +452,63 @@ func TestIntegration_AssetRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, allIDs, 5, "should have 5 unique assets across all pages")
 }
 
+func TestIntegration_AssetRepository_FindAll_ByEntityIDs_Paginates(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	otherLedgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	requested := make([]uuid.UUID, 0, 3)
+	for _, code := range []string{"USD", "EUR", "GBP"} {
+		requested = append(requested, pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, pgtestutil.AssetParams{
+			Name: code + " Currency", Type: "currency", Code: code, Status: "ACTIVE",
+		}))
+	}
+
+	unrequestedID := pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, pgtestutil.AssetParams{
+		Name: "JPY Currency", Type: "currency", Code: "JPY", Status: "ACTIVE",
+	})
+	otherLedgerAssetID := pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, otherLedgerID, pgtestutil.AssetParams{
+		Name: "CHF Currency", Type: "currency", Code: "CHF", Status: "ACTIVE",
+	})
+
+	ctx := context.Background()
+
+	filter := defaultPagination()
+	filter.Limit = 2
+	filter.EntityIDs = append(append([]uuid.UUID{}, requested...), otherLedgerAssetID)
+
+	filter.Page = 1
+	page1, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	require.NoError(t, err)
+	assert.Len(t, page1, 2, "page 1 should have 2 items")
+
+	filter.Page = 2
+	page2, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	require.NoError(t, err)
+	assert.Len(t, page2, 1, "page 2 should have 1 item")
+
+	want := make(map[string]bool, len(requested))
+	for _, id := range requested {
+		want[id.String()] = true
+	}
+
+	seen := make(map[string]bool)
+	for _, a := range append(page1, page2...) {
+		assert.True(t, want[a.ID], "asset %s should be one of the requested ids", a.ID)
+		assert.NotEqual(t, unrequestedID.String(), a.ID, "unrequested asset must not be returned")
+		assert.NotEqual(t, otherLedgerAssetID.String(), a.ID, "asset from another ledger must not be returned")
+		assert.Equal(t, orgID.String(), a.OrganizationID)
+		assert.Equal(t, ledgerID.String(), a.LedgerID)
+		seen[a.ID] = true
+	}
+
+	assert.Len(t, seen, 3, "should return the 3 requested assets across both pages")
+}
+
 func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
 	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
 
@@ -472,7 +529,7 @@ func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
 	ctx := context.Background()
 
 	// Act 1: Query with past-only window (should return 0 items)
-	pastFilter := http.Pagination{
+	pastFilter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "DESC",
@@ -484,7 +541,7 @@ func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
 	assert.Empty(t, assetsPast, "past-only window should return 0 items")
 
 	// Act 2: Query with today's window (should return 1 item)
-	todayFilter := http.Pagination{
+	todayFilter := http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "DESC",
@@ -494,94 +551,6 @@ func TestIntegration_AssetRepository_FindAll_FiltersByDateRange(t *testing.T) {
 	assetsToday, err := repo.FindAll(ctx, orgID, ledgerID, todayFilter)
 	require.NoError(t, err)
 	assert.Len(t, assetsToday, 1, "today's window should return 1 item")
-}
-
-// ============================================================================
-// ListByIDs Tests
-// ============================================================================
-
-func TestIntegration_AssetRepository_ListByIDs_ReturnsMatchingAssets(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-
-	// Create 3 assets
-	id1 := pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, pgtestutil.AssetParams{
-		Name: "Asset 1", Type: "currency", Code: "AS1", Status: "ACTIVE",
-	})
-	id2 := pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, pgtestutil.AssetParams{
-		Name: "Asset 2", Type: "currency", Code: "AS2", Status: "ACTIVE",
-	})
-	pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, pgtestutil.AssetParams{
-		Name: "Asset 3", Type: "currency", Code: "AS3", Status: "ACTIVE",
-	})
-
-	ctx := context.Background()
-
-	// Act - request only first 2
-	assets, err := repo.ListByIDs(ctx, orgID, ledgerID, []uuid.UUID{id1, id2})
-
-	// Assert
-	require.NoError(t, err, "ListByIDs should not return error")
-	assert.Len(t, assets, 2, "should return only 2 assets")
-
-	codes := make([]string, len(assets))
-	for i, a := range assets {
-		codes[i] = a.Code
-	}
-	assert.ElementsMatch(t, []string{"AS1", "AS2"}, codes)
-}
-
-func TestIntegration_AssetRepository_ListByIDs_EmptyForNonExistentIDs(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-
-	ctx := context.Background()
-
-	// Act
-	nonExistentIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
-	assets, err := repo.ListByIDs(ctx, orgID, ledgerID, nonExistentIDs)
-
-	// Assert
-	require.NoError(t, err, "should not error for empty result")
-	assert.Empty(t, assets, "should return empty slice")
-}
-
-func TestIntegration_AssetRepository_ListByIDs_IgnoresDeletedAssets(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-
-	// Create active asset
-	activeID := pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, pgtestutil.AssetParams{
-		Name: "Active Asset", Type: "currency", Code: "ACT", Status: "ACTIVE",
-	})
-
-	// Create deleted asset
-	deletedAt := time.Now().Add(-1 * time.Hour)
-	deletedID := pgtestutil.CreateTestAssetWithParams(t, container.DB, orgID, ledgerID, pgtestutil.AssetParams{
-		Name: "Deleted Asset", Type: "currency", Code: "DEL", Status: "ACTIVE", DeletedAt: &deletedAt,
-	})
-
-	ctx := context.Background()
-
-	// Act
-	assets, err := repo.ListByIDs(ctx, orgID, ledgerID, []uuid.UUID{activeID, deletedID})
-
-	// Assert
-	require.NoError(t, err)
-	assert.Len(t, assets, 1, "should return only active asset")
-	assert.Equal(t, "Active Asset", assets[0].Name)
 }
 
 // ============================================================================
@@ -733,8 +702,8 @@ func TestIntegration_AssetRepository_Count_ReturnsZeroForEmptyLedger(t *testing.
 // Helpers
 // ============================================================================
 
-func defaultPagination() http.Pagination {
-	return http.Pagination{
+func defaultPagination() http.QueryHeader {
+	return http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "DESC",

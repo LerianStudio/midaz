@@ -160,6 +160,21 @@ func (mr *MockRepositoryMockRecorder) FindByEntityIDs(ctx, collection, entityIDs
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByEntityIDs", reflect.TypeOf((*MockRepository)(nil).FindByEntityIDs), ctx, collection, entityIDs)
 }
 
+// FindEntityIDs mocks base method.
+func (m *MockRepository) FindEntityIDs(ctx context.Context, collection string, filter http.QueryHeader, after string, limit int) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindEntityIDs", ctx, collection, filter, after, limit)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindEntityIDs indicates an expected call of FindEntityIDs.
+func (mr *MockRepositoryMockRecorder) FindEntityIDs(ctx, collection, filter, after, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindEntityIDs", reflect.TypeOf((*MockRepository)(nil).FindEntityIDs), ctx, collection, filter, after, limit)
+}
+
 // FindList mocks base method.
 func (m *MockRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
 	m.ctrl.T.Helper()

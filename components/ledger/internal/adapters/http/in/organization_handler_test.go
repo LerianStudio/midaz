@@ -622,7 +622,8 @@ func TestUpdateOrganization_NullMetadataByContract(t *testing.T) {
 			orgRepo.EXPECT().Update(gomock.Any(), orgID, gomock.Any()).DoAndReturn(
 				func(_ context.Context, _ uuid.UUID, org *mmodel.Organization) (*mmodel.Organization, error) {
 					return &mmodel.Organization{ID: orgID.String(), LegalName: org.LegalName}, nil
-				})
+				},
+			)
 
 			metadataRepo := mongodb.NewMockRepository(ctrl)
 			metadataRepo.EXPECT().FindByEntity(gomock.Any(), constant.EntityOrganization, orgID.String()).
@@ -720,18 +721,18 @@ func TestGetAllOrganizations_MetadataFilter_Success(t *testing.T) {
 	orgRepo := organization.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	// A metadata query routes the list through FindList + FindAll (the by-EntityIDs
+	// A metadata query routes the list through FindEntityIDs + FindAll (the by-EntityIDs
 	// re-read), NOT the plain FindAll branch.
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityOrganization, gomock.Any()).
-		Return([]*mongodb.Metadata{
-			{EntityID: org1ID, Data: map[string]any{"tier": "premium"}},
-			{EntityID: org2ID, Data: map[string]any{"tier": "premium"}},
-		}, nil).Times(1)
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityOrganization, gomock.Any(), "", gomock.Any()).
+		Return([]string{org1ID, org2ID}, nil).Times(1)
 	orgRepo.EXPECT().FindAll(gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Organization{
 			{ID: org1ID, LegalName: "Premium Org One", Status: mmodel.Status{Code: "ACTIVE"}},
 			{ID: org2ID, LegalName: "Premium Org Two", Status: mmodel.Status{Code: "ACTIVE"}},
 		}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityOrganization, []string{org1ID, org2ID}).
+		Return([]*mongodb.Metadata{{EntityID: org1ID, Data: map[string]any{"tier": "premium"}}, {EntityID: org2ID, Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &OrganizationHandler{Query: &query.UseCase{OrganizationRepo: orgRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -753,13 +754,15 @@ func TestGetAllOrganizations_MetadataFilter_Success(t *testing.T) {
 	assert.Len(t, items, 2)
 }
 
-func TestGetAllOrganizations_MetadataFilter_NotFound_Canonical404(t *testing.T) {
-	// NOT parallel: process-global huma state.
+func TestGetAllOrganizations_MetadataFilter_NoMatch_EmptyPage(t *testing.T) {
+	// NOT parallel: process-global huma state. A metadata filter that matches
+	// nothing in the path's scope answers 200 with an empty page.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityOrganization, gomock.Any()).Return(nil, nil).Times(1)
+	// No metadata matches, so the PostgreSQL read is never reached.
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityOrganization, gomock.Any(), "", gomock.Any()).Return([]string{}, nil).Times(1)
 
 	handler := &OrganizationHandler{Query: &query.UseCase{
 		OrganizationRepo:       organization.NewMockRepository(ctrl),
@@ -768,17 +771,14 @@ func TestGetAllOrganizations_MetadataFilter_NotFound_Canonical404(t *testing.T) 
 
 	app := buildHumaOrganizationApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations?metadata.tier=nonexistent", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations?metadata.tier=nonexistent&limit=5&page=2", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, constant.ErrNoOrganizationsFound.Error(), got["code"])
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+	assertEmptyOffsetPage(t, respBody, 5, 2)
 }
 
 func TestGetAllOrganizations_MetadataWithNameFilter_Canonical400(t *testing.T) {

@@ -541,10 +541,13 @@ func TestGetAllPortfolios_MetadataFilter(t *testing.T) {
 	portfolioRepo := portfolio.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityPortfolio, gomock.Any()).
-		Return([]*mongodb.Metadata{{EntityID: p1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityPortfolio, gomock.Any(), "", gomock.Any()).
+		Return([]string{p1}, nil).Times(1)
 	portfolioRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return([]*mmodel.Portfolio{{ID: p1, OrganizationID: orgID.String(), LedgerID: ledgerID.String(), Name: "Premium One"}}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityPortfolio, []string{p1}).
+		Return([]*mongodb.Metadata{{EntityID: p1, Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &PortfolioHandler{Query: &query.UseCase{PortfolioRepo: portfolioRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -563,8 +566,9 @@ func TestGetAllPortfolios_MetadataFilter(t *testing.T) {
 	assert.Contains(t, got, "items")
 }
 
-func TestGetAllPortfolios_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
-	// NOT parallel: process-global huma state. The metadata branch's error path.
+func TestGetAllPortfolios_MetadataFilter_NoMatch_EmptyPage(t *testing.T) {
+	// NOT parallel: process-global huma state. A metadata filter that matches
+	// nothing in the path's scope answers 200 with an empty page.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -572,7 +576,8 @@ func TestGetAllPortfolios_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityPortfolio, gomock.Any()).Return(nil, nil).Times(1)
+	// No metadata matches, so the PostgreSQL read is never reached.
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityPortfolio, gomock.Any(), "", gomock.Any()).Return([]string{}, nil).Times(1)
 
 	handler := &PortfolioHandler{Query: &query.UseCase{
 		PortfolioRepo:          portfolio.NewMockRepository(ctrl),
@@ -581,12 +586,14 @@ func TestGetAllPortfolios_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 
 	app := buildHumaPortfolioApp(t, handler, true)
 
-	req := httptest.NewRequest(http.MethodGet, portfoliosPath(orgID, ledgerID, "?metadata.tier=nonexistent"), nil)
+	req := httptest.NewRequest(http.MethodGet, portfoliosPath(orgID, ledgerID, "?metadata.tier=nonexistent&limit=5&page=2"), nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+	assertEmptyOffsetPage(t, respBody, 5, 2)
 }
 
 func TestGetAllPortfolios_ServiceError_Canonical404(t *testing.T) {
