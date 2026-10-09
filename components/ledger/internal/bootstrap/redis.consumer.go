@@ -647,15 +647,12 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 		var buildErr error
 
-		// Replay path: Lua's authoritative `balancesAfter` is not captured
-		// in the backup envelope, so BuildOperations falls back to the
-		// OperateBalances-recomputation branch. For non-overdraft
-		// transactions this is correct; for overdraft transactions the
-		// operation records will carry the naive `before - amount`
-		// arithmetic — the balance table remains consistent (Lua already
-		// flushed it) but the audit trail may diverge. Capturing Lua's
-		// after-state in the backup envelope is tracked under T-006.1 /
-		// T-009 hardening items.
+		// The entry carries no materialized operations, so they are rebuilt from
+		// its balance snapshots. The rebuild passes no after-balances, even when
+		// the entry carries Lua's, so BuildOperations recomputes them: correct
+		// without overdraft, while an overdraft movement records the naive
+		// before-minus-amount arithmetic in its operations although the balance
+		// table, already flushed by Lua, stays right.
 		operations, _, buildErr = r.Command.BuildOperations(
 			msgCtxWithSpan, balances, nil /* balancesAfter */, fromTo, m.TransactionInput, *tran, m.Validate, m.TransactionDate, m.TransactionStatus == constant.NOTED, ledgerSettings.Accounting.ValidateRoutes, routeCache, action,
 		)
@@ -667,10 +664,21 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			return
 		}
 
-		// Operations were rebuilt without Lua's authoritative after-balances, so
-		// overdraft transactions may carry naive before-amount audit arithmetic
-		// (divergence tracked under T-006.1 / T-009). Mark this path so the
-		// divergence is observable/queryable rather than silent.
+		// An entry without balance snapshots rebuilds no operation at all, and
+		// writing it would persist a transaction without its audit trail. The
+		// quarantine flow keeps the entry for the operator instead.
+		if len(operations) == 0 {
+			libOpentelemetry.HandleSpanEvent(msgSpan, "Replayed record rebuilt no operations")
+			logger.Log(msgCtxWithSpan, libLog.LevelWarn, "Replayed record rebuilt no operations; routing to quarantine flow",
+				libLog.String("key", key), libLog.String("transaction_status", m.TransactionStatus))
+
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "empty_rebuilt_operations")
+
+			return
+		}
+
+		// Mark the recomputed after-balances so the possible overdraft audit
+		// divergence is observable rather than silent.
 		msgSpan.SetAttributes(attribute.Bool("app.replay.recomputed_balances_after", true))
 		r.emitReplayRecomputedBalancesAfterMetric(msgCtxWithSpan, logger)
 	}
