@@ -47,6 +47,7 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 		organizationID, ledgerID uuid.UUID,
 		effectiveKey string,
 		claim txRedis.AtomicTransactionBatchIdempotencyRecord,
+		legacyFingerprint string,
 	) (*txRedis.AtomicTransactionBatchClaimResult, error)
 	TransitionAtomicTransactionBatch(
 		ctx context.Context,
@@ -99,7 +100,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 		return nil, nil
 	}
 
-	fingerprint, effectiveKey, err := atomicTransactionBatchRequestIdentity(in)
+	fingerprint, effectiveKey, legacyFingerprint, err := atomicTransactionBatchRequestIdentity(in)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +121,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 		run.coordinationLedgerID,
 		effectiveKey,
 		claim,
+		legacyFingerprint,
 	)
 	if err != nil {
 		return nil, err
@@ -132,7 +134,7 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 	switch result.Outcome {
 	case txRedis.AtomicTransactionBatchClaimed:
 		run.idempotencyEffectiveKey = effectiveKey
-		run.idempotencyFingerprint = fingerprint
+		run.idempotencyFingerprint = result.Record.RequestFingerprint
 		run.idempotencyOwnerToken = ownerToken
 		run.idempotencyClaimed = true
 
@@ -144,12 +146,18 @@ func (uc *UseCase) claimAtomicTransactionBatch(
 	}
 }
 
-func atomicTransactionBatchRequestIdentity(in CreateAtomicTransactionBatchV2Input) (string, string, error) {
+// atomicTransactionBatchRequestIdentity returns the fingerprint a claim stores,
+// the effective idempotency key, and a legacy fingerprint the claim also
+// accepts (empty when none). A request without a key is identified by the
+// derived fingerprint, which also names its record. A request with a key and a
+// KeyedRequestFingerprint stores that fingerprint and still matches records
+// that carry the derived one.
+func atomicTransactionBatchRequestIdentity(in CreateAtomicTransactionBatchV2Input) (string, string, string, error) {
 	canonical := in.CanonicalRequest
 	if len(canonical) == 0 {
 		encoded, err := json.Marshal(in.Transactions)
 		if err != nil {
-			return "", "", fmt.Errorf("encode atomic transaction batch identity: %w", err)
+			return "", "", "", fmt.Errorf("encode atomic transaction batch identity: %w", err)
 		}
 
 		canonical = encoded
@@ -163,10 +171,14 @@ func atomicTransactionBatchRequestIdentity(in CreateAtomicTransactionBatchV2Inpu
 
 	effectiveKey := strings.TrimSpace(in.IdempotencyKey)
 	if effectiveKey == "" {
-		effectiveKey = fingerprint
+		return fingerprint, fingerprint, "", nil
 	}
 
-	return fingerprint, effectiveKey, nil
+	if in.KeyedRequestFingerprint != "" {
+		return in.KeyedRequestFingerprint, effectiveKey, fingerprint, nil
+	}
+
+	return fingerprint, effectiveKey, "", nil
 }
 
 func decodeAtomicTransactionBatchReplay(batchID uuid.UUID, raw json.RawMessage) (*CreateAtomicTransactionBatchV2Result, error) {
