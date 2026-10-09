@@ -35,6 +35,8 @@ type Recorder struct {
 	logger libLog.Logger
 }
 
+var _ command.TransactionFactRecorder = (*Recorder)(nil)
+
 // NewRecorder returns a Recorder emitting through facts.
 func NewRecorder(facts emitter.Emitter, logger libLog.Logger) (*Recorder, error) {
 	if facts == nil {
