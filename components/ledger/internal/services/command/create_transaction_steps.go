@@ -127,26 +127,14 @@ func (uc *UseCase) createNotedTransaction(ctx context.Context, span trace.Span, 
 	return uc.finalizeCreatedTransaction(ctx, span, logger, run)
 }
 
-// stageBalances seeds the backup queue, loads the balances behind the validated
-// aliases, rejects direct operations on internal-scope balances, builds the balance
-// operations, enriches them with the overdraft companions and enforces the ledger's
-// accounting routes. It returns a ctx marked for primary reads so every later
-// transactional read in the flow is served from the primary rather than a possibly
-// stale replica.
+// stageBalances loads the balances behind the validated aliases, rejects direct
+// operations on internal-scope balances, builds the balance operations, enriches them
+// with the overdraft companions and enforces the ledger's accounting routes. It
+// returns a ctx marked for primary reads so every later transactional read in the flow
+// is served from the primary rather than a possibly stale replica.
 //
-// Each failure rolls back exactly what it has to: before the seed only the
-// idempotency claim exists, after it the seed goes too.
+// Nothing but the idempotency claim exists yet, so every failure releases the claim.
 func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger libLog.Logger, run *createTransactionRun) (context.Context, error) {
-	err := uc.SendTransactionToRedisQueue(ctx, run.organizationID, run.ledgerID, run.transactionID, run.input, run.validate, run.status, run.action, run.transactionDate, nil)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
-
-		uc.rollbackCreateClaim(ctx, run)
-
-		return ctx, pkg.ValidateBusinessError(err, constant.EntityTransaction)
-	}
-
 	// Mark the transactional-flow balance reads below so they can be served from
 	// the primary, avoiding a stale replica read before the commit.
 	ctx = readrouting.WithPrimaryRead(ctx)
@@ -156,7 +144,7 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 		libOpentelemetry.HandleSpanError(span, "Failed to get balances", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to get balances", libLog.Err(err))
 
-		uc.rollbackCreateSeed(ctx, logger, run)
+		uc.rollbackCreateClaim(ctx, run)
 
 		return ctx, err
 	}
@@ -169,22 +157,22 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rejected transaction over an unavailable account", err)
 		logger.Log(ctx, libLog.LevelWarn, "Rejected transaction over an unavailable account", libLog.Err(err))
 
-		uc.rollbackCreateSeed(ctx, logger, run)
+		uc.rollbackCreateClaim(ctx, run)
 
 		return ctx, err
 	}
 
-	// Scope protection on the CREATE path: SendTransactionToRedisQueue above
-	// runs with nil balances (the queue seed precedes GetBalances), so its
-	// built-in scope guard is a no-op for user-created transactions. Re-check
-	// here now that balances are loaded. Rejecting a direct operation on an
-	// internal-scope balance BEFORE enrichment runs keeps the companion
-	// balance isolated from client-initiated mutations.
+	// Scope protection on the CREATE path: the backup-queue entry carries no
+	// balances, so the scope guard of SendTransactionToRedisQueue never sees
+	// them. Check here, now that balances are loaded and before anything is
+	// written. Rejecting a direct operation on an internal-scope balance BEFORE
+	// enrichment runs keeps the companion balance isolated from
+	// client-initiated mutations.
 	if err := rejectInternalScopeBalances(ctx, balances); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Rejected transaction targeting internal-scope balance", err)
 		logger.Log(ctx, libLog.LevelWarn, "Rejected transaction targeting internal-scope balance", libLog.Err(err))
 
-		uc.rollbackCreateSeed(ctx, logger, run)
+		uc.rollbackCreateClaim(ctx, run)
 
 		return ctx, err
 	}
@@ -210,7 +198,7 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 		libOpentelemetry.HandleSpanError(span, "Failed to enrich overdraft operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to enrich overdraft operations", libLog.Err(err))
 
-		uc.rollbackCreateSeed(ctx, logger, run)
+		uc.rollbackCreateClaim(ctx, run)
 
 		return ctx, err
 	}
@@ -220,7 +208,7 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate accounting rules", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate accounting rules", libLog.Err(err))
 
-		uc.rollbackCreateSeed(ctx, logger, run)
+		uc.rollbackCreateClaim(ctx, run)
 
 		return ctx, err
 	}
@@ -285,8 +273,8 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 		libOpentelemetry.HandleSpanError(span, "Failed to build operations", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to build operations", libLog.Err(err))
 
-		// Preserve the existing NOTED failure contract. No live balance mutation
-		// occurred; the queued annotation remains available for projection repair.
+		uc.rollbackCreateClaim(ctx, run)
+
 		return nil, err
 	}
 
@@ -301,7 +289,22 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 	tran.Destination = getAliasWithoutKey(filterCompanionAliases(run.validate.Destinations))
 	tran.Operations = operations
 
-	uc.UpdateTransactionBackupOperations(ctx, run.organizationID, run.ledgerID, run.transactionID.String(), operations, run.action)
+	// The backup-queue entry is written once, complete, and before the database
+	// write: a failed write leaves it for the legacy replay, which persists the
+	// operations the client would have received.
+	err = uc.SendTransactionToRedisQueue(ctx, run.organizationID, run.ledgerID, run.transactionID, run.input, run.validate, run.status, run.action, run.transactionDate, operations, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to send transaction to backup cache", err)
+		logger.Log(ctx, libLog.LevelError, "Failed to send transaction to backup cache", libLog.Err(err))
+
+		// A write that failed ambiguously may still have stored the entry, and the
+		// replay would then persist an annotation the client was told failed. The
+		// removal is best-effort, like the write it compensates.
+		uc.rollbackCreateClaim(ctx, run)
+		uc.RemoveTransactionFromRedisQueue(ctx, logger, run.organizationID, run.ledgerID, run.transactionID.String())
+
+		return nil, pkg.ValidateBusinessError(err, constant.EntityTransaction)
+	}
 
 	// Build a shallow copy with the promoted status for persistence and cache.
 	// CREATED is a transient status that the DB layer promotes to APPROVED;
@@ -346,16 +349,6 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 // has been written yet.
 func (uc *UseCase) rollbackCreateClaim(ctx context.Context, run *createTransactionRun) {
 	uc.deleteIdempotencyKey(ctx, run.idempotencyInternalKey)
-}
-
-// rollbackCreateSeed releases the idempotency slot and removes the backup-queue
-// seed. It is the compensation for every failure between the seed and the balance
-// commit. After the commit nothing is rolled back: the balance has already moved,
-// the backup queue reconstructs the transaction and the idempotency key is what
-// keeps a retry from mutating balances twice.
-func (uc *UseCase) rollbackCreateSeed(ctx context.Context, logger libLog.Logger, run *createTransactionRun) {
-	uc.deleteIdempotencyKey(ctx, run.idempotencyInternalKey)
-	uc.RemoveTransactionFromRedisQueue(ctx, logger, run.organizationID, run.ledgerID, run.transactionID.String())
 }
 
 func (uc *UseCase) deleteIdempotencyKey(ctx context.Context, internalKey *string) {

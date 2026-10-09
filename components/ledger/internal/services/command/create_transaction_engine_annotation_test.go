@@ -19,12 +19,14 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
+// TestCreateTransactionEngineLeavesAnnotationsOnLegacyPath also proves that an
+// annotation whose balance read fails releases its idempotency claim and leaves no
+// backup-queue entry: the mock registers no queue write or removal.
 func TestCreateTransactionEngineLeavesAnnotationsOnLegacyPath(t *testing.T) {
 	for _, version := range []string{"v1", "v2"} {
 		t.Run(version, func(t *testing.T) {
 			uc, reader, redisRepo := newVersionUseCase(t, mmodel.LedgerSettings{})
 			redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
-			redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			executor := &scriptedEngine{}
 			uc.Engine = executor
 			input := skippingTransaction()

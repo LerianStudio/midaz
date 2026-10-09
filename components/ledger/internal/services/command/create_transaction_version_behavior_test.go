@@ -105,9 +105,10 @@ func skippingTransaction() mtransaction.Transaction {
 	}
 }
 
-// newVersionUseCase wires a UseCase whose Redis slot is free (SetNX succeeds) and whose
-// queue accepts the seed, so the pipeline runs from the idempotency claim to the balance
-// read. It returns the reader so a test can assert whether the read was reached.
+// newVersionUseCase wires a UseCase whose Redis slot is free (SetNX succeeds), so the
+// pipeline runs from the idempotency claim to the balance read. It returns the reader so
+// a test can assert whether the read was reached. No backup-queue write is expected: a
+// test that reaches one registers it.
 func newVersionUseCase(t *testing.T, settings mmodel.LedgerSettings) (*UseCase, *versionReader, *txRedis.MockRedisRepository) {
 	t.Helper()
 
@@ -115,7 +116,6 @@ func newVersionUseCase(t *testing.T, settings mmodel.LedgerSettings) (*UseCase, 
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
 
 	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-	redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
 	reader := &versionReader{settings: settings}
 

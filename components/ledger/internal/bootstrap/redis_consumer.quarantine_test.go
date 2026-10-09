@@ -9,13 +9,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -199,6 +203,76 @@ func TestProcessMessageProjectionFailuresAdvanceQuarantineAttempts(t *testing.T)
 			mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(1), nil)
 
 			consumer.processMessage(context.Background(), key, rawPayload, tc.message)
+		})
+	}
+}
+
+// TestProcessMessageQuarantinesARebuildWithoutOperations replays a record that
+// carries neither materialized operations nor balance snapshots, the shape an
+// annotation seeded before its operations were built or a 4.0.x create leaves
+// behind. The rebuild yields no operation, so the record must reach the
+// quarantine table under its own reason instead of being written as a
+// transaction with no audit trail. The transaction repository registers no
+// expectation: any write attempt fails the test.
+func TestProcessMessageQuarantinesARebuildWithoutOperations(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []string{constant.NOTED, constant.APPROVED} {
+		t.Run(status, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockRedis := redisTransaction.NewMockRedisRepository(ctrl)
+			mockQuarantine := transactionquarantine.NewMockRepository(ctrl)
+			mockLedger := ledger.NewMockRepository(ctrl)
+
+			organizationID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+			ledgerID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+			transactionID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+			key := "transaction:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":" + transactionID.String()
+			rawPayload := `{"payload":"preserved"}`
+
+			consumer := NewRedisQueueConsumer(newTestLogger(),
+				&command.UseCase{TransactionRedisRepo: mockRedis, TransactionRepo: transaction.NewMockRepository(ctrl)},
+				&query.UseCase{LedgerRepo: mockLedger},
+			).WithQuarantineRepository(mockQuarantine)
+
+			mockLedger.EXPECT().GetSettings(gomock.Any(), organizationID, ledgerID).Return(map[string]any{}, nil)
+
+			gomock.InOrder(
+				mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(QuarantineThreshold), nil),
+				mockQuarantine.EXPECT().
+					Insert(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, rec *transactionquarantine.QuarantineRecord) error {
+						assert.Equal(t, "empty_rebuilt_operations", rec.FailureReason)
+						assert.Equal(t, transactionID, rec.TransactionID)
+						assert.Equal(t, []byte(rawPayload), rec.Payload)
+
+						return nil
+					}),
+				mockRedis.EXPECT().RemoveMessageFromQueue(gomock.Any(), key).Return(nil),
+				mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
+			)
+
+			amount := &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)}
+
+			consumer.processMessage(context.Background(), key, rawPayload, mmodel.TransactionRedisQueue{
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				TransactionID:     transactionID,
+				TransactionStatus: status,
+				Validate:          &mtransaction.Responses{},
+				TransactionInput: mtransaction.Transaction{
+					Send: mtransaction.Send{
+						Asset:      "USD",
+						Value:      decimal.NewFromInt(100),
+						Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "@source", Amount: amount, IsFrom: true}}},
+						Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "@destination", Amount: amount}}},
+					},
+				},
+			})
 		})
 	}
 }
