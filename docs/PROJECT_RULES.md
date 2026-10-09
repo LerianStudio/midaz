@@ -960,7 +960,7 @@ dumps + the consolidated spec) and `check-proto` (regenerates and drift-checks t
 stubs under `pkg/proto`).
 
 Required checks before merge:
-1. golangci-lint **v2.13.2** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
+1. golangci-lint **v2.14.0** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
 2. Go analysis + security scanning from the shared workflow
 3. Unit tests (must pass, 80% coverage threshold enforced by `scripts/check-tests.sh` via `make check-tests`)
 4. `check-docs` — OpenAPI spec drift gate

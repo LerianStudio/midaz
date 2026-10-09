@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -468,26 +469,27 @@ func feeDebtCompletionService(t *testing.T, calls *[]string) (*TransactionComple
 	return service.WithFeeDebtRecorder(recorder), store, metadata, recorder
 }
 
-// assertRecordedBetweenMetadataAndEvents proves the recorder ran once per fee-debt unit, after
-// every metadata confirmation and before the first event.
-func assertRecordedBetweenMetadataAndEvents(t *testing.T, calls []string, records int) {
+// assertRecordedAfterMetadataAndEvents proves the recorder ran once per fee-debt unit, after
+// every event and every metadata confirmation.
+func assertRecordedAfterMetadataAndEvents(t *testing.T, calls []string, records int) {
 	t.Helper()
-	lastFind, firstPublish, recorded := -1, len(calls), 0
+	lastFind, lastPublish, firstRecord, recorded := -1, -1, len(calls), 0
 	for index, call := range calls {
 		switch {
 		case call == "record":
 			recorded++
-			assert.Less(t, lastFind, index, "fee debts are recorded after metadata is confirmed")
-			assert.Less(t, index, firstPublish, "fee debts are recorded before any event")
-		case call == "publish" && firstPublish == len(calls):
-			firstPublish = index
-		case len(call) > 5 && call[:5] == "find:":
+			firstRecord = min(firstRecord, index)
+		case call == "publish":
+			lastPublish = index
+		case strings.HasPrefix(call, "find:"):
 			lastFind = index
 		}
 	}
 
 	assert.Equal(t, records, recorded)
 	assert.Contains(t, calls, "publish")
+	assert.Less(t, lastFind, firstRecord, "fee debts are recorded after metadata is confirmed")
+	assert.Less(t, lastPublish, firstRecord, "fee debts are recorded after the events are published")
 }
 
 func TestFeeDebtCompletionRecordsAndReplaysIdentically(t *testing.T) {
@@ -498,7 +500,7 @@ func TestFeeDebtCompletionRecordsAndReplaysIdentically(t *testing.T) {
 	service, store, metadata, recorder := feeDebtCompletionService(t, &calls)
 
 	require.NoError(t, completionError(service.Complete(ctx, &envelope)))
-	assertRecordedBetweenMetadataAndEvents(t, calls, 1)
+	assertRecordedAfterMetadataAndEvents(t, calls, 1)
 
 	encoded, err := EncodeTransactionCompletionRecord(envelope)
 	require.NoError(t, err)
@@ -567,12 +569,12 @@ func TestFeeDebtCompletionBulkRecordsEachUnit(t *testing.T) {
 	_, err := service.CompleteBulk(tmcore.ContextWithTenantID(context.Background(), payload.TenantID), []*TransactionCompletionRecord{&plain, &feeDebt})
 	require.NoError(t, err)
 
-	assertRecordedBetweenMetadataAndEvents(t, calls, 1)
+	assertRecordedAfterMetadataAndEvents(t, calls, 1)
 	require.Len(t, recorder.records, 1, "a unit without fee debt is not recorded")
 	assert.Len(t, recorder.records[0].Changes, 3)
 }
 
-func TestFeeDebtCompletionRecorderFailureStopsEvents(t *testing.T) {
+func TestFeeDebtCompletionRecorderFailureFollowsPublishedEvents(t *testing.T) {
 	payload, result := deferredFeeFixture(t)
 	envelope := recoveryContractEnvelope(t, payload, result)
 	calls := []string{}
@@ -580,7 +582,8 @@ func TestFeeDebtCompletionRecorderFailureStopsEvents(t *testing.T) {
 	recorder.err = errors.New("fees unavailable")
 
 	require.ErrorIs(t, completionError(service.Complete(tmcore.ContextWithTenantID(context.Background(), payload.TenantID), &envelope)), recorder.err)
-	assert.NotContains(t, calls, "publish")
+	assert.Equal(t, 1, slices.Index(calls, "publish"), "events leave once SQL commits, before the failing projection")
+	assert.Equal(t, "record", calls[len(calls)-1])
 }
 
 func TestFeeDebtCompletionWithoutDebtOrRecorderIsUnchanged(t *testing.T) {
@@ -590,8 +593,8 @@ func TestFeeDebtCompletionWithoutDebtOrRecorderIsUnchanged(t *testing.T) {
 
 	require.NoError(t, completionError(service.Complete(ctx, envelope)))
 	assert.Equal(t, []string{
-		"sql-with-outcome", "create:" + constant.EntityTransaction, "find:" + constant.EntityTransaction,
-		"create:" + constant.EntityOperation, "find:" + constant.EntityOperation, "publish",
+		"sql-with-outcome", "publish", "create:" + constant.EntityTransaction, "find:" + constant.EntityTransaction,
+		"create:" + constant.EntityOperation, "find:" + constant.EntityOperation,
 	}, calls, "a transaction without fee debt neither records nor updates metadata")
 	assert.Empty(t, recorder.records)
 
