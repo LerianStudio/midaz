@@ -410,31 +410,64 @@ func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T)
 	}
 }
 
-// TestPendingTransitionKeepsTheLockAfterASuccessfulTransition covers the
-// window after a commit or cancel answers: a release without the engine guard
-// shares the lock key, and the held lock is what stops it from applying the
-// opposite transition to the hold this one just closed.
-func TestPendingTransitionKeepsTheLockAfterASuccessfulTransition(t *testing.T) {
+// TestPendingTransitionReleasesTheLockOnlyWhenTheTransitionFails keeps both
+// contracts on the same lock policy: a failed transition frees the lock for a
+// retry, while a transition that applied keeps it, because a release without
+// the engine guard is held back from repeating it only by this lock.
+func TestPendingTransitionReleasesTheLockOnlyWhenTheTransitionFails(t *testing.T) {
 	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	indeterminate := testEngineTechnicalError{code: "transport", indeterminate: true, cause: errors.New("outcome unknown")}
 
 	for _, entry := range pendingTransitionEntries() {
-		t.Run(entry.name, func(t *testing.T) {
-			uc, _, executor, _, in, lock := newTransitionEngineUseCaseWithLock(t, entry.status)
+		otherStatus := constant.CANCELED
+		if entry.status == constant.CANCELED {
+			otherStatus = constant.APPROVED
+		}
 
-			err := entry.call(uc, tmcore.ContextWithTenantID(t.Context(), "tenant-retained-lock"), in)
+		for _, test := range []struct {
+			name            string
+			executorErr     error
+			finalizeErr     error
+			completedStatus string
+			wantErr         error
+		}{
+			{name: "indeterminate execution", executorErr: indeterminate, wantErr: indeterminate},
+			{name: "completion confirms another status", completedStatus: otherStatus, wantErr: ErrTransactionCompletionConflict},
+			{name: "projection deferred to recovery", finalizeErr: errors.New("projection unavailable")},
+			{name: "projected transition"},
+		} {
+			t.Run(entry.name+" "+test.name, func(t *testing.T) {
+				uc, _, executor, finalizer, in, lock := newTransitionEngineUseCaseWithLock(t, entry.status)
+				if test.executorErr != nil {
+					executor.before = func(EngineExecution) error { return test.executorErr }
+				}
+				finalizer.err = test.finalizeErr
+				if test.completedStatus != "" {
+					finalizer.outcome.TransactionStatus = test.completedStatus
+				}
 
-			require.NoError(t, err)
-			require.Len(t, executor.requests, 1)
-			assert.NotEmpty(t, lock.token, "the transition must hold the lock with an owner token")
-			assert.Zero(t, lock.releases, "a successful transition must keep its pending lock until the TTL")
-		})
+				err := entry.call(uc, tmcore.ContextWithTenantID(context.Background(), "tenant-lock-policy"), in)
+
+				require.Len(t, executor.requests, 1)
+				if test.wantErr != nil {
+					require.ErrorIs(t, err, test.wantErr)
+					assert.Equal(t, 1, lock.releases, "a failed transition must release its pending lock")
+
+					return
+				}
+
+				require.NoError(t, err)
+				assert.NotEmpty(t, lock.token, "the transition must hold the lock with an owner token")
+				assert.Zero(t, lock.releases, "a successful transition must keep its pending lock until the TTL")
+			})
+		}
 	}
 }
 
-// TestPendingTransitionEngineOutcomesReleaseLockOnlyOnFailure covers every
-// outcome after the engine is called: a failure, an indeterminate one included,
-// frees the lock so a retry is answered from the transaction state, while a
-// transition that answers success keeps it even when its projection was deferred.
+// TestPendingTransitionEngineOutcomesReleaseLockOnlyOnFailure covers the same
+// policy over the outcomes a /v2 transition adds, a refused commit grant and the
+// tracer confirmation: a failure frees the lock, a success keeps it even when
+// its projection was deferred.
 func TestPendingTransitionEngineOutcomesReleaseLockOnlyOnFailure(t *testing.T) {
 	projectionErr := errors.New("projection unavailable")
 	indeterminate := testEngineTechnicalError{code: "transport", indeterminate: true, cause: errors.New("outcome unknown")}
