@@ -37,7 +37,7 @@ jobs:
         tests
         release
       go_version: "1.27.2"
-      golangci_lint_version: "v2.13.2"
+      golangci_lint_version: "v2.14.0"
       app_name_prefix: "midaz"
       filter_paths: |
         components/ledger
