@@ -2,7 +2,7 @@
 
 Canonical reference for every streaming event the **fees** surface of the
 `components/ledger` component emits. It complements — does not duplicate — the
-producer conventions in `CLAUDE.md` (Streaming section) and
+producer conventions in `docs/AGENTS-REFERENCE.md` (Streaming section) and
 `docs/PROJECT_RULES.md`.
 
 > **Drift discipline.** This document, the Payload structs in
@@ -271,5 +271,5 @@ point the ledger at it:
   more.
 
 The default unit suite (`make test-unit`) never touches a broker — the
-JSONShape and mapping tests marshal payloads in memory. See the `CLAUDE.md`
+JSONShape and mapping tests marshal payloads in memory. See the `docs/AGENTS-REFERENCE.md`
 Streaming → Local testing section for the broker/environment conventions.

@@ -1,7 +1,7 @@
 # CRM Streaming Event Catalog
 
 Canonical reference for every streaming event the **CRM** component emits. It
-complements — does not duplicate — the producer conventions in `CLAUDE.md`
+complements — does not duplicate — the producer conventions in `docs/AGENTS-REFERENCE.md`
 (Streaming section) and `docs/PROJECT_RULES.md`.
 
 > **Drift discipline.** This document, the Payload structs in
@@ -246,5 +246,5 @@ use the Redpanda compose in the `end-to-end` repo (`docker-compose.redpanda.yaml
 and set `STREAMING_ENABLED=true` + `STREAMING_BROKERS` on the CRM accordingly.
 
 The default unit suite (`go test ./...` with no tag) never touches a broker —
-the integration test is excluded by its build tag. See the `CLAUDE.md`
+the integration test is excluded by its build tag. See the `docs/AGENTS-REFERENCE.md`
 Streaming → Local testing section for the broker/environment conventions.
