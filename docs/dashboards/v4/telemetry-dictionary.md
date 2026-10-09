@@ -223,8 +223,8 @@ unit: "1"
 ```
 
 `reason="expired"` is data loss: the pending delta is unrecoverable. `reason="unparseable"` is
-a key-format regression. Alert on them separately — the rules and the response procedure live
-in the runbooks repository, under `midaz/troubleshooting/balance-sync-alerting.md`.
+a key-format regression. Alert on them separately; the alert rules and the response procedure
+are maintained outside this repository.
 
 ### balance_sync_last_success_timestamp_seconds
 
