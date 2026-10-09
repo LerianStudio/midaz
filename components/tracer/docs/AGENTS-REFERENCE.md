@@ -1,6 +1,7 @@
 <!-- Deep reference for AI coding agents. Moved here from CLAUDE.md so that AGENTS.md is the
      single canonical entry point and CLAUDE.md is a symlink to it. Content preserved verbatim
-     except relative link targets, rebased for this directory. -->
+     except relative link targets, rebased for this directory. Commands and relative paths in the
+     body (`.env.example`, `make ...`, `cmd/app/main.go`) are written from `components/tracer/`. -->
 
 # CLAUDE.md
 
