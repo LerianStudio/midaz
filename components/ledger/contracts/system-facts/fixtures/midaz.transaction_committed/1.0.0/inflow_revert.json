@@ -1,0 +1,29 @@
+{
+  "action": "revert",
+  "status": "APPROVED",
+  "direction": "OUTFLOW",
+  "amount": "150.00",
+  "assetCode": "BRL",
+  "parentTransactionId": "0199c3a6-5f2e-7d1a-9b3c-4e5f6a7b8c00",
+  "createdAt": "2026-10-09T14:20:45.123456789Z",
+  "operations": [
+    {
+      "id": "0199c3a6-8c32-7a4d-8e6f-7b8c9d0e1f01",
+      "type": "DEBIT",
+      "amount": "150.00",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000a1",
+      "external": false,
+      "feeLeg": false
+    },
+    {
+      "id": "0199c3a6-8c32-7a4d-8e6f-7b8c9d0e1f02",
+      "type": "CREDIT",
+      "amount": "150.00",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000e1",
+      "external": true,
+      "feeLeg": false
+    }
+  ]
+}

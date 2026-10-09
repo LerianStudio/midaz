@@ -1,0 +1,144 @@
+{
+  "$id": "urn:lerian:system-facts:midaz:lerian.midaz.transactions:midaz.transaction_committed:1.0.0",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Midaz transaction committed",
+  "description": "A ledger transaction whose movement was applied and recorded with status APPROVED, as published by the midaz producer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "action",
+    "status",
+    "direction",
+    "amount",
+    "assetCode",
+    "createdAt",
+    "operations"
+  ],
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "The ledger transition that reached APPROVED: a direct create, the commit of a pending transaction, or a revert of an approved one.",
+      "enum": [
+        "direct",
+        "commit",
+        "revert"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "APPROVED"
+      ]
+    },
+    "direction": {
+      "type": "string",
+      "description": "INFLOW when every source leg is the external counterparty, OUTFLOW when every destination leg is, INTERNAL when no leg is, MIXED otherwise.",
+      "enum": [
+        "INFLOW",
+        "OUTFLOW",
+        "INTERNAL",
+        "MIXED"
+      ]
+    },
+    "amount": {
+      "type": "string",
+      "description": "The amount the sender authorized, as a plain decimal at the asset's scale; fee legs are listed in operations with feeLeg true.",
+      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "assetCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "chartOfAccountsGroupName": {
+      "type": "string"
+    },
+    "scheme": {
+      "type": "string",
+      "description": "The rail or classification the movement was declared under, normalized upper-case.",
+      "pattern": "^[A-Z0-9_-]{1,50}$"
+    },
+    "description": {
+      "type": "string",
+      "x-sensitivity": "encrypted"
+    },
+    "parentTransactionId": {
+      "type": "string",
+      "description": "The transaction this one reverts; present only when action is revert.",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "groupId": {
+      "type": "string",
+      "description": "The cross-ledger group this transaction is one part of.",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "createdAt": {
+      "type": "string",
+      "description": "When the transaction row was created, RFC 3339.",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "operations": {
+      "type": "array",
+      "description": "The legs the completion recorded for the transaction.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "amount",
+          "assetCode",
+          "accountId",
+          "external",
+          "feeLeg"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DEBIT",
+              "CREDIT",
+              "OVERDRAFT",
+              "ON_HOLD",
+              "RELEASE",
+              "BLOCK",
+              "UNBLOCK",
+              "FEE_SETTLEMENT",
+              "FEE_REFUND"
+            ]
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+          },
+          "assetCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "chartOfAccounts": {
+            "type": "string"
+          },
+          "accountId": {
+            "type": "string",
+            "description": "The ledger account the leg moved; an opaque system identifier.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "external": {
+            "type": "boolean",
+            "description": "True when the leg's account is the @external/<asset> counterparty of the ledger."
+          },
+          "feeLeg": {
+            "type": "boolean",
+            "description": "True when the fee engine added the leg; the net of a destination is derivable from the legs without it."
+          }
+        }
+      }
+    }
+  }
+}

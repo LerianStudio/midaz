@@ -1,0 +1,31 @@
+{
+  "action": "direct",
+  "status": "APPROVED",
+  "direction": "OUTFLOW",
+  "amount": "1250.75",
+  "assetCode": "USD",
+  "chartOfAccountsGroupName": "SETTLEMENTS",
+  "createdAt": "2026-10-09T12:05:30.250000Z",
+  "operations": [
+    {
+      "id": "0199c3a6-6a10-7e2b-8c4d-5f6a7b8c9d01",
+      "type": "DEBIT",
+      "amount": "1250.75",
+      "assetCode": "USD",
+      "chartOfAccounts": "1101",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000a2",
+      "external": false,
+      "feeLeg": false
+    },
+    {
+      "id": "0199c3a6-6a10-7e2b-8c4d-5f6a7b8c9d02",
+      "type": "CREDIT",
+      "amount": "1250.75",
+      "assetCode": "USD",
+      "chartOfAccounts": "2101",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000e2",
+      "external": true,
+      "feeLeg": false
+    }
+  ]
+}

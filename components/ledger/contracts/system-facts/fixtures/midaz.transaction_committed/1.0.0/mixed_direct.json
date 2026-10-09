@@ -1,0 +1,37 @@
+{
+  "action": "direct",
+  "status": "APPROVED",
+  "direction": "MIXED",
+  "amount": "500",
+  "assetCode": "BRL",
+  "createdAt": "2026-10-09T16:45:10+00:00",
+  "operations": [
+    {
+      "id": "0199c3a6-ae54-7c6f-8a81-9d0e1f2a3b01",
+      "type": "DEBIT",
+      "amount": "500",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000e1",
+      "external": true,
+      "feeLeg": false
+    },
+    {
+      "id": "0199c3a6-ae54-7c6f-8a81-9d0e1f2a3b02",
+      "type": "CREDIT",
+      "amount": "300",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000a5",
+      "external": false,
+      "feeLeg": false
+    },
+    {
+      "id": "0199c3a6-ae54-7c6f-8a81-9d0e1f2a3b03",
+      "type": "CREDIT",
+      "amount": "200",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000e1",
+      "external": true,
+      "feeLeg": false
+    }
+  ]
+}

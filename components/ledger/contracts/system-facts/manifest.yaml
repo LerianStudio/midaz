@@ -1,0 +1,27 @@
+apiVersion: system-facts.lerian.studio/v1
+producer: midaz
+namespace: lerian.midaz.transactions
+team: mazar
+referenceTypes:
+  - type: lerian.midaz.transaction_id
+    owner: self
+    scope: [ledgerId, organizationId]
+    sensitivity: none
+    correlation: exact
+    searchable: false
+    description: Midaz transaction id (UUIDv7) within a ledger
+facts:
+  - type: midaz.transaction_committed
+    schemaVersion: 1.0.0
+    schema: schemas/midaz.transaction_committed/1.0.0.json
+    hash: sha256:231d7ed11358deddc25f0edc14ed9b1b9f94d34f928aca991842cd8f2f354adb
+    compatibilityPolicy: TRANSITIVE
+    references:
+      - {type: lerian.midaz.transaction_id, cardinality: one, required: true, correlation: exact}
+    fixtures:
+      - fixtures/midaz.transaction_committed/1.0.0/inflow_direct.json
+      - fixtures/midaz.transaction_committed/1.0.0/outflow_direct.json
+      - fixtures/midaz.transaction_committed/1.0.0/outflow_commit.json
+      - fixtures/midaz.transaction_committed/1.0.0/inflow_revert.json
+      - fixtures/midaz.transaction_committed/1.0.0/internal_fee.json
+      - fixtures/midaz.transaction_committed/1.0.0/mixed_direct.json

@@ -9,6 +9,7 @@ require (
 	github.com/LerianStudio/lib-observability/v4 v4.6.1
 	github.com/LerianStudio/lib-service-discovery/v2 v2.0.0
 	github.com/LerianStudio/lib-streaming/v4 v4.1.0
+	github.com/LerianStudio/lib-system-facts v1.0.0-beta.8
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/Shopify/toxiproxy/v2 v2.12.0
 	github.com/alicebob/miniredis/v2 v2.39.0
@@ -81,6 +82,7 @@ require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20260917205352-e937bb47801a // indirect
 	github.com/LerianStudio/lib-observability/v2 v2.1.3 // indirect
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/MicahParks/jwkset v0.11.3 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/XSAM/otelsql v0.44.0 // indirect
@@ -177,6 +179,7 @@ require (
 	github.com/redis/go-redis/extra/rediscmd/v9 v9.22.0 // indirect
 	github.com/redis/go-redis/extra/redisotel/v9 v9.22.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
 	github.com/sirupsen/logrus v1.10.2 // indirect

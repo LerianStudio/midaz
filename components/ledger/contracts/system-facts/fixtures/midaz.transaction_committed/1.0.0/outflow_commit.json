@@ -1,0 +1,30 @@
+{
+  "action": "commit",
+  "status": "APPROVED",
+  "direction": "OUTFLOW",
+  "amount": "89.90",
+  "assetCode": "BRL",
+  "scheme": "PIX",
+  "description": "Pix payment to Maria Silva, order 48213",
+  "createdAt": "2026-10-09T13:15:00-03:00",
+  "operations": [
+    {
+      "id": "0199c3a6-7b21-7f3c-9d5e-6a7b8c9d0e01",
+      "type": "DEBIT",
+      "amount": "89.90",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000a1",
+      "external": false,
+      "feeLeg": false
+    },
+    {
+      "id": "0199c3a6-7b21-7f3c-9d5e-6a7b8c9d0e02",
+      "type": "CREDIT",
+      "amount": "89.90",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000e1",
+      "external": true,
+      "feeLeg": false
+    }
+  ]
+}
