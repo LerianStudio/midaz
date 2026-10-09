@@ -59,6 +59,34 @@ func (mr *MockPublishableChannelMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockPublishableChannel)(nil).Close))
 }
 
+// Confirm mocks base method.
+func (m *MockPublishableChannel) Confirm(noWait bool) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Confirm", noWait)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Confirm indicates an expected call of Confirm.
+func (mr *MockPublishableChannelMockRecorder) Confirm(noWait any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Confirm", reflect.TypeOf((*MockPublishableChannel)(nil).Confirm), noWait)
+}
+
+// NotifyPublish mocks base method.
+func (m *MockPublishableChannel) NotifyPublish(confirm chan amqp091.Confirmation) chan amqp091.Confirmation {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NotifyPublish", confirm)
+	ret0, _ := ret[0].(chan amqp091.Confirmation)
+	return ret0
+}
+
+// NotifyPublish indicates an expected call of NotifyPublish.
+func (mr *MockPublishableChannelMockRecorder) NotifyPublish(confirm any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NotifyPublish", reflect.TypeOf((*MockPublishableChannel)(nil).NotifyPublish), confirm)
+}
+
 // PublishWithContext mocks base method.
 func (m *MockPublishableChannel) PublishWithContext(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp091.Publishing) error {
 	m.ctrl.T.Helper()

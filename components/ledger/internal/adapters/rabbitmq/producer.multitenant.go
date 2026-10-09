@@ -7,6 +7,7 @@ package rabbitmq
 import (
 	"context"
 	"fmt"
+	"time"
 
 	libConstants "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
@@ -27,6 +28,8 @@ const headerTenantID = "X-Tenant-ID"
 // without a real RabbitMQ broker.
 type PublishableChannel interface {
 	PublishWithContext(ctx context.Context, exchange, key string, mandatory, immediate bool, msg amqp.Publishing) error
+	Confirm(noWait bool) error
+	NotifyPublish(confirm chan amqp.Confirmation) chan amqp.Confirmation
 	Close() error
 }
 
@@ -67,60 +70,34 @@ var _ ProducerRepository = (*MultiTenantProducerRepository)(nil)
 type MultiTenantProducerRepository struct {
 	channelProvider ChannelProvider
 	logger          libLog.Logger
+	confirmTimeout  time.Duration
 }
 
 // NewMultiTenantProducer creates a new MultiTenantProducerRepository.
 // Accepts *tmrabbitmq.Manager (wrapped internally to satisfy ChannelProvider).
-func NewMultiTenantProducer(manager managerGetter, logger libLog.Logger) *MultiTenantProducerRepository {
-	return &MultiTenantProducerRepository{
-		channelProvider: &managerAdapter{manager: manager},
-		logger:          logger,
-	}
+func NewMultiTenantProducer(manager managerGetter, logger libLog.Logger, opts ...ProducerOption) *MultiTenantProducerRepository {
+	return NewMultiTenantProducerWithProvider(&managerAdapter{manager: manager}, logger, opts...)
 }
 
 // NewMultiTenantProducerWithProvider creates a new MultiTenantProducerRepository
 // using an explicit ChannelProvider. Useful for testing with mock providers.
-func NewMultiTenantProducerWithProvider(provider ChannelProvider, logger libLog.Logger) *MultiTenantProducerRepository {
+func NewMultiTenantProducerWithProvider(provider ChannelProvider, logger libLog.Logger, opts ...ProducerOption) *MultiTenantProducerRepository {
 	return &MultiTenantProducerRepository{
 		channelProvider: provider,
 		logger:          logger,
+		confirmTimeout:  newProducerSettings(opts).confirmTimeout,
 	}
 }
 
 // ProducerDefault sends a message to the tenant-specific RabbitMQ vhost.
 // The tenant ID is extracted from the context; an error is returned if absent.
+// Each call owns a fresh channel, so its single confirmation is the message's.
 func (p *MultiTenantProducerRepository) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	return p.publish(ctx, exchange, key, message, "rabbitmq.multi_tenant_producer.publish_message")
-}
-
-// ProducerDefaultWithContext sends a message with explicit context timeout control.
-// Behaves identically to ProducerDefault since the Manager handles connection lifecycle.
-func (p *MultiTenantProducerRepository) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	return p.publish(ctx, exchange, key, message, "rabbitmq.multi_tenant_producer.publish_message_with_context")
-}
-
-// CheckRabbitMQHealth returns true. The tenant-manager Manager handles its own
-// connection lifecycle with LRU eviction; no external health check is needed.
-func (p *MultiTenantProducerRepository) CheckRabbitMQHealth() bool {
-	return true
-}
-
-// Close releases all RabbitMQ connections managed by the ChannelProvider.
-func (p *MultiTenantProducerRepository) Close() error {
-	if p == nil || p.channelProvider == nil {
-		return nil
-	}
-
-	return p.channelProvider.Close(context.Background())
-}
-
-// publish is the shared implementation for ProducerDefault and ProducerDefaultWithContext.
-func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, key string, message []byte, spanName string) (*string, error) {
 	_, tracer, reqID, _ := libObservability.NewTrackingFromContext(ctx)
 
 	// Rebind ctx: the publish span's trace context is injected into the message
 	// headers below so the consumer can continue the trace.
-	ctx, span := tracer.Start(ctx, spanName)
+	ctx, span := tracer.Start(ctx, "rabbitmq.multi_tenant_producer.publish_message")
 	defer span.End()
 
 	tenantID := tmcore.GetTenantIDContext(ctx)
@@ -147,6 +124,18 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 
 	defer ch.Close()
 
+	publishCtx, cancel := context.WithTimeout(ctx, p.confirmTimeout)
+	defer cancel()
+
+	if err := ch.Confirm(false); err != nil {
+		err = fmt.Errorf("enable publisher confirms: %w", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to enable publisher confirms", err)
+
+		return nil, err
+	}
+
+	confirmations := ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+
 	headers := amqp.Table{
 		libConstants.HeaderID: reqID,
 		headerTenantID:        tenantID,
@@ -154,7 +143,7 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 
 	libOpentelemetry.InjectTraceHeadersIntoQueue(ctx, (*map[string]any)(&headers))
 
-	err = ch.PublishWithContext(ctx, exchange, key, false, false, amqp.Publishing{
+	err = ch.PublishWithContext(publishCtx, exchange, key, false, false, amqp.Publishing{
 		ContentType:  "application/json",
 		DeliveryMode: amqp.Persistent,
 		Headers:      headers,
@@ -166,5 +155,26 @@ func (p *MultiTenantProducerRepository) publish(ctx context.Context, exchange, k
 		return nil, err
 	}
 
+	if err := awaitSingleConfirmation(publishCtx, confirmations); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Publish was not confirmed by the broker", err)
+
+		return nil, err
+	}
+
 	return nil, nil
+}
+
+// CheckRabbitMQHealth returns true. The tenant-manager Manager handles its own
+// connection lifecycle with LRU eviction; no external health check is needed.
+func (p *MultiTenantProducerRepository) CheckRabbitMQHealth() bool {
+	return true
+}
+
+// Close releases all RabbitMQ connections managed by the ChannelProvider.
+func (p *MultiTenantProducerRepository) Close() error {
+	if p == nil || p.channelProvider == nil {
+		return nil
+	}
+
+	return p.channelProvider.Close(context.Background())
 }

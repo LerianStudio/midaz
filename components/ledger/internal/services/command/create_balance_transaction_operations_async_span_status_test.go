@@ -60,8 +60,9 @@ func TestCreateOrUpdateTransaction_SpanClassContract(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
+			dbTx := &mockDBTransaction{}
 			mockTransactionRepo.EXPECT().
-				Create(gomock.Any(), gomock.Any()).
+				CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 				Return(nil, tt.repoErr).
 				Times(1)
 
@@ -77,7 +78,7 @@ func TestCreateOrUpdateTransaction_SpanClassContract(t *testing.T) {
 				},
 			}
 
-			_, _, err := uc.CreateOrUpdateTransaction(ctx, &capturingLogger{}, tracer, payload)
+			_, _, err := uc.CreateOrUpdateTransaction(ctx, &capturingLogger{}, tracer, dbTx, payload)
 			require.Error(t, err)
 
 			require.Equal(t, tt.wantSpanStatus == codes.Unset, pkg.IsBusinessError(err),

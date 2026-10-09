@@ -36,6 +36,7 @@ func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase
 	}
 	useCase.AppliedTransactionCompleter = completer
 	consumer.WithAppliedTransactionCompleter(completer)
+	consumer.tenantMongo = mongoResolver
 	useCase.EngineRecoveryAcknowledger = consumer.newRecoveryRecordCompleter()
 
 	return nil

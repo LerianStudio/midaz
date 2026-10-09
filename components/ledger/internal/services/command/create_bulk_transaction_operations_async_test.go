@@ -660,10 +660,12 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 
 	// Mock DB transaction for atomic inserts - will fail and rollback
 	mockTx := &mockDBTransaction{}
-	mockTransactionRepo.EXPECT().
-		BeginTx(gomock.Any()).
-		Return(mockTx, nil).
-		Times(1)
+	fallbackTx := &mockDBTransaction{}
+
+	gomock.InOrder(
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(mockTx, nil).Times(1),
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(fallbackTx, nil).Times(1),
+	)
 
 	// Bulk insert fails - should trigger rollback and fallback
 	mockTransactionRepo.EXPECT().
@@ -671,17 +673,15 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 		Return(nil, errors.New("bulk insert failed")).
 		Times(1)
 
-	// Fallback processing calls CreateBalanceTransactionOperationsAsync
-	// which creates or updates transaction individually
+	// Fallback processing calls CreateBalanceTransactionOperationsAsync, which
+	// writes the transaction and its operations in a database transaction of its own
 	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(&transaction.Transaction{ID: transactionID}, nil).
+		CreateBulkTx(gomock.Any(), fallbackTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{transactionID}}, nil).
 		Times(1)
-
-	// Fallback also creates operations
 	mockOperationRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(&operation.Operation{ID: operationID}, nil).
+		CreateBulkTx(gomock.Any(), fallbackTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{operationID}}, nil).
 		Times(1)
 
 	// Note: Balance updates are handled by BalanceSyncWorker, not in fallback flow
@@ -699,6 +699,95 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 	assert.Equal(t, int64(1), result.FallbackCount)
 	require.NotNil(t, result.MetadataFailedTransactionIDs)
 	assert.Empty(t, result.MetadataFailedTransactionIDs)
+	assert.True(t, mockTx.rollbackCalled, "the failed batch rolls back")
+	assert.True(t, fallbackTx.commitCalled, "the fallback commits its own write")
+}
+
+// TestCreateBulkTransactionOperationsAsync_FallbackIsolatesEachPayload pins the
+// per-payload database transaction of the fallback: a payload whose write fails
+// rolls back alone, and the other payload still commits.
+func TestCreateBulkTransactionOperationsAsync_FallbackIsolatesEachPayload(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		RabbitMQRepo:            rabbitmq.NewMockProducerRepository(ctrl),
+		TransactionRedisRepo:    mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	newPayload := func() transaction.TransactionProcessingPayload {
+		transactionID := uuid.New().String()
+
+		return transaction.TransactionProcessingPayload{
+			Transaction: &transaction.Transaction{
+				ID:             transactionID,
+				OrganizationID: orgID.String(),
+				LedgerID:       ledgerID.String(),
+				Status:         transaction.Status{Code: constant.NOTED},
+				Operations:     []*operation.Operation{{ID: uuid.New().String(), TransactionID: transactionID}},
+			},
+			Validate: &mtransaction.Responses{},
+			Input:    &mtransaction.Transaction{},
+			Version:  "v2",
+		}
+	}
+
+	bulkTx := &mockDBTransaction{}
+	firstTx := &mockDBTransaction{}
+	secondTx := &mockDBTransaction{}
+
+	gomock.InOrder(
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(bulkTx, nil).Times(1),
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(firstTx, nil).Times(1),
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(secondTx, nil).Times(1),
+	)
+
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), bulkTx, gomock.Any()).
+		Return(nil, errors.New("bulk insert failed")).
+		Times(1)
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), gomock.Not(bulkTx), gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1}, nil).
+		Times(2)
+
+	operationFailure := errors.New("operation insert failed")
+	mockOperationRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), firstTx, gomock.Any()).
+		Return(nil, operationFailure).
+		Times(1)
+	mockOperationRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), secondTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1}, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(),
+		[]transaction.TransactionProcessingPayload{newPayload(), newPayload()})
+
+	require.ErrorIs(t, err, operationFailure)
+	assert.True(t, result.FallbackUsed)
+	assert.Equal(t, int64(1), result.FallbackCount)
+	assert.True(t, firstTx.rollbackCalled, "the failing payload rolls back its own write")
+	assert.False(t, firstTx.commitCalled)
+	assert.True(t, secondTx.commitCalled, "the other payload still commits")
+	assert.False(t, secondTx.rollbackCalled)
 }
 
 func TestClassifyAndExtractEntities_SortsTransactions(t *testing.T) {

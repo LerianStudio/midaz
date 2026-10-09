@@ -70,6 +70,7 @@ type RedisQueueConsumer struct {
 	tenantCache                 *tenantcache.TenantCache
 	pgManager                   *tmpostgres.Manager
 	appliedTransactionCompleter command.AppliedTransactionCompleter
+	tenantMongo                 recoveryMongoResolver
 	recoveryClock               func() time.Time
 }
 
@@ -78,8 +79,8 @@ type recoveryMongoResolver interface {
 }
 
 // tenantAppliedTransactionCompleter resolves metadata storage inside the
-// existing recovery timeout. Legacy records do not use this completer or
-// acquire Mongo connections.
+// existing recovery timeout. Legacy records do not use this completer; the
+// legacy replay resolves the same tenant database in processMessage.
 type tenantAppliedTransactionCompleter struct {
 	delegate           command.AppliedTransactionCompleter
 	mongoResolver      recoveryMongoResolver
@@ -137,7 +138,7 @@ func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.C
 		return ctx, nil
 	}
 
-	if tmcore.GetMBContext(ctx) != nil && tmcore.GetMBContext(ctx, constant.ModuleTransaction) != nil {
+	if hasTenantMongo(ctx) {
 		return ctx, nil
 	}
 
@@ -146,11 +147,25 @@ func (completer *tenantAppliedTransactionCompleter) resolveContext(ctx context.C
 		return nil, fmt.Errorf("balance recovery requires matching authenticated tenant context")
 	}
 
-	if completer.mongoResolver == nil {
+	return contextWithTenantMongo(ctx, completer.mongoResolver, tenantID)
+}
+
+func hasTenantMongo(ctx context.Context) bool {
+	return tmcore.GetMBContext(ctx) != nil && tmcore.GetMBContext(ctx, constant.ModuleTransaction) != nil
+}
+
+// contextWithTenantMongo attaches the tenant's transaction Mongo database under
+// both the generic and the module key, the way the request and queue paths do.
+func contextWithTenantMongo(ctx context.Context, resolver recoveryMongoResolver, tenantID string) (context.Context, error) {
+	if tenantID == "" {
+		return nil, fmt.Errorf("balance recovery requires a tenant context")
+	}
+
+	if resolver == nil {
 		return nil, fmt.Errorf("balance recovery tenant Mongo resolver is not configured")
 	}
 
-	database, err := completer.mongoResolver.GetDatabaseForTenant(ctx, tenantID)
+	database, err := resolver.GetDatabaseForTenant(ctx, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve balance recovery tenant Mongo database: %w", err)
 	}
@@ -441,7 +456,7 @@ func (r *RedisQueueConsumer) readMessagesAndProcess(ctx context.Context) {
 }
 
 // processMessage handles a single Redis backup queue message: rebuilds balances
-// and operations, and writes the transaction via the async path.
+// and operations, and writes the transaction directly to the database.
 // Duplicate-processing prevention is handled at the cycle level by acquireCycleLock;
 // only the leader pod reaches this method.
 //
@@ -468,6 +483,22 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 		return
 	default:
+	}
+
+	// The multi-tenant cycle scopes PostgreSQL only; the direct write also needs
+	// the tenant's metadata database, so a record that cannot reach it waits for
+	// the next cycle instead of being half written.
+	if r.multiTenantEnabled && !hasTenantMongo(msgCtxWithSpan) {
+		tenantCtx, err := contextWithTenantMongo(msgCtxWithSpan, r.tenantMongo, tmcore.GetTenantIDContext(msgCtxWithSpan))
+		if err != nil {
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to resolve tenant Mongo for legacy replay", err)
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to resolve tenant Mongo for legacy replay; record left in backup queue",
+				libLog.String("key", key), libLog.Err(err))
+
+			return
+		}
+
+		msgCtxWithSpan = tenantCtx
 	}
 
 	if m.Validate == nil {
@@ -650,12 +681,24 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 
 	utils.SanitizeAccountAliases(&m.TransactionInput)
 
-	if err := r.Command.WriteTransactionAsync(
+	// The replay writes directly: republishing to the legacy queue would rest
+	// the record's only durable copy on a publish without broker confirmation.
+	if err := r.Command.WriteTransactionSync(
 		msgCtxWithSpan, m.OrganizationID, m.LedgerID, &m.TransactionInput, m.Validate, balances, balancesAfter, tran,
 	); err != nil {
-		libOpentelemetry.HandleSpanError(msgSpan, "Failed sending message to queue", err)
+		libOpentelemetry.HandleSpanError(msgSpan, "Failed to write replayed transaction", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed sending message to queue", libLog.String("key", key), libLog.Err(err))
+		// Only a failure the record's content causes counts toward quarantine;
+		// an outage must not push sound records out of the replay.
+		if isDeterministicReplayWriteFailure(err) {
+			logger.Log(ctx, libLog.LevelError, "Replayed transaction cannot be written; routing to quarantine flow", libLog.String("key", key), libLog.Err(err))
+
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "deterministic_write_failure")
+
+			return
+		}
+
+		logger.Log(ctx, libLog.LevelError, "Failed to write replayed transaction; record left in backup queue", libLog.String("key", key), libLog.Err(err))
 
 		return
 	}
@@ -663,9 +706,9 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 	logger.Log(ctx, libLog.LevelDebug, "Transaction message processed", libLog.String("key", key))
 
 	// Success: a previously-failing record has now replayed. Clear its attempts
-	// counter so it does not accrue toward the quarantine threshold. The backup
-	// record itself is removed downstream by the async write path after the
-	// confirmed Postgres persist (RemoveTransactionFromRedisQueueIfStatus).
+	// counter so it does not accrue toward the quarantine threshold. The write
+	// path removes the backup record itself once PostgreSQL has the transaction
+	// (RemoveTransactionFromRedisQueueIfStatus).
 	r.clearBackupAttempt(msgCtxWithSpan, logger, key)
 }
 

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/vmihailenco/msgpack/v5"
 	"go.opentelemetry.io/otel/trace"
 
@@ -28,15 +28,20 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-// CreateBalanceTransactionOperationsAsync processes transaction asynchronously.
-// This is an append-only handler for transactions and operations:
+// CreateBalanceTransactionOperationsAsync persists a legacy transaction message:
 // - Hot balance already updated atomically by Lua script during validation
 // - Cold balance scheduled for async sync via sorted set (Lua script does ZADD)
-// - Transaction and operations persisted to database
+// - Transaction row (or its PENDING transition) and operations in one commit
+// - Metadata of the transaction and every operation, after that commit
 // - Events sent asynchronously
+//
+// A failure before the commit leaves nothing in PostgreSQL. A failure after it
+// leaves the rows in place, and a retry is idempotent: the rows are deduplicated
+// by primary key and every metadata document is written again as an upsert.
 //
 // Balance persistence is fully async via BalanceSyncWorker.
 // The Lua script (balance_atomic_operation.lua) does ZADD to schedule:balance-sync
@@ -81,13 +86,14 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	// Hot balance was already updated atomically by Lua script during validation.
 	// Cold balance persistence is scheduled via ZADD to schedule:balance-sync.
 
-	ctxProcessTransaction, spanUpdateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
-	defer spanUpdateTransaction.End()
+	for _, oper := range t.Transaction.Operations {
+		if err := validateOperationDirection(ctx, logger, oper); err != nil {
+			return err
+		}
+	}
 
-	tran, phase, err := uc.CreateOrUpdateTransaction(ctxProcessTransaction, logger, tracer, t)
+	tran, phase, err := uc.persistTransactionAndOperations(ctx, logger, tracer, t)
 	if err != nil {
-		recordCommandError(ctx, spanUpdateTransaction, logger, "Failed to create or update transaction", err)
-
 		return err
 	}
 
@@ -101,35 +107,10 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 		return err
 	}
 
-	ctxProcessOperation, spanCreateOperation := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
-	defer spanCreateOperation.End()
-
 	for _, oper := range tran.Operations {
-		if err := validateOperationDirection(ctx, logger, oper); err != nil {
-			return err
-		}
-
-		_, err = uc.OperationRepo.Create(ctxProcessOperation, oper)
+		err = uc.CreateMetadataAsync(ctxProcessMetadata, logger, oper.Metadata, oper.ID, constant.EntityOperation)
 		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-				msg := fmt.Sprintf("Skipping to create operation, operation already exists: %v", oper.ID)
-
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreateOperation, msg, err)
-
-				logger.Log(ctx, libLog.LevelWarn, msg)
-
-				continue
-			} else {
-				recordCommandError(ctx, spanCreateOperation, logger, "Failed to create operation", err)
-
-				return err
-			}
-		}
-
-		err = uc.CreateMetadataAsync(ctx, logger, oper.Metadata, oper.ID, constant.EntityOperation)
-		if err != nil {
-			recordCommandError(ctx, spanCreateOperation, logger, "Failed to create metadata on operation", err)
+			recordCommandError(ctx, spanCreateMetadata, logger, "Failed to create metadata on operation", err)
 
 			return err
 		}
@@ -161,32 +142,32 @@ func (uc *UseCase) CreateBalanceTransactionOperationsAsync(ctx context.Context, 
 	return nil
 }
 
-// CreateOrUpdateTransaction func that is responsible to create or update a transaction.
+// CreateOrUpdateTransaction writes the transaction row of a legacy message, or
+// its PENDING-to-terminal transition when the row already exists, on dbTx.
 //
 // The string return value carries the lifecycle phase the call resolved
 // to, used by SendTransactionEvents to pick the corresponding
 // lib-streaming event_type:
 //
-//   - TransactionLifecyclePhaseCreated — fresh insert via
-//     TransactionRepo.Create. Emits transaction.posted when
-//     ParentTransactionID is nil, transaction.reverted otherwise.
-//   - TransactionLifecyclePhaseUpdated — status transition won through
-//     the unique-violation idempotency branch, where
-//     UpdateTransactionStatusFromPending found the row still PENDING.
+//   - TransactionLifecyclePhaseCreated — the row was inserted. Emits
+//     transaction.posted when ParentTransactionID is nil,
+//     transaction.reverted otherwise.
+//   - TransactionLifecyclePhaseUpdated — the row already existed and
+//     UpdateTransactionStatusFromPending found it still PENDING.
 //     Emits transaction.committed when Status.Code is APPROVED,
 //     transaction.canceled when CANCELED.
-//   - TransactionLifecyclePhaseNoop — no state change occurred: a unique
-//     violation with no eligible status transition, or a compare-and-set
-//     that matched no PENDING row because another transition already
-//     settled it. Callers must NOT emit a lifecycle event in this phase;
-//     the transition that won the row emits instead.
+//   - TransactionLifecyclePhaseNoop — no state change occurred: the row
+//     already existed with no eligible status transition, or a
+//     compare-and-set that matched no PENDING row because another
+//     transition already settled it. Callers must NOT emit a lifecycle
+//     event in this phase; the transition that won the row emits instead.
 //
 // Tracking the phase explicitly inside this function — rather than
 // inferring it from CreatedAt vs UpdatedAt downstream — keeps the
 // branch decision pinned to the actual code path that ran. Inference
 // would be fragile because both timestamps may be touched by DB
 // triggers or msgpack roundtrips before SendTransactionEvents runs.
-func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, string, error) {
+func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, dbTx repository.DBExecutor, t transaction.TransactionProcessingPayload) (*transaction.Transaction, string, error) {
 	_, spanCreateTransaction := tracer.Start(ctx, "command.create_balance_transaction_operations.create_transaction")
 	defer spanCreateTransaction.End()
 
@@ -206,54 +187,127 @@ func (uc *UseCase) CreateOrUpdateTransaction(ctx context.Context, logger libLog.
 		tran.Body = *t.Input
 	}
 
-	_, err := uc.TransactionRepo.Create(ctx, tran)
+	inserted, err := uc.TransactionRepo.CreateBulkTx(ctx, dbTx, []*transaction.Transaction{tran})
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == constant.UniqueViolationCode {
-			if t.Validate != nil && t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
-				// The transition variant: the flip lands only while the row is
-				// still PENDING, so a commit cannot overwrite a cancel that
-				// already settled the same transaction.
-				_, transitioned, err := uc.UpdateTransactionStatusFromPending(ctx, tran)
-				if err != nil {
-					libOpentelemetry.HandleSpanError(spanCreateTransaction, "Failed to update transaction", err)
-
-					logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
-						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
-
-					return nil, TransactionLifecyclePhaseNoop, err
-				}
-
-				if !transitioned {
-					// The row is already terminal: the request-path transition
-					// landed first, or this message is a replay of one that did.
-					// Failing here would send an idempotent message to retry and
-					// then to the DLQ for a transition that is already done, so
-					// it is reported as a no-op — which also keeps a duplicate
-					// lifecycle event off the wire.
-					logger.Log(ctx, libLog.LevelWarn, "Transaction is no longer pending; status transition already applied",
-						libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
-
-					return tran, TransactionLifecyclePhaseNoop, nil
-				}
-
-				// Status transition succeeded via the idempotency branch.
-				return tran, TransactionLifecyclePhaseUpdated, nil
-			}
-
-			// Unique violation with no eligible status transition.
-			// Caller should NOT emit a lifecycle event for this path
-			// (no state change observed on this attempt).
-			return tran, TransactionLifecyclePhaseNoop, nil
-		}
-
 		recordCommandError(ctx, spanCreateTransaction, logger, "Failed to create transaction on repo", err)
 
 		return nil, TransactionLifecyclePhaseNoop, err
 	}
 
-	// Fresh insert succeeded.
-	return tran, TransactionLifecyclePhaseCreated, nil
+	if inserted.Inserted > 0 {
+		return tran, TransactionLifecyclePhaseCreated, nil
+	}
+
+	if t.Validate != nil && t.Validate.Pending && (tran.Status.Code == constant.APPROVED || tran.Status.Code == constant.CANCELED) {
+		// The transition variant: the flip lands only while the row is
+		// still PENDING, so a commit cannot overwrite a cancel that
+		// already settled the same transaction.
+		_, transitioned, err := uc.UpdateTransactionStatusFromPending(ctx, dbTx, tran)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(spanCreateTransaction, "Failed to update transaction", err)
+
+			logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction status",
+				libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
+
+			return nil, TransactionLifecyclePhaseNoop, err
+		}
+
+		if !transitioned {
+			// The row is already terminal: the request-path transition
+			// landed first, or this message is a replay of one that did.
+			// Failing here would send an idempotent message to retry and
+			// then to the DLQ for a transition that is already done, so
+			// it is reported as a no-op — which also keeps a duplicate
+			// lifecycle event off the wire.
+			logger.Log(ctx, libLog.LevelWarn, "Transaction is no longer pending; status transition already applied",
+				libLog.String("status", tran.Status.Code), libLog.String("transaction_id", tran.ID))
+
+			return tran, TransactionLifecyclePhaseNoop, nil
+		}
+
+		return tran, TransactionLifecyclePhaseUpdated, nil
+	}
+
+	// The row already exists and no status transition applies: this attempt
+	// observed no state change, so the caller must not emit a lifecycle event.
+	return tran, TransactionLifecyclePhaseNoop, nil
+}
+
+// persistTransactionAndOperations commits the transaction row (or its PENDING
+// transition) and its operations in one database transaction, so a failure
+// leaves neither behind.
+func (uc *UseCase) persistTransactionAndOperations(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, t transaction.TransactionProcessingPayload) (*transaction.Transaction, string, error) {
+	ctx, span := tracer.Start(ctx, "command.create_balance_transaction_operations.persist")
+	defer span.End()
+
+	dbTx, err := uc.TransactionRepo.BeginTx(ctx)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to begin database transaction", err)
+
+		return nil, TransactionLifecyclePhaseNoop, err
+	}
+
+	// A commit ends the database transaction whether or not it succeeds, so only
+	// an exit before it rolls back.
+	finished := false
+
+	defer func() {
+		if finished {
+			return
+		}
+
+		if rbErr := dbTx.Rollback(); rbErr != nil {
+			logger.Log(ctx, libLog.LevelError, "Failed to roll back transaction write", libLog.Err(rbErr))
+		}
+	}()
+
+	tran, phase, err := uc.CreateOrUpdateTransaction(ctx, logger, tracer, dbTx, t)
+	if err != nil {
+		return nil, TransactionLifecyclePhaseNoop, err
+	}
+
+	if err := uc.createOperationsTx(ctx, logger, tracer, dbTx, tran.Operations); err != nil {
+		return nil, TransactionLifecyclePhaseNoop, err
+	}
+
+	finished = true
+
+	if err := dbTx.Commit(); err != nil {
+		recordCommandError(ctx, span, logger, "Failed to commit transaction write", err)
+
+		return nil, TransactionLifecyclePhaseNoop, err
+	}
+
+	return tran, phase, nil
+}
+
+// createOperationsTx inserts the operations on dbTx. Operations that already
+// exist are skipped, so a retry of a committed write inserts nothing.
+func (uc *UseCase) createOperationsTx(ctx context.Context, logger libLog.Logger, tracer trace.Tracer, dbTx repository.DBExecutor, operations []*operation.Operation) error {
+	_, span := tracer.Start(ctx, "command.create_balance_transaction_operations.create_operation")
+	defer span.End()
+
+	if len(operations) == 0 {
+		return nil
+	}
+
+	// The repository sorts its input in place; the caller's slice keeps the
+	// order the metadata writes and events read.
+	inserted, err := uc.OperationRepo.CreateBulkTx(ctx, dbTx, slices.Clone(operations))
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create operation", err)
+
+		return err
+	}
+
+	if inserted.Ignored > 0 {
+		libOpentelemetry.HandleSpanEvent(span, "Skipping operations that already exist (idempotent retry)")
+
+		logger.Log(ctx, libLog.LevelWarn, "Skipping operations that already exist",
+			libLog.Int("ignored", int(inserted.Ignored)))
+	}
+
+	return nil
 }
 
 // CreateMetadataAsync func that create metadata into operations
@@ -491,6 +545,10 @@ func (uc *UseCase) UpdateTransactionBackupOperations(ctx context.Context, organi
 	}
 }
 
+// ErrInvalidOperationDirection reports an operation whose direction is neither
+// debit nor credit.
+var ErrInvalidOperationDirection = errors.New("invalid operation direction")
+
 // validateOperationDirection checks the direction field of an operation.
 // Empty direction is allowed with a warning (v3.5.3 messages lack this field).
 // Non-empty direction must be one of the valid values ("debit", "credit").
@@ -506,6 +564,6 @@ func validateOperationDirection(ctx context.Context, logger libLog.Logger, oper 
 	case "debit", "credit":
 		return nil
 	default:
-		return fmt.Errorf("operation %s has invalid direction %q: must be 'debit' or 'credit'", oper.ID, oper.Direction)
+		return fmt.Errorf("%w: operation %s has direction %q, must be 'debit' or 'credit'", ErrInvalidOperationDirection, oper.ID, oper.Direction)
 	}
 }
