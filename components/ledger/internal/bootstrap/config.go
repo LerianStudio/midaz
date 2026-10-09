@@ -34,12 +34,14 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tenantpool"
 	dashboardCache "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/dashboard"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -1737,6 +1739,10 @@ func buildUnifiedRouteSetup(
 	// via f.Use) would overwrite the tenant Mongo that ledger handlers resolve,
 	// leaking one tenant's CRM DB into a concurrent ledger request.
 	//
+	// This instance binds no PostgreSQL, so the CRM chain stays
+	// [authAssertion, WithTenantDB] in multi-tenant mode: it is the one tenant
+	// chain that does not carry WithTenantPoolResolution.
+	//
 	// Nothing else is bound here: the holder CRUD, the instrument reads and
 	// updates, encryption and audit touch no other store, and the middleware
 	// resolves every registered manager eagerly, so an extra store would make
@@ -1793,7 +1799,10 @@ func buildUnifiedRouteSetup(
 	// globally would overwrite the tenant Mongo that ledger handlers resolve.
 	// Route scoping keeps every key this instance writes off ledger routes, so
 	// the generic-key fees MB write cannot collide with the module-keyed
-	// onboarding/transaction injection ledger routes carry.
+	// onboarding/transaction injection ledger routes carry. The
+	// WithTenantPoolResolution that follows it on the fee chain replaces only
+	// the onboarding/transaction PG module keys this instance wrote, so it adds
+	// no key and never touches the generic one.
 	//
 	// WithMB(feesMongoManager) stays WITHOUT a module name (generic key): the fee
 	// pack/billing_package repos read tmcore.GetMBContext(ctx) on the GENERIC key,
@@ -1891,53 +1900,85 @@ func buildUnifiedRouteSetup(
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
 
+	// WithTenantDB pins the tenant's concrete PostgreSQL pool into the request
+	// context once, and the tenant manager may close that pool mid-request
+	// without draining. Every chain whose tenant middleware binds PostgreSQL
+	// therefore runs as [authAssertion, WithTenantDB, WithTenantPoolResolution]:
+	// the third element swaps each pinned module key for a lazy adapter that
+	// re-resolves the pool per operation (falling back to the pinned pool when
+	// resolution fails). It replaces only the module keys that chain's
+	// WithTenantDB already wrote — the same per-module keys, never a new one and
+	// never the generic key — so the per-chain isolation above is unchanged.
+	// Each handler lists exactly the PG modules its chain's middleware binds.
+	onboardingTransactionPoolResolution := midazhttp.WithTenantPoolResolution(
+		tenantPoolModule(constant.ModuleOnboarding, onboardingPGManager),
+		tenantPoolModule(constant.ModuleTransaction, transactionPGManager),
+	)
+	onboardingPoolResolution := midazhttp.WithTenantPoolResolution(
+		tenantPoolModule(constant.ModuleOnboarding, onboardingPGManager),
+	)
+
 	setup.onboardingRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	setup.transactionRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion},
 	}
 
-	// CRM routes get the CRM-only tenant middleware instance.
+	// CRM routes get the CRM-only tenant middleware instance. It binds no
+	// PostgreSQL, so this chain carries no WithTenantPoolResolution.
 	setup.crmRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
 	}
 
 	// Instrument create gets the CRM ledger-reads tenant middleware instance.
 	setup.crmLedgerReadsRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmLedgerReadsTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmLedgerReadsTenantMiddleware.WithTenantDB, onboardingPoolResolution},
 	}
 
 	// Holder delete gets the CRM holder-delete tenant middleware instance.
 	setup.crmHolderDeleteRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmHolderDeleteTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmHolderDeleteTenantMiddleware.WithTenantDB, onboardingPoolResolution},
 	}
 
 	// Fee routes get the fees-only tenant middleware instance.
 	setup.feesRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	// Composition routes get the cross-store composition tenant middleware
 	// instance, scoping the onboarding-PG + CRM-Mongo injection to composition
 	// routes only.
 	setup.compositionRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	// The holder-accounts route gets its own onboarding-only tenant middleware
 	// instance rather than the CRM one, which binds the CRM Mongo on the generic
 	// key and no onboarding PG at all.
 	setup.holderAccountsRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB, onboardingPoolResolution},
 	}
 
 	return setup, nil
+}
+
+// tenantPoolModule builds the WithTenantPoolResolution entry for one PostgreSQL
+// module: a lazy adapter that re-resolves the tenant's pool from manager on
+// every operation, falling back to the pool WithTenantDB pinned. Only
+// buildUnifiedRouteSetup calls it, inside its multi-tenant branch.
+func tenantPoolModule(module string, manager *tmpostgres.Manager) midazhttp.TenantPoolModule {
+	return midazhttp.TenantPoolModule{
+		Name: module,
+		New: func(_ context.Context, tenantID string, pinned dbresolver.DB) dbresolver.DB {
+			return tenantpool.New(manager, tenantID, module, pinned)
+		},
+	}
 }
 
 // buildHumaMountDeps assembles the single Huma mount list from the auth client, every resource
