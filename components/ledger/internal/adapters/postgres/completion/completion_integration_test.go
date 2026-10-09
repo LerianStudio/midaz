@@ -556,3 +556,131 @@ func TestIntegrationRecoverySQLTenantContext(t *testing.T) {
 	require.NoError(t, static.store.Persist(ctx, record))
 	require.Equal(t, tenantBefore, recoverySQLState(t, tenant.db))
 }
+
+// probeFactRecorder inserts one probe row per call through the *sql.Tx it is
+// given, so the probe's visibility proves whether the fact shared the commit.
+type probeFactRecorder struct {
+	calls  int
+	failAt int
+}
+
+func (recorder *probeFactRecorder) RecordTransactionCommitted(ctx context.Context, tx *sql.Tx, record command.TransactionWriteSet) error {
+	recorder.calls++
+
+	if _, err := tx.ExecContext(ctx, `INSERT INTO transaction_fact_probe (transaction_id) VALUES ($1)`, record.Transaction.ID); err != nil {
+		return err
+	}
+
+	if recorder.failAt == recorder.calls {
+		return errFactRecorder
+	}
+
+	return nil
+}
+
+func createFactProbe(t *testing.T, db *sql.DB) {
+	t.Helper()
+	_, err := db.ExecContext(t.Context(), `CREATE TABLE IF NOT EXISTS transaction_fact_probe (transaction_id TEXT PRIMARY KEY)`)
+	require.NoError(t, err)
+}
+
+func recoverySQLFactCounts(t *testing.T, db *sql.DB, transactionID string) (transactions, probes int) {
+	t.Helper()
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM transaction WHERE id=$1`, transactionID).Scan(&transactions))
+	require.NoError(t, db.QueryRowContext(t.Context(), `SELECT count(*) FROM transaction_fact_probe WHERE transaction_id=$1`, transactionID).Scan(&probes))
+	return transactions, probes
+}
+
+func recoverySQLSecondRecord(first command.TransactionWriteSet) command.TransactionWriteSet {
+	second := first
+	secondTransaction := *first.Transaction
+	second.Transaction = &secondTransaction
+	second.Transaction.ID = uuid.NewSHA1(uuid.MustParse(first.Transaction.ID), []byte("fact:second")).String()
+	row := *first.Transaction.Operations[0]
+	row.TransactionID = second.Transaction.ID
+	row.ID = uuid.NewSHA1(uuid.MustParse(first.Transaction.Operations[0].ID), []byte("fact:second")).String()
+	second.Transaction.Operations = []*operation.Operation{&row}
+	return second
+}
+
+func TestIntegrationRecoverySQLStoreRecordsFactAtomically(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL")
+	}
+	infra := setupRecoverySQL(t)
+	createFactProbe(t, infra.db)
+
+	t.Run("fact and transaction row commit together", func(t *testing.T) {
+		recorder := &probeFactRecorder{}
+		store := NewStore(infra.transactions, infra.operations).WithTransactionFactRecorder(recorder)
+		record := recoverySQLRecord(t)
+
+		outcome, err := store.PersistWithOutcome(t.Context(), record)
+		require.NoError(t, err)
+		require.Equal(t, command.TransactionLifecyclePhaseCreated, outcome.LifecyclePhase)
+		require.Equal(t, 1, recorder.calls)
+		transactions, probes := recoverySQLFactCounts(t, infra.db, record.Transaction.ID)
+		require.Equal(t, 1, transactions)
+		require.Equal(t, 1, probes)
+
+		outcome, err = store.PersistWithOutcome(t.Context(), record)
+		require.NoError(t, err)
+		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcome.LifecyclePhase)
+		require.Equal(t, 1, recorder.calls, "a verified replay must not record a second fact")
+	})
+
+	t.Run("recorder failure rolls back the row and the fact", func(t *testing.T) {
+		recorder := &probeFactRecorder{failAt: 1}
+		store := NewStore(infra.transactions, infra.operations).WithTransactionFactRecorder(recorder)
+		record := recoverySQLRecord(t)
+		before := recoverySQLState(t, infra.db)
+
+		_, err := store.PersistWithOutcome(t.Context(), record)
+		require.ErrorIs(t, err, errFactRecorder)
+		transactions, probes := recoverySQLFactCounts(t, infra.db, record.Transaction.ID)
+		require.Equal(t, 0, transactions)
+		require.Equal(t, 0, probes)
+		require.Equal(t, before, recoverySQLState(t, infra.db))
+	})
+
+	t.Run("bulk records one fact per changed record", func(t *testing.T) {
+		recorder := &probeFactRecorder{}
+		store := NewStore(infra.transactions, infra.operations).WithTransactionFactRecorder(recorder)
+		first := recoverySQLRecord(t)
+		second := recoverySQLSecondRecord(first)
+
+		outcomes, err := store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{first, second})
+		require.NoError(t, err)
+		require.Len(t, outcomes, 2)
+		require.Equal(t, 2, recorder.calls)
+		for _, record := range []command.TransactionWriteSet{first, second} {
+			transactions, probes := recoverySQLFactCounts(t, infra.db, record.Transaction.ID)
+			require.Equal(t, 1, transactions)
+			require.Equal(t, 1, probes)
+		}
+
+		outcomes, err = store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{first, second})
+		require.NoError(t, err)
+		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcomes[0].LifecyclePhase)
+		require.Equal(t, command.TransactionLifecyclePhaseNoop, outcomes[1].LifecyclePhase)
+		require.Equal(t, 2, recorder.calls, "a verified bulk replay must not record facts")
+	})
+
+	t.Run("bulk recorder failure rolls back the whole group", func(t *testing.T) {
+		recorder := &probeFactRecorder{failAt: 2}
+		store := NewStore(infra.transactions, infra.operations).WithTransactionFactRecorder(recorder)
+		first := recoverySQLRecord(t)
+		second := recoverySQLSecondRecord(first)
+		before := recoverySQLState(t, infra.db)
+
+		_, err := store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{first, second})
+		require.ErrorIs(t, err, errFactRecorder)
+		require.Equal(t, 2, recorder.calls)
+		for _, record := range []command.TransactionWriteSet{first, second} {
+			transactions, probes := recoverySQLFactCounts(t, infra.db, record.Transaction.ID)
+			require.Equal(t, 0, transactions)
+			require.Equal(t, 0, probes)
+		}
+		require.Equal(t, before, recoverySQLState(t, infra.db))
+	})
+}

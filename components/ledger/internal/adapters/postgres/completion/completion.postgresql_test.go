@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -521,4 +522,269 @@ func TestVerifyOperationAllPersistedFields(t *testing.T) {
 		WithArgs(args...).WillReturnRows(sqlmock.NewRows([]string{"matches"}).AddRow(true))
 	require.NoError(t, verifyOperation(context.Background(), db, row))
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// factRecorderStub writes a probe through the transaction it receives, so the
+// ordered mock proves the recorder ran inside the Store's transaction, after
+// the row verification and before Commit.
+type factRecorderStub struct {
+	calls  []factRecorderCall
+	failAt int
+}
+
+type factRecorderCall struct {
+	record command.TransactionWriteSet
+	tx     *sql.Tx
+}
+
+var errFactRecorder = errors.New("fact recorder failure")
+
+func (stub *factRecorderStub) RecordTransactionCommitted(ctx context.Context, tx *sql.Tx, record command.TransactionWriteSet) error {
+	stub.calls = append(stub.calls, factRecorderCall{record: record, tx: tx})
+
+	if tx == nil {
+		return errors.New("fact recorder received a nil *sql.Tx")
+	}
+
+	if _, err := tx.ExecContext(ctx, "INSERT system_fact"); err != nil {
+		return err
+	}
+
+	if stub.failAt == len(stub.calls) {
+		return errFactRecorder
+	}
+
+	return nil
+}
+
+func expectFact(mock sqlmock.Sqlmock) {
+	mock.ExpectExec("INSERT system_fact").WillReturnResult(sqlmock.NewResult(0, 1))
+}
+
+func expectCreatedTransaction(mock sqlmock.Sqlmock, status string) {
+	expectTransaction(mock, "", true, true)
+	mock.ExpectExec("INSERT recovery_transaction").WillReturnResult(sqlmock.NewResult(0, 1))
+	expectTransaction(mock, status, true, true)
+}
+
+func expectBulkLock(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery(`SELECT id FROM transaction WHERE id IN \(.*\) ORDER BY id FOR UPDATE`).WillReturnRows(sqlmock.NewRows([]string{"id"})).RowsWillBeClosed()
+}
+
+func frozenStoreRecordWithID(transactionID, operationID string) command.TransactionWriteSet {
+	record := frozenStoreRecord()
+	record.Transaction.ID = transactionID
+	record.Transaction.Operations[0].TransactionID = transactionID
+	record.Transaction.Operations[0].ID = operationID
+
+	return record
+}
+
+func TestStorePersistRecordsFactForEveryChangedRow(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name, action, existing, target string
+		create                         bool
+	}{
+		{name: "direct", action: "direct", target: constant.APPROVED, create: true},
+		{name: "revert", action: "revert", target: constant.APPROVED, create: true},
+		{name: "hold", action: "hold", target: constant.PENDING, create: true},
+		{name: "commit", action: "commit", existing: constant.PENDING, target: constant.APPROVED},
+		{name: "cancel", action: "cancel", existing: constant.PENDING, target: constant.CANCELED},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, mock := newStoreTest(t)
+			recorder := &factRecorderStub{}
+			store = store.WithTransactionFactRecorder(recorder)
+			record := frozenStoreRecord()
+			record.Action, record.Transaction.Status.Code = scenario.action, scenario.target
+			if scenario.action == "hold" {
+				record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
+			}
+			if !scenario.create {
+				record.ExpectedStatus = constant.PENDING
+			}
+
+			mock.ExpectBegin()
+			if scenario.create {
+				expectCreatedTransaction(mock, scenario.target)
+			} else {
+				expectTransaction(mock, scenario.existing, true, true)
+				mock.ExpectExec("UPDATE transaction").WillReturnResult(sqlmock.NewResult(0, 1))
+			}
+			expectOperations(mock, 1)
+			expectFact(mock)
+			mock.ExpectCommit()
+
+			outcome, err := store.PersistWithOutcome(t.Context(), record)
+			require.NoError(t, err)
+			assert.NotEqual(t, command.TransactionLifecyclePhaseNoop, outcome.LifecyclePhase)
+			require.Len(t, recorder.calls, 1)
+			assert.NotNil(t, recorder.calls[0].tx)
+			assert.Equal(t, record, recorder.calls[0].record)
+		})
+	}
+}
+
+func TestStorePersistSkipsFactOnVerifiedReplay(t *testing.T) {
+	t.Parallel()
+
+	for _, scenario := range []struct {
+		name, action, existing string
+	}{
+		{name: "direct replay", action: "direct", existing: constant.APPROVED},
+		{name: "late hold after approval", action: "hold", existing: constant.APPROVED},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, mock := newStoreTest(t)
+			recorder := &factRecorderStub{}
+			store = store.WithTransactionFactRecorder(recorder)
+			record := frozenStoreRecord()
+			record.Action = scenario.action
+			if scenario.action == "hold" {
+				record.Transaction.Status.Code = constant.PENDING
+				record.Transaction.Body = mtransaction.Transaction{Pending: true, Send: mtransaction.Send{Asset: "USD", Value: *record.Transaction.Amount}}
+			}
+
+			mock.ExpectBegin()
+			expectTransaction(mock, scenario.existing, true, true)
+			expectVerifiedOperations(mock, 1)
+			mock.ExpectCommit()
+
+			outcome, err := store.PersistWithOutcome(t.Context(), record)
+			require.NoError(t, err)
+			assert.Equal(t, command.TransactionLifecyclePhaseNoop, outcome.LifecyclePhase)
+			assert.Empty(t, recorder.calls)
+		})
+	}
+}
+
+func TestStorePersistRollsBackWhenFactRecorderFails(t *testing.T) {
+	t.Parallel()
+
+	store, mock := newStoreTest(t)
+	store = store.WithTransactionFactRecorder(&factRecorderStub{failAt: 1})
+	mock.ExpectBegin()
+	expectCreatedTransaction(mock, constant.APPROVED)
+	expectOperations(mock, 1)
+	expectFact(mock)
+	mock.ExpectRollback()
+
+	outcome, err := store.PersistWithOutcome(t.Context(), frozenStoreRecord())
+	require.ErrorIs(t, err, errFactRecorder)
+	assert.Empty(t, outcome.TransactionStatus)
+}
+
+type resolverTransactionRepository struct {
+	transactionStoreStub
+	resolver dbresolver.DB
+}
+
+func (stub resolverTransactionRepository) BeginTx(ctx context.Context) (repository.DBTransaction, error) {
+	return stub.resolver.BeginTx(ctx, nil)
+}
+
+func TestStorePersistRequiresSQLTxOnlyWhenRecording(t *testing.T) {
+	t.Parallel()
+
+	for _, recording := range []bool{true, false} {
+		t.Run(map[bool]string{true: "recorder set", false: "no recorder"}[recording], func(t *testing.T) {
+			t.Parallel()
+
+			db, mock, err := sqlmock.New()
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				assert.NoError(t, mock.ExpectationsWereMet())
+				_ = db.Close()
+			})
+			resolver := dbresolver.New(dbresolver.WithPrimaryDBs(db))
+			t.Cleanup(func() { _ = resolver.Close() })
+			recorder := &factRecorderStub{}
+			store := NewStore(resolverTransactionRepository{transactionStoreStub: transactionStoreStub{db: db}, resolver: resolver}, operationStoreStub{})
+			if recording {
+				store = store.WithTransactionFactRecorder(recorder)
+			}
+
+			mock.ExpectBegin()
+			expectCreatedTransaction(mock, constant.APPROVED)
+			expectOperations(mock, 1)
+			if recording {
+				mock.ExpectRollback()
+			} else {
+				mock.ExpectCommit()
+			}
+
+			_, err = store.PersistWithOutcome(t.Context(), frozenStoreRecord())
+			if recording {
+				require.ErrorIs(t, err, command.ErrTransactionFactTxUnsupported)
+			} else {
+				require.NoError(t, err)
+			}
+			assert.Empty(t, recorder.calls)
+		})
+	}
+}
+
+func TestStorePersistBulkRecordsFactPerChangedRecord(t *testing.T) {
+	t.Parallel()
+
+	store, mock := newStoreTest(t)
+	recorder := &factRecorderStub{}
+	store = store.WithTransactionFactRecorder(recorder)
+	later := frozenStoreRecordWithID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-5aaa-8aaa-aaaaaaaaaaaa")
+	earlier := frozenStoreRecord()
+	replay := frozenStoreRecordWithID("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "cccccccc-cccc-5ccc-8ccc-cccccccccccc")
+
+	mock.ExpectBegin()
+	expectBulkLock(mock)
+	// Rows are persisted in canonical ID order: earlier, later, then the replay.
+	expectCreatedTransaction(mock, constant.APPROVED)
+	expectCreatedTransaction(mock, constant.APPROVED)
+	expectTransaction(mock, constant.APPROVED, true, true)
+	mock.ExpectExec("INSERT recovery_operations").WillReturnResult(sqlmock.NewResult(0, 2))
+	expectVerifiedOperations(mock, 3)
+	expectFact(mock)
+	expectFact(mock)
+	mock.ExpectCommit()
+
+	outcomes, err := store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{later, earlier, replay})
+	require.NoError(t, err)
+	require.Len(t, outcomes, 3)
+	assert.Equal(t, command.TransactionLifecyclePhaseNoop, outcomes[2].LifecyclePhase)
+	require.Len(t, recorder.calls, 2)
+	assert.Equal(t, earlier.Transaction.ID, recorder.calls[0].record.Transaction.ID)
+	assert.Equal(t, later.Transaction.ID, recorder.calls[1].record.Transaction.ID)
+	for _, call := range recorder.calls {
+		assert.NotNil(t, call.tx)
+	}
+}
+
+func TestStorePersistBulkRollsBackWhenFactRecorderFails(t *testing.T) {
+	t.Parallel()
+
+	store, mock := newStoreTest(t)
+	recorder := &factRecorderStub{failAt: 2}
+	store = store.WithTransactionFactRecorder(recorder)
+	first := frozenStoreRecord()
+	second := frozenStoreRecordWithID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-5aaa-8aaa-aaaaaaaaaaaa")
+
+	mock.ExpectBegin()
+	expectBulkLock(mock)
+	expectCreatedTransaction(mock, constant.APPROVED)
+	expectCreatedTransaction(mock, constant.APPROVED)
+	mock.ExpectExec("INSERT recovery_operations").WillReturnResult(sqlmock.NewResult(0, 2))
+	expectVerifiedOperations(mock, 2)
+	expectFact(mock)
+	expectFact(mock)
+	mock.ExpectRollback()
+
+	outcomes, err := store.PersistBulkWithOutcome(t.Context(), []command.TransactionWriteSet{first, second})
+	require.ErrorIs(t, err, errFactRecorder)
+	assert.Nil(t, outcomes)
+	assert.Len(t, recorder.calls, 2)
 }

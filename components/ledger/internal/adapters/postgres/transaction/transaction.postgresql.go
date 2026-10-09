@@ -239,16 +239,22 @@ func releaseRead(span trace.Span, release func() error) {
 	}
 }
 
-// BeginTx starts a new database transaction for atomic multi-table operations.
-// The caller is responsible for calling Commit() or Rollback() on the returned transaction.
-// This enables atomic bulk inserts across transactions and operations tables.
+// BeginTx starts a database transaction for atomic multi-table writes on the
+// connection getDB resolves. The returned value is the primary pool's own
+// *sql.Tx, not a dbresolver wrapper: an outbox recorder that must write inside
+// this transaction needs the concrete type. The caller owns Commit and Rollback.
 func (r *TransactionPostgreSQLRepository) BeginTx(ctx context.Context) (repository.DBTransaction, error) {
 	db, err := r.getDB(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	primaries := db.PrimaryDBs()
+	if len(primaries) == 0 {
+		return nil, fmt.Errorf("failed to begin transaction: resolver exposes no primary pool")
+	}
+
+	tx, err := primaries[0].BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}

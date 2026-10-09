@@ -6,6 +6,7 @@ package completion
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +37,7 @@ type Store struct {
 	transactions     transactionRepository
 	operations       operationRepository
 	maxRowsPerInsert int
+	factRecorder     command.TransactionFactRecorder
 }
 
 const defaultMaxRowsPerInsert = 1000
@@ -55,6 +57,15 @@ func NewStore(transactions transactionRepository, operations operationRepository
 	}
 
 	return &Store{transactions: transactions, operations: operations, maxRowsPerInsert: maxRows}
+}
+
+// WithTransactionFactRecorder makes the Store hand every created or
+// transitioned transaction row to recorder inside the SQL transaction that
+// commits it. A nil recorder keeps the Store silent.
+func (store *Store) WithTransactionFactRecorder(recorder command.TransactionFactRecorder) *Store {
+	store.factRecorder = recorder
+
+	return store
 }
 
 // Persist inserts or verifies all expected rows in a single SQL transaction.
@@ -118,6 +129,12 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 
 	for _, row := range record.Transaction.Operations {
 		if err := verifyOperation(ctx, querier, row); err != nil {
+			return command.TransactionPersistenceOutcome{}, err
+		}
+	}
+
+	if allowInsert {
+		if err := store.recordTransactionFact(ctx, tx, record); err != nil {
 			return command.TransactionPersistenceOutcome{}, err
 		}
 	}
@@ -244,6 +261,16 @@ func (store *Store) PersistBulkWithOutcome(ctx context.Context, records []comman
 			if err := verifyOperation(ctx, querier, row); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	for _, index := range ordered {
+		if !changed[index] {
+			continue
+		}
+
+		if err := store.recordTransactionFact(ctx, tx, records[index]); err != nil {
+			return nil, fmt.Errorf("record bulk transaction %s fact: %w", records[index].Transaction.ID, err)
 		}
 	}
 
@@ -493,6 +520,26 @@ func validateIDs(values ...string) error {
 		if err != nil || parsed == uuid.Nil || parsed.String() != value {
 			return conflict("invalid canonical persistence identity")
 		}
+	}
+
+	return nil
+}
+
+// recordTransactionFact hands a created or transitioned row to the fact
+// recorder through the concrete *sql.Tx the recorder writes in. The recorder
+// owns logging and counting; the Store only decides whether the row changed.
+func (store *Store) recordTransactionFact(ctx context.Context, tx repository.DBTransaction, record command.TransactionWriteSet) error {
+	if store.factRecorder == nil {
+		return nil
+	}
+
+	sqlTx, ok := tx.(*sql.Tx)
+	if !ok {
+		return command.ErrTransactionFactTxUnsupported
+	}
+
+	if err := store.factRecorder.RecordTransactionCommitted(ctx, sqlTx, record); err != nil {
+		return fmt.Errorf("record transaction fact: %w", err)
 	}
 
 	return nil
