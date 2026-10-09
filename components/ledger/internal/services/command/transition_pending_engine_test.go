@@ -614,6 +614,7 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer,
+		TransactionRepo:            &transactionRowRepository{row: persisted},
 		EngineRecoveryAcknowledger: &recordingEngineRecoveryAcknowledger{},
 	}
 	return uc, reader, executor, finalizer, PendingTransitionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}

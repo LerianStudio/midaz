@@ -89,6 +89,21 @@ func (r *pendingLifecycleReader) GetTransactionWithOperationsByID(context.Contex
 	return clonePendingLifecycleTransaction(r.persisted), nil
 }
 
+// pendingLifecycleRows answers the primary row a durable execution is checked
+// against; the reader's persisted transaction stands for that row.
+type pendingLifecycleRows struct {
+	postgresTransaction.Repository
+	reader *pendingLifecycleReader
+}
+
+func (r pendingLifecycleRows) Find(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (*postgresTransaction.Transaction, error) {
+	if r.reader.persisted == nil {
+		return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
+	}
+
+	return clonePendingLifecycleTransaction(r.reader.persisted), nil
+}
+
 func clonePendingLifecycleTransaction(input *postgresTransaction.Transaction) *postgresTransaction.Transaction {
 	if input == nil {
 		return nil
@@ -371,6 +386,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 			uc := &command.UseCase{
 				TransactionRedisRepo:        redisRepository,
 				TransactionReader:           reader,
+				TransactionRepo:             pendingLifecycleRows{reader: reader},
 				Engine:                      executor,
 				AppliedTransactionCompleter: finalizer,
 				TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
@@ -530,6 +546,7 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	uc := &command.UseCase{
 		TransactionRedisRepo:        redisRepository,
 		TransactionReader:           reader,
+		TransactionRepo:             pendingLifecycleRows{reader: reader},
 		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
 		TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
@@ -730,6 +747,7 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 	uc := &command.UseCase{
 		TransactionRedisRepo:        redisRepository,
 		TransactionReader:           reader,
+		TransactionRepo:             pendingLifecycleRows{reader: reader},
 		Engine:                      executor,
 		AppliedTransactionCompleter: finalizer,
 		TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{

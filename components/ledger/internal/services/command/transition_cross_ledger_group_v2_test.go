@@ -35,6 +35,9 @@ type crossLedgerLifecycleReader struct {
 	members        []*transaction.Transaction
 	membersErr     error
 	memberRequests []crossLedgerGroupMemberRequest
+	// durableExecutionID, when set, makes every member resolve from a durable
+	// engine execution, whose row the primary then answers.
+	durableExecutionID uuid.UUID
 }
 
 type crossLedgerGroupMemberRequest struct {
@@ -80,11 +83,25 @@ func (reader *crossLedgerLifecycleReader) ResolveTransactionProjection(
 	for _, member := range reader.members {
 		if member != nil && member.ID == transactionID.String() &&
 			member.OrganizationID == organizationID.String() && member.LedgerID == ledgerID.String() {
-			return member, uuid.Nil, false, nil
+			return member, reader.durableExecutionID, false, nil
 		}
 	}
 
 	return nil, uuid.Nil, false, nil
+}
+
+// primaryMemberRows answers the row read of the primary for each group member.
+type primaryMemberRows struct {
+	transaction.Repository
+	rows map[string]*transaction.Transaction
+}
+
+func (repo primaryMemberRows) Find(_ context.Context, _, _, transactionID uuid.UUID) (*transaction.Transaction, error) {
+	if row, ok := repo.rows[transactionID.String()]; ok {
+		return row, nil
+	}
+
+	return nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
 }
 
 type applyingCrossLedgerLifecycleEngine struct {
@@ -252,6 +269,51 @@ func TestTransitionCrossLedgerGroupV2_CommitAndCancelUseOneAtomicExecution(t *te
 			assert.Equal(t, 1, idempotency.transitions)
 			assert.Equal(t, 1, idempotency.handoffs)
 			assert.Equal(t, 1, idempotency.finalizations)
+		})
+	}
+}
+
+// TestTransitionCrossLedgerGroupV2_RefusesMemberClosedOutsideTheEngine covers a
+// member whose durable hold a release without the engine guard already
+// committed or cancelled on its own: the group transition would move that
+// member's held funds a second time.
+func TestTransitionCrossLedgerGroupV2_RefusesMemberClosedOutsideTheEngine(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		status    string
+		rowStatus string
+	}{
+		{name: "commit over a cancelled member", status: constant.APPROVED, rowStatus: constant.CANCELED},
+		{name: "cancel over a committed member", status: constant.CANCELED, rowStatus: constant.APPROVED},
+		{name: "commit over a pending member", status: constant.APPROVED, rowStatus: constant.PENDING},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			uc, repo, engine, target, in, group := newCrossLedgerLifecycleFixture(t, test.status)
+			reader := uc.TransactionReader.(*crossLedgerLifecycleReader)
+			row := *target
+			row.Operations = nil
+			row.Status.Code = test.rowStatus
+			reader.durableExecutionID = uuid.MustParse("0199a500-0000-7000-8000-000000000031")
+			uc.TransactionRepo = primaryMemberRows{rows: map[string]*transaction.Transaction{target.ID: &row}}
+			repo.EXPECT().FindByID(gomock.Any(), group.ID).Return(group, nil)
+
+			if test.rowStatus == constant.PENDING {
+				repo.EXPECT().UpdateStatus(gomock.Any(), group.ID, constant.PENDING, test.status).Return(true, nil)
+
+				_, err := uc.transitionCrossLedgerGroupV2(context.Background(), in, target, test.status)
+				require.NoError(t, err)
+				require.Len(t, engine.executions, 1)
+
+				return
+			}
+
+			uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().
+				Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+			_, err := uc.transitionCrossLedgerGroupV2(context.Background(), in, target, test.status)
+
+			assertBusinessCode(t, err, constant.ErrCommitTransactionNotPending.Error())
+			assert.Empty(t, engine.executions, "a refused member must keep the whole group away from the engine")
 		})
 	}
 }

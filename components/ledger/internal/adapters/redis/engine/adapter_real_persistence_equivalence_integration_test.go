@@ -286,6 +286,7 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
 			Engine: executor, AppliedTransactionCompleter: fixture.finalizer,
+			TransactionRepo: pendingLifecycleRows{reader: reader},
 		}
 		amount := decimal.NewFromInt(30)
 		pending, replayed, err := uc.CreateTransactionV2(ctx, command.CreateTransactionV2Input{
