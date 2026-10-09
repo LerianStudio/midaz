@@ -4,8 +4,6 @@ Related operational references:
 
 - [`engine/scripts/engine/README.md`](../../components/ledger/internal/adapters/redis/engine/scripts/engine/README.md)
   explains the assembled Lua call chain and maintenance rules.
-- [`transaction-recovery-inventory.md`](../runbooks/transaction-recovery-inventory.md)
-  defines safe drain/inventory evidence for both recovery generations.
 - [`engine-report.md`](../performance/engine-report.md) records the bounded local
   performance characterization and its evidence limits.
 - [`type-ownership.md`](type-ownership.md) defines where engine contracts and
@@ -694,8 +692,7 @@ Before the first write, the engine must:
    took the admissions release them.
    Companions repeat the check at their mutation site, and an unused pool balance
    never causes a refusal. A proven receipt replay is answered before any of this,
-   so a recorded outcome survives the closing of its account. See
-   `docs/runbooks/account-closing-protection.md`.
+   so a recorded outcome survives the closing of its account.
 6. Execute transactions and postings in stable order against working state.
    Later transactions observe earlier intermediate results.
 7. Serialize all final blobs, per-transaction recovery envelopes, receipts,
@@ -807,7 +804,8 @@ failover to a replica that missed the last writes is data loss, not a cache miss
 later credits stop settling the lost debts, and a revert that must refund one
 fails with `fee_debt_conflict` instead of refunding from a guess. Verify the
 production instance's persistence and eviction policy before enabling deferrable
-fees, and detect divergence with `docs/runbooks/fee-debt-divergence.md`.
+fees, and compare the receivable lists with the `fee_debt` projection to detect
+divergence; the projection is never a source for rebuilding a lost list.
 
 A fee defers only when its package sets `deferrable: true` on it, which only a
 non-deductible fee accepts; without it an unfunded fee is still refused with
@@ -1146,9 +1144,9 @@ readers and both recovery consumers until legacy in-flight work has drained.
 Account closing has a rollout order of its own, because the protection is only as
 strong as the least current writer: every binary that admits or rewrites a balance
 blob must carry the coordinated admission before the close route is exposed, and
-there is no key to backfill for the accounts that stay open. The procedure, the
-rollback that keeps `closed_at`, and the reconciliation an operator can run are in
-`docs/runbooks/account-closing-protection.md`.
+there is no key to backfill for the accounts that stay open. A rollback never clears
+`closed_at`. Operational procedures for rollout, rollback, and reconciliation are
+maintained outside this repository.
 
 Deferrable fees are one-way for a rolling deploy. A completion record that carries
 fee debt fails the strict decoder of an older binary, which quarantines it instead
