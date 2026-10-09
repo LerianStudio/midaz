@@ -74,8 +74,15 @@ type CreateAtomicTransactionBatchV2Input struct {
 	HeldDestinations   []CrossLedgerGroupIntentPart
 	CanonicalRequest   []byte
 	RequestFingerprint string
-	IdempotencyKey     string
-	IdempotencyTTL     time.Duration
+	// KeyedRequestFingerprint, when set, is the fingerprint a request with an
+	// idempotency key stores and matches; the fingerprint it would otherwise
+	// use (RequestFingerprint, or the digest of CanonicalRequest) is still
+	// accepted when matching an existing record. It never affects a request
+	// without a key, whose fingerprint and record key are derived as if it
+	// were unset.
+	KeyedRequestFingerprint string
+	IdempotencyKey          string
+	IdempotencyTTL          time.Duration
 }
 
 // CreateAtomicTransactionBatchV2Result preserves request order and carries the

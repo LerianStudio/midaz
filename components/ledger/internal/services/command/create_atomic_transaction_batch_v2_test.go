@@ -1150,6 +1150,7 @@ func (repository atomicTransactionBatchFailingClaimRepository) ClaimAtomicTransa
 	uuid.UUID,
 	string,
 	txRedis.AtomicTransactionBatchIdempotencyRecord,
+	string,
 ) (*txRedis.AtomicTransactionBatchClaimResult, error) {
 	return nil, repository.claimErr
 }

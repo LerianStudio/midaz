@@ -16,7 +16,11 @@ if (record.formatVersion ~= 1 and record.formatVersion ~= 2) or
     return redis.error_reply("ATOMIC_BATCH_IDEMPOTENCY_INVALID")
 end
 
-if record.requestFingerprint ~= ARGV[2] then
+-- ARGV[3], when non-empty, is a second fingerprint the stored record may
+-- carry for the same request. It only widens the match; ARGV[1] is what a
+-- first claim stores.
+local legacy = ARGV[3] or ""
+if record.requestFingerprint ~= ARGV[2] and (legacy == "" or record.requestFingerprint ~= legacy) then
     return {"fingerprint_conflict", current}
 end
 

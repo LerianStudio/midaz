@@ -137,7 +137,7 @@ func TestClaimAtomicTransactionBatch_ClassifiesAtomicScriptOutcomes(t *testing.T
 			repository := &RedisConsumerRepository{conn: &staticRedisProvider{client: client}}
 
 			result, err := repository.ClaimAtomicTransactionBatch(
-				context.Background(), organizationID, ledgerID, "client-key", claim,
+				context.Background(), organizationID, ledgerID, "client-key", claim, "",
 			)
 			if tt.wantError {
 				var conflict pkg.EntityConflictError
@@ -154,8 +154,9 @@ func TestClaimAtomicTransactionBatch_ClassifiesAtomicScriptOutcomes(t *testing.T
 			assert.Equal(t, claimAtomicTransactionBatchLua, client.capturedLua)
 			require.Len(t, client.capturedKeys, 1)
 			assert.NotContains(t, client.capturedKeys[0], "client-key")
-			require.Len(t, client.capturedArgs, 2, "claim script must not receive or set a nonterminal TTL")
+			require.Len(t, client.capturedArgs, 3, "claim script ARGV is exactly payload, fingerprint, legacy fingerprint")
 			assert.Equal(t, claim.RequestFingerprint, client.capturedArgs[1])
+			assert.Equal(t, "", client.capturedArgs[2])
 		})
 	}
 }
@@ -172,7 +173,7 @@ func TestClaimAtomicTransactionBatch_NamespacesHashedKeyByTenant(t *testing.T) {
 	repository := &RedisConsumerRepository{conn: &staticRedisProvider{client: client}}
 	ctx := tmcore.ContextWithTenantID(context.Background(), "tenant-a")
 
-	_, err = repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, "raw-client-key", claim)
+	_, err = repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, "raw-client-key", claim, "")
 	require.NoError(t, err)
 
 	wantInternal := utils.AtomicTransactionBatchIdempotencyInternalKey(organizationID, ledgerID, "raw-client-key")
@@ -278,7 +279,7 @@ func TestClaimAtomicTransactionBatch_PropagatesRedisAndReplyErrors(t *testing.T)
 	repository := &RedisConsumerRepository{conn: &staticRedisProvider{client: client}}
 
 	result, err := repository.ClaimAtomicTransactionBatch(
-		context.Background(), uuid.New(), uuid.New(), "key", claim,
+		context.Background(), uuid.New(), uuid.New(), "key", claim, "",
 	)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, redisErr)
@@ -286,7 +287,7 @@ func TestClaimAtomicTransactionBatch_PropagatesRedisAndReplyErrors(t *testing.T)
 	client.err = nil
 	client.result = []any{"unknown", `{}`}
 	result, err = repository.ClaimAtomicTransactionBatch(
-		context.Background(), uuid.New(), uuid.New(), "key", claim,
+		context.Background(), uuid.New(), uuid.New(), "key", claim, "",
 	)
 	assert.Nil(t, result)
 	assert.ErrorContains(t, err, "unknown atomic transaction batch claim outcome")
@@ -304,6 +305,7 @@ func TestClaimAtomicTransactionBatch_RejectsInvalidInputBeforeRedis(t *testing.T
 		organizationID     uuid.UUID
 		ledgerID           uuid.UUID
 		effectiveKey       string
+		legacyFingerprint  string
 		mutate             func(*AtomicTransactionBatchIdempotencyRecord)
 		wantErrorSubstring string
 	}{
@@ -326,6 +328,22 @@ func TestClaimAtomicTransactionBatch_RejectsInvalidInputBeforeRedis(t *testing.T
 			wantErrorSubstring: "effective idempotency key is required",
 		},
 		{
+			name:               "malformed legacy fingerprint",
+			organizationID:     uuid.New(),
+			ledgerID:           uuid.New(),
+			effectiveKey:       "key",
+			legacyFingerprint:  "XYZ",
+			wantErrorSubstring: "legacy request fingerprint must be lowercase SHA-256 hex",
+		},
+		{
+			name:               "uppercase legacy fingerprint",
+			organizationID:     uuid.New(),
+			ledgerID:           uuid.New(),
+			effectiveKey:       "key",
+			legacyFingerprint:  strings.Repeat("A", 64),
+			wantErrorSubstring: "legacy request fingerprint must be lowercase SHA-256 hex",
+		},
+		{
 			name:           "non-claimed candidate",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
@@ -343,7 +361,7 @@ func TestClaimAtomicTransactionBatch_RejectsInvalidInputBeforeRedis(t *testing.T
 			}
 
 			result, err := repository.ClaimAtomicTransactionBatch(
-				context.Background(), input.organizationID, input.ledgerID, input.effectiveKey, candidate,
+				context.Background(), input.organizationID, input.ledgerID, input.effectiveKey, candidate, input.legacyFingerprint,
 			)
 			assert.Nil(t, result)
 			assert.ErrorContains(t, err, input.wantErrorSubstring)

@@ -38,6 +38,7 @@ type atomicTransactionBatchClaimRepositoryFake struct {
 	deletes             int
 	effectiveKey        string
 	claim               txRedis.AtomicTransactionBatchIdempotencyRecord
+	legacyFingerprint   string
 	transition          txRedis.AtomicTransactionBatchIdempotencyRecord
 	handoff             txRedis.AtomicTransactionBatchIdempotencyRecord
 	deleteOwner         string
@@ -96,12 +97,14 @@ func (repository *atomicTransactionBatchClaimRepositoryFake) ClaimAtomicTransact
 	organizationID, ledgerID uuid.UUID,
 	effectiveKey string,
 	claim txRedis.AtomicTransactionBatchIdempotencyRecord,
+	legacyFingerprint string,
 ) (*txRedis.AtomicTransactionBatchClaimResult, error) {
 	repository.claims++
 	repository.claimOrganizationID = organizationID
 	repository.claimLedgerID = ledgerID
 	repository.effectiveKey = effectiveKey
 	repository.claim = claim
+	repository.legacyFingerprint = legacyFingerprint
 
 	return &txRedis.AtomicTransactionBatchClaimResult{
 		Outcome: txRedis.AtomicTransactionBatchClaimed,

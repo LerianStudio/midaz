@@ -40,10 +40,10 @@ func TestBuildCrossLedgerAtomicBatchInput_UsesOneGroupAndOrderedParts(t *testing
 			Debits:  []CrossLedgerLegScope{{OrganizationID: ledgerA.organizationID, LedgerID: ledgerA.ledgerID}},
 			Credits: []CrossLedgerLegScope{{OrganizationID: ledgerB.organizationID, LedgerID: ledgerB.ledgerID}},
 		},
-		IdempotencyKey:     "request-key",
-		IdempotencyTTL:     ttl,
-		CanonicalRequest:   []byte(`{"amount":"100"}`),
-		RequestFingerprint: "fingerprint",
+		IdempotencyKey:          "request-key",
+		IdempotencyTTL:          ttl,
+		CanonicalRequest:        []byte(`{"amount":"100"}`),
+		KeyedRequestFingerprint: "keyed-fingerprint",
 	}, groupID, parts)
 
 	require.NotNil(t, got.GroupID)
@@ -52,7 +52,8 @@ func TestBuildCrossLedgerAtomicBatchInput_UsesOneGroupAndOrderedParts(t *testing
 	assert.Equal(t, "request-key", got.IdempotencyKey)
 	assert.Equal(t, ttl, got.IdempotencyTTL)
 	assert.Equal(t, []byte(`{"amount":"100"}`), got.CanonicalRequest)
-	assert.Equal(t, "fingerprint", got.RequestFingerprint)
+	assert.Equal(t, "keyed-fingerprint", got.KeyedRequestFingerprint)
+	assert.Empty(t, got.RequestFingerprint, "RequestFingerprint stays unset so the no-key and legacy fingerprint derive from the raw CanonicalRequest bytes")
 	require.Len(t, got.Transactions, 2)
 	assert.Equal(t, ledgerA.organizationID, got.Transactions[0].OrganizationID)
 	assert.Equal(t, ledgerA.ledgerID, got.Transactions[0].LedgerID)

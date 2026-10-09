@@ -320,6 +320,7 @@ func TestIntegrationAtomicTransactionBatchFailureRecoveryConverges(t *testing.T)
 				execution.Execution.LedgerID,
 				effectiveKey,
 				claim,
+				"",
 			)
 			require.NoError(t, err)
 			require.NotNil(t, replay)
@@ -513,6 +514,7 @@ func seedAtomicBatchRecoveryIdempotency(
 		execution.Execution.LedgerID,
 		effectiveKey,
 		claim,
+		"",
 	)
 	require.NoError(t, err)
 	require.Equal(t, txredis.AtomicTransactionBatchClaimed, claimed.Outcome)

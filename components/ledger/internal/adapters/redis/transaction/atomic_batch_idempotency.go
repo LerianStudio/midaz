@@ -121,6 +121,7 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 		organizationID, ledgerID uuid.UUID,
 		effectiveKey string,
 		claim AtomicTransactionBatchIdempotencyRecord,
+		legacyFingerprint string,
 	) (*AtomicTransactionBatchClaimResult, error)
 	TransitionAtomicTransactionBatch(
 		ctx context.Context,
@@ -176,12 +177,16 @@ type AtomicTransactionBatchIdempotencyRepository interface {
 
 // ClaimAtomicTransactionBatch atomically creates the first claimed record or
 // classifies the existing record as replay, in-progress, or fingerprint
-// conflict. Claimed and nonterminal records intentionally receive no TTL.
+// conflict. A stored record matches when its fingerprint equals the claim's
+// or a non-empty legacyFingerprint; legacyFingerprint only widens the match
+// and is never stored. Claimed and nonterminal records intentionally receive
+// no TTL.
 func (rr *RedisConsumerRepository) ClaimAtomicTransactionBatch(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
 	effectiveKey string,
 	claim AtomicTransactionBatchIdempotencyRecord,
+	legacyFingerprint string,
 ) (*AtomicTransactionBatchClaimResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -198,6 +203,10 @@ func (rr *RedisConsumerRepository) ClaimAtomicTransactionBatch(
 
 	if err := validateAtomicTransactionBatchClaim(claim); err != nil {
 		return nil, err
+	}
+
+	if legacyFingerprint != "" && !validAtomicTransactionBatchFingerprint(legacyFingerprint) {
+		return nil, errors.New("legacy request fingerprint must be lowercase SHA-256 hex")
 	}
 
 	payload, err := json.Marshal(claim)
@@ -227,6 +236,7 @@ func (rr *RedisConsumerRepository) ClaimAtomicTransactionBatch(
 		[]string{redisKey},
 		string(payload),
 		claim.RequestFingerprint,
+		legacyFingerprint,
 	).Result()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to claim atomic batch idempotency", err)
