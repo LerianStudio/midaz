@@ -1130,12 +1130,13 @@ inside the ledger binary as a launcher app, not as a separate service, and depen
   in the shared tenant cache each cycle.
 - Reads the whole `backup_queue:{transactions}` hash, skips entries under 30 minutes old
   (`MessageTimeOfLife`), and replays the rest with up to 100 workers (`MaxWorkers`).
-- The entry (`mmodel.TransactionRedisQueue`) is written by the create/commit paths
-  BEFORE the balance-mutating Lua script runs; the Lua script records the before/after
-  balances into it atomically with the balance mutation, and the create/commit paths
-  append the materialized `operations` after `BuildOperations`. The consumer never runs
-  Lua: it only replays what those paths recorded, and the entry is removed by the
-  persistence path (`CreateBalanceTransactionOperationsAsync`) once the write completes.
+- The entry (`mmodel.TransactionRedisQueue`) is written once by the annotation (NOTED)
+  create path, after `BuildOperations` and before the database write, already carrying
+  the materialized `operations` and no balance snapshots. Entries left by earlier
+  versions may lack `operations`, and some also lack balance snapshots. The consumer
+  never runs Lua: it only replays what the entry recorded, and the entry is removed by
+  the persistence path (`CreateBalanceTransactionOperationsAsync`) once the write
+  completes.
 - Replay prefers the materialized operations and only rebuilds them via
   `command.BuildOperations` from the entry's balance snapshots when they are missing,
   recording that fallback with the `redis_backup_replay_recomputed_balances_after_total`

@@ -25,8 +25,9 @@ import (
 //	         construction.
 //	Gate 2 — seam precedes the balance staging: both the applyFees call and the
 //	         second ValidateSendSourceAndDistribute call appear positionally before
-//	         the stageBalances step, which is what seeds the backup queue. A
-//	         companion gate proves stageBalances seeds before it reads anything.
+//	         the accounting delegation (the stageBalances step or
+//	         createTransactionWithEngine), so balances are loaded and the
+//	         transaction is written only for the post-fee legs.
 //
 // The two TestSeamGate*_Bites sub-tests feed deliberately-broken fixtures
 // through the same analyzers to prove each gate actually fails — a gate that
@@ -401,48 +402,4 @@ func readTransportSource(t *testing.T, path, mustContain string) string {
 	}
 
 	return src
-}
-
-// TestFeeSeamStructure_StageBalancesSeedsBeforeReading proves the backup-queue seed is
-// the first thing stageBalances does. Gate 2 places the fee seam ahead of stageBalances;
-// this is what keeps that meaningful — a seed that drifted below the balance reads would
-// leave a window where balances are loaded with no recovery entry written.
-func TestFeeSeamStructure_StageBalancesSeedsBeforeReading(t *testing.T) {
-	src := readTransportSource(t, "create_transaction_steps.go", "func (uc *UseCase) stageBalances")
-
-	seedPos, getBalancesPos := analyzeStagePositions(t, src)
-
-	if seedPos == -1 {
-		t.Fatal("SendTransactionToRedisQueue seed not found in stageBalances")
-	}
-
-	if getBalancesPos == -1 {
-		t.Fatal("GetBalances call not found in stageBalances")
-	}
-
-	if seedPos >= getBalancesPos {
-		t.Errorf("the backup-queue seed (pos %d) must precede the balance read (pos %d)", seedPos, getBalancesPos)
-	}
-}
-
-// analyzeStagePositions returns the top-level statement indices of the backup-queue
-// seed and the first balance read within stageBalances, each -1 when absent.
-func analyzeStagePositions(t *testing.T, src string) (seedPos, getBalancesPos int) {
-	t.Helper()
-
-	fn := findFuncDecl(t, src, "stageBalances")
-
-	seedPos, getBalancesPos = -1, -1
-
-	for i, stmt := range fn.Body.List {
-		if seedPos == -1 && stmtCallsMethod(stmt, "SendTransactionToRedisQueue") {
-			seedPos = i
-		}
-
-		if getBalancesPos == -1 && stmtCallsMethod(stmt, "GetBalances") {
-			getBalancesPos = i
-		}
-	}
-
-	return seedPos, getBalancesPos
 }
