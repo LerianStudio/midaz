@@ -9,6 +9,7 @@ package testutil_integration
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -315,15 +316,40 @@ func getTestDB(ctx context.Context) (*sql.DB, error) {
 	return db, nil
 }
 
-// shutdownService stops svc within 10s. The test client's pooled connections are closed first:
+// shutdownService stops svc within 10s; a nil svc is a no-op because a failed restart leaves
+// the suite without a running service. The test client's pooled connections are closed first:
 // the server counts a connection that never sent a request as active and would wait for it.
 func shutdownService(svc *bootstrap.Service) error {
+	if svc == nil {
+		return nil
+	}
+
 	testutil.HTTPClient.CloseIdleConnections()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	return svc.Shutdown(ctx)
+}
+
+// replaceService stops the running service and starts its replacement. A stop
+// failure never skips the start: Service.Shutdown releases the database pool and
+// the gRPC listener whatever the HTTP drain returned, so the stopped service can
+// no longer serve and the only way back to a healthy suite is a fresh start.
+// On start failure the returned service is nil and the error carries both causes.
+// A nil stop means there is no service to stop.
+func replaceService(stop func() error, start func() (*bootstrap.Service, error)) (*bootstrap.Service, error) {
+	var stopErr error
+	if stop != nil {
+		stopErr = stop()
+	}
+
+	svc, startErr := start()
+	if startErr != nil {
+		return nil, errors.Join(stopErr, startErr)
+	}
+
+	return svc, stopErr
 }
 
 // waitForServer polls the canonical /readyz endpoint until the server is
@@ -369,6 +395,9 @@ func (ts *TestSuite) ServiceForTest() *bootstrap.Service {
 
 // RestartServerWithConfig stops the current server and starts a new one with different env vars.
 // Returns a cleanup function to restore original config.
+// A shutdown error never leaves the suite without a server: the next one is still started and
+// the shutdown error is returned, so only the current test fails. Whenever an error is returned,
+// the original environment is back in place before the function returns.
 // WARNING: This function is NOT safe for parallel test execution.
 // Tests using this function should NOT run in parallel with other tests.
 func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() error, err error) {
@@ -415,71 +444,9 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 		newServerURL = "http://" + newServerAddr
 	}
 
-	// Shutdown current server
-	if err := shutdownService(globalSuite.service); err != nil {
-		return nil, fmt.Errorf("failed to shutdown server: %w", err)
-	}
-
-	// Apply new env vars
-	for key, val := range envOverrides {
-		os.Setenv(key, val)
-	}
-
-	// Ensure SERVER_ADDRESS is set correctly (without http:// prefix)
-	os.Setenv("SERVER_ADDRESS", newServerAddr)
-
-	// Update globalSuite.ServerURL to the new address for waitForServer
-	globalSuite.ServerURL = newServerURL
-
-	// Reinitialize config with new env vars
-	pkg.InitLocalEnvConfig()
-
-	// Start new server
-	service, err := bootstrap.InitServers(ctx)
-	if err != nil {
-		// Restore all saved env vars on failure
-		for key, val := range savedValues {
-			if val == nil {
-				os.Unsetenv(key)
-			} else {
-				os.Setenv(key, *val)
-			}
-		}
-		// Restore original SERVER_ADDRESS (with scheme stripped) and ServerURL
-		os.Setenv("SERVER_ADDRESS", strings.TrimPrefix(strings.TrimPrefix(originalServerURL, "http://"), "https://"))
-		globalSuite.ServerURL = originalServerURL
-		return nil, fmt.Errorf("failed to init servers: %w", err)
-	}
-
-	go service.Run()
-
-	// Wait for server to be ready (use newServerURL which may differ from original)
-	if err := waitForServer(newServerURL, 30*time.Second); err != nil {
-		// Shutdown the service we just started to avoid resource leak
-		_ = shutdownService(service)
-		// Restore all saved env vars on failure
-		for key, val := range savedValues {
-			if val == nil {
-				os.Unsetenv(key)
-			} else {
-				os.Setenv(key, *val)
-			}
-		}
-		// Restore original SERVER_ADDRESS (with scheme stripped) and ServerURL
-		os.Setenv("SERVER_ADDRESS", strings.TrimPrefix(strings.TrimPrefix(originalServerURL, "http://"), "https://"))
-		globalSuite.ServerURL = originalServerURL
-		return nil, fmt.Errorf("server failed to start: %w", err)
-	}
-
-	globalSuite.service = service
-
-	// Return cleanup function that restores original config
-	cleanup = func() error {
-		if err := shutdownService(globalSuite.service); err != nil {
-			return fmt.Errorf("failed to shutdown server during cleanup: %w", err)
-		}
-
-		// Restore original values (unset vars that didn't exist before)
+	// restoreEnv puts back the overridden env vars (unsetting the ones that did not exist),
+	// the original SERVER_ADDRESS (scheme stripped) and the original ServerURL.
+	restoreEnv := func() {
 		for key, val := range savedValues {
 			if val == nil {
 				os.Unsetenv(key)
@@ -488,29 +455,80 @@ func RestartServerWithConfig(envOverrides map[string]string) (cleanup func() err
 			}
 		}
 
-		// Restore original SERVER_ADDRESS (with scheme stripped) and ServerURL
-		os.Setenv("SERVER_ADDRESS", strings.TrimPrefix(strings.TrimPrefix(originalServerURL, "http://"), "https://"))
-		globalSuite.ServerURL = originalServerURL
+		os.Setenv("SERVER_ADDRESS", originalServerAddr)
 
-		// Reinitialize config
+		globalSuite.ServerURL = originalServerURL
+	}
+
+	// startService boots a server from the current environment and waits for it to be ready
+	// at url; a server that never becomes ready is shut down so it does not leak.
+	startService := func(url string) (*bootstrap.Service, error) {
 		pkg.InitLocalEnvConfig()
 
-		// Restart with original config
 		service, err := bootstrap.InitServers(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to restart server with original config: %w", err)
+			return nil, fmt.Errorf("failed to init servers: %w", err)
 		}
 
 		go service.Run()
 
-		if err := waitForServer(originalServerURL, 30*time.Second); err != nil {
-			// Shutdown the service we just started to avoid resource leak
+		if err := waitForServer(url, 30*time.Second); err != nil {
 			_ = shutdownService(service)
-			return fmt.Errorf("server failed to restart: %w", err)
+
+			return nil, fmt.Errorf("server failed to start: %w", err)
 		}
 
-		globalSuite.service = service
+		return service, nil
+	}
+
+	stop := func() error {
+		if err := shutdownService(globalSuite.service); err != nil {
+			return fmt.Errorf("failed to shutdown server: %w", err)
+		}
+
 		return nil
+	}
+
+	service, err := replaceService(stop, func() (*bootstrap.Service, error) {
+		for key, val := range envOverrides {
+			os.Setenv(key, val)
+		}
+
+		// SERVER_ADDRESS is always set without scheme; ServerURL follows it for waitForServer.
+		os.Setenv("SERVER_ADDRESS", newServerAddr)
+
+		globalSuite.ServerURL = newServerURL
+
+		return startService(newServerURL)
+	})
+
+	globalSuite.service = service
+
+	cleanup = func() error {
+		original, err := replaceService(stop, func() (*bootstrap.Service, error) {
+			restoreEnv()
+
+			return startService(originalServerURL)
+		})
+
+		globalSuite.service = original
+
+		return err
+	}
+
+	if service == nil {
+		restoreEnv()
+	}
+
+	if err != nil {
+		// The caller gets no cleanup on error, so a replacement that did start is swapped back
+		// for the original configuration here; otherwise its overrides would leak into the
+		// tests that follow.
+		if service != nil {
+			err = errors.Join(err, cleanup())
+		}
+
+		return nil, err
 	}
 
 	return cleanup, nil
