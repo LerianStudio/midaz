@@ -1,8 +1,9 @@
 # Ledger / System Facts — the `midaz.transaction_committed` producer
 
-The ledger is a System Facts producer through `github.com/LerianStudio/lib-system-facts`.
-It records one fact, `midaz.transaction_committed`, inside the PostgreSQL transaction that
-commits an APPROVED transaction row, and a forwarder delivers it from the kit's outbox table.
+The ledger is a System Facts producer through `github.com/LerianStudio/lib-system-facts`,
+pinned at the stable `v1.0.0`. It records one fact, `midaz.transaction_committed`, inside the
+PostgreSQL transaction that commits an APPROVED transaction row, and a forwarder delivers it
+from the kit's outbox table.
 Everything below is grounded in code under `components/ledger/`; the cited symbols are the
 durable anchors.
 
@@ -177,9 +178,6 @@ Helm values and the reconciler Job live in the downstream GitOps repo, not here.
   which hold `description` in clear until swept), the classes chosen for the payload
   (`description` encrypted, `accountId` in clear as an opaque system id) and catalog gate G05
   (the sensitive-reference review of the System Facts service).
-- **Release**: the kit is pinned at `lib-system-facts v1.0.0-beta.8` (lib-auth is on the stable
-  `v5.6.0`). The pre-release gate warns on `develop` and blocks PRs to `release-candidate` and
-  `main` until a stable kit tag exists.
 - **Outside this repo**: lib-system-facts resolves the kit-table schema inside `Record` once per
   record; resolving it once per `*sql.Tx` would drop one query per fact. lib-commons'
   `ManagerPoolResolver.ListTenants` is called on every dispatch cycle and has no TTL cache. The
