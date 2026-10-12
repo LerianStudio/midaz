@@ -51,11 +51,15 @@ type systemFactsForwarder interface {
 
 var _ systemFactsForwarder = (*outbox.Forwarder)(nil)
 
-// systemFactsForwarderRunnable is the libCommons.App that supervises the
-// forwarder until SIGINT/SIGTERM and then shuts it down under a bounded budget.
-// signalContext, now and wait are the test seams; nil means the real ones.
+// systemFactsForwarderRunnable is the libCommons.App that reconciles the
+// contract at boot, supervises the forwarder once the contract is ACTIVE
+// until SIGINT/SIGTERM, and then shuts it down under a bounded budget.
+// reconcile is the gate's loop (systemFactsContractGate.reconcile); a nil
+// one fails closed. signalContext, now and wait are the test seams; nil
+// means the real ones.
 type systemFactsForwarderRunnable struct {
 	forwarder      systemFactsForwarder
+	reconcile      func(ctx context.Context) bool
 	logger         libLog.Logger
 	metricsFactory *metrics.MetricsFactory
 	signalContext  func() (context.Context, context.CancelFunc)
@@ -63,14 +67,16 @@ type systemFactsForwarderRunnable struct {
 	wait           func(ctx context.Context, d time.Duration) error
 }
 
-// newSystemFactsForwarderRunnable builds the Launcher app for forwarder.
-func newSystemFactsForwarderRunnable(forwarder *outbox.Forwarder, logger libLog.Logger, factory *metrics.MetricsFactory) *systemFactsForwarderRunnable {
+// newSystemFactsForwarderRunnable builds the Launcher app for forwarder,
+// released by reconcile.
+func newSystemFactsForwarderRunnable(forwarder *outbox.Forwarder, reconcile func(ctx context.Context) bool, logger libLog.Logger, factory *metrics.MetricsFactory) *systemFactsForwarderRunnable {
 	if logger == nil {
 		logger = libLog.NewNop()
 	}
 
 	return &systemFactsForwarderRunnable{
 		forwarder:      forwarder,
+		reconcile:      reconcile,
 		logger:         logger,
 		metricsFactory: factory,
 		now:            time.Now,
@@ -78,9 +84,13 @@ func newSystemFactsForwarderRunnable(forwarder *outbox.Forwarder, logger libLog.
 	}
 }
 
-// Run supervises the forwarder until SIGINT/SIGTERM and then shuts it down.
-// The forwarder runs under its own context, not the signal one, so that
+// Run reconciles the contract, then supervises the forwarder until
+// SIGINT/SIGTERM and shuts it down. The reconcile runs on a context the
+// signal ends, so a shutdown while it waits on the registry returns at once;
+// the forwarder runs under its own context, not the signal one, so that
 // Shutdown ends the in-flight cycle and its records are persisted FAILED.
+// The kit's Shutdown is safe before Run, so it runs whether or not the
+// contract was released.
 func (r *systemFactsForwarderRunnable) Run(_ *libCommons.Launcher) error {
 	signalCtx, stop := r.notifyContext()
 	defer stop()
@@ -93,6 +103,10 @@ func (r *systemFactsForwarderRunnable) Run(_ *libCommons.Launcher) error {
 	libRuntime.SafeGoWithContextAndComponent(runCtx, r.logger, systemFactsForwarderComponent, systemFactsForwarderGoroutine, libRuntime.KeepRunning,
 		func(ctx context.Context) {
 			defer close(runDone)
+
+			if !r.awaitContract(ctx, signalCtx) {
+				return
+			}
 
 			r.supervise(ctx, signalCtx)
 		})
@@ -112,6 +126,25 @@ func (r *systemFactsForwarderRunnable) Run(_ *libCommons.Launcher) error {
 	}
 
 	return nil
+}
+
+// awaitContract runs the boot reconcile on a context that signalCtx ends and
+// answers whether the contract was released. No reconcile seam fails closed:
+// one Error, and the forwarder never starts.
+func (r *systemFactsForwarderRunnable) awaitContract(ctx, signalCtx context.Context) bool {
+	if r.reconcile == nil {
+		r.logger.Log(ctx, libLog.LevelError, "System Facts contract reconcile is not wired; the forwarder stays stopped")
+
+		return false
+	}
+
+	reconcileCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	stop := context.AfterFunc(signalCtx, cancel)
+	defer stop()
+
+	return r.reconcile(reconcileCtx)
 }
 
 // supervise runs the forwarder until signalCtx ends, restarting it with

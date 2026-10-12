@@ -6,8 +6,6 @@ package bootstrap
 
 import (
 	"context"
-	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,8 +16,7 @@ import (
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libSystemFacts "github.com/LerianStudio/lib-system-facts"
-	"github.com/LerianStudio/lib-system-facts/manifest"
-	"github.com/LerianStudio/lib-system-facts/reconciler"
+	"github.com/LerianStudio/lib-system-facts/noop"
 	"github.com/LerianStudio/lib-system-facts/transport/httpsync/accessmanager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +48,7 @@ func TestValidateSystemFactsConfig(t *testing.T) {
 			mutate: func(cfg *Config) {
 				*cfg = Config{
 					SystemFactsEnabled:                      false,
-					SystemFactsPreflightTimeoutMs:           -1,
+					SystemFactsReconcileAttemptTimeoutMs:    -1,
 					SystemFactsRetentionInvalidHours:        -1,
 					SystemFactsRetentionPublishedHours:      -1,
 					SystemFactsForwarderBatchSize:           -1,
@@ -79,20 +76,25 @@ func TestValidateSystemFactsConfig(t *testing.T) {
 		{
 			name:    "single tenant without client id",
 			mutate:  func(cfg *Config) { cfg.SystemFactsM2MClientID = "" },
-			wantErr: "SYSTEM_FACTS_M2M_CLIENT_ID",
+			wantErr: "SYSTEM_FACTS_M2M_CLIENT_ID/_SECRET: the producer's own credential single-tenant",
 		},
 		{
 			name:    "single tenant without client secret",
-			mutate:  func(cfg *Config) { cfg.SystemFactsM2MClientSecret = "" },
-			wantErr: "SYSTEM_FACTS_M2M_CLIENT_SECRET",
+			mutate:  func(cfg *Config) { cfg.SystemFactsM2MClientSecret = " " },
+			wantErr: "SYSTEM_FACTS_M2M_CLIENT_ID/_SECRET",
 		},
 		{
-			name: "multi tenant without client id passes",
+			name:   "multi tenant with the pair passes",
+			mutate: func(cfg *Config) { cfg.MultiTenantEnabled = true },
+		},
+		{
+			name: "multi tenant without the pair is refused: the tenantless service credential registers the contract",
 			mutate: func(cfg *Config) {
 				cfg.MultiTenantEnabled = true
 				cfg.SystemFactsM2MClientID = ""
 				cfg.SystemFactsM2MClientSecret = ""
 			},
+			wantErr: "the tenantless service credential that registers the contract multi-tenant",
 		},
 		{
 			name: "insecure http outside local",
@@ -110,18 +112,22 @@ func TestValidateSystemFactsConfig(t *testing.T) {
 			},
 		},
 		{
-			name:    "preflight timeout below the floor",
-			mutate:  func(cfg *Config) { cfg.SystemFactsPreflightTimeoutMs = 999 },
-			wantErr: "SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS",
+			name:    "reconcile attempt timeout below the floor",
+			mutate:  func(cfg *Config) { cfg.SystemFactsReconcileAttemptTimeoutMs = 4999 },
+			wantErr: "SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS",
 		},
 		{
-			name:    "preflight timeout above the ceiling",
-			mutate:  func(cfg *Config) { cfg.SystemFactsPreflightTimeoutMs = 60001 },
-			wantErr: "SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS",
+			name:    "reconcile attempt timeout above the ceiling",
+			mutate:  func(cfg *Config) { cfg.SystemFactsReconcileAttemptTimeoutMs = 600001 },
+			wantErr: "SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS",
 		},
 		{
-			name:   "preflight timeout at the bounds passes",
-			mutate: func(cfg *Config) { cfg.SystemFactsPreflightTimeoutMs = 60000 },
+			name:   "reconcile attempt timeout at the floor passes",
+			mutate: func(cfg *Config) { cfg.SystemFactsReconcileAttemptTimeoutMs = 5000 },
+		},
+		{
+			name:   "reconcile attempt timeout at the ceiling passes",
+			mutate: func(cfg *Config) { cfg.SystemFactsReconcileAttemptTimeoutMs = 600000 },
 		},
 		{
 			name:    "negative retention",
@@ -200,12 +206,13 @@ func TestValidateSystemFactsConfig(t *testing.T) {
 	}
 }
 
-func TestSystemFactsPreflightTimeout_DefaultsWhenUnset(t *testing.T) {
+func TestSystemFactsReconcileAttemptTimeout_DefaultsWhenUnset(t *testing.T) {
 	t.Parallel()
 
-	timeout, err := systemFactsPreflightTimeout(&Config{})
+	timeout, err := systemFactsReconcileAttemptTimeout(&Config{})
 	require.NoError(t, err)
-	assert.Equal(t, defaultSystemFactsPreflightTimeout, timeout)
+	assert.Equal(t, defaultSystemFactsReconcileAttemptTimeout, timeout)
+	assert.Equal(t, time.Minute, timeout)
 }
 
 // systemFactsLoopbackURL is a loopback address the kit accepts over plain http
@@ -229,90 +236,58 @@ func offlineTransactionClient(t *testing.T) *libPostgres.Client {
 	return client
 }
 
-// preflightRecorder is the reconciler seam: it answers a fixed report and
-// records the deadline of the context it was called with.
-type preflightRecorder struct {
-	report reconciler.Report
-	err    error
-
-	mu          sync.Mutex
-	calls       int
-	deadline    time.Time
-	hasDeadline bool
-}
-
-func (p *preflightRecorder) preflight(ctx context.Context, _ *manifest.Manifest, _ reconciler.Registry, _ reconciler.Options) (reconciler.Report, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.calls++
-	p.deadline, p.hasDeadline = ctx.Deadline()
-
-	return p.report, p.err
-}
-
-func TestBuildSystemFacts_Disabled_WiresNoopRecorderAndNoProducer(t *testing.T) {
+func TestBuildSystemFacts_Disabled_WiresNoopRecorderAndNothingElse(t *testing.T) {
 	t.Parallel()
 
 	components, err := buildSystemFacts(context.Background(), &Config{}, libLog.NewNop(), nil, nil, nil, nil, systemFactsDeps{})
 	require.NoError(t, err)
 
 	require.NotNil(t, components.recorder)
+	assert.IsType(t, noop.Emitter{}, components.emitter, "disabled wires the kit's no-op emitter")
 	assert.Nil(t, components.producer)
-	assert.False(t, components.emitting)
+	assert.Nil(t, components.gate, "disabled builds no registry client and no reconciler")
 }
 
-func TestBuildSystemFacts_SingleTenant_GatesEmissionOnPreflightOutcome(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		report       reconciler.Report
-		err          error
-		wantEmitting bool
-	}{
-		{name: "outcome ok enables emission", report: reconciler.Report{Outcome: reconciler.OutcomeOK}, wantEmitting: true},
-		{name: "outcome rejected keeps emission off", report: reconciler.Report{Outcome: reconciler.OutcomeRejected}, err: reconciler.ErrRejected},
-		{name: "outcome unavailable keeps emission off", report: reconciler.Report{Outcome: reconciler.OutcomeUnavailable}, err: reconciler.ErrUnavailable},
-		{name: "error without outcome keeps emission off", err: errors.New("registry exploded")},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			cfg := enabledSystemFactsConfig()
-			cfg.SystemFactsURL = systemFactsLoopbackURL
-			seam := &preflightRecorder{report: tt.report, err: tt.err}
-
-			components, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-				systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight})
-			require.NoError(t, err)
-
-			require.NotNil(t, components.recorder)
-			require.NotNil(t, components.producer, "the producer is kept so a later unit can drain the backlog")
-			assert.Equal(t, tt.wantEmitting, components.emitting)
-			assert.Equal(t, 1, seam.calls)
-		})
-	}
-}
-
-func TestBuildSystemFacts_PreflightContextCarriesTheConfiguredTimeout(t *testing.T) {
+func TestBuildSystemFacts_Enabled_RecordsFromTheFirstCommitAndWiresTheGate(t *testing.T) {
 	t.Parallel()
 
 	cfg := enabledSystemFactsConfig()
 	cfg.SystemFactsURL = systemFactsLoopbackURL
-	cfg.SystemFactsPreflightTimeoutMs = 2500
-	seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeOK}}
-	boot := time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC)
 
-	_, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-		systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight, now: func() time.Time { return boot }})
+	components, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
+		systemFactsDeps{authClient: systemFactsAuthClient()})
 	require.NoError(t, err)
 
-	require.True(t, seam.hasDeadline)
-	assert.True(t, seam.deadline.Equal(boot.Add(2500*time.Millisecond)),
-		"the preflight deadline is the configured timeout past the boot clock, got %s", seam.deadline)
+	require.NotNil(t, components.recorder)
+	require.NotNil(t, components.producer)
+	require.NotNil(t, components.emitter)
+
+	_, isNoop := components.emitter.(noop.Emitter)
+	assert.False(t, isNoop, "enabled records from the first commit, whatever the registry answers later")
+
+	require.NotNil(t, components.gate, "the forwarder is gated on the boot reconcile")
+	assert.Equal(t, systemFactsContractPending, components.gate.contractState(), "nothing is reconciled at build time")
+	assert.Equal(t, defaultSystemFactsReconcileAttemptTimeout, components.gate.attemptTimeout)
+
+	kit, ok := components.gate.reconciler.(*kitSystemFactsReconciler)
+	require.True(t, ok, "the production reconciler is the kit over the embedded manifest, got %T", components.gate.reconciler)
+	assert.NotNil(t, kit.manifest)
+	assert.NotNil(t, kit.registry)
+}
+
+func TestBuildSystemFacts_GateCarriesTheConfiguredAttemptTimeout(t *testing.T) {
+	t.Parallel()
+
+	cfg := enabledSystemFactsConfig()
+	cfg.SystemFactsURL = systemFactsLoopbackURL
+	cfg.SystemFactsReconcileAttemptTimeoutMs = 7500
+
+	components, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
+		systemFactsDeps{authClient: systemFactsAuthClient()})
+	require.NoError(t, err)
+
+	require.NotNil(t, components.gate)
+	assert.Equal(t, 7500*time.Millisecond, components.gate.attemptTimeout)
 }
 
 func TestBuildSystemFacts_Enabled_RefusesAnAuthClientThatCannotMint(t *testing.T) {
@@ -333,13 +308,11 @@ func TestBuildSystemFacts_Enabled_RefusesAnAuthClientThatCannotMint(t *testing.T
 
 			cfg := enabledSystemFactsConfig()
 			cfg.SystemFactsURL = systemFactsLoopbackURL
-			seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeOK}}
 
 			_, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-				systemFactsDeps{authClient: tt.client, preflight: seam.preflight})
+				systemFactsDeps{authClient: tt.client})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "PLUGIN_AUTH_HOST")
-			assert.Equal(t, 0, seam.calls, "no preflight runs without a credential")
 		})
 	}
 }
@@ -350,10 +323,9 @@ func TestBuildSystemFacts_MultiTenant_RequiresTheTenantPoolManager(t *testing.T)
 	cfg := enabledSystemFactsConfig()
 	cfg.SystemFactsURL = systemFactsLoopbackURL
 	cfg.MultiTenantEnabled = true
-	seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeOK}}
 
 	_, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-		systemFactsDeps{authClient: systemFactsAuthClient(), tenantServiceName: "ledger", preflight: seam.preflight})
+		systemFactsDeps{authClient: systemFactsAuthClient(), tenantServiceName: "ledger"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant")
 }
@@ -404,6 +376,19 @@ func systemFactsTenantPools(t *testing.T) (*tmclient.Client, *tmpostgres.Manager
 	return tenantClient, tmpostgres.NewManager(tenantClient, "transaction", tmpostgres.WithLogger(libLog.NewNop()))
 }
 
+// multiTenantSystemFactsDeps are the collaborators of a multi-tenant build
+// whose tenant secrets are answered by secrets.
+func multiTenantSystemFactsDeps(secrets *secretIDRecorder, tenantClient *tmclient.Client) systemFactsDeps {
+	return systemFactsDeps{
+		authClient:        systemFactsAuthClient(),
+		tenantServiceName: "ledger",
+		tenantClient:      tenantClient,
+		newAWSSecretsClient: func(context.Context) (secretsmanager.SecretsManagerClient, error) {
+			return secrets, nil
+		},
+	}
+}
+
 func TestBuildSystemFacts_MultiTenant_BuildsThePerTenantProducer(t *testing.T) {
 	t.Parallel()
 
@@ -411,28 +396,54 @@ func TestBuildSystemFacts_MultiTenant_BuildsThePerTenantProducer(t *testing.T) {
 	cfg.SystemFactsURL = systemFactsLoopbackURL
 	cfg.MultiTenantEnabled = true
 	cfg.EnvName = "staging"
-	cfg.SystemFactsM2MClientID = ""
-	cfg.SystemFactsM2MClientSecret = ""
-	seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeOK}}
 	secrets := &secretIDRecorder{}
 	tenantClient, pgManager := systemFactsTenantPools(t)
 
 	components, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), pgManager,
-		systemFactsDeps{
-			authClient:        systemFactsAuthClient(),
-			tenantServiceName: "ledger",
-			tenantClient:      tenantClient,
-			newAWSSecretsClient: func(context.Context) (secretsmanager.SecretsManagerClient, error) {
-				return secrets, nil
-			},
-			preflight: seam.preflight,
-		})
+		multiTenantSystemFactsDeps(secrets, tenantClient))
 	require.NoError(t, err)
 
 	require.NotNil(t, components.producer)
-	assert.True(t, components.emitting)
-	assert.Equal(t, 1, seam.calls)
+	require.NotNil(t, components.gate)
+	assert.Equal(t, systemFactsContractPending, components.gate.contractState())
 	assert.Empty(t, secrets.read(), "no tenant secret is read until a tenant's facts are delivered")
+}
+
+func TestBuildSystemFactsTokenSource_RegistrationCredential(t *testing.T) {
+	t.Parallel()
+
+	t.Run("single tenant registers with the producer's own credential", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := enabledSystemFactsConfig()
+		cfg.SystemFactsURL = systemFactsLoopbackURL
+
+		delivery, registration, err := buildSystemFactsTokenSource(context.Background(), &cfg,
+			systemFactsDeps{authClient: systemFactsAuthClient()})
+		require.NoError(t, err)
+
+		assert.IsType(t, &accessmanager.TokenSource{}, delivery)
+		assert.True(t, delivery == registration, "the registration source IS the delivery source")
+	})
+
+	t.Run("multi tenant registers with a tenantless service credential and delivers per tenant", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := enabledSystemFactsConfig()
+		cfg.SystemFactsURL = systemFactsLoopbackURL
+		cfg.MultiTenantEnabled = true
+		cfg.EnvName = "staging"
+		secrets := &secretIDRecorder{}
+		tenantClient, _ := systemFactsTenantPools(t)
+
+		delivery, registration, err := buildSystemFactsTokenSource(context.Background(), &cfg,
+			multiTenantSystemFactsDeps(secrets, tenantClient))
+		require.NoError(t, err)
+
+		assert.IsType(t, &accessmanager.TenantTokenSource{}, delivery, "delivery authenticates with each tenant's own credential")
+		assert.IsType(t, &accessmanager.TokenSource{}, registration, "registration authenticates with the static service pair")
+		assert.Empty(t, secrets.read(), "building the sources reads no tenant secret")
+	})
 }
 
 func TestSystemFactsForwarderTuning(t *testing.T) {
@@ -502,13 +513,11 @@ func TestBuildSystemFacts_RefusesAForwarderBatchThatOutlivesItsClaim(t *testing.
 	cfg := enabledSystemFactsConfig()
 	cfg.SystemFactsURL = systemFactsLoopbackURL
 	cfg.SystemFactsForwarderBatchSize = 100
-	seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeOK}}
 
 	_, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-		systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight})
+		systemFactsDeps{authClient: systemFactsAuthClient()})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "build the System Facts producer")
 	assert.Contains(t, err.Error(), "ProcessingTimeout")
 	assert.Contains(t, err.Error(), "BatchSize 100")
-	assert.Equal(t, 0, seam.calls, "no preflight runs for a producer that cannot be built")
 }

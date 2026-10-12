@@ -60,10 +60,12 @@ type Service struct {
 	// only for transports that expose Close() error.
 	TracerClose func() error
 	// SystemFacts holds the System Facts producer wiring: the recorder the
-	// completion Store records through (always non-nil) and the producer whose
-	// forwarder drains the outbox (nil when SYSTEM_FACTS_ENABLED=false). The
-	// forwarder runs as the "System Facts Forwarder" Launcher app and is probed
-	// by the system_facts_forwarder readiness check.
+	// completion Store records through (always non-nil), the producer whose
+	// forwarder drains the outbox (nil when SYSTEM_FACTS_ENABLED=false) and the
+	// contract gate that holds that forwarder until the boot reconcile answers
+	// OK. The forwarder runs as the "System Facts Forwarder" Launcher app and
+	// the gate and forwarder are probed by the system_facts_forwarder
+	// readiness check.
 	SystemFacts *systemFactsComponents
 	// ServiceDiscovery is the service-discovery Manager wrapper. It is always
 	// non-nil (a working no-op when discovery is disabled), so callers can
@@ -186,13 +188,13 @@ func (s *Service) launcherApps() []launcherApp {
 		})
 	}
 
-	// System Facts forwarder: registered whenever the producer built a forwarder,
-	// even with emission off (a failed contract preflight wires the no-op
-	// emitter), because a backlog recorded before that preflight still drains.
+	// System Facts forwarder: registered whenever the producer built a forwarder.
+	// The app reconciles the contract at boot and starts the forwarder only once
+	// the contract is ACTIVE; facts recorded meanwhile wait PENDING in the outbox.
 	if s.SystemFacts != nil && s.SystemFacts.producer != nil && s.SystemFacts.producer.Forwarder() != nil {
 		apps = append(apps, launcherApp{
 			"System Facts Forwarder",
-			newSystemFactsForwarderRunnable(s.SystemFacts.producer.Forwarder(), s.Logger, s.metricsFactory),
+			newSystemFactsForwarderRunnable(s.SystemFacts.producer.Forwarder(), s.SystemFacts.reconcileContract(), s.Logger, s.metricsFactory),
 		})
 	}
 

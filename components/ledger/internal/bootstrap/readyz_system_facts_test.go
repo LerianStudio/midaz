@@ -15,7 +15,6 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-system-facts/outbox"
-	"github.com/LerianStudio/lib-system-facts/reconciler"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +29,13 @@ type fakeForwarderStatus struct {
 
 func (f fakeForwarderStatus) Status() outbox.ForwarderStatus { return f.status }
 
+// fakeContractGate answers a fixed gate state.
+type fakeContractGate struct {
+	state systemFactsContractState
+}
+
+func (f fakeContractGate) contractState() systemFactsContractState { return f.state }
+
 // forwarderRunError carries a host, the kind of detail a Run error can hold
 // and a readiness body must never echo.
 var forwarderRunError = errors.New("outbox: forwarder run: dial tcp 10.0.0.7:5432: connection refused")
@@ -37,46 +43,66 @@ var forwarderRunError = errors.New("outbox: forwarder run: dial tcp 10.0.0.7:543
 func TestSystemFactsForwarderChecker_Check(t *testing.T) {
 	t.Parallel()
 
+	const notDraining = "; facts are not draining on this pod"
+
 	tests := []struct {
 		name       string
+		gate       systemFactsContractStateReader
 		status     outbox.ForwarderStatus
-		emitting   bool
 		wantReason string
 		wantWarn   bool
 	}{
 		{
-			name:     "idle is up because the Launcher starts apps concurrently",
-			status:   outbox.ForwarderStatus{State: outbox.ForwarderStateIdle},
-			emitting: true,
+			name:       "pending gate with an idle forwarder names the contract",
+			gate:       fakeContractGate{state: systemFactsContractPending},
+			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateIdle},
+			wantReason: "contract not active",
 		},
 		{
-			name:     "running is up",
-			status:   outbox.ForwarderStatus{State: outbox.ForwarderStateRunning},
-			emitting: true,
-		},
-		{
-			name:       "stopped stays up with a fixed reason",
-			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateStopped},
-			emitting:   true,
-			wantReason: "forwarder stopped; facts are not draining on this pod",
-			wantWarn:   true,
-		},
-		{
-			name:       "failed stays up with a fixed reason that never carries the run error",
+			name:       "pending gate hides the forwarder state, which cannot have run yet",
+			gate:       fakeContractGate{state: systemFactsContractPending},
 			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateFailed, Err: forwarderRunError},
-			emitting:   true,
-			wantReason: "forwarder failed; facts are not draining on this pod",
-			wantWarn:   true,
+			wantReason: "contract not active",
 		},
 		{
-			name:       "running with emission off stays up and names the preflight",
+			name:       "nil gate reader is pending",
 			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateRunning},
-			wantReason: "emission disabled by contract preflight",
+			wantReason: "contract not active",
 		},
 		{
-			name:       "failed with emission off carries both reasons",
+			name:       "rejected gate with an idle forwarder names the refusal",
+			gate:       fakeContractGate{state: systemFactsContractRejected},
+			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateIdle},
+			wantReason: "contract rejected",
+		},
+		{
+			name:       "rejected gate with a stopped forwarder still names only the refusal",
+			gate:       fakeContractGate{state: systemFactsContractRejected},
+			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateStopped},
+			wantReason: "contract rejected",
+		},
+		{
+			name:   "active gate with an idle forwarder is up because the Launcher starts apps concurrently",
+			gate:   fakeContractGate{state: systemFactsContractActive},
+			status: outbox.ForwarderStatus{State: outbox.ForwarderStateIdle},
+		},
+		{
+			name:   "active gate with a running forwarder is up",
+			gate:   fakeContractGate{state: systemFactsContractActive},
+			status: outbox.ForwarderStatus{State: outbox.ForwarderStateRunning},
+		},
+		{
+			name:       "active gate with a stopped forwarder stays up with a fixed reason",
+			gate:       fakeContractGate{state: systemFactsContractActive},
+			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateStopped},
+			wantReason: "forwarder stopped" + notDraining,
+			wantWarn:   true,
+		},
+		{
+			name:       "active gate with a failed forwarder stays up with a fixed reason that never carries the run error",
+			gate:       fakeContractGate{state: systemFactsContractActive},
 			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateFailed, Err: forwarderRunError},
-			wantReason: "forwarder failed; facts are not draining on this pod; emission disabled by contract preflight",
+			wantReason: "forwarder failed" + notDraining,
 			wantWarn:   true,
 		},
 	}
@@ -87,12 +113,12 @@ func TestSystemFactsForwarderChecker_Check(t *testing.T) {
 
 			logger := &stubs.LoggerStub{}
 			checker := NewSystemFactsForwarderChecker("system_facts_forwarder", fakeForwarderStatus{status: tt.status},
-				tt.emitting, "https://system-facts.lerian.internal", logger)
+				tt.gate, "https://system-facts.lerian.internal", logger)
 
 			got := checker.Check(context.Background())
 
 			assert.Equal(t, "system_facts_forwarder", checker.Name())
-			assert.Equal(t, StatusUp, got.Status, "the forwarder state never takes the pod out of rotation")
+			assert.Equal(t, StatusUp, got.Status, "neither the gate nor the forwarder state takes the pod out of rotation")
 			assert.Empty(t, got.Error)
 			assert.Equal(t, tt.wantReason, got.Reason)
 			assert.NotContains(t, got.Reason, "10.0.0.7", "the run error must never reach the check")
@@ -131,7 +157,7 @@ func TestSystemFactsForwarderChecker_TLSEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			checker := NewSystemFactsForwarderChecker("system_facts_forwarder", fakeForwarderStatus{}, false, tt.url, libLog.NewNop())
+			checker := NewSystemFactsForwarderChecker("system_facts_forwarder", fakeForwarderStatus{}, fakeContractGate{}, tt.url, libLog.NewNop())
 
 			assert.Equal(t, tt.want, checker.TLSEnabled())
 		})
@@ -139,8 +165,9 @@ func TestSystemFactsForwarderChecker_TLSEnabled(t *testing.T) {
 }
 
 // TestReadyzHandler_SystemFactsForwarderFailed_KeepsThePodReady runs the
-// checker through the handler: a failed forwarder answers 200 with the fixed
-// reason in every mode, and the run error reaches the body in none.
+// checker through the handler: a failed forwarder behind an active gate answers
+// 200 with the fixed reason in every mode, and the run error reaches the body
+// in none.
 func TestReadyzHandler_SystemFactsForwarderFailed_KeepsThePodReady(t *testing.T) {
 	t.Parallel()
 
@@ -150,7 +177,7 @@ func TestReadyzHandler_SystemFactsForwarderFailed_KeepsThePodReady(t *testing.T)
 
 			checker := NewSystemFactsForwarderChecker("system_facts_forwarder",
 				fakeForwarderStatus{status: outbox.ForwarderStatus{State: outbox.ForwarderStateFailed, Err: forwarderRunError}},
-				true, "https://system-facts.lerian.internal", libLog.NewNop())
+				fakeContractGate{state: systemFactsContractActive}, "https://system-facts.lerian.internal", libLog.NewNop())
 
 			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger:         libLog.NewNop(),
@@ -194,15 +221,14 @@ func TestAppendSystemFactsForwarderChecker(t *testing.T) {
 		assert.Empty(t, checkers)
 	})
 
-	t.Run("enabled producer registers the forwarder checker", func(t *testing.T) {
+	t.Run("enabled producer registers the forwarder checker over the gate", func(t *testing.T) {
 		t.Parallel()
 
 		cfg := enabledSystemFactsConfig()
 		cfg.SystemFactsURL = systemFactsLoopbackURL
-		seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeRejected}, err: reconciler.ErrRejected}
 
 		components, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-			systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight})
+			systemFactsDeps{authClient: systemFactsAuthClient()})
 		require.NoError(t, err)
 
 		checkers := appendSystemFactsForwarderChecker(nil, &cfg, components, libLog.NewNop())
@@ -212,7 +238,7 @@ func TestAppendSystemFactsForwarderChecker(t *testing.T) {
 		assert.False(t, checkers[0].TLSEnabled(), "the loopback test URL is plain http")
 
 		got := checkers[0].Check(context.Background())
-		assert.Equal(t, StatusUp, got.Status, "a forwarder not started yet is idle, which is up")
-		assert.Equal(t, "emission disabled by contract preflight", got.Reason)
+		assert.Equal(t, StatusUp, got.Status, "a contract not reconciled yet keeps the pod ready")
+		assert.Equal(t, "contract not active", got.Reason)
 	})
 }

@@ -382,18 +382,23 @@ type Config struct {
 	// as a whole: false (the default) wires the kit's no-op emitter, builds no
 	// producer and reads none of the other SYSTEM_FACTS_* values. When true,
 	// SystemFactsURL is the service the outbox forwarder delivers to and the
-	// registry the boot-time preflight reads; the producer authenticates with an
-	// Access Manager application token, so PLUGIN_AUTH_ENABLED=true is required.
-	// The credential is SystemFactsM2MClientID/SystemFactsM2MClientSecret in
-	// single-tenant mode (both required), or each tenant's own credential in the
-	// secret store in multi-tenant mode (M2MSecretsBackend, M2MVaultMount), at
-	// tenants/{ENV_NAME}/{tenant}/{APPLICATION_NAME}/m2m/system-facts/credentials.
+	// registry the boot reconcile registers the contract with; the producer
+	// authenticates with an Access Manager application token, so
+	// PLUGIN_AUTH_ENABLED=true is required. The static
+	// SystemFactsM2MClientID/SystemFactsM2MClientSecret pair is required whenever
+	// the producer is enabled: single-tenant it authenticates delivery and the
+	// contract registration; multi-tenant it is the tenantless service
+	// credential that registers the contract, while each tenant's own credential
+	// in the secret store (M2MSecretsBackend, M2MVaultMount), at
+	// tenants/{ENV_NAME}/{tenant}/{APPLICATION_NAME}/m2m/system-facts/credentials,
+	// authenticates that tenant's delivery.
 	// SystemFactsInsecureHTTP admits a plaintext http:// URL to a non-loopback
 	// host (the token and the client secret ride every call) and is accepted
 	// only with DEPLOYMENT_MODE=local set explicitly; loopback never needs it.
-	// SystemFactsPreflightTimeoutMs bounds the read-only contract preflight at
-	// boot (default 10000, allowed 1000..60000). A preflight that does not
-	// answer OK keeps emission off and never refuses boot.
+	// SystemFactsReconcileAttemptTimeoutMs bounds each registry call of the
+	// boot reconcile, Preflight or Run, so a hung call cannot pin the loop
+	// (default 60000, allowed 5000..600000). The reconcile runs in the
+	// background, never refuses boot, and releases the forwarder only on OK.
 	// SystemFactsRetentionInvalidHours is how long the forwarder keeps INVALID
 	// outbox records before sweeping them; 0 (the default, and the kit's) keeps
 	// them. Those records hold the fact payload, so the value is Security's to
@@ -414,7 +419,7 @@ type Config struct {
 	SystemFactsM2MClientID                  string `env:"SYSTEM_FACTS_M2M_CLIENT_ID"`
 	SystemFactsM2MClientSecret              string `env:"SYSTEM_FACTS_M2M_CLIENT_SECRET" json:"-"`
 	SystemFactsInsecureHTTP                 bool   `env:"SYSTEM_FACTS_INSECURE_HTTP"`
-	SystemFactsPreflightTimeoutMs           int    `env:"SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS"`
+	SystemFactsReconcileAttemptTimeoutMs    int    `env:"SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS"`
 	SystemFactsRetentionInvalidHours        int    `env:"SYSTEM_FACTS_RETENTION_INVALID_HOURS"`
 	SystemFactsRetentionPublishedHours      int    `env:"SYSTEM_FACTS_RETENTION_PUBLISHED_HOURS"`
 	SystemFactsForwarderBatchSize           int    `env:"SYSTEM_FACTS_FORWARDER_BATCH_SIZE"`
@@ -489,14 +494,8 @@ func validateSystemFactsConfig(cfg *Config) error {
 		return errors.New("SYSTEM_FACTS_ENABLED=true requires PLUGIN_AUTH_ENABLED=true: the producer authenticates with an Access Manager application token")
 	}
 
-	if !cfg.MultiTenantEnabled {
-		if strings.TrimSpace(cfg.SystemFactsM2MClientID) == "" {
-			return errors.New("SYSTEM_FACTS_ENABLED=true requires SYSTEM_FACTS_M2M_CLIENT_ID in single-tenant mode")
-		}
-
-		if strings.TrimSpace(cfg.SystemFactsM2MClientSecret) == "" {
-			return errors.New("SYSTEM_FACTS_ENABLED=true requires SYSTEM_FACTS_M2M_CLIENT_SECRET in single-tenant mode")
-		}
+	if strings.TrimSpace(cfg.SystemFactsM2MClientID) == "" || strings.TrimSpace(cfg.SystemFactsM2MClientSecret) == "" {
+		return errors.New("SYSTEM_FACTS_ENABLED=true requires SYSTEM_FACTS_M2M_CLIENT_ID/_SECRET: the producer's own credential single-tenant, the tenantless service credential that registers the contract multi-tenant")
 	}
 
 	if cfg.SystemFactsInsecureHTTP && !strings.EqualFold(strings.TrimSpace(cfg.DeploymentMode), DeploymentModeLocal) {
@@ -504,7 +503,7 @@ func validateSystemFactsConfig(cfg *Config) error {
 			strings.TrimSpace(cfg.DeploymentMode))
 	}
 
-	if _, err := systemFactsPreflightTimeout(cfg); err != nil {
+	if _, err := systemFactsReconcileAttemptTimeout(cfg); err != nil {
 		return err
 	}
 

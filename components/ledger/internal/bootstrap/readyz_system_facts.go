@@ -13,13 +13,8 @@ import (
 	"github.com/LerianStudio/lib-system-facts/outbox"
 )
 
-const (
-	// systemFactsForwarderCheckerName is the checks-map key of the forwarder probe.
-	systemFactsForwarderCheckerName = "system_facts_forwarder"
-	// systemFactsEmissionOffReason is the check reason while the contract
-	// preflight keeps emission off.
-	systemFactsEmissionOffReason = "emission disabled by contract preflight"
-)
+// systemFactsForwarderCheckerName is the checks-map key of the forwarder probe.
+const systemFactsForwarderCheckerName = "system_facts_forwarder"
 
 // SystemFactsForwarderStatusReader reports the forwarder's Run lifecycle;
 // *outbox.Forwarder in production.
@@ -27,21 +22,27 @@ type SystemFactsForwarderStatusReader interface {
 	Status() outbox.ForwarderStatus
 }
 
-// SystemFactsForwarderChecker probes the System Facts forwarder's lifecycle
-// state. Status().Err can carry hosts and tenant ids, so it is logged and
-// never written to the check; the outbox depth is not read for the same reason.
+// systemFactsContractStateReader reports the contract gate the forwarder
+// waits on; *systemFactsContractGate in production.
+type systemFactsContractStateReader interface {
+	contractState() systemFactsContractState
+}
+
+// SystemFactsForwarderChecker probes the contract gate and the forwarder's
+// lifecycle state. Status().Err can carry hosts and tenant ids, so it is
+// logged and never written to the check; the outbox depth is not read for
+// the same reason.
 type SystemFactsForwarderChecker struct {
 	name       string
 	forwarder  SystemFactsForwarderStatusReader
-	emitting   bool
+	gate       systemFactsContractStateReader
 	tlsEnabled bool
 	logger     libLog.Logger
 }
 
-// NewSystemFactsForwarderChecker builds the forwarder checker. emitting false
-// names the preflight in the check reason; systemFactsURL is read only for TLS
-// detection.
-func NewSystemFactsForwarderChecker(name string, forwarder SystemFactsForwarderStatusReader, emitting bool, systemFactsURL string, logger libLog.Logger) *SystemFactsForwarderChecker {
+// NewSystemFactsForwarderChecker builds the forwarder checker over gate (nil
+// reads as pending); systemFactsURL is read only for TLS detection.
+func NewSystemFactsForwarderChecker(name string, forwarder SystemFactsForwarderStatusReader, gate systemFactsContractStateReader, systemFactsURL string, logger libLog.Logger) *SystemFactsForwarderChecker {
 	if logger == nil {
 		logger = libLog.NewNop()
 	}
@@ -49,7 +50,7 @@ func NewSystemFactsForwarderChecker(name string, forwarder SystemFactsForwarderS
 	return &SystemFactsForwarderChecker{
 		name:       name,
 		forwarder:  forwarder,
-		emitting:   emitting,
+		gate:       gate,
 		tlsEnabled: strings.HasPrefix(strings.ToLower(strings.TrimSpace(systemFactsURL)), "https://"),
 		logger:     logger,
 	}
@@ -65,24 +66,37 @@ func (c *SystemFactsForwarderChecker) TLSEnabled() bool {
 	return c.tlsEnabled
 }
 
-// Check always answers up: the money path does not depend on fact delivery, so
-// the forwarder state never takes the pod out of rotation. A stopped or failed
-// forwarder, and emission kept off by the preflight, are named in the reason.
+// Check always answers up: the money path does not depend on fact delivery,
+// so neither the gate nor the forwarder state takes the pod out of rotation.
+// While the gate is pending or rejected the reason names the contract (the
+// forwarder cannot have run); once active, a stopped or failed forwarder is
+// named in the reason.
 func (c *SystemFactsForwarderChecker) Check(ctx context.Context) DependencyCheck {
-	var reasons []string
+	switch c.gateState() {
+	case systemFactsContractPending:
+		return DependencyCheck{Status: StatusUp, Reason: systemFactsReasonContractPending}
+	case systemFactsContractRejected:
+		return DependencyCheck{Status: StatusUp, Reason: systemFactsReasonContractRejected}
+	case systemFactsContractActive:
+	}
 
 	status := c.forwarder.Status()
 	if status.State != outbox.ForwarderStateIdle && status.State != outbox.ForwarderStateRunning {
 		c.logNotRunning(ctx, status)
 
-		reasons = append(reasons, fmt.Sprintf("forwarder %s; facts are not draining on this pod", status.State))
+		return DependencyCheck{Status: StatusUp, Reason: fmt.Sprintf("forwarder %s; facts are not draining on this pod", status.State)}
 	}
 
-	if !c.emitting {
-		reasons = append(reasons, systemFactsEmissionOffReason)
+	return DependencyCheck{Status: StatusUp}
+}
+
+// gateState reads the gate; no gate has released nothing.
+func (c *SystemFactsForwarderChecker) gateState() systemFactsContractState {
+	if c.gate == nil {
+		return systemFactsContractPending
 	}
 
-	return DependencyCheck{Status: StatusUp, Reason: strings.Join(reasons, "; ")}
+	return c.gate.contractState()
 }
 
 func (c *SystemFactsForwarderChecker) logNotRunning(ctx context.Context, status outbox.ForwarderStatus) {
@@ -102,5 +116,5 @@ func appendSystemFactsForwarderChecker(checkers []DependencyChecker, cfg *Config
 	}
 
 	return append(checkers, NewSystemFactsForwarderChecker(systemFactsForwarderCheckerName,
-		systemFacts.producer.Forwarder(), systemFacts.emitting, cfg.SystemFactsURL, logger))
+		systemFacts.producer.Forwarder(), systemFacts.gate, cfg.SystemFactsURL, logger))
 }

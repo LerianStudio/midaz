@@ -221,12 +221,17 @@ func counterTotal(t *testing.T, reader *sdkmetric.ManualReader, name string) int
 	return total
 }
 
+// releasedContract is the reconcile seam of a contract already ACTIVE.
+func releasedContract(context.Context) bool { return true }
+
 // supervisedRunnable wires the runnable over the fake with every seam
-// injected: the signal fires once the forwarder blocks, pauses are recorded
-// instead of slept, and the clock is the test's.
+// injected: the contract is released at once, the signal fires once the
+// forwarder blocks, pauses are recorded instead of slept, and the clock is
+// the test's.
 func supervisedRunnable(forwarder *fakeSystemFactsForwarder, logger libLog.Logger, factory *metrics.MetricsFactory, clock *forwarderClock, waits *waitRecorder) *systemFactsForwarderRunnable {
 	return &systemFactsForwarderRunnable{
 		forwarder:      forwarder,
+		reconcile:      releasedContract,
 		logger:         logger,
 		metricsFactory: factory,
 		signalContext:  cancelWhen(forwarder.blocked),
@@ -236,9 +241,8 @@ func supervisedRunnable(forwarder *fakeSystemFactsForwarder, logger libLog.Logge
 }
 
 // TestService_launcherApps_SystemFactsForwarderGuard asserts the forwarder app
-// is present IFF the producer built a forwarder, independent of whether the
-// preflight turned emission on: a backlog recorded before a failed preflight
-// still drains.
+// is present IFF the producer built a forwarder: the app itself holds the
+// forwarder until the boot reconcile releases it.
 func TestService_launcherApps_SystemFactsForwarderGuard(t *testing.T) {
 	t.Parallel()
 
@@ -249,15 +253,146 @@ func TestService_launcherApps_SystemFactsForwarderGuard(t *testing.T) {
 
 	cfg := enabledSystemFactsConfig()
 	cfg.SystemFactsURL = systemFactsLoopbackURL
-	seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeRejected}, err: reconciler.ErrRejected}
 
 	components, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-		systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight})
+		systemFactsDeps{authClient: systemFactsAuthClient()})
 	require.NoError(t, err)
-	require.False(t, components.emitting, "the rejected preflight keeps emission off")
+	require.NotNil(t, components.gate)
 
 	assert.Contains(t, launcherAppNames(&Service{SystemFacts: components, Logger: libLog.NewNop()}), "System Facts Forwarder",
-		"an enabled producer registers the forwarder app even with emission off")
+		"an enabled producer registers the forwarder app, gated on the reconcile")
+}
+
+func TestSystemFactsForwarderRunnable_Run_GatesTheForwarderOnTheContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a released contract starts the forwarder once, after the reconcile", func(t *testing.T) {
+		t.Parallel()
+
+		forwarder := newFakeSystemFactsForwarder()
+		reconciled := make(chan struct{})
+		runnable := supervisedRunnable(forwarder, &stubs.LoggerStub{}, nil, newForwarderClock(), &waitRecorder{})
+		runnable.reconcile = func(ctx context.Context) bool {
+			assert.Equal(t, 0, forwarder.runCount(), "the forwarder does not run before the reconcile")
+			assert.NoError(t, ctx.Err(), "the reconcile runs on a live context")
+			close(reconciled)
+
+			return true
+		}
+
+		require.NoError(t, runnable.Run(nil))
+
+		awaitClosed(t, reconciled, "the reconcile")
+		assert.Equal(t, 1, forwarder.runCount())
+	})
+
+	t.Run("a contract that is not released never starts the forwarder and Shutdown still runs", func(t *testing.T) {
+		t.Parallel()
+
+		forwarder := newFakeSystemFactsForwarder()
+		signalled := make(chan struct{})
+		logger := &stubs.LoggerStub{}
+		runnable := supervisedRunnable(forwarder, logger, nil, newForwarderClock(), &waitRecorder{})
+		runnable.signalContext = cancelWhen(signalled)
+		runnable.reconcile = func(context.Context) bool {
+			close(signalled)
+
+			return false
+		}
+
+		require.NoError(t, runnable.Run(nil))
+
+		assert.Equal(t, 0, forwarder.runCount(), "a refused or pending contract never starts the forwarder")
+
+		calls, hasDeadline := forwarder.shutdowns()
+		assert.Equal(t, 1, calls, "Shutdown is safe before Run and still runs")
+		assert.True(t, hasDeadline)
+		assert.Empty(t, logger.Errors, "the gate logs the refusal; the runnable adds nothing")
+	})
+
+	t.Run("the signal ends a reconcile still waiting", func(t *testing.T) {
+		t.Parallel()
+
+		forwarder := newFakeSystemFactsForwarder()
+		signalled := make(chan struct{})
+		runnable := supervisedRunnable(forwarder, &stubs.LoggerStub{}, nil, newForwarderClock(), &waitRecorder{})
+		runnable.signalContext = cancelWhen(signalled)
+		runnable.reconcile = func(ctx context.Context) bool {
+			close(signalled)
+			<-ctx.Done()
+
+			return false
+		}
+
+		require.NoError(t, runnable.Run(nil))
+
+		assert.Equal(t, 0, forwarder.runCount())
+
+		calls, _ := forwarder.shutdowns()
+		assert.Equal(t, 1, calls)
+	})
+
+	t.Run("no reconcile seam fails closed with one error", func(t *testing.T) {
+		t.Parallel()
+
+		forwarder := newFakeSystemFactsForwarder()
+		logger := &stubs.LoggerStub{}
+		runnable := supervisedRunnable(forwarder, logger, nil, newForwarderClock(), &waitRecorder{})
+		runnable.reconcile = nil
+		runnable.signalContext = func() (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			return ctx, cancel
+		}
+
+		require.NoError(t, runnable.Run(nil))
+
+		assert.Equal(t, 0, forwarder.runCount(), "no gate means no forwarder")
+		require.Len(t, logger.Errors, 1)
+		assert.Contains(t, logger.Errors[0], "the forwarder stays stopped")
+	})
+}
+
+// TestSystemFactsForwarderRunnable_Run_ShutdownWhileTheGateWaitsOnTheRegistry
+// drives the real gate through the runnable: the registry stays unavailable,
+// the signal fires during the backoff wait, and the process leaves with the
+// gate pending, no Run, and a clean Shutdown.
+func TestSystemFactsForwarderRunnable_Run_ShutdownWhileTheGateWaitsOnTheRegistry(t *testing.T) {
+	t.Parallel()
+
+	forwarder := newFakeSystemFactsForwarder()
+	signalled := make(chan struct{})
+	logger := &stubs.LoggerStub{}
+	fake := &fakeSystemFactsReconciler{preflights: []reconcileAnswer{
+		unavailableAnswer(reconciler.Step{Kind: reconciler.StepReferenceType, Subject: reconcileRefTypeSubject}),
+	}}
+	waits := &waitRecorder{}
+	gate := testContractGate(t, fake, logger, newManualMetricReader(t), waits)
+	gate.wait = func(ctx context.Context, d time.Duration) error {
+		close(signalled)
+		<-ctx.Done()
+
+		return waits.wait(ctx, d)
+	}
+
+	runnable := supervisedRunnable(forwarder, logger, nil, newForwarderClock(), &waitRecorder{})
+	runnable.signalContext = cancelWhen(signalled)
+	runnable.reconcile = gate.reconcile
+
+	require.NoError(t, runnable.Run(nil))
+
+	assert.Equal(t, 0, forwarder.runCount(), "no Run while the contract is pending")
+	assert.Equal(t, systemFactsContractPending, gate.contractState())
+	assert.Equal(t, []time.Duration{time.Second}, waits.recorded(), "the wait was cut short by the signal")
+	assert.Empty(t, logger.Errors, "shutdown is not a refusal")
+
+	preflights, runs := fake.counts()
+	assert.Equal(t, 1, preflights)
+	assert.Equal(t, 0, runs)
+
+	calls, _ := forwarder.shutdowns()
+	assert.Equal(t, 1, calls, "the kit Shutdown is safe before Run and runs once")
 }
 
 func TestSystemFactsForwarderRunnable_Run_ShutsDownAfterTheSignal(t *testing.T) {
@@ -364,6 +499,7 @@ func TestSystemFactsForwarderRunnable_Run_StopsRestartingOnceTheSignalFires(t *t
 	logger := &stubs.LoggerStub{}
 	runnable := &systemFactsForwarderRunnable{
 		forwarder:     forwarder,
+		reconcile:     releasedContract,
 		logger:        logger,
 		signalContext: cancelWhen(signalled),
 		now:           newForwarderClock().Now,
@@ -398,9 +534,10 @@ func TestSystemFactsForwarderRunnable_Run_LogsAShutdownErrorAtWarn(t *testing.T)
 func TestNewSystemFactsForwarderRunnable_DefaultsTheSeams(t *testing.T) {
 	t.Parallel()
 
-	runnable := newSystemFactsForwarderRunnable(nil, nil, nil)
+	runnable := newSystemFactsForwarderRunnable(nil, releasedContract, nil, nil)
 
 	require.NotNil(t, runnable.logger, "a nil logger becomes a no-op logger")
+	require.NotNil(t, runnable.reconcile)
 	require.NotNil(t, runnable.now)
 	require.NotNil(t, runnable.wait)
 

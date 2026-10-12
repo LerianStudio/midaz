@@ -24,7 +24,6 @@ import (
 	libSystemFacts "github.com/LerianStudio/lib-system-facts"
 	"github.com/LerianStudio/lib-system-facts/emitter"
 	"github.com/LerianStudio/lib-system-facts/manifest"
-	"github.com/LerianStudio/lib-system-facts/reconciler"
 	"github.com/LerianStudio/lib-system-facts/registry"
 	"github.com/LerianStudio/lib-system-facts/transport/httpsync"
 	"github.com/LerianStudio/lib-system-facts/transport/httpsync/accessmanager"
@@ -54,77 +53,61 @@ const (
 	systemFactsSourceServiceCheckWarn    = "warn"
 	systemFactsSourceServiceCheckRequire = "require"
 
-	// defaultSystemFactsPreflightTimeout bounds the boot-time contract preflight
-	// when SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS is unset.
-	defaultSystemFactsPreflightTimeout = 10 * time.Second
-	// An explicit SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS must sit within these bounds:
-	// below, a healthy registry reads as unavailable; above, a dead one holds boot.
-	minSystemFactsPreflightTimeoutMs = 1000
-	maxSystemFactsPreflightTimeoutMs = 60000
+	// An explicit SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS must sit within
+	// these bounds: below, a healthy registry reads as unavailable on every
+	// attempt; above, a hung call pins the reconcile loop for too long.
+	minSystemFactsReconcileAttemptTimeoutMs = 5000
+	maxSystemFactsReconcileAttemptTimeoutMs = 600000
 )
 
 // errSystemFactsAuthClientNotAuthorizing refuses the producer on an Access
 // Manager client that cannot mint: every token grant would fail.
 var errSystemFactsAuthClientNotAuthorizing = errors.New("system facts producer: PLUGIN_AUTH_ENABLED=true requires an enabled Access Manager client with an address (PLUGIN_AUTH_HOST)")
 
-// systemFactsPreflightTotal counts boot-time contract preflights by outcome; a
-// non-OK outcome means the pod runs with emission off.
-var systemFactsPreflightTotal = metrics.Metric{
-	Name:        "system_facts_preflight_total",
-	Unit:        "1",
-	Description: "System Facts contract preflights at boot, by outcome (OK, Rejected, Unavailable, Invalid, error).",
+// systemFactsComponents is what the ledger wires from the System Facts
+// producer: the recorder the completion Store records through, the producer
+// whose forwarder the Launcher runs, and the gate that holds that forwarder
+// until the contract is ACTIVE.
+type systemFactsComponents struct {
+	// recorder is always non-nil: around the producer's recording emitter when
+	// enabled, around the kit's no-op emitter otherwise.
+	recorder *systemfactsadapter.Recorder
+	// emitter is what recorder wraps: with the flag on it records from the
+	// first commit, whatever the registry answers later.
+	emitter emitter.Emitter
+	// producer is nil with SYSTEM_FACTS_ENABLED=false.
+	producer *libSystemFacts.Producer
+	// gate reconciles the contract at boot and releases the forwarder on
+	// OutcomeOK; nil with SYSTEM_FACTS_ENABLED=false, when no registry client
+	// exists and nothing is called.
+	gate *systemFactsContractGate
 }
 
-// systemFactsPreflightFunc is the read-only contract preflight the producer
-// gates emission on; reconciler.Preflight in production.
-type systemFactsPreflightFunc func(ctx context.Context, m *manifest.Manifest, c reconciler.Registry, opts reconciler.Options) (reconciler.Report, error)
+// reconcileContract is the forwarder app's reconcile seam: nil when no gate
+// was built, which the app fails closed on.
+func (c *systemFactsComponents) reconcileContract() func(context.Context) bool {
+	if c == nil || c.gate == nil {
+		return nil
+	}
 
-// systemFactsComponents is what the ledger wires from the System Facts
-// producer: the recorder the completion Store records through, and the
-// producer whose forwarder the Launcher runs and the readiness probe reads.
-type systemFactsComponents struct {
-	// recorder is always non-nil: around the validating emitter after an OK
-	// preflight, around the kit's no-op emitter otherwise.
-	recorder *systemfactsadapter.Recorder
-	// producer is nil with SYSTEM_FACTS_ENABLED=false; otherwise it is kept even
-	// with emission off, so the forwarder drains a backlog.
-	producer *libSystemFacts.Producer
-	// emitting is true only when the preflight outcome was OK.
-	emitting bool
+	return c.gate.reconcile
 }
 
 // systemFactsDeps carries the collaborators the producer is built from. A nil
-// newAWSSecretsClient, preflight or now means the default AWS credential
-// chain, reconciler.Preflight or time.Now.
+// newAWSSecretsClient means the default AWS credential chain.
 type systemFactsDeps struct {
 	authClient          *middleware.AuthClient
 	tenantServiceName   string
 	tenantClient        *tmclient.Client
 	metricsFactory      *metrics.MetricsFactory
 	newAWSSecretsClient awsSecretsClientFactory
-	preflight           systemFactsPreflightFunc
-	now                 func() time.Time
-}
-
-func (d systemFactsDeps) preflightFunc() systemFactsPreflightFunc {
-	if d.preflight == nil {
-		return reconciler.Preflight
-	}
-
-	return d.preflight
-}
-
-func (d systemFactsDeps) clock() time.Time {
-	if d.now == nil {
-		return time.Now()
-	}
-
-	return d.now()
 }
 
 // buildSystemFacts wires the producer. SYSTEM_FACTS_ENABLED=false wires only
-// the kit's no-op emitter; otherwise the embedded contracts, token source,
-// transport, producer and registry client, with emission gated on the preflight.
+// the kit's no-op emitter; otherwise the embedded contracts, token sources,
+// transport, producer, registry client and the contract gate. The recorder
+// wraps the recording emitter unconditionally: the gate is the forwarder,
+// never the emitter, so no fact is lost while the reconcile is pending.
 func buildSystemFacts(
 	ctx context.Context,
 	cfg *Config,
@@ -148,10 +131,10 @@ func buildSystemFacts(
 
 		logger.Log(ctx, libLog.LevelInfo, "System Facts emission disabled (SYSTEM_FACTS_ENABLED=false)")
 
-		return &systemFactsComponents{recorder: recorder}, nil
+		return &systemFactsComponents{recorder: recorder, emitter: facts}, nil
 	}
 
-	preflightTimeout, err := systemFactsPreflightTimeout(cfg)
+	attemptTimeout, err := systemFactsReconcileAttemptTimeout(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -161,12 +144,12 @@ func buildSystemFacts(
 		return nil, err
 	}
 
-	identity, tokens, err := buildSystemFactsTokenSource(ctx, cfg, deps)
+	delivery, registration, err := buildSystemFactsTokenSource(ctx, cfg, deps)
 	if err != nil {
 		return nil, err
 	}
 
-	transport, client, err := buildSystemFactsClients(cfg, tokens)
+	transport, client, err := buildSystemFactsClients(cfg, delivery, registration)
 	if err != nil {
 		return nil, err
 	}
@@ -190,19 +173,26 @@ func buildSystemFacts(
 		return nil, fmt.Errorf("build the System Facts producer: %w", err)
 	}
 
-	facts, emitting := gateSystemFactsEmission(ctx, logger, deps, producer, m, catalog, identity, client, preflightTimeout)
+	facts := producer.Emitter()
 
 	recorder, err := systemfactsadapter.NewRecorder(facts, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	return &systemFactsComponents{recorder: recorder, producer: producer, emitting: emitting}, nil
+	gate := newSystemFactsContractGate(&kitSystemFactsReconciler{manifest: m, registry: client}, attemptTimeout, logger, deps.metricsFactory)
+
+	logger.Log(ctx, libLog.LevelInfo, "System Facts emission enabled: facts are recorded from the first commit; delivery waits for the boot reconcile",
+		libLog.String("producer", catalog.Producer()),
+		libLog.String("namespace", catalog.Namespace()))
+
+	return &systemFactsComponents{recorder: recorder, emitter: facts, producer: producer, gate: gate}, nil
 }
 
-// buildSystemFactsClients builds the delivery transport and the registry client
-// over tokens, admitting plain http only with SYSTEM_FACTS_INSECURE_HTTP.
-func buildSystemFactsClients(cfg *Config, tokens httpsync.TokenSource) (*httpsync.Client, *registry.Client, error) {
+// buildSystemFactsClients builds the delivery transport over delivery and the
+// registry client over registration, admitting plain http only with
+// SYSTEM_FACTS_INSECURE_HTTP.
+func buildSystemFactsClients(cfg *Config, delivery, registration httpsync.TokenSource) (*httpsync.Client, *registry.Client, error) {
 	var (
 		transportOpts []httpsync.Option
 		registryOpts  []registry.Option
@@ -213,12 +203,12 @@ func buildSystemFactsClients(cfg *Config, tokens httpsync.TokenSource) (*httpsyn
 		registryOpts = append(registryOpts, registry.WithInsecureHTTP())
 	}
 
-	transport, err := httpsync.New(cfg.SystemFactsURL, tokens, transportOpts...)
+	transport, err := httpsync.New(cfg.SystemFactsURL, delivery, transportOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build the System Facts transport: %w", err)
 	}
 
-	client, err := registry.New(cfg.SystemFactsURL, tokens, registryOpts...)
+	client, err := registry.New(cfg.SystemFactsURL, registration, registryOpts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build the System Facts registry client: %w", err)
 	}
@@ -268,17 +258,23 @@ func loadSystemFactsCatalog() (*manifest.Manifest, *manifest.Catalog, error) {
 	return m, catalog, nil
 }
 
-// buildSystemFactsTokenSource selects the credential every call carries: the
-// static SYSTEM_FACTS_M2M_* pair single-tenant, each tenant's own secret-store
-// credential multi-tenant (a shared token would merge every tenant's facts).
-func buildSystemFactsTokenSource(ctx context.Context, cfg *Config, deps systemFactsDeps) (tracerSeamIdentity, httpsync.TokenSource, error) {
+// buildSystemFactsTokenSource selects the credentials of the two calls the
+// producer makes and answers (delivery, registration). The static
+// SYSTEM_FACTS_M2M_* pair is the service credential: single-tenant it
+// authenticates both delivery and the contract registration; multi-tenant it
+// is the tenantless credential that registers the contract (issued with the
+// same source as every tenant credential, so the owner is the same
+// svc:<sourceService>), while each tenant's own secret-store credential
+// authenticates that tenant's delivery. The static pair never authenticates
+// a tenant's delivery: a shared token would merge every tenant's facts.
+func buildSystemFactsTokenSource(ctx context.Context, cfg *Config, deps systemFactsDeps) (httpsync.TokenSource, httpsync.TokenSource, error) {
 	if deps.authClient == nil || !deps.authClient.Enabled || strings.TrimSpace(deps.authClient.Address) == "" {
-		return "", nil, errSystemFactsAuthClientNotAuthorizing
+		return nil, nil, errSystemFactsAuthClientNotAuthorizing
 	}
 
 	check, err := systemFactsSourceServiceCheck(cfg)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 
 	opts := []accessmanager.Option{accessmanager.WithSourceServiceCheck(check)}
@@ -286,37 +282,37 @@ func buildSystemFactsTokenSource(ctx context.Context, cfg *Config, deps systemFa
 		opts = append(opts, accessmanager.WithInsecureHTTP())
 	}
 
-	if !cfg.MultiTenantEnabled {
-		tokens, err := accessmanager.NewTokenSource(deps.authClient,
-			strings.TrimSpace(cfg.SystemFactsM2MClientID), strings.TrimSpace(cfg.SystemFactsM2MClientSecret), opts...)
-		if err != nil {
-			return "", nil, fmt.Errorf("build the System Facts token source: %w", err)
-		}
+	service, err := accessmanager.NewTokenSource(deps.authClient,
+		strings.TrimSpace(cfg.SystemFactsM2MClientID), strings.TrimSpace(cfg.SystemFactsM2MClientSecret), opts...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build the System Facts service token source: %w", err)
+	}
 
-		return seamIdentityStaticToken, tokens, nil
+	if !cfg.MultiTenantEnabled {
+		return service, service, nil
 	}
 
 	applicationName := strings.TrimSpace(deps.tenantServiceName)
 	if applicationName == "" {
-		return "", nil, errors.New("system facts tenant credentials require APPLICATION_NAME, the ledger's tenant-manager service name")
+		return nil, nil, errors.New("system facts tenant credentials require APPLICATION_NAME, the ledger's tenant-manager service name")
 	}
 
 	reader, err := buildM2MSecretsReader(ctx, cfg, deps.newAWSSecretsClient)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 
 	creds, err := systemFactsTenantCredentials(reader, strings.TrimSpace(cfg.EnvName), applicationName)
 	if err != nil {
-		return "", nil, err
+		return nil, nil, err
 	}
 
-	tokens, err := accessmanager.NewTenantTokenSource(deps.authClient, creds, opts...)
+	tenants, err := accessmanager.NewTenantTokenSource(deps.authClient, creds, opts...)
 	if err != nil {
-		return "", nil, fmt.Errorf("build the System Facts tenant token source: %w", err)
+		return nil, nil, fmt.Errorf("build the System Facts tenant token source: %w", err)
 	}
 
-	return seamIdentityTenantToken, tokens, nil
+	return tenants, service, nil
 }
 
 // buildSystemFactsTenancy is the zero (single-tenant) tenancy, or the
@@ -343,59 +339,6 @@ func buildSystemFactsTenancy(cfg *Config, txnPG *libPostgres.Client, txnPGManage
 	return libSystemFacts.TenancyConfig{MultiTenantEnabled: true, Pools: pools}, nil
 }
 
-// gateSystemFactsEmission runs the read-only contract preflight under timeout
-// and returns the emitter business code records through: the producer's
-// validating emitter on OK, the kit's no-op emitter otherwise.
-func gateSystemFactsEmission(
-	ctx context.Context,
-	logger libLog.Logger,
-	deps systemFactsDeps,
-	producer *libSystemFacts.Producer,
-	m *manifest.Manifest,
-	catalog *manifest.Catalog,
-	identity tracerSeamIdentity,
-	client reconciler.Registry,
-	timeout time.Duration,
-) (emitter.Emitter, bool) {
-	preflightCtx, cancel := context.WithDeadline(ctx, deps.clock().Add(timeout))
-	defer cancel()
-
-	report, err := deps.preflightFunc()(preflightCtx, m, client, reconciler.Options{})
-
-	outcome := string(report.Outcome)
-	if outcome == "" {
-		outcome = "error"
-	}
-
-	recordSystemFactsPreflight(ctx, deps.metricsFactory, logger, outcome)
-
-	if err == nil && report.Outcome == reconciler.OutcomeOK {
-		logger.Log(ctx, libLog.LevelInfo, "System Facts emission enabled: contract preflight OK",
-			libLog.String("producer", catalog.Producer()),
-			libLog.String("namespace", catalog.Namespace()),
-			libLog.String("identity", string(identity)))
-
-		return producer.Emitter(), true
-	}
-
-	logger.Log(ctx, libLog.LevelWarn, "System Facts emission kept off: contract preflight did not answer OK; the forwarder still drains the backlog",
-		libLog.String("outcome", outcome),
-		libLog.String("identity", string(identity)),
-		libLog.Err(err))
-
-	facts, err := libSystemFacts.New(libSystemFacts.Config{Enabled: false})
-	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "System Facts no-op emitter could not be built", libLog.Err(err))
-	}
-
-	return facts, false
-}
-
-// recordSystemFactsPreflight increments the preflight counter for outcome.
-func recordSystemFactsPreflight(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, outcome string) {
-	incrementSystemFactsCounter(ctx, factory, logger, systemFactsPreflightTotal, map[string]string{"outcome": outcome})
-}
-
 // incrementSystemFactsCounter adds one to m under labels. A nil factory records
 // nothing; an emit failure is logged at Debug and never fails the caller.
 func incrementSystemFactsCounter(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, m metrics.Metric, labels map[string]string) {
@@ -413,18 +356,19 @@ func incrementSystemFactsCounter(ctx context.Context, factory *metrics.MetricsFa
 	}
 }
 
-// systemFactsPreflightTimeout resolves SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS: unset
-// is defaultSystemFactsPreflightTimeout, and a value must sit within
-// minSystemFactsPreflightTimeoutMs..maxSystemFactsPreflightTimeoutMs.
-func systemFactsPreflightTimeout(cfg *Config) (time.Duration, error) {
-	ms := cfg.SystemFactsPreflightTimeoutMs
+// systemFactsReconcileAttemptTimeout resolves
+// SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS: unset is
+// defaultSystemFactsReconcileAttemptTimeout, and a value must sit within
+// minSystemFactsReconcileAttemptTimeoutMs..maxSystemFactsReconcileAttemptTimeoutMs.
+func systemFactsReconcileAttemptTimeout(cfg *Config) (time.Duration, error) {
+	ms := cfg.SystemFactsReconcileAttemptTimeoutMs
 	if ms == 0 {
-		return defaultSystemFactsPreflightTimeout, nil
+		return defaultSystemFactsReconcileAttemptTimeout, nil
 	}
 
-	if ms < minSystemFactsPreflightTimeoutMs || ms > maxSystemFactsPreflightTimeoutMs {
-		return 0, fmt.Errorf("invalid SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS %d: expected %d..%d",
-			ms, minSystemFactsPreflightTimeoutMs, maxSystemFactsPreflightTimeoutMs)
+	if ms < minSystemFactsReconcileAttemptTimeoutMs || ms > maxSystemFactsReconcileAttemptTimeoutMs {
+		return 0, fmt.Errorf("invalid SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS %d: expected %d..%d",
+			ms, minSystemFactsReconcileAttemptTimeoutMs, maxSystemFactsReconcileAttemptTimeoutMs)
 	}
 
 	return time.Duration(ms) * time.Millisecond, nil
