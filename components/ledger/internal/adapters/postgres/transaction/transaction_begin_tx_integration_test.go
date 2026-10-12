@@ -10,17 +10,31 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/stretchr/testify/require"
 )
+
+const beginTxTestTimeout = 30 * time.Second
+
+// beginTxContext bounds every call of these proofs, so a stuck pool fails the
+// test instead of hanging it.
+func beginTxContext(t *testing.T) context.Context {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), beginTxTestTimeout)
+	t.Cleanup(cancel)
+
+	return ctx
+}
 
 // createBeginTxProbe adds a scratch table to db so a write made through the
 // repository's transaction can be checked for visibility from outside it.
 func createBeginTxProbe(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	_, err := db.ExecContext(context.Background(), `CREATE TABLE IF NOT EXISTS begin_tx_probe (id TEXT PRIMARY KEY)`)
+	_, err := db.ExecContext(beginTxContext(t), `CREATE TABLE IF NOT EXISTS begin_tx_probe (id TEXT PRIMARY KEY)`)
 	require.NoError(t, err)
 }
 
@@ -29,7 +43,7 @@ func countBeginTxProbe(t *testing.T, db *sql.DB, id string) int {
 
 	var count int
 
-	require.NoError(t, db.QueryRowContext(context.Background(), `SELECT count(*) FROM begin_tx_probe WHERE id = $1`, id).Scan(&count))
+	require.NoError(t, db.QueryRowContext(beginTxContext(t), `SELECT count(*) FROM begin_tx_probe WHERE id = $1`, id).Scan(&count))
 
 	return count
 }
@@ -65,8 +79,8 @@ func TestIntegration_TransactionRepo_BeginTx_ReturnsPrimarySQLTx(t *testing.T) {
 		db    *sql.DB
 		other *sql.DB
 	}{
-		{name: "static connection", ctx: context.Background(), db: infra.pgContainer.DB, other: tenantContainer.DB},
-		{name: "tenant connection from context", ctx: tmcore.ContextWithPG(context.Background(), tenantDB), db: tenantContainer.DB, other: infra.pgContainer.DB},
+		{name: "static connection", ctx: beginTxContext(t), db: infra.pgContainer.DB, other: tenantContainer.DB},
+		{name: "tenant connection from context", ctx: tmcore.ContextWithPG(beginTxContext(t), tenantDB), db: tenantContainer.DB, other: infra.pgContainer.DB},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			committedID := t.Name() + ":commit"

@@ -7,7 +7,6 @@ package bootstrap
 import (
 	"context"
 	"database/sql"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,21 +48,6 @@ type fakeTransactionFactRecorder struct{}
 
 func (fakeTransactionFactRecorder) RecordTransactionCommitted(context.Context, *sql.Tx, command.TransactionWriteSet) error {
 	return nil
-}
-
-// The Store exposes no accessor for its recorder and a behavioural check needs
-// Postgres (the completion integration tests), so the wiring is pinned on the
-// private field: this is the only way to fail when the WithTransactionFactRecorder
-// call is dropped.
-func TestNewAppliedTransactionStore_CarriesTheTransactionFactRecorder(t *testing.T) {
-	t.Parallel()
-
-	store := newAppliedTransactionStore(&command.UseCase{}, fakeTransactionFactRecorder{})
-	require.NotNil(t, store)
-
-	recorder := reflect.ValueOf(store).Elem().FieldByName("factRecorder")
-	require.True(t, recorder.IsValid(), "the completion Store keeps its fact recorder in factRecorder")
-	assert.False(t, recorder.IsNil(), "the Store must carry the fact recorder the wiring hands it")
 }
 
 func TestConfigureAppliedTransactionCompletionRejectsMissingFactRecorder(t *testing.T) {

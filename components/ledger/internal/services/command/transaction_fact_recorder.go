@@ -7,12 +7,7 @@ package command
 import (
 	"context"
 	"database/sql"
-	"errors"
 )
-
-// ErrTransactionFactTxUnsupported means the Store's SQL transaction is not the
-// *sql.Tx a fact recorder writes through, so no fact can share its commit.
-var ErrTransactionFactTxUnsupported = errors.New("transaction fact recorder requires a *sql.Tx")
 
 // TransactionFactRecorder records the System Facts fact of a transaction write
 // inside the SQL transaction that commits it, so the fact and the state change

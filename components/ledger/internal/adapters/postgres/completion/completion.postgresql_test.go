@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/bxcodec/dbresolver/v2"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,6 +64,12 @@ func (operationStoreStub) CreateBulkTx(ctx context.Context, tx repository.DBExec
 
 func newStoreTest(t *testing.T) (*Store, sqlmock.Sqlmock) {
 	t.Helper()
+
+	return newStoreTestWithRecorder(t, noopFactRecorder{})
+}
+
+func newStoreTestWithRecorder(t *testing.T, recorder command.TransactionFactRecorder) (*Store, sqlmock.Sqlmock) {
+	t.Helper()
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -72,7 +77,10 @@ func newStoreTest(t *testing.T) (*Store, sqlmock.Sqlmock) {
 		_ = db.Close()
 	})
 
-	return NewStore(transactionStoreStub{db: db}, operationStoreStub{}), mock
+	store, err := NewStore(transactionStoreStub{db: db}, operationStoreStub{}, recorder)
+	require.NoError(t, err)
+
+	return store, mock
 }
 
 func frozenStoreRecord() command.TransactionWriteSet {
@@ -449,7 +457,8 @@ func (stub execOnlyRepository) BeginTx(context.Context) (repository.DBTransactio
 
 func TestStorePersistRequiresQuerierBeforeWrites(t *testing.T) {
 	tx := &execOnlyTransaction{}
-	store := NewStore(execOnlyRepository{tx: tx}, operationStoreStub{})
+	store, err := NewStore(execOnlyRepository{tx: tx}, operationStoreStub{}, noopFactRecorder{})
+	require.NoError(t, err)
 	require.ErrorIs(t, store.Persist(context.Background(), frozenStoreRecord()), repository.ErrQueryContextNotSupported)
 	assert.True(t, tx.rolledBack)
 }
@@ -596,9 +605,8 @@ func TestStorePersistRecordsFactForEveryChangedRow(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
 
-			store, mock := newStoreTest(t)
 			recorder := &factRecorderStub{}
-			store = store.WithTransactionFactRecorder(recorder)
+			store, mock := newStoreTestWithRecorder(t, recorder)
 			record := frozenStoreRecord()
 			record.Action, record.Transaction.Status.Code = scenario.action, scenario.target
 			if scenario.action == "hold" {
@@ -641,9 +649,8 @@ func TestStorePersistSkipsFactOnVerifiedReplay(t *testing.T) {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
 
-			store, mock := newStoreTest(t)
 			recorder := &factRecorderStub{}
-			store = store.WithTransactionFactRecorder(recorder)
+			store, mock := newStoreTestWithRecorder(t, recorder)
 			record := frozenStoreRecord()
 			record.Action = scenario.action
 			if scenario.action == "hold" {
@@ -667,8 +674,7 @@ func TestStorePersistSkipsFactOnVerifiedReplay(t *testing.T) {
 func TestStorePersistRollsBackWhenFactRecorderFails(t *testing.T) {
 	t.Parallel()
 
-	store, mock := newStoreTest(t)
-	store = store.WithTransactionFactRecorder(&factRecorderStub{failAt: 1})
+	store, mock := newStoreTestWithRecorder(t, &factRecorderStub{failAt: 1})
 	mock.ExpectBegin()
 	expectCreatedTransaction(mock, constant.APPROVED)
 	expectOperations(mock, 1)
@@ -680,62 +686,11 @@ func TestStorePersistRollsBackWhenFactRecorderFails(t *testing.T) {
 	assert.Empty(t, outcome.TransactionStatus)
 }
 
-type resolverTransactionRepository struct {
-	transactionStoreStub
-	resolver dbresolver.DB
-}
-
-func (stub resolverTransactionRepository) BeginTx(ctx context.Context) (repository.DBTransaction, error) {
-	return stub.resolver.BeginTx(ctx, nil)
-}
-
-func TestStorePersistRequiresSQLTxOnlyWhenRecording(t *testing.T) {
-	t.Parallel()
-
-	for _, recording := range []bool{true, false} {
-		t.Run(map[bool]string{true: "recorder set", false: "no recorder"}[recording], func(t *testing.T) {
-			t.Parallel()
-
-			db, mock, err := sqlmock.New()
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				assert.NoError(t, mock.ExpectationsWereMet())
-				_ = db.Close()
-			})
-			resolver := dbresolver.New(dbresolver.WithPrimaryDBs(db))
-			t.Cleanup(func() { _ = resolver.Close() })
-			recorder := &factRecorderStub{}
-			store := NewStore(resolverTransactionRepository{transactionStoreStub: transactionStoreStub{db: db}, resolver: resolver}, operationStoreStub{})
-			if recording {
-				store = store.WithTransactionFactRecorder(recorder)
-			}
-
-			mock.ExpectBegin()
-			expectCreatedTransaction(mock, constant.APPROVED)
-			expectOperations(mock, 1)
-			if recording {
-				mock.ExpectRollback()
-			} else {
-				mock.ExpectCommit()
-			}
-
-			_, err = store.PersistWithOutcome(t.Context(), frozenStoreRecord())
-			if recording {
-				require.ErrorIs(t, err, command.ErrTransactionFactTxUnsupported)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Empty(t, recorder.calls)
-		})
-	}
-}
-
 func TestStorePersistBulkRecordsFactPerChangedRecord(t *testing.T) {
 	t.Parallel()
 
-	store, mock := newStoreTest(t)
 	recorder := &factRecorderStub{}
-	store = store.WithTransactionFactRecorder(recorder)
+	store, mock := newStoreTestWithRecorder(t, recorder)
 	later := frozenStoreRecordWithID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-5aaa-8aaa-aaaaaaaaaaaa")
 	earlier := frozenStoreRecord()
 	replay := frozenStoreRecordWithID("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "cccccccc-cccc-5ccc-8ccc-cccccccccccc")
@@ -767,9 +722,8 @@ func TestStorePersistBulkRecordsFactPerChangedRecord(t *testing.T) {
 func TestStorePersistBulkRollsBackWhenFactRecorderFails(t *testing.T) {
 	t.Parallel()
 
-	store, mock := newStoreTest(t)
 	recorder := &factRecorderStub{failAt: 2}
-	store = store.WithTransactionFactRecorder(recorder)
+	store, mock := newStoreTestWithRecorder(t, recorder)
 	first := frozenStoreRecord()
 	second := frozenStoreRecordWithID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "aaaaaaaa-aaaa-5aaa-8aaa-aaaaaaaaaaaa")
 
@@ -787,4 +741,24 @@ func TestStorePersistBulkRollsBackWhenFactRecorderFails(t *testing.T) {
 	require.ErrorIs(t, err, errFactRecorder)
 	assert.Nil(t, outcomes)
 	assert.Len(t, recorder.calls, 2)
+}
+
+// noopFactRecorder is the recorder of a Store whose proof is not about facts.
+type noopFactRecorder struct{}
+
+func (noopFactRecorder) RecordTransactionCommitted(context.Context, *sql.Tx, command.TransactionWriteSet) error {
+	return nil
+}
+
+func TestNewStoreRequiresFactRecorder(t *testing.T) {
+	t.Parallel()
+
+	store, err := NewStore(transactionStoreStub{}, operationStoreStub{}, nil)
+	require.Error(t, err)
+	assert.Nil(t, store)
+	assert.Contains(t, err.Error(), "fact recorder")
+
+	store, err = NewStore(transactionStoreStub{}, operationStoreStub{}, noopFactRecorder{})
+	require.NoError(t, err)
+	require.NotNil(t, store)
 }

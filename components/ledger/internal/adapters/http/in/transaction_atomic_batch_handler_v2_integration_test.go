@@ -82,10 +82,12 @@ func setupAtomicBatchHTTPIntegrationFixture(t *testing.T) *atomicBatchHTTPIntegr
 	engine, err := redisengine.NewAdapter(redisConn)
 	require.NoError(t, err)
 
-	completionStore := postgrescompletion.NewStore(
+	completionStore, err := postgrescompletion.NewStore(
 		infra.handler.Command.TransactionRepo,
 		infra.handler.Command.OperationRepo,
+		noopTransactionFactRecorder{},
 	)
+	require.NoError(t, err)
 	batchRepository, ok := infra.redisRepo.(command.AtomicTransactionBatchIdempotencyRepository)
 	require.True(t, ok, "Redis repository must expose the atomic batch state machine")
 

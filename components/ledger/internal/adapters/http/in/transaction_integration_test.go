@@ -183,7 +183,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 		Engine:                      engine,
 		FeeDebts:                    feeDebts,
 		AppliedTransactionCompleter: command.NewTransactionCompletionService(
-			postgrescompletion.NewStore(transactionRepo, operationRepo),
+			newTestCompletionStore(t, transactionRepo, operationRepo),
 			metadataRepo,
 		),
 	}
@@ -779,7 +779,7 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 		EngineWriteBehindCodec:  command.EngineWriteBehindEvidenceCodec{},
 	}
 	completionService := command.NewTransactionCompletionService(
-		postgrescompletion.NewStore(transactionRepo, operationRepo),
+		newTestCompletionStore(t, transactionRepo, operationRepo),
 		metadataRepo,
 	)
 	infra.commandUC = &command.UseCase{
@@ -2729,4 +2729,23 @@ func TestIntegration_Property_Protocol_Idempotency(t *testing.T) {
 	for i, code := range results {
 		assert.Less(t, code, 500, "request %d should not return 5xx, got %d", i, code)
 	}
+}
+
+// noopTransactionFactRecorder is the completion Store's required recorder
+// when the proof is not about facts.
+type noopTransactionFactRecorder struct{}
+
+func (noopTransactionFactRecorder) RecordTransactionCommitted(context.Context, *sql.Tx, command.TransactionWriteSet) error {
+	return nil
+}
+
+// newTestCompletionStore builds the completion Store over the harness
+// repositories with a recorder that records nothing.
+func newTestCompletionStore(t *testing.T, transactionRepo *transaction.TransactionPostgreSQLRepository, operationRepo *operation.OperationPostgreSQLRepository) *postgrescompletion.Store {
+	t.Helper()
+
+	store, err := postgrescompletion.NewStore(transactionRepo, operationRepo, noopTransactionFactRecorder{})
+	require.NoError(t, err)
+
+	return store
 }

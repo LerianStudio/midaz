@@ -305,7 +305,8 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 	migrations := pgtestutil.FindMigrationsPath(t, "transaction")
 	dsn := pgtestutil.BuildConnectionString(pg.Host, pg.Port, pg.Config)
 	pgConnection := pgtestutil.CreatePostgresClient(t, dsn, dsn, pg.Config.DBName, migrations)
-	store := completion.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection, false), operation.NewOperationPostgreSQLRepository(pgConnection))
+	store, err := completion.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection, false), operation.NewOperationPostgreSQLRepository(pgConnection), noopTransactionFactRecorder{})
+	require.NoError(t, err)
 	mongoConfig := mongotestutil.DefaultContainerConfig()
 	mongoConfig.Image = "mongo:8"
 	mongoContainer := mongotestutil.SetupContainerWithConfig(t, mongoConfig)
@@ -457,4 +458,12 @@ func TestIntegrationTransactionCompletionServiceSQLAndMongo(t *testing.T) {
 		otherCtx := tmcore.ContextWithTenantID(tenantCtx, "another-tenant")
 		require.ErrorIs(t, completionError(tenantFinalizer.Complete(otherCtx, envelope)), command.ErrInvalidTransactionCompletionRecord)
 	})
+}
+
+// noopTransactionFactRecorder is the completion Store's required recorder
+// when the proof is not about facts.
+type noopTransactionFactRecorder struct{}
+
+func (noopTransactionFactRecorder) RecordTransactionCommitted(context.Context, *sql.Tx, command.TransactionWriteSet) error {
+	return nil
 }

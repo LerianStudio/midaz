@@ -181,7 +181,8 @@ func setupFeeHarness(t *testing.T) *feeHarness {
 		TransactionRedisRepo:    redisRepo,
 	}
 	h.engineProvider = redisConn
-	h.completionStore = completion.NewStore(transactionRepo, operationRepo)
+	h.completionStore, err = completion.NewStore(transactionRepo, operationRepo, noopTransactionFactRecorder{})
+	require.NoError(t, err)
 
 	// Fee Mongo: inject the already-connected container client so the repo's
 	// GetDB + EnsureIndexes run against real Mongo without re-dialing.

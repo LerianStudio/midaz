@@ -52,25 +52,20 @@ type TransactionCommittedOperation struct {
 	FeeLeg          bool   `json:"feeLeg"`
 }
 
-// NewTransactionCommitted derives the fact payload of a completion write set.
+// NewTransactionCommitted derives the fact payload of a completion write set,
+// the one the Store validated before recording: amounts and legs are present.
 // It reports false, deriving nothing, when the write is not a fact: no
 // transaction, an action other than direct, commit or revert (hold and cancel
-// never are), or a status other than APPROVED. A missing transaction or leg
-// amount is treated the same way: no persistence path writes an APPROVED row
-// without them, and the builder must not invent a number.
+// never are), or a status other than APPROVED.
 func NewTransactionCommitted(record command.TransactionWriteSet) (TransactionCommittedPayload, bool) {
 	tx := record.Transaction
-	if tx == nil || !isFactAction(record.Action) || tx.Status.Code != constant.APPROVED || tx.Amount == nil {
+	if tx == nil || !isFactAction(record.Action) || tx.Status.Code != constant.APPROVED {
 		return TransactionCommittedPayload{}, false
 	}
 
 	operations := make([]TransactionCommittedOperation, 0, len(tx.Operations))
 
 	for _, op := range tx.Operations {
-		if op == nil || op.Amount.Value == nil {
-			return TransactionCommittedPayload{}, false
-		}
-
 		operations = append(operations, newTransactionCommittedOperation(op))
 	}
 
@@ -116,17 +111,12 @@ func isExternal(op *operation.Operation) bool {
 	return strings.HasPrefix(op.AccountAlias, constant.DefaultExternalAccountAliasPrefix)
 }
 
-// isFeeLeg reads the fee engine's mark, which reaches a row either as the
-// string the engine writes or as a boolean once it has crossed a JSON decode.
+// isFeeLeg reads the fee engine's mark: the key is reserved, refused from
+// clients, and written by the engine as the string MetadataValueFeeLeg.
 func isFeeLeg(metadata map[string]any) bool {
-	switch mark := metadata[constant.MetadataKeyFeeLeg].(type) {
-	case string:
-		return mark == constant.MetadataValueFeeLeg
-	case bool:
-		return mark
-	default:
-		return false
-	}
+	mark, isString := metadata[constant.MetadataKeyFeeLeg].(string)
+
+	return isString && mark == constant.MetadataValueFeeLeg
 }
 
 // legSide is the side of a leg in the movement: the debit side is the source,

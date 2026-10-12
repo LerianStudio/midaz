@@ -64,10 +64,12 @@ func newRealPersistenceFixture(t *testing.T) realPersistenceFixture {
 	pg := pgtestutil.SetupContainerWithConfig(t, pgConfig)
 	dsn := pgtestutil.BuildConnectionString(pg.Host, pg.Port, pg.Config)
 	pgConnection := pgtestutil.CreatePostgresClient(t, dsn, dsn, pg.Config.DBName, pgtestutil.FindMigrationsPath(t, "transaction"))
-	store := completion.NewStore(
+	store, err := completion.NewStore(
 		postgresTransaction.NewTransactionPostgreSQLRepository(pgConnection, false),
 		operation.NewOperationPostgreSQLRepository(pgConnection),
+		noopTransactionFactRecorder{},
 	)
+	require.NoError(t, err)
 	mongoConfig := mongotestutil.DefaultContainerConfig()
 	mongoConfig.Image = "mongo:8"
 	mongoContainer := mongotestutil.SetupContainerWithConfig(t, mongoConfig)
@@ -388,4 +390,12 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 		require.NoError(t, err)
 		require.Equal(t, recoveryRaw, retained, "the finalizer must not take recovery ACK ownership")
 	})
+}
+
+// noopTransactionFactRecorder is the completion Store's required recorder
+// when the proof is not about facts.
+type noopTransactionFactRecorder struct{}
+
+func (noopTransactionFactRecorder) RecordTransactionCommitted(context.Context, *sql.Tx, command.TransactionWriteSet) error {
+	return nil
 }

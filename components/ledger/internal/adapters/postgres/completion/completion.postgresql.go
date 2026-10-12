@@ -50,22 +50,20 @@ var (
 
 // NewStore shares the existing transaction and operation repositories. Tenant
 // connection selection is delegated to the transaction repository's BeginTx.
-func NewStore(transactions transactionRepository, operations operationRepository, maxRowsPerInsert ...int) *Store {
+// Every created or transitioned transaction row is handed to recorder inside
+// the SQL transaction that commits it, so the recorder is required: a
+// deployment without System Facts hands the kit's no-op emitter.
+func NewStore(transactions transactionRepository, operations operationRepository, recorder command.TransactionFactRecorder, maxRowsPerInsert ...int) (*Store, error) {
+	if recorder == nil {
+		return nil, errors.New("completion store requires a transaction fact recorder")
+	}
+
 	maxRows := defaultMaxRowsPerInsert
 	if len(maxRowsPerInsert) > 0 && maxRowsPerInsert[0] > 0 {
 		maxRows = maxRowsPerInsert[0]
 	}
 
-	return &Store{transactions: transactions, operations: operations, maxRowsPerInsert: maxRows}
-}
-
-// WithTransactionFactRecorder makes the Store hand every created or
-// transitioned transaction row to recorder inside the SQL transaction that
-// commits it. A nil recorder keeps the Store silent.
-func (store *Store) WithTransactionFactRecorder(recorder command.TransactionFactRecorder) *Store {
-	store.factRecorder = recorder
-
-	return store
+	return &Store{transactions: transactions, operations: operations, maxRowsPerInsert: maxRows, factRecorder: recorder}, nil
 }
 
 // Persist inserts or verifies all expected rows in a single SQL transaction.
@@ -119,18 +117,8 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 		return command.TransactionPersistenceOutcome{}, err
 	}
 
-	if allowInsert {
-		// Bulk repositories sort their input slices. Preserve frozen row ordering.
-		operations := append([]*operation.Operation(nil), record.Transaction.Operations...)
-		if _, err := store.operations.CreateBulkTx(ctx, tx, operations); err != nil {
-			return command.TransactionPersistenceOutcome{}, fmt.Errorf("persist recovery operations: %w", err)
-		}
-	}
-
-	for _, row := range record.Transaction.Operations {
-		if err := verifyOperation(ctx, querier, row); err != nil {
-			return command.TransactionPersistenceOutcome{}, err
-		}
+	if err := store.persistOperations(ctx, tx, querier, record, allowInsert); err != nil {
+		return command.TransactionPersistenceOutcome{}, err
 	}
 
 	if allowInsert {
@@ -525,17 +513,34 @@ func validateIDs(values ...string) error {
 	return nil
 }
 
+// persistOperations inserts the frozen operation rows when the transaction row
+// changed and verifies every row either way, so a replay confirms the earlier
+// execution persisted exactly.
+func (store *Store) persistOperations(ctx context.Context, tx repository.DBTransaction, querier repository.DBQuerier, record command.TransactionWriteSet, allowInsert bool) error {
+	if allowInsert {
+		// Bulk repositories sort their input slices. Preserve frozen row ordering.
+		operations := append([]*operation.Operation(nil), record.Transaction.Operations...)
+		if _, err := store.operations.CreateBulkTx(ctx, tx, operations); err != nil {
+			return fmt.Errorf("persist recovery operations: %w", err)
+		}
+	}
+
+	for _, row := range record.Transaction.Operations {
+		if err := verifyOperation(ctx, querier, row); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // recordTransactionFact hands a created or transitioned row to the fact
 // recorder through the concrete *sql.Tx the recorder writes in. The recorder
 // owns logging and counting; the Store only decides whether the row changed.
 func (store *Store) recordTransactionFact(ctx context.Context, tx repository.DBTransaction, record command.TransactionWriteSet) error {
-	if store.factRecorder == nil {
-		return nil
-	}
-
 	sqlTx, ok := tx.(*sql.Tx)
 	if !ok {
-		return command.ErrTransactionFactTxUnsupported
+		return fmt.Errorf("record transaction fact: transaction is %T, not *sql.Tx", tx)
 	}
 
 	if err := store.factRecorder.RecordTransactionCommitted(ctx, sqlTx, record); err != nil {

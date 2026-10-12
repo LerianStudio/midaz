@@ -283,7 +283,8 @@ func TestIntegrationRedisEngineCrashRecoveryConsumer(t *testing.T) {
 	pg := pgtestutil.SetupContainerWithConfig(t, pgConfig)
 	dsn := pgtestutil.BuildConnectionString(pg.Host, pg.Port, pg.Config)
 	pgConnection := pgtestutil.CreatePostgresClient(t, dsn, dsn, pg.Config.DBName, pgtestutil.FindMigrationsPath(t, "transaction"))
-	store := completion.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection, false), operation.NewOperationPostgreSQLRepository(pgConnection))
+	store, err := completion.NewStore(transaction.NewTransactionPostgreSQLRepository(pgConnection, false), operation.NewOperationPostgreSQLRepository(pgConnection), fakeTransactionFactRecorder{})
+	require.NoError(t, err)
 	mongoConfig := mongotestutil.DefaultContainerConfig()
 	mongoConfig.Image = "mongo:8"
 	mongoContainer := mongotestutil.SetupContainerWithConfig(t, mongoConfig)

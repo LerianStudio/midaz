@@ -125,7 +125,10 @@ func newSystemFactsStore(t *testing.T, infra systemFactsInfra, facts emitter.Emi
 	recorder, err := systemfacts.NewRecorder(facts, libLog.NewNop())
 	require.NoError(t, err)
 
-	return NewStore(infra.transactions, infra.operations).WithTransactionFactRecorder(recorder)
+	store, err := NewStore(infra.transactions, infra.operations, recorder)
+	require.NoError(t, err)
+
+	return store
 }
 
 func newSystemFactsMeterProvider(t *testing.T) (*sdkmetric.ManualReader, *sdkmetric.MeterProvider) {

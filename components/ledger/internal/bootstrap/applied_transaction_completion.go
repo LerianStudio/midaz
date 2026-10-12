@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"errors"
+	"fmt"
 
 	postgresCompletion "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/completion"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -14,22 +15,19 @@ import (
 // configureAppliedTransactionCompletion shares completion of already-applied
 // transactions and its tenant resolution between normal writes and recovery, so
 // feeDebt records the same fee-debt changes on both and factRecorder records
-// the same transaction facts on both. It does not enable the engine. The
-// recorder is required: a disabled System Facts producer hands the no-op one.
+// the same transaction facts on both. It does not enable the engine. The Store
+// refuses a nil recorder: a disabled System Facts producer hands the no-op one.
 func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase *command.UseCase, multiTenantEnabled bool, mongoResolver recoveryMongoResolver, feeDebt command.FeeDebtRecorder, factRecorder command.TransactionFactRecorder, maxRowsPerInsert ...int) error {
 	if consumer == nil || useCase == nil {
 		return errors.New("applied transaction completion requires command and recovery owners")
 	}
 
-	if factRecorder == nil {
-		return errors.New("applied transaction completion requires a transaction fact recorder")
+	store, err := postgresCompletion.NewStore(useCase.TransactionRepo, useCase.OperationRepo, factRecorder, maxRowsPerInsert...)
+	if err != nil {
+		return fmt.Errorf("applied transaction completion: %w", err)
 	}
 
-	delegate, err := command.NewTransactionCompletionServiceWithEvents(
-		newAppliedTransactionStore(useCase, factRecorder, maxRowsPerInsert...),
-		useCase.TransactionMetadataRepo,
-		useCase,
-	)
+	delegate, err := command.NewTransactionCompletionServiceWithEvents(store, useCase.TransactionMetadataRepo, useCase)
 	if err != nil {
 		return err
 	}
@@ -46,12 +44,4 @@ func configureAppliedTransactionCompletion(consumer *RedisQueueConsumer, useCase
 	useCase.EngineRecoveryAcknowledger = consumer.newRecoveryRecordCompleter()
 
 	return nil
-}
-
-// newAppliedTransactionStore builds the completion Store over the use case's
-// repositories with factRecorder attached, so every created or transitioned
-// transaction row is handed to it inside the SQL transaction that commits it.
-func newAppliedTransactionStore(useCase *command.UseCase, factRecorder command.TransactionFactRecorder, maxRowsPerInsert ...int) *postgresCompletion.Store {
-	return postgresCompletion.NewStore(useCase.TransactionRepo, useCase.OperationRepo, maxRowsPerInsert...).
-		WithTransactionFactRecorder(factRecorder)
 }

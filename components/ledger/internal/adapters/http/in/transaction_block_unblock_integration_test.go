@@ -124,7 +124,10 @@ func setupBlockUnblockInfra(t *testing.T) *blockUnblockInfra {
 	require.NoError(t, err, "failed to create accounting engine")
 
 	commandUC.Engine = engine
-	commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(completion.NewStore(transactionRepo, operationRepo), metadataRepo)
+	completionStore, err := completion.NewStore(transactionRepo, operationRepo, noopTransactionFactRecorder{})
+	require.NoError(t, err, "failed to create completion store")
+
+	commandUC.AppliedTransactionCompleter = command.NewTransactionCompletionService(completionStore, metadataRepo)
 	queryUC.EngineWriteBehindCodec = command.EngineWriteBehindEvidenceCodec{}
 
 	infra.txHandler = &TransactionHandler{Query: queryUC, Command: commandUC}

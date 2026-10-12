@@ -62,10 +62,6 @@ func withMetadata(metadata map[string]any) legOption {
 	return func(op *operation.Operation) { op.Metadata = metadata }
 }
 
-func withNilAmount() legOption {
-	return func(op *operation.Operation) { op.Amount = operation.Amount{} }
-}
-
 func withDirection(direction string) legOption {
 	return func(op *operation.Operation) { op.Direction = direction }
 }
@@ -129,7 +125,7 @@ func aliceOnHoldSource(n int, amount string, opts ...legOption) *operation.Opera
 	return leg(n, constant.ONHOLD, amount, aliceAccountID, aliceAlias, opts...)
 }
 
-func feeCredit(n int, amount string, feeLegValue any, opts ...legOption) *operation.Operation {
+func feeCredit(n int, amount string, feeLegValue string, opts ...legOption) *operation.Operation {
 	opts = append(opts, withMetadata(map[string]any{constant.MetadataKeyFeeLeg: feeLegValue}))
 
 	return leg(n, constant.CREDIT, amount, feeAccountID, feeAlias, opts...)
@@ -146,10 +142,6 @@ func withAmount(amount string) transactionOption {
 		value := decimal.RequireFromString(amount)
 		tx.Amount = &value
 	}
-}
-
-func withoutAmount() transactionOption {
-	return func(tx *transaction.Transaction) { tx.Amount = nil }
 }
 
 func withScheme(scheme string) transactionOption {
@@ -333,26 +325,6 @@ func payloadCases() []payloadCase {
 					withWantChartOfAccounts(wantLeg(1, constant.DEBIT, "1000", aliceAccountID, false, false), "1102"),
 					withWantChartOfAccounts(wantLeg(2, constant.CREDIT, "985", bobAccountID, false, false), "2102"),
 					withWantChartOfAccounts(wantLeg(3, constant.CREDIT, "15", feeAccountID, false, true), "4101"),
-				},
-			},
-		},
-		{
-			name: "internal with a fee leg marked by the boolean true",
-			record: writeSet(constant.ActionDirect,
-				[]*operation.Operation{aliceDebit(1, "1000.00"), bobCredit(2, "985.00"), feeCredit(3, "15.00", true)},
-				withAmount("1000.00")),
-			wantFact: true,
-			want: TransactionCommittedPayload{
-				Action:    constant.ActionDirect,
-				Status:    constant.APPROVED,
-				Direction: "INTERNAL",
-				Amount:    "1000",
-				AssetCode: "BRL",
-				CreatedAt: fixedCreatedAtWire,
-				Operations: []TransactionCommittedOperation{
-					wantLeg(1, constant.DEBIT, "1000", aliceAccountID, false, false),
-					wantLeg(2, constant.CREDIT, "985", bobAccountID, false, false),
-					wantLeg(3, constant.CREDIT, "15", feeAccountID, false, true),
 				},
 			},
 		},
@@ -562,17 +534,6 @@ func payloadCases() []payloadCase {
 		{
 			name:   "nil transaction is not a fact",
 			record: command.TransactionWriteSet{Action: constant.ActionDirect},
-		},
-		{
-			name: "approved row without an amount is not a fact",
-			record: writeSet(constant.ActionDirect,
-				[]*operation.Operation{aliceDebit(1, "150.00"), externalCredit(2, "150.00")},
-				withoutAmount()),
-		},
-		{
-			name: "leg without an amount is not a fact",
-			record: writeSet(constant.ActionDirect,
-				[]*operation.Operation{aliceDebit(1, "150.00"), externalCredit(2, "150.00", withNilAmount())}),
 		},
 	}
 }
