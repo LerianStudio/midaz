@@ -22,11 +22,12 @@ items carry `additionalProperties: false`):
 
 | Field | Class | Notes |
 |---|---|---|
-| `action` | none | `direct`, `commit` or `revert`: the ledger transition that reached APPROVED |
+| `action` | none | `direct`, `commit` or `revert`: the ledger transition that reached APPROVED. The destination rows a cross-ledger v2 commit creates are new rows and carry `direct`; their `groupId` tells them apart from a singular create |
 | `status` | none | always `APPROVED` |
-| `direction` | none | `INFLOW` (every source leg is `@external/`), `OUTFLOW` (every destination leg is), `INTERNAL` (no external leg), `MIXED` |
-| `amount`, `assetCode` | none | the amount the sender authorized, as a plain decimal at the asset's scale; fee legs are listed in `operations` |
-| `chartOfAccountsGroupName`, `scheme`, `parentTransactionId`, `groupId`, `createdAt` | none | optional except `createdAt`; `parentTransactionId` only on `revert` |
+| `direction` | none | derived from the legs by side: a leg is a source when `operation.direction` is debit and a destination when it is credit (`type` decides only when `direction` is empty), and fee legs are ignored. `INFLOW` when every source leg is external (`@external/`) and no destination leg is; `OUTFLOW` the mirror; `INTERNAL` when no leg is external; `MIXED` otherwise |
+| `amount`, `assetCode` | none | the amount the sender authorized, as a plain decimal string with trailing zeros trimmed (`10.5`, never `10.50` or `1.05E1`); per-leg amounts in `operations` use the same form |
+| `createdAt` | none | the transaction's effective date (`transactionDate`) as stored in `created_at`; it differs from `occurredAt` on a `commit` |
+| `chartOfAccountsGroupName`, `scheme`, `parentTransactionId`, `groupId` | none | optional; `parentTransactionId` only on `revert`, `groupId` only on the parts of a cross-ledger group |
 | `description` | **encrypted** (`x-sensitivity`) | free text; revealed only with `facts:reveal` |
 | `operations[]` | none | `id`, `type`, `amount`, `assetCode`, `chartOfAccounts`, `accountId` (opaque system id, in clear by team decision), `external`, `feeLeg` |
 
@@ -46,9 +47,10 @@ verify and the `Commit`, for every row whose lifecycle phase is `created` or `up
 `Emit` with that `*sql.Tx`, so the fact and the row commit or roll back together.
 
 Every writer converges there: create v1/v2 (json, inflow, outflow), commit of a pending
-transaction, revert v1/v2, atomic batch and cross-ledger direct/commit/revert, fee-debt
-collection, the asynchronous write-behind consumer (`RABBITMQ_TRANSACTION_ASYNC=true`) and the
-engine recovery runner's replay.
+transaction, revert v1/v2, atomic batch and cross-ledger direct/commit/revert (a cross-ledger
+commit approves the PENDING origins as `commit` and creates the destinations as new `direct`
+rows), fee-debt collection, the asynchronous write-behind consumer
+(`RABBITMQ_TRANSACTION_ASYNC=true`) and the engine recovery runner's replay.
 
 Deliberately not a fact: `hold` (PENDING, money only reserved), `cancel` (CANCELED, nothing
 moved), NOTED annotations (the legacy per-leg writer runs no SQL transaction), the legacy
@@ -66,7 +68,10 @@ a use case, or outside the completion transaction.
   engine recovery runner (`engine:{transactions}:recover`) replays the completion; the movement
   was already applied in Redis/Lua and the replay is idempotent.
 - **`outbox.ErrFactAlreadyRecorded`**: wrapped as `systemfacts.ErrTransactionFactAlreadyRecorded`,
-  the Store rolls back and the completion is treated as already done.
+  the Store rolls the transaction back and the recovery runner replays the record. It is
+  unreachable by construction: the fact and the row commit in one transaction, and a replay of a
+  committed row is `noop` before the recorder runs. The branch exists so an unexpected duplicate is
+  never committed a second time.
 
 ## Configuration
 
@@ -78,21 +83,40 @@ holds `validateSystemFactsConfig`.
 | `SYSTEM_FACTS_ENABLED` | `false` | Builds the producer, runs the forwarder, registers the readiness check; requires `PLUGIN_AUTH_ENABLED=true` |
 | `SYSTEM_FACTS_URL` | — | Delivery target and preflight registry; required when enabled |
 | `SYSTEM_FACTS_M2M_CLIENT_ID` / `_SECRET` | — | Single-tenant producer credential, both required when enabled |
-| `SYSTEM_FACTS_INSECURE_HTTP` | `false` | Plain `http://` to a non-loopback host; `DEPLOYMENT_MODE=local` only |
+| `SYSTEM_FACTS_INSECURE_HTTP` | `false` | Plain `http://` to a non-loopback host; accepted only with `DEPLOYMENT_MODE=local` set explicitly (an unset mode, which elsewhere defaults to local, refuses boot) |
 | `SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS` | `10000` | Bound on the boot preflight, `1000..60000` |
 | `SYSTEM_FACTS_RETENTION_INVALID_HOURS` | `0` | Sweep of `INVALID` outbox records; `0` keeps them |
+| `SYSTEM_FACTS_RETENTION_PUBLISHED_HOURS` | `0` | Sweep of `PUBLISHED` outbox records; `0` is the kit's 7 days |
+| `SYSTEM_FACTS_FORWARDER_BATCH_SIZE` | `0` | Records a dispatch cycle claims; `0` is the kit's 10 |
+| `SYSTEM_FACTS_FORWARDER_DISPATCH_INTERVAL_MS` | `0` | Cycle cadence; `0` is the kit's 500 ms |
+| `SYSTEM_FACTS_FORWARDER_PROCESSING_TIMEOUT_MS` | `0` | Lifetime of a claim; `0` is the kit's 30 min. The kit requires it to exceed `BatchSize × PublishMaxAttempts (3) × DeliveryTimeout (45 s)`, else boot refuses and names the formula |
+| `SYSTEM_FACTS_SOURCE_SERVICE_CHECK` | `warn` | `warn` logs a failing `sourceService` claim once per token source and still delivers; `require` fails the grant so facts wait in the outbox; anything else refuses boot |
+
+A negative tuning or retention value refuses boot. Capacity: one replica delivers at most
+`BatchSize / DispatchInterval` facts per second per dispatch scope (20/s with the kit defaults).
+Above a sustained arrival rate the outbox grows; the kit's `system_facts_outbox_depth{status="pending"}`
+gauge is the signal to raise the batch or shorten the interval, keeping the processing timeout
+above the claim bound.
 
 Credentials: single-tenant uses the static pair. Multi-tenant reads each tenant's own credential at
 `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/system-facts/credentials` on the
-`M2M_SECRETS_BACKEND` backend (`aws` or `vault`, `M2M_VAULT_MOUNT`), cached for five minutes so
-a rotated secret is picked up without a restart; the static pair is never a fallback there,
-because its token would ingest every tenant's facts into one tenant.
+`M2M_SECRETS_BACKEND` backend (`aws` or `vault`, `M2M_VAULT_MOUNT`); the static pair is never a
+fallback there, because its token would ingest every tenant's facts into one tenant. The pair is
+cached in-process per tenant for five minutes (`tracer.WithCredentialTTL`): an entry older than that
+is read again on the next lookup, and a read that fails serves the cached pair and logs once at
+Warn until a read succeeds (stale-while-revalidate), so a rotated secret reaches the token grant
+without a restart and a secret-store outage never stops delivery. This is a documented deviation
+from the multi-tenant standard's two-level M2M credential cache (L1 in-process plus L2 in Valkey):
+the kit asks for the pair only when it mints a token, so a per-pod cache is enough and no shared
+L2 is read or invalidated.
 
 Access Manager prerequisites: `AUTH_M2M_INVERSION_ENABLED=true`; the producer application
 `midaz` created with a `source` (otherwise the service refuses deliveries with SF-0028); every
 credential issued or rotated after the `sourceService` claim exists (otherwise SF-0027); the
 reconciler identity granted `catalog:reserved` (role `lerian-producer`) to register `lerian.*`
-names. The kit's source-service check stays at its Warn default until every credential is rotated.
+names. Keep `SYSTEM_FACTS_SOURCE_SERVICE_CHECK=warn` until every credential (every tenant's, in
+multi-tenant mode) was issued after the claim existed, then switch to `require`: a bad credential
+then fails the grant and its facts wait in the outbox instead of being refused by the service.
 
 ## Rollout order
 
@@ -118,22 +142,33 @@ Helm values and the reconciler Job live in the downstream GitOps repo, not here.
 - **Forwarder**: the `System Facts Forwarder` Launcher app (`bootstrap/system_facts_forwarder.go`)
   runs `producer.Forwarder().Run` on a recovered goroutine whenever a producer exists, even with
   emission off, so a backlog recorded before a failed preflight still drains. On SIGINT/SIGTERM it
-  calls `Shutdown` under a 30s budget, the server's graceful-drain budget.
-- **Readiness**: `/readyz` carries `system_facts_forwarder` whenever `SYSTEM_FACTS_ENABLED=true`:
-  `idle` and `running` are `up`, `stopped` and `failed` are `down` with the fixed text
-  `forwarder <state>`; the forwarder's own error is logged at Warn and never written to the
-  response. With emission off the check stays `up` and its `reason` reads
-  `emission disabled by contract preflight`. The outbox depth is not probed: its error can carry
-  tenant ids and hosts. `tls` is `true` when `SYSTEM_FACTS_URL` is `https://`, and
-  `DEPLOYMENT_MODE=saas` refuses boot otherwise, as for every other dependency.
-- **Metrics**: `system_facts_preflight_total{outcome}` (ledger) and the kit's
+  calls `Shutdown` under a 30s budget, the server's graceful-drain budget. A `Run` that returns
+  before that signal, with or without an error, is logged at Error and restarted with backoff
+  (1s, doubling, capped at 30s, reset after a run longer than a minute); each restart counts
+  `system_facts_forwarder_restarts_total`. The kit allows the restart: `beginRun` refuses a new run
+  only after `Shutdown`.
+- **Readiness**: `/readyz` carries `system_facts_forwarder` whenever `SYSTEM_FACTS_ENABLED=true`
+  and never reports it down: the money path does not depend on delivery, so the forwarder state
+  never takes the pod out of rotation. `idle` and `running` are `up` with no reason; `stopped` and
+  `failed` are `up` with the fixed reason `forwarder <state>; facts are not draining on this pod`,
+  and the forwarder's own error is logged at Warn, never written to the response. With emission
+  off the reason carries `emission disabled by contract preflight`, after the forwarder reason
+  when both apply. The outbox depth is not probed: its error can carry tenant ids and hosts.
+  `tls` is `true` when `SYSTEM_FACTS_URL` is `https://`, and `DEPLOYMENT_MODE=saas` refuses boot
+  otherwise, as for every other dependency.
+- **Metrics**: `system_facts_preflight_total{outcome}` and
+  `system_facts_forwarder_restarts_total` (ledger) and the kit's
   `system_facts_emit_refused_total{reason,type}`, `system_facts_delivery_total{route,outcome}`,
   `system_facts_outbox_depth{status}`, `system_facts_outbox_oldest_age_seconds`,
   `system_facts_outbox_depth_sample_errors_total` and
   `system_facts_outbox_terminal_failures_total{reason,route}`. Aggregate the gauges across
   replicas with `max()`.
-- **Alert**: `increase(system_facts_emit_refused_total[5m]) > 0` — every refusal is a producer
-  defect and a lost fact. Pair any depth or age alert with one on
+- **Alerts**: `increase(system_facts_emit_refused_total[5m]) > 0` — every refusal is a producer
+  defect and a lost fact. `increase(system_facts_forwarder_restarts_total[10m]) > 0` — the
+  forwarder keeps stopping and nothing drains on that pod while readiness stays green.
+  `max(system_facts_outbox_depth{status="pending"})` sustained above the capacity ceiling — the
+  forwarder is below the arrival rate: raise `SYSTEM_FACTS_FORWARDER_BATCH_SIZE` or lower
+  `SYSTEM_FACTS_FORWARDER_DISPATCH_INTERVAL_MS`. Pair any depth or age alert with one on
   `system_facts_outbox_depth_sample_errors_total`.
 
 ## Pending
@@ -145,3 +180,7 @@ Helm values and the reconciler Job live in the downstream GitOps repo, not here.
 - **Release**: the kit is pinned at `lib-system-facts v1.0.0-beta.8` (lib-auth is on the stable
   `v5.6.0`). The pre-release gate warns on `develop` and blocks PRs to `release-candidate` and
   `main` until a stable kit tag exists.
+- **Outside this repo**: lib-system-facts resolves the kit-table schema inside `Record` once per
+  record; resolving it once per `*sql.Tx` would drop one query per fact. lib-commons'
+  `ManagerPoolResolver.ListTenants` is called on every dispatch cycle and has no TTL cache. The
+  toolchain pin `go1.27.2` carries advisories to review at the next bump.
