@@ -1,7 +1,7 @@
 # Ledger Streaming Event Catalog
 
 Canonical reference for every streaming event the **Ledger** component emits. It
-complements — does not duplicate — the producer conventions in `CLAUDE.md`
+complements — does not duplicate — the producer conventions in `docs/AGENTS-REFERENCE.md`
 (Streaming section) and `docs/PROJECT_RULES.md`.
 
 > **Drift discipline.** This document, the Payload structs in
@@ -842,5 +842,5 @@ ledger accordingly. Pre-provision exactly two topics —
 `max.message.bytes` at or above its source topic's, since a DLQ record is strictly
 larger than the record it quarantines. Do not rely on auto-create.
 
-See the `CLAUDE.md` Streaming → Local testing section for the
+See the `docs/AGENTS-REFERENCE.md` Streaming → Local testing section for the
 broker/environment conventions.

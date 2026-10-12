@@ -61,10 +61,10 @@ type Repository interface {
 	// changes the case of the segment's own name does not collide with itself.
 	// Returns (true, ErrDuplicateSegmentName) when found, (false, nil) when not found.
 	ExistsByNameExcludingID(ctx context.Context, organizationID, ledgerID uuid.UUID, name string, excludeID uuid.UUID) (bool, error)
-	// FindAll retrieves non-deleted segments for an organization ledger using pagination filters.
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Segment, error)
-	// FindByIDs retrieves non-deleted segments matching the provided IDs in an organization ledger.
-	FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Segment, error)
+	// FindAll retrieves non-deleted segments of an organization ledger, paginated and
+	// sorted by id from the filter's offset pagination fields. A non-empty
+	// filter.EntityIDs restricts the result to those ids.
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error)
 	// Find retrieves one non-deleted segment by ID in an organization ledger.
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error)
 	// Update applies mutable fields to a non-deleted segment and returns the updated entity.
@@ -258,7 +258,7 @@ func (p *SegmentPostgreSQLRepository) existsByName(ctx context.Context, organiza
 	return false, nil
 }
 
-func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Segment, error) {
+func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_segments")
@@ -274,6 +274,8 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		return nil, err
 	}
 
+	pagination := filter.ToOffsetPagination()
+
 	var segments []*mmodel.Segment
 
 	findAll := squirrel.Select(segmentColumnList...).
@@ -282,76 +284,22 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
 		Where(squirrel.Eq{"deleted_at": nil})
 
-	if !filter.StartDate.IsZero() {
+	if !pagination.StartDate.IsZero() {
 		findAll = findAll.
-			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
 	}
 
-	findAll = findAll.OrderBy("id " + strings.ToUpper(filter.SortOrder)).
-		Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+	findAll = findAll.OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
+		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
+		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
 	query, args, err := findAll.ToSql()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
-		return nil, err
-	}
-
-	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var segment SegmentPostgreSQLModel
-		if err := rows.Scan(&segment.ID, &segment.Name, &segment.LedgerID, &segment.OrganizationID,
-			&segment.Status, &segment.StatusDescription, &segment.CreatedAt, &segment.UpdatedAt, &segment.DeletedAt); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
-			return nil, err
-		}
-
-		segments = append(segments, segment.ToEntity())
-	}
-
-	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
-		return nil, err
-	}
-
-	return segments, nil
-}
-
-func (p *SegmentPostgreSQLRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Segment, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.find_segments_by_ids")
-	defer span.End()
-
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-
-	db, err := p.getDB(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-		return nil, err
-	}
-
-	var segments []*mmodel.Segment
-
-	query, args, err := squirrel.Select(segmentColumnList...).
-		From(p.tableName).
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 		return nil, err

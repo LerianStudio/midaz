@@ -27,7 +27,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 	ctx, span := tracer.Start(ctx, "query.get_all_assets")
 	defer span.End()
 
-	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
+	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting assets on repo", libLog.Err(err))
 

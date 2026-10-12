@@ -2,7 +2,7 @@
 
 Canonical reference for every streaming event the **tracer** component
 (`components/tracer`, :4020) emits. It complements — does not duplicate — the
-producer conventions in `CLAUDE.md` (Streaming section) and
+producer conventions in `docs/AGENTS-REFERENCE.md` (Streaming section) and
 `docs/PROJECT_RULES.md`.
 
 > **Drift discipline.** This document, the Payload structs in
@@ -498,7 +498,7 @@ point tracer at it:
   strictly larger than the record it quarantines.
 
 The default unit suite never touches a broker — the JSONShape and mapping tests
-in `pkg/streaming/events/` marshal payloads in memory. See the `CLAUDE.md`
+in `pkg/streaming/events/` marshal payloads in memory. See the `docs/AGENTS-REFERENCE.md`
 Streaming → Local testing section for the broker/environment conventions.
 
 ## Canonical code locations

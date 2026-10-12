@@ -56,9 +56,8 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 		metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccountType, metadataFilter)
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccountType)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account type", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account type", err)
+			logger.Log(ctx, libLog.LevelError, "Error getting account type metadata on repo", libLog.Err(err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

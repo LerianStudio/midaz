@@ -51,8 +51,10 @@ var assetColumnList = []string{
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=asset.postgresql_mock.go --package=asset . Repository
 type Repository interface {
 	Create(ctx context.Context, asset *mmodel.Asset) (*mmodel.Asset, error)
-	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error)
-	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error)
+	// FindAll retrieves non-deleted assets of an organization ledger, paginated and
+	// sorted by id from the filter's offset pagination fields. A non-empty
+	// filter.EntityIDs restricts the result to those ids.
+	FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Asset, error)
 	Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error)
 
 	// FindByNameOrCode reports whether an active Asset in the ledger already
@@ -273,8 +275,7 @@ func (r *AssetPostgreSQLRepository) existsByNameOrCode(ctx context.Context, span
 	return false, nil
 }
 
-// FindAll retrieves Asset entities from the database with soft-deleted records.
-func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Asset, error) {
+func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Asset, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_all_assets")
@@ -287,6 +288,8 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 		return nil, err
 	}
 
+	pagination := filter.ToOffsetPagination()
+
 	var assets []*mmodel.Asset
 
 	findAll := squirrel.Select(assetColumnList...).
@@ -295,78 +298,22 @@ func (r *AssetPostgreSQLRepository) FindAll(ctx context.Context, organizationID,
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID))
 
-	if !filter.StartDate.IsZero() {
+	if !pagination.StartDate.IsZero() {
 		findAll = findAll.
-			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(filter.StartDate, libPointers.Int(0), false)}).
-			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(filter.EndDate, libPointers.Int(0), true)})
+			Where(squirrel.GtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.StartDate, libPointers.Int(0), false)}).
+			Where(squirrel.LtOrEq{"created_at": libCommons.NormalizeDateTime(pagination.EndDate, libPointers.Int(0), true)})
 	}
 
-	findAll = findAll.OrderBy("id " + strings.ToUpper(filter.SortOrder)).
-		Limit(libCommons.SafeIntToUint64(filter.Limit)).
-		Offset(libCommons.SafeIntToUint64((filter.Page - 1) * filter.Limit)).
+	findAll = findAll.OrderBy("id " + strings.ToUpper(pagination.SortOrder)).
+		Limit(libCommons.SafeIntToUint64(pagination.Limit)).
+		Offset(libCommons.SafeIntToUint64((pagination.Page - 1) * pagination.Limit)).
 		PlaceholderFormat(squirrel.Dollar)
 
+	if len(filter.EntityIDs) > 0 {
+		findAll = findAll.Where(squirrel.Expr("id = ANY(?)", pq.Array(filter.EntityIDs)))
+	}
+
 	query, args, err := findAll.ToSql()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
-
-		return nil, err
-	}
-
-	rows, err := db.QueryContext(ctx, query, args...)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
-
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var asset AssetPostgreSQLModel
-		if err := rows.Scan(&asset.ID, &asset.Name, &asset.Type, &asset.Code, &asset.Status, &asset.StatusDescription,
-			&asset.LedgerID, &asset.OrganizationID, &asset.CreatedAt, &asset.UpdatedAt, &asset.DeletedAt); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
-
-			return nil, err
-		}
-
-		assets = append(assets, asset.ToEntity())
-	}
-
-	if err := rows.Err(); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to scan rows", err)
-
-		return nil, err
-	}
-
-	return assets, nil
-}
-
-// ListByIDs retrieves Assets entities from the database using the provided IDs.
-func (r *AssetPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Asset, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "postgres.list_assets_by_ids")
-	defer span.End()
-
-	db, err := r.getDB(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		return nil, err
-	}
-
-	var assets []*mmodel.Asset
-
-	query, args, err := squirrel.Select(assetColumnList...).
-		From("asset").
-		Where(squirrel.Eq{"organization_id": organizationID}).
-		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(squirrel.Expr("id = ANY(?)", pq.Array(ids))).
-		Where(squirrel.Eq{"deleted_at": nil}).
-		OrderBy("created_at DESC").
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 

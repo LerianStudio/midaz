@@ -139,7 +139,8 @@ revert, commit, or cancel that reaches the engine:
 9. SQL/MongoDB failure after accounting is confirmed is deferred to recovery and
    does not turn the already-applied financial operation into an HTTP failure.
    The recovery record was written atomically with accounting. Events are emitted
-   only after SQL and frozen metadata are confirmed. Multi-scope completion groups
+   once SQL commits, before frozen metadata and fee debts are projected, and only
+   by the attempt that wrote the operations. Multi-scope completion groups
    projections by each transaction's organization and ledger; recovery preserves
    those frozen per-transaction scopes and never re-derives them from the primary
    execution scope. Multi-scope batch recovery records also carry the
@@ -1019,8 +1020,8 @@ insert, `updated` for a confirmed status transition, or `noop` for a verified
 replay. A concurrent insert won by another transaction is `noop`, not `created`.
 `FinalizeWithOutcome` exposes this information only after metadata verification;
 an error returns an empty outcome. The phase does not confirm broker publication,
-and it does not authorize receipt/guard expiry. These outcomes do not themselves
-change event dispatch or wire the posting engine into normal execution.
+and it does not authorize receipt/guard expiry. A `noop` outcome publishes no
+event: the attempt that wrote the operations already published them.
 
 ### Compatible recovery consumers
 
@@ -1072,8 +1073,9 @@ historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.
 
 `NewTransactionCompletionServiceWithEvents` optionally dispatches the existing
-transaction, overdraft, and balance-change emitters after SQL and captured metadata
-have both been confirmed. It requires a store reporting the actual committed
+transaction, overdraft, and balance-change emitters once SQL commits, before the
+captured metadata and fee debts are projected, so a projection failure retried as
+`noop` does not lose them. It requires a store reporting the actual committed
 `created`, `updated`, or `noop` lifecycle phase; an absent or unknown phase fails
 without dispatch. The original service constructor remains persistence-only.
 Both paths project the same deterministic rows and preserve the legacy public

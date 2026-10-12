@@ -338,7 +338,7 @@ func TestIntegration_SegmentRepository_FindAll_Pagination(t *testing.T) {
 	ctx := context.Background()
 
 	// Page 1: limit=2, page=1
-	page1Filter := http.Pagination{
+	page1Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      1,
 		SortOrder: "DESC",
@@ -351,7 +351,7 @@ func TestIntegration_SegmentRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, page1, 2, "page 1 should have 2 items")
 
 	// Page 2: limit=2, page=2
-	page2Filter := http.Pagination{
+	page2Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      2,
 		SortOrder: "DESC",
@@ -364,7 +364,7 @@ func TestIntegration_SegmentRepository_FindAll_Pagination(t *testing.T) {
 	assert.Len(t, page2, 2, "page 2 should have 2 items")
 
 	// Page 3: limit=2, page=3 (should have 1 item)
-	page3Filter := http.Pagination{
+	page3Filter := http.QueryHeader{
 		Limit:     2,
 		Page:      3,
 		SortOrder: "DESC",
@@ -388,6 +388,63 @@ func TestIntegration_SegmentRepository_FindAll_Pagination(t *testing.T) {
 		allIDs[s.ID] = true
 	}
 	assert.Len(t, allIDs, 5, "should have 5 unique segments across all pages")
+}
+
+func TestIntegration_SegmentRepository_FindAll_ByEntityIDs_Paginates(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	otherLedgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+
+	requested := make([]uuid.UUID, 0, 3)
+	for _, name := range []string{"Segment A", "Segment B", "Segment C"} {
+		requested = append(requested, pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.SegmentParams{
+			Name: name, Status: "ACTIVE",
+		}))
+	}
+
+	unrequestedID := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.SegmentParams{
+		Name: "Segment D", Status: "ACTIVE",
+	})
+	otherLedgerSegmentID := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, otherLedgerID, pgtestutil.SegmentParams{
+		Name: "Segment E", Status: "ACTIVE",
+	})
+
+	ctx := context.Background()
+
+	filter := defaultPagination()
+	filter.Limit = 2
+	filter.EntityIDs = append(append([]uuid.UUID{}, requested...), otherLedgerSegmentID)
+
+	filter.Page = 1
+	page1, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	require.NoError(t, err)
+	assert.Len(t, page1, 2, "page 1 should have 2 items")
+
+	filter.Page = 2
+	page2, err := repo.FindAll(ctx, orgID, ledgerID, filter)
+	require.NoError(t, err)
+	assert.Len(t, page2, 1, "page 2 should have 1 item")
+
+	want := make(map[string]bool, len(requested))
+	for _, id := range requested {
+		want[id.String()] = true
+	}
+
+	seen := make(map[string]bool)
+	for _, s := range append(page1, page2...) {
+		assert.True(t, want[s.ID], "segment %s should be one of the requested ids", s.ID)
+		assert.NotEqual(t, unrequestedID.String(), s.ID, "unrequested segment must not be returned")
+		assert.NotEqual(t, otherLedgerSegmentID.String(), s.ID, "segment from another ledger must not be returned")
+		assert.Equal(t, orgID.String(), s.OrganizationID)
+		assert.Equal(t, ledgerID.String(), s.LedgerID)
+		seen[s.ID] = true
+	}
+
+	assert.Len(t, seen, 3, "should return the 3 requested segments across both pages")
 }
 
 func TestIntegration_SegmentRepository_FindAll_ExcludesDeleted(t *testing.T) {
@@ -423,64 +480,6 @@ func TestIntegration_SegmentRepository_FindAll_ExcludesDeleted(t *testing.T) {
 	require.NoError(t, err, "FindAll should not return error")
 	assert.Len(t, segments, 1, "should return only active segment")
 	assert.Equal(t, "Active Segment", segments[0].Name)
-}
-
-// ============================================================================
-// FindByIDs Tests
-// ============================================================================
-
-func TestIntegration_SegmentRepository_FindByIDs_ReturnsMatchingSegments(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-
-	// Create 3 segments
-	id1 := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.SegmentParams{
-		Name: "Segment 1", Status: "ACTIVE",
-	})
-	id2 := pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.SegmentParams{
-		Name: "Segment 2", Status: "ACTIVE",
-	})
-	pgtestutil.CreateTestSegmentWithParams(t, container.DB, orgID, ledgerID, pgtestutil.SegmentParams{
-		Name: "Segment 3", Status: "ACTIVE",
-	})
-
-	ctx := context.Background()
-
-	// Act - request only first 2
-	segments, err := repo.FindByIDs(ctx, orgID, ledgerID, []uuid.UUID{id1, id2})
-
-	// Assert
-	require.NoError(t, err, "FindByIDs should not return error")
-	assert.Len(t, segments, 2, "should return only 2 segments")
-
-	names := make([]string, len(segments))
-	for i, s := range segments {
-		names[i] = s.Name
-	}
-	assert.ElementsMatch(t, []string{"Segment 1", "Segment 2"}, names)
-}
-
-func TestIntegration_SegmentRepository_FindByIDs_ReturnsEmptyForNoMatches(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
-
-	repo := createRepository(t, container)
-
-	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
-	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
-
-	ctx := context.Background()
-
-	// Act
-	nonExistentIDs := []uuid.UUID{uuid.Must(libCommons.GenerateUUIDv7()), uuid.Must(libCommons.GenerateUUIDv7())}
-	segments, err := repo.FindByIDs(ctx, orgID, ledgerID, nonExistentIDs)
-
-	// Assert
-	require.NoError(t, err, "should not error for empty result")
-	assert.Empty(t, segments, "should return empty slice")
 }
 
 // ============================================================================
@@ -628,8 +627,8 @@ func TestIntegration_SegmentRepository_Count_ReturnsZeroForEmptyLedger(t *testin
 // Helpers
 // ============================================================================
 
-func defaultPagination() http.Pagination {
-	return http.Pagination{
+func defaultPagination() http.QueryHeader {
+	return http.QueryHeader{
 		Limit:     10,
 		Page:      1,
 		SortOrder: "DESC",

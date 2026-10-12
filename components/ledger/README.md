@@ -2,7 +2,7 @@
 
 > The unified Midaz binary: double-entry ledger, onboarding, CRM, and fees on a single port
 
-[![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?style=flat&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/license-Elastic%20License%202.0-4c1.svg)](../../LICENSE)
 
@@ -156,7 +156,7 @@ Shared code lives at the repo root: `pkg/mmodel` (domain models), `pkg/mtransact
 
 | Layer | Technology |
 |-------|------------|
-| **Language** | Go 1.27.0 |
+| **Language** | Go 1.27.0 (toolchain 1.27.2) |
 | **HTTP framework** | Fiber v3.5.0 (runtime) + Huma v2.39.1 (OAS 3.1 contract) |
 | **Relational store** | PostgreSQL 17 (`jackc/pgx`, `Masterminds/squirrel`) |
 | **Document store** | MongoDB 8 (`go.mongodb.org/mongo-driver/v2`) |
@@ -174,7 +174,7 @@ Shared code lives at the repo root: `pkg/mmodel` (domain models), `pkg/mtransact
 ### Prerequisites
 
 - Docker 20+ & Docker Compose 2+
-- Go 1.27.0+ (for local development)
+- Go 1.27.2+ (for local development)
 - Make
 
 ### 1. Setup
@@ -222,7 +222,7 @@ make ledger COMMAND=down       # Stop it
 # Or run the monorepo-wide targets from the root:
 make test-unit                 # Unit tests
 make test-integration          # Integration tests (testcontainers)
-make lint                      # golangci-lint v2.13.2
+make lint                      # golangci-lint v2.14.0
 make format                    # gofmt
 make sec                       # gosec + govulncheck
 ```
@@ -242,11 +242,24 @@ Base URL: `http://localhost:3002/v1`. Organization is **path-scoped** — there 
 | Onboarding | `/v1/organizations`, `.../ledgers`, `.../assets`, `.../portfolios`, `.../segments`, `.../accounts` | Resource hierarchy CRUD |
 | Transaction | `.../transactions`, `.../operations`, `.../balances` | Double-entry postings + lifecycle |
 | CRM | `.../holders`, `.../instruments` | Holders + instruments (PII encrypted at rest) |
-| Fees | `/v1/fees`, fee routes | `plugin-fees` authz namespace |
+| Fees | `.../packages`, `.../estimates`, `.../billing-packages`, `.../billing/calculate`, `.../fee-debts` | Embedded fee engine, `/v2` only (table below) |
 | CRM encryption | `.../encryption/provision`, `.../encryption/status`, `.../protection/audit` | Envelope mode only (see below) |
 
-RBAC namespaces in the unified binary: `midaz` (onboarding + transaction + CRM), `routing`,
-`plugin-fees`. The canonical OpenAPI spec is generated at `components/ledger/api/openapi.huma.yaml`
+Every route authorizes under one RBAC namespace, `midaz`; the binary has no `routing` or
+`plugin-fees` namespace ([RBAC namespaces](../../docs/auth/RBAC-NAMESPACES.md)). Fee routes, all
+under `/v2/organizations/{organization_id}/ledgers/{ledger_id}`:
+
+| Route | Methods | `midaz` resource: actions |
+|-------|---------|---------------------------|
+| `/packages`, `/packages/{package_id}` | `POST`, `GET`, `PATCH`, `DELETE` | `packages`: `post`, `get`, `patch`, `delete` |
+| `/estimates` | `POST` | `estimates`: `post` |
+| `/billing-packages`, `/billing-packages/{billing_package_id}` | `POST`, `GET`, `PATCH`, `DELETE` | `billing-packages`: `post`, `get`, `patch`, `delete` |
+| `/billing/calculate` | `POST` | `billing-calculate`: `post` |
+| `/fee-debts`, `/fee-debts/{fee_debt_id}` (v4.2+) | `GET` | `fee-debts`: `get` |
+| `/fee-debts/collect` (v4.2+) | `POST` | `fee-debts`: `post` |
+
+Fee behavior: [Fees Engine docs](https://docs.lerian.studio/en/products/midaz/fees/fees-engine-overview).
+The canonical OpenAPI spec is generated at `components/ledger/api/openapi.huma.yaml`
 and merged into `api/midaz.openapi.{yaml,json}`; treat the spec as the source of truth for
 request/response shapes rather than duplicating them here.
 
@@ -307,11 +320,11 @@ for CRM envelope encryption.
 ## Documentation
 
 This README is an orientation layer. The authoritative, deeper references live at the repo root — do
-not look for a component `CLAUDE.md` or `AGENTS.md` here; the root ones cover the ledger:
+not look for a component `CLAUDE.md` or `AGENTS.md` here; the root ones cover the ledger (`CLAUDE.md` is a symlink to `AGENTS.md`):
 
 | Document | Purpose |
 |----------|---------|
-| [`../../CLAUDE.md`](../../CLAUDE.md) | Agent reference: architecture, coding rules, streaming, multi-tenancy |
+| [`../../docs/AGENTS-REFERENCE.md`](../../docs/AGENTS-REFERENCE.md) | Agent reference: architecture, coding rules, streaming, multi-tenancy |
 | [`../../AGENTS.md`](../../AGENTS.md) | Concise agent overview |
 | [`../../docs/PROJECT_RULES.md`](../../docs/PROJECT_RULES.md) | Architecture patterns, domain model, testing standards |
 | [`../../docs/standards/`](../../docs/standards/) | Binding telemetry (T1–T13) and error-handling (E1–E14) standards |
