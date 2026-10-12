@@ -19,6 +19,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/tests/utils/stubs"
 )
 
 // fakeForwarderStatus answers a fixed forwarder lifecycle snapshot.
@@ -39,48 +41,43 @@ func TestSystemFactsForwarderChecker_Check(t *testing.T) {
 		name       string
 		status     outbox.ForwarderStatus
 		emitting   bool
-		wantStatus DependencyStatus
-		wantError  string
 		wantReason string
+		wantWarn   bool
 	}{
 		{
-			name:       "idle is up because the Launcher starts apps concurrently",
-			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateIdle},
-			emitting:   true,
-			wantStatus: StatusUp,
+			name:     "idle is up because the Launcher starts apps concurrently",
+			status:   outbox.ForwarderStatus{State: outbox.ForwarderStateIdle},
+			emitting: true,
 		},
 		{
-			name:       "running is up",
-			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateRunning},
-			emitting:   true,
-			wantStatus: StatusUp,
+			name:     "running is up",
+			status:   outbox.ForwarderStatus{State: outbox.ForwarderStateRunning},
+			emitting: true,
 		},
 		{
-			name:       "stopped is down with a fixed error",
+			name:       "stopped stays up with a fixed reason",
 			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateStopped},
 			emitting:   true,
-			wantStatus: StatusDown,
-			wantError:  "forwarder stopped",
+			wantReason: "forwarder stopped; facts are not draining on this pod",
+			wantWarn:   true,
 		},
 		{
-			name:       "failed is down with a fixed error that never carries the run error",
+			name:       "failed stays up with a fixed reason that never carries the run error",
 			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateFailed, Err: forwarderRunError},
 			emitting:   true,
-			wantStatus: StatusDown,
-			wantError:  "forwarder failed",
+			wantReason: "forwarder failed; facts are not draining on this pod",
+			wantWarn:   true,
 		},
 		{
 			name:       "running with emission off stays up and names the preflight",
 			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateRunning},
-			wantStatus: StatusUp,
 			wantReason: "emission disabled by contract preflight",
 		},
 		{
-			name:       "failed with emission off keeps the preflight reason",
+			name:       "failed with emission off carries both reasons",
 			status:     outbox.ForwarderStatus{State: outbox.ForwarderStateFailed, Err: forwarderRunError},
-			wantStatus: StatusDown,
-			wantError:  "forwarder failed",
-			wantReason: "emission disabled by contract preflight",
+			wantReason: "forwarder failed; facts are not draining on this pod; emission disabled by contract preflight",
+			wantWarn:   true,
 		},
 	}
 
@@ -88,30 +85,32 @@ func TestSystemFactsForwarderChecker_Check(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			logger := &stubs.LoggerStub{}
 			checker := NewSystemFactsForwarderChecker("system_facts_forwarder", fakeForwarderStatus{status: tt.status},
-				tt.emitting, "https://system-facts.lerian.internal", libLog.NewNop())
+				tt.emitting, "https://system-facts.lerian.internal", logger)
 
 			got := checker.Check(context.Background())
 
 			assert.Equal(t, "system_facts_forwarder", checker.Name())
-			assert.Equal(t, tt.wantStatus, got.Status)
-			assert.Equal(t, tt.wantError, got.Error)
+			assert.Equal(t, StatusUp, got.Status, "the forwarder state never takes the pod out of rotation")
+			assert.Empty(t, got.Error)
 			assert.Equal(t, tt.wantReason, got.Reason)
-			assert.NotContains(t, got.Error+got.Reason, "10.0.0.7", "the run error must never reach the check")
+			assert.NotContains(t, got.Reason, "10.0.0.7", "the run error must never reach the check")
+
+			if !tt.wantWarn {
+				assert.Empty(t, logger.Warnings)
+
+				return
+			}
+
+			require.Len(t, logger.Warnings, 1, "a forwarder that is not running is logged at Warn")
+			assert.Contains(t, logger.Warnings[0], "state="+string(tt.status.State))
+
+			if tt.status.Err != nil {
+				assert.Contains(t, logger.Warnings[0], "10.0.0.7", "the run error goes to the log, never the response")
+			}
 		})
 	}
-}
-
-func TestSystemFactsForwarderChecker_Check_NilForwarderIsSkipped(t *testing.T) {
-	t.Parallel()
-
-	checker := NewSystemFactsForwarderChecker("system_facts_forwarder", nil, false, "", libLog.NewNop())
-
-	got := checker.Check(context.Background())
-
-	assert.Equal(t, StatusSkipped, got.Status)
-	assert.Equal(t, "System Facts emission disabled", got.Reason)
-	assert.Empty(t, got.Error)
 }
 
 func TestSystemFactsForwarderChecker_TLSEnabled(t *testing.T) {
@@ -132,30 +131,21 @@ func TestSystemFactsForwarderChecker_TLSEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			checker := NewSystemFactsForwarderChecker("system_facts_forwarder", nil, false, tt.url, libLog.NewNop())
+			checker := NewSystemFactsForwarderChecker("system_facts_forwarder", fakeForwarderStatus{}, false, tt.url, libLog.NewNop())
 
 			assert.Equal(t, tt.want, checker.TLSEnabled())
 		})
 	}
 }
 
-// TestReadyzHandler_SystemFactsForwarderFailed_NeverExposesTheRunError runs
-// the checker through the handler: the body carries the fixed text in local
-// mode and the sanitized text elsewhere, and the run error in neither.
-func TestReadyzHandler_SystemFactsForwarderFailed_NeverExposesTheRunError(t *testing.T) {
+// TestReadyzHandler_SystemFactsForwarderFailed_KeepsThePodReady runs the
+// checker through the handler: a failed forwarder answers 200 with the fixed
+// reason in every mode, and the run error reaches the body in none.
+func TestReadyzHandler_SystemFactsForwarderFailed_KeepsThePodReady(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		deploymentMode string
-		wantError      string
-	}{
-		{name: "local keeps the fixed text", deploymentMode: DeploymentModeLocal, wantError: "forwarder failed"},
-		{name: "saas sanitizes the fixed text", deploymentMode: DeploymentModeSaaS, wantError: "system_facts_forwarder check failed"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, deploymentMode := range []string{DeploymentModeLocal, DeploymentModeSaaS} {
+		t.Run(deploymentMode, func(t *testing.T) {
 			t.Parallel()
 
 			checker := NewSystemFactsForwarderChecker("system_facts_forwarder",
@@ -165,7 +155,7 @@ func TestReadyzHandler_SystemFactsForwarderFailed_NeverExposesTheRunError(t *tes
 			handler := newReadyHandler(ReadyzHandlerConfig{
 				Logger:         libLog.NewNop(),
 				Checkers:       []DependencyChecker{checker},
-				DeploymentMode: tt.deploymentMode,
+				DeploymentMode: deploymentMode,
 			})
 
 			app := fiber.New()
@@ -179,14 +169,16 @@ func TestReadyzHandler_SystemFactsForwarderFailed_NeverExposesTheRunError(t *tes
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
-			assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+			assert.Equal(t, http.StatusOK, resp.StatusCode, "a stopped forwarder never takes the pod out of rotation")
 			assert.NotContains(t, string(body), "10.0.0.7", "the run error must never reach the response")
 
 			var parsed ReadyzResponse
 
 			require.NoError(t, json.Unmarshal(body, &parsed))
-			assert.Equal(t, StatusDown, parsed.Checks["system_facts_forwarder"].Status)
-			assert.Equal(t, tt.wantError, parsed.Checks["system_facts_forwarder"].Error)
+			assert.Equal(t, "healthy", parsed.Status)
+			assert.Equal(t, StatusUp, parsed.Checks["system_facts_forwarder"].Status)
+			assert.Empty(t, parsed.Checks["system_facts_forwarder"].Error)
+			assert.Equal(t, "forwarder failed; facts are not draining on this pod", parsed.Checks["system_facts_forwarder"].Reason)
 		})
 	}
 }
@@ -200,16 +192,6 @@ func TestAppendSystemFactsForwarderChecker(t *testing.T) {
 		checkers := appendSystemFactsForwarderChecker(nil, &Config{}, &systemFactsComponents{}, libLog.NewNop())
 
 		assert.Empty(t, checkers)
-	})
-
-	t.Run("enabled without wiring registers a skipped checker", func(t *testing.T) {
-		t.Parallel()
-
-		checkers := appendSystemFactsForwarderChecker(nil, &Config{SystemFactsEnabled: true}, nil, libLog.NewNop())
-
-		require.Len(t, checkers, 1)
-		assert.Equal(t, "system_facts_forwarder", checkers[0].Name())
-		assert.Equal(t, StatusSkipped, checkers[0].Check(context.Background()).Status)
 	})
 
 	t.Run("enabled producer registers the forwarder checker", func(t *testing.T) {

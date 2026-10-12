@@ -192,7 +192,7 @@ func (s *Service) launcherApps() []launcherApp {
 	if s.SystemFacts != nil && s.SystemFacts.producer != nil && s.SystemFacts.producer.Forwarder() != nil {
 		apps = append(apps, launcherApp{
 			"System Facts Forwarder",
-			newSystemFactsForwarderRunnable(s.SystemFacts.producer.Forwarder(), s.Logger),
+			newSystemFactsForwarderRunnable(s.SystemFacts.producer.Forwarder(), s.Logger, s.metricsFactory),
 		})
 	}
 

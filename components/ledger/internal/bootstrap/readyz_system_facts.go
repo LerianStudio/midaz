@@ -13,8 +13,13 @@ import (
 	"github.com/LerianStudio/lib-system-facts/outbox"
 )
 
-// systemFactsForwarderCheckerName is the checks-map key of the forwarder probe.
-const systemFactsForwarderCheckerName = "system_facts_forwarder"
+const (
+	// systemFactsForwarderCheckerName is the checks-map key of the forwarder probe.
+	systemFactsForwarderCheckerName = "system_facts_forwarder"
+	// systemFactsEmissionOffReason is the check reason while the contract
+	// preflight keeps emission off.
+	systemFactsEmissionOffReason = "emission disabled by contract preflight"
+)
 
 // SystemFactsForwarderStatusReader reports the forwarder's Run lifecycle;
 // *outbox.Forwarder in production.
@@ -23,10 +28,8 @@ type SystemFactsForwarderStatusReader interface {
 }
 
 // SystemFactsForwarderChecker probes the System Facts forwarder's lifecycle
-// state. The state is a closed set the kit declares probe-safe; Status().Err
-// can carry hosts and tenant ids, so it is logged and never written to the
-// check. The outbox depth is deliberately not read: its error can carry the
-// same detail, and the kit's depth gauges already cover the backlog.
+// state. Status().Err can carry hosts and tenant ids, so it is logged and
+// never written to the check; the outbox depth is not read for the same reason.
 type SystemFactsForwarderChecker struct {
 	name       string
 	forwarder  SystemFactsForwarderStatusReader
@@ -35,9 +38,9 @@ type SystemFactsForwarderChecker struct {
 	logger     libLog.Logger
 }
 
-// NewSystemFactsForwarderChecker builds the forwarder checker. A nil forwarder
-// reports skipped; emitting false keeps the check up and names the preflight in
-// its reason; systemFactsURL is read only for TLS detection.
+// NewSystemFactsForwarderChecker builds the forwarder checker. emitting false
+// names the preflight in the check reason; systemFactsURL is read only for TLS
+// detection.
 func NewSystemFactsForwarderChecker(name string, forwarder SystemFactsForwarderStatusReader, emitting bool, systemFactsURL string, logger libLog.Logger) *SystemFactsForwarderChecker {
 	if logger == nil {
 		logger = libLog.NewNop()
@@ -62,57 +65,43 @@ func (c *SystemFactsForwarderChecker) TLSEnabled() bool {
 	return c.tlsEnabled
 }
 
-// Check reads the forwarder state: idle (not started yet; the Launcher starts
-// apps concurrently) and running are up, stopped and failed are down with the
-// fixed text "forwarder <state>". With emission off the check stays up and its
-// reason names the preflight, so readiness never fails for a contract the
-// reconciler Job has yet to register.
+// Check always answers up: the money path does not depend on fact delivery,
+// so the forwarder state never takes the pod out of rotation. A forwarder
+// that is stopped or failed is logged at Warn and named in the reason, as is
+// emission kept off by the contract preflight.
 func (c *SystemFactsForwarderChecker) Check(ctx context.Context) DependencyCheck {
-	if c.forwarder == nil {
-		return DependencyCheck{Status: StatusSkipped, Reason: "System Facts emission disabled"}
-	}
-
-	check := DependencyCheck{Status: StatusUp}
-	if !c.emitting {
-		check.Reason = "emission disabled by contract preflight"
-	}
+	var reasons []string
 
 	status := c.forwarder.Status()
-	if status.State == outbox.ForwarderStateIdle || status.State == outbox.ForwarderStateRunning {
-		return check
+	if status.State != outbox.ForwarderStateIdle && status.State != outbox.ForwarderStateRunning {
+		c.logNotRunning(ctx, status)
+
+		reasons = append(reasons, fmt.Sprintf("forwarder %s; facts are not draining on this pod", status.State))
 	}
 
+	if !c.emitting {
+		reasons = append(reasons, systemFactsEmissionOffReason)
+	}
+
+	return DependencyCheck{Status: StatusUp, Reason: strings.Join(reasons, "; ")}
+}
+
+func (c *SystemFactsForwarderChecker) logNotRunning(ctx context.Context, status outbox.ForwarderStatus) {
+	fields := []any{libLog.String("state", string(status.State))}
 	if status.Err != nil {
-		c.logger.Log(ctx, libLog.LevelWarn, "System Facts forwarder is not running",
-			libLog.String("state", string(status.State)), libLog.Err(status.Err))
+		fields = append(fields, libLog.Err(status.Err))
 	}
 
-	check.Status = StatusDown
-	check.Error = fmt.Sprintf("forwarder %s", status.State)
-
-	return check
+	c.logger.Log(ctx, libLog.LevelWarn, "System Facts forwarder is not running; facts are not draining on this pod", fields...)
 }
 
 // appendSystemFactsForwarderChecker registers the forwarder checker whenever
-// the producer is enabled, so a forwarder that stopped is visible; with
-// SYSTEM_FACTS_ENABLED=false nothing is registered.
+// the producer is enabled; with SYSTEM_FACTS_ENABLED=false nothing is registered.
 func appendSystemFactsForwarderChecker(checkers []DependencyChecker, cfg *Config, systemFacts *systemFactsComponents, logger libLog.Logger) []DependencyChecker {
 	if !cfg.SystemFactsEnabled {
 		return checkers
 	}
 
-	var (
-		forwarder SystemFactsForwarderStatusReader
-		emitting  bool
-	)
-
-	if systemFacts != nil {
-		if f := systemFacts.producer.Forwarder(); f != nil {
-			forwarder = f
-		}
-
-		emitting = systemFacts.emitting
-	}
-
-	return append(checkers, NewSystemFactsForwarderChecker(systemFactsForwarderCheckerName, forwarder, emitting, cfg.SystemFactsURL, logger))
+	return append(checkers, NewSystemFactsForwarderChecker(systemFactsForwarderCheckerName,
+		systemFacts.producer.Forwarder(), systemFacts.emitting, cfg.SystemFactsURL, logger))
 }

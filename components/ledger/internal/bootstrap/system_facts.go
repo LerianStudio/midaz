@@ -395,21 +395,25 @@ func gateSystemFactsEmission(
 	return facts, false
 }
 
-// recordSystemFactsPreflight increments the preflight counter for outcome. A
-// nil factory records nothing; an emit failure is logged at Debug and never
-// fails boot.
+// recordSystemFactsPreflight increments the preflight counter for outcome.
 func recordSystemFactsPreflight(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, outcome string) {
+	incrementSystemFactsCounter(ctx, factory, logger, systemFactsPreflightTotal, map[string]string{"outcome": outcome})
+}
+
+// incrementSystemFactsCounter adds one to m under labels. A nil factory records
+// nothing; an emit failure is logged at Debug and never fails the caller.
+func incrementSystemFactsCounter(ctx context.Context, factory *metrics.MetricsFactory, logger libLog.Logger, m metrics.Metric, labels map[string]string) {
 	if factory == nil {
 		return
 	}
 
-	counter, err := factory.Counter(systemFactsPreflightTotal)
+	counter, err := factory.Counter(m)
 	if err == nil {
-		err = counter.WithLabels(map[string]string{"outcome": outcome}).Add(ctx, 1)
+		err = counter.WithLabels(labels).Add(ctx, 1)
 	}
 
 	if err != nil {
-		logger.Log(ctx, libLog.LevelDebug, "Failed to emit the System Facts preflight metric", libLog.Err(err))
+		logger.Log(ctx, libLog.LevelDebug, "Failed to emit a System Facts metric", libLog.String("metric", m.Name), libLog.Err(err))
 	}
 }
 
