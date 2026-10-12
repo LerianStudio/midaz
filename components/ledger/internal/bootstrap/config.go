@@ -390,7 +390,7 @@ type Config struct {
 	// tenants/{ENV_NAME}/{tenant}/{APPLICATION_NAME}/m2m/system-facts/credentials.
 	// SystemFactsInsecureHTTP admits a plaintext http:// URL to a non-loopback
 	// host (the token and the client secret ride every call) and is accepted
-	// only under DEPLOYMENT_MODE=local; loopback never needs it.
+	// only with DEPLOYMENT_MODE=local set explicitly; loopback never needs it.
 	// SystemFactsPreflightTimeoutMs bounds the read-only contract preflight at
 	// boot (default 10000, allowed 1000..60000). A preflight that does not
 	// answer OK keeps emission off and never refuses boot.
@@ -398,14 +398,29 @@ type Config struct {
 	// outbox records before sweeping them; 0 (the default, and the kit's) keeps
 	// them. Those records hold the fact payload, so the value is Security's to
 	// decide and is left at the kit default until then.
+	// SystemFactsRetentionPublishedHours sweeps PUBLISHED outbox records; 0 is
+	// the kit default (7 days).
+	// SystemFactsForwarder* tune the kit's forwarder, 0 being the kit default:
+	// the records a cycle claims, the cycle cadence (ms) and the claim's
+	// processing timeout (ms), which the kit requires to exceed
+	// BatchSize × PublishMaxAttempts × DeliveryTimeout; a replica delivers at
+	// most BatchSize / DispatchInterval facts per second.
+	// SystemFactsSourceServiceCheck is the token source-service check: warn (the
+	// default) logs a failing claim once and still delivers, require fails the
+	// grant so facts wait in the outbox; set require once every credential is rotated.
 	// SystemFactsM2MClientSecret MUST NOT be logged, span-attached or serialized.
-	SystemFactsEnabled               bool   `env:"SYSTEM_FACTS_ENABLED"`
-	SystemFactsURL                   string `env:"SYSTEM_FACTS_URL"`
-	SystemFactsM2MClientID           string `env:"SYSTEM_FACTS_M2M_CLIENT_ID"`
-	SystemFactsM2MClientSecret       string `env:"SYSTEM_FACTS_M2M_CLIENT_SECRET" json:"-"`
-	SystemFactsInsecureHTTP          bool   `env:"SYSTEM_FACTS_INSECURE_HTTP"`
-	SystemFactsPreflightTimeoutMs    int    `env:"SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS"`
-	SystemFactsRetentionInvalidHours int    `env:"SYSTEM_FACTS_RETENTION_INVALID_HOURS"`
+	SystemFactsEnabled                      bool   `env:"SYSTEM_FACTS_ENABLED"`
+	SystemFactsURL                          string `env:"SYSTEM_FACTS_URL"`
+	SystemFactsM2MClientID                  string `env:"SYSTEM_FACTS_M2M_CLIENT_ID"`
+	SystemFactsM2MClientSecret              string `env:"SYSTEM_FACTS_M2M_CLIENT_SECRET" json:"-"`
+	SystemFactsInsecureHTTP                 bool   `env:"SYSTEM_FACTS_INSECURE_HTTP"`
+	SystemFactsPreflightTimeoutMs           int    `env:"SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS"`
+	SystemFactsRetentionInvalidHours        int    `env:"SYSTEM_FACTS_RETENTION_INVALID_HOURS"`
+	SystemFactsRetentionPublishedHours      int    `env:"SYSTEM_FACTS_RETENTION_PUBLISHED_HOURS"`
+	SystemFactsForwarderBatchSize           int    `env:"SYSTEM_FACTS_FORWARDER_BATCH_SIZE"`
+	SystemFactsForwarderDispatchIntervalMs  int    `env:"SYSTEM_FACTS_FORWARDER_DISPATCH_INTERVAL_MS"`
+	SystemFactsForwarderProcessingTimeoutMs int    `env:"SYSTEM_FACTS_FORWARDER_PROCESSING_TIMEOUT_MS"`
+	SystemFactsSourceServiceCheck           string `env:"SYSTEM_FACTS_SOURCE_SERVICE_CHECK"`
 }
 
 // Options contains optional dependencies that can be injected by callers.
@@ -484,17 +499,40 @@ func validateSystemFactsConfig(cfg *Config) error {
 		}
 	}
 
-	if cfg.SystemFactsInsecureHTTP && !isLocalDeployment(cfg.DeploymentMode) {
-		return fmt.Errorf("SYSTEM_FACTS_INSECURE_HTTP=true is only allowed when DEPLOYMENT_MODE=local (got %q): the token and the client secret ride every call",
-			ResolveDeploymentMode(cfg.DeploymentMode))
+	if cfg.SystemFactsInsecureHTTP && !strings.EqualFold(strings.TrimSpace(cfg.DeploymentMode), DeploymentModeLocal) {
+		return fmt.Errorf("SYSTEM_FACTS_INSECURE_HTTP=true requires DEPLOYMENT_MODE=local set explicitly (got %q): the token and the client secret ride every call",
+			strings.TrimSpace(cfg.DeploymentMode))
 	}
 
 	if _, err := systemFactsPreflightTimeout(cfg); err != nil {
 		return err
 	}
 
-	if cfg.SystemFactsRetentionInvalidHours < 0 {
-		return fmt.Errorf("invalid SYSTEM_FACTS_RETENTION_INVALID_HOURS %d: expected 0 or more", cfg.SystemFactsRetentionInvalidHours)
+	if _, err := systemFactsSourceServiceCheck(cfg); err != nil {
+		return err
+	}
+
+	return validateSystemFactsTuning(cfg)
+}
+
+// validateSystemFactsTuning refuses a negative forwarder or retention knob;
+// 0 is the kit default.
+func validateSystemFactsTuning(cfg *Config) error {
+	knobs := []struct {
+		name  string
+		value int
+	}{
+		{name: "SYSTEM_FACTS_RETENTION_INVALID_HOURS", value: cfg.SystemFactsRetentionInvalidHours},
+		{name: "SYSTEM_FACTS_RETENTION_PUBLISHED_HOURS", value: cfg.SystemFactsRetentionPublishedHours},
+		{name: "SYSTEM_FACTS_FORWARDER_BATCH_SIZE", value: cfg.SystemFactsForwarderBatchSize},
+		{name: "SYSTEM_FACTS_FORWARDER_DISPATCH_INTERVAL_MS", value: cfg.SystemFactsForwarderDispatchIntervalMs},
+		{name: "SYSTEM_FACTS_FORWARDER_PROCESSING_TIMEOUT_MS", value: cfg.SystemFactsForwarderProcessingTimeoutMs},
+	}
+
+	for _, knob := range knobs {
+		if knob.value < 0 {
+			return fmt.Errorf("invalid %s %d: expected 0 (the kit default) or more", knob.name, knob.value)
+		}
 	}
 
 	return nil

@@ -17,8 +17,10 @@ import (
 	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libSystemFacts "github.com/LerianStudio/lib-system-facts"
 	"github.com/LerianStudio/lib-system-facts/manifest"
 	"github.com/LerianStudio/lib-system-facts/reconciler"
+	"github.com/LerianStudio/lib-system-facts/transport/httpsync/accessmanager"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +49,17 @@ func TestValidateSystemFactsConfig(t *testing.T) {
 		{
 			name: "disabled reads nothing else",
 			mutate: func(cfg *Config) {
-				*cfg = Config{SystemFactsEnabled: false, SystemFactsPreflightTimeoutMs: -1, SystemFactsRetentionInvalidHours: -1, SystemFactsInsecureHTTP: true}
+				*cfg = Config{
+					SystemFactsEnabled:                      false,
+					SystemFactsPreflightTimeoutMs:           -1,
+					SystemFactsRetentionInvalidHours:        -1,
+					SystemFactsRetentionPublishedHours:      -1,
+					SystemFactsForwarderBatchSize:           -1,
+					SystemFactsForwarderDispatchIntervalMs:  -1,
+					SystemFactsForwarderProcessingTimeoutMs: -1,
+					SystemFactsSourceServiceCheck:           "off",
+					SystemFactsInsecureHTTP:                 true,
+				}
 			},
 		},
 		{
@@ -88,7 +100,7 @@ func TestValidateSystemFactsConfig(t *testing.T) {
 				cfg.DeploymentMode = DeploymentModeSaaS
 				cfg.SystemFactsInsecureHTTP = true
 			},
-			wantErr: "SYSTEM_FACTS_INSECURE_HTTP=true is only allowed when DEPLOYMENT_MODE=local",
+			wantErr: "SYSTEM_FACTS_INSECURE_HTTP=true requires DEPLOYMENT_MODE=local",
 		},
 		{
 			name: "insecure http in local passes",
@@ -115,6 +127,56 @@ func TestValidateSystemFactsConfig(t *testing.T) {
 			name:    "negative retention",
 			mutate:  func(cfg *Config) { cfg.SystemFactsRetentionInvalidHours = -1 },
 			wantErr: "SYSTEM_FACTS_RETENTION_INVALID_HOURS",
+		},
+		{
+			name: "insecure http with the deployment mode left empty is refused",
+			mutate: func(cfg *Config) {
+				cfg.DeploymentMode = ""
+				cfg.SystemFactsInsecureHTTP = true
+			},
+			wantErr: "SYSTEM_FACTS_INSECURE_HTTP=true requires DEPLOYMENT_MODE=local",
+		},
+		{
+			name:    "negative published retention",
+			mutate:  func(cfg *Config) { cfg.SystemFactsRetentionPublishedHours = -1 },
+			wantErr: "SYSTEM_FACTS_RETENTION_PUBLISHED_HOURS",
+		},
+		{
+			name:    "negative forwarder batch size",
+			mutate:  func(cfg *Config) { cfg.SystemFactsForwarderBatchSize = -1 },
+			wantErr: "SYSTEM_FACTS_FORWARDER_BATCH_SIZE",
+		},
+		{
+			name:    "negative forwarder dispatch interval",
+			mutate:  func(cfg *Config) { cfg.SystemFactsForwarderDispatchIntervalMs = -1 },
+			wantErr: "SYSTEM_FACTS_FORWARDER_DISPATCH_INTERVAL_MS",
+		},
+		{
+			name:    "negative forwarder processing timeout",
+			mutate:  func(cfg *Config) { cfg.SystemFactsForwarderProcessingTimeoutMs = -1 },
+			wantErr: "SYSTEM_FACTS_FORWARDER_PROCESSING_TIMEOUT_MS",
+		},
+		{
+			name: "forwarder tuning at explicit values passes",
+			mutate: func(cfg *Config) {
+				cfg.SystemFactsForwarderBatchSize = 25
+				cfg.SystemFactsForwarderDispatchIntervalMs = 250
+				cfg.SystemFactsForwarderProcessingTimeoutMs = 120000
+				cfg.SystemFactsRetentionPublishedHours = 48
+			},
+		},
+		{
+			name:   "source service check require passes",
+			mutate: func(cfg *Config) { cfg.SystemFactsSourceServiceCheck = "require" },
+		},
+		{
+			name:   "source service check warn with padding and case passes",
+			mutate: func(cfg *Config) { cfg.SystemFactsSourceServiceCheck = "  Warn " },
+		},
+		{
+			name:    "source service check off is refused",
+			mutate:  func(cfg *Config) { cfg.SystemFactsSourceServiceCheck = "off" },
+			wantErr: "SYSTEM_FACTS_SOURCE_SERVICE_CHECK",
 		},
 	}
 
@@ -371,4 +433,82 @@ func TestBuildSystemFacts_MultiTenant_BuildsThePerTenantProducer(t *testing.T) {
 	assert.True(t, components.emitting)
 	assert.Equal(t, 1, seam.calls)
 	assert.Empty(t, secrets.read(), "no tenant secret is read until a tenant's facts are delivered")
+}
+
+func TestSystemFactsForwarderTuning(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, libSystemFacts.ForwarderTuning{}, systemFactsForwarderTuning(&Config{}),
+		"zero values are left for the kit to default")
+
+	cfg := &Config{
+		SystemFactsForwarderBatchSize:           25,
+		SystemFactsForwarderDispatchIntervalMs:  250,
+		SystemFactsForwarderProcessingTimeoutMs: 120000,
+		SystemFactsRetentionPublishedHours:      48,
+		SystemFactsRetentionInvalidHours:        72,
+	}
+
+	assert.Equal(t, libSystemFacts.ForwarderTuning{
+		BatchSize:          25,
+		DispatchInterval:   250 * time.Millisecond,
+		ProcessingTimeout:  2 * time.Minute,
+		RetentionPublished: 48 * time.Hour,
+		RetentionInvalid:   72 * time.Hour,
+	}, systemFactsForwarderTuning(cfg))
+}
+
+func TestSystemFactsSourceServiceCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		value   string
+		want    accessmanager.SourceServiceCheck
+		wantErr bool
+	}{
+		{name: "unset is warn", value: "", want: accessmanager.SourceServiceCheckWarn},
+		{name: "warn", value: "warn", want: accessmanager.SourceServiceCheckWarn},
+		{name: "require", value: "require", want: accessmanager.SourceServiceCheckRequire},
+		{name: "padding and case are ignored", value: " Require ", want: accessmanager.SourceServiceCheckRequire},
+		{name: "off is refused", value: "off", wantErr: true},
+		{name: "anything else is refused", value: "strict", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := systemFactsSourceServiceCheck(&Config{SystemFactsSourceServiceCheck: tt.value})
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "SYSTEM_FACTS_SOURCE_SERVICE_CHECK")
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestBuildSystemFacts_RefusesAForwarderBatchThatOutlivesItsClaim pins the
+// kit's claim invariant at boot: a batch of 100 under the default attempts and
+// delivery timeout cannot finish inside the default processing timeout.
+func TestBuildSystemFacts_RefusesAForwarderBatchThatOutlivesItsClaim(t *testing.T) {
+	t.Parallel()
+
+	cfg := enabledSystemFactsConfig()
+	cfg.SystemFactsURL = systemFactsLoopbackURL
+	cfg.SystemFactsForwarderBatchSize = 100
+	seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeOK}}
+
+	_, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
+		systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "build the System Facts producer")
+	assert.Contains(t, err.Error(), "ProcessingTimeout")
+	assert.Contains(t, err.Error(), "BatchSize 100")
+	assert.Equal(t, 0, seam.calls, "no preflight runs for a producer that cannot be built")
 }

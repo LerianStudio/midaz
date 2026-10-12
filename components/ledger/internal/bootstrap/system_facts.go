@@ -49,6 +49,10 @@ const (
 	// systemFactsCredentialTTL bounds how long a tenant credential is served from
 	// memory, so a rotated secret reaches the token grant without a restart.
 	systemFactsCredentialTTL = 5 * time.Minute
+	// systemFactsSourceServiceCheckWarn and systemFactsSourceServiceCheckRequire
+	// are the SYSTEM_FACTS_SOURCE_SERVICE_CHECK values.
+	systemFactsSourceServiceCheckWarn    = "warn"
+	systemFactsSourceServiceCheckRequire = "require"
 
 	// defaultSystemFactsPreflightTimeout bounds the boot-time contract preflight
 	// when SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS is unset.
@@ -180,9 +184,7 @@ func buildSystemFacts(
 		Logger:        logger,
 		Tracer:        tracer,
 		MeterProvider: meterProvider,
-		Forwarder: libSystemFacts.ForwarderTuning{
-			RetentionInvalid: time.Duration(cfg.SystemFactsRetentionInvalidHours) * time.Hour,
-		},
+		Forwarder:     systemFactsForwarderTuning(cfg),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build the System Facts producer: %w", err)
@@ -274,7 +276,12 @@ func buildSystemFactsTokenSource(ctx context.Context, cfg *Config, deps systemFa
 		return "", nil, errSystemFactsAuthClientNotAuthorizing
 	}
 
-	var opts []accessmanager.Option
+	check, err := systemFactsSourceServiceCheck(cfg)
+	if err != nil {
+		return "", nil, err
+	}
+
+	opts := []accessmanager.Option{accessmanager.WithSourceServiceCheck(check)}
 	if cfg.SystemFactsInsecureHTTP {
 		opts = append(opts, accessmanager.WithInsecureHTTP())
 	}
@@ -444,4 +451,30 @@ func systemFactsTenantCredentials(reader secretsmanager.SecretsManagerClient, en
 
 		return creds.ClientID, creds.ClientSecret, nil
 	}, nil
+}
+
+// systemFactsForwarderTuning maps the SYSTEM_FACTS_FORWARDER_* and retention
+// knobs onto the kit's tuning; zero is left for the kit to default.
+func systemFactsForwarderTuning(cfg *Config) libSystemFacts.ForwarderTuning {
+	return libSystemFacts.ForwarderTuning{
+		BatchSize:          cfg.SystemFactsForwarderBatchSize,
+		DispatchInterval:   time.Duration(cfg.SystemFactsForwarderDispatchIntervalMs) * time.Millisecond,
+		ProcessingTimeout:  time.Duration(cfg.SystemFactsForwarderProcessingTimeoutMs) * time.Millisecond,
+		RetentionPublished: time.Duration(cfg.SystemFactsRetentionPublishedHours) * time.Hour,
+		RetentionInvalid:   time.Duration(cfg.SystemFactsRetentionInvalidHours) * time.Hour,
+	}
+}
+
+// systemFactsSourceServiceCheck resolves SYSTEM_FACTS_SOURCE_SERVICE_CHECK:
+// unset or warn logs a failing sourceService claim once and still delivers;
+// require fails the grant so facts wait in the outbox. Nothing else is accepted.
+func systemFactsSourceServiceCheck(cfg *Config) (accessmanager.SourceServiceCheck, error) {
+	switch mode := strings.ToLower(strings.TrimSpace(cfg.SystemFactsSourceServiceCheck)); mode {
+	case "", systemFactsSourceServiceCheckWarn:
+		return accessmanager.SourceServiceCheckWarn, nil
+	case systemFactsSourceServiceCheckRequire:
+		return accessmanager.SourceServiceCheckRequire, nil
+	default:
+		return accessmanager.SourceServiceCheckWarn, fmt.Errorf("invalid SYSTEM_FACTS_SOURCE_SERVICE_CHECK %q: expected warn or require", mode)
+	}
 }
