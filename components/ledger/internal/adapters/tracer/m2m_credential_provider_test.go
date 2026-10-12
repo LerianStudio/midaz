@@ -343,3 +343,191 @@ func TestTenantCredentials_PanicInReadIsRecovered(t *testing.T) {
 	assert.NotErrorIs(t, err, errTokenMintPanicked, "a read panic is not a mint panic")
 	assert.Contains(t, err.Error(), "credential read panicked")
 }
+
+// setErr makes every later read fail with err; nil heals the recorder.
+func (f *fetchRecorder) setErr(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.err = err
+}
+
+func newTTLTenantCredentials(t *testing.T, fetch CredentialFetcher, clock *testClock, ttl time.Duration) CredentialProvider {
+	t.Helper()
+
+	provider, err := NewTenantCredentials(fetch, WithCredentialClock(clock.Now), WithCredentialTTL(ttl))
+	require.NoError(t, err)
+
+	return provider
+}
+
+func TestTenantCredentials_WithCredentialTTL(t *testing.T) {
+	t.Parallel()
+
+	const ttl = 5 * time.Minute
+
+	t.Run("a fresh entry is served from memory", func(t *testing.T) {
+		t.Parallel()
+
+		clock := newTestClock()
+		recorder := &fetchRecorder{}
+		provider := newTTLTenantCredentials(t, recorder.fetch, clock, ttl)
+
+		first, err := provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+
+		clock.Advance(ttl - time.Second)
+
+		again, err := provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, first, again)
+		assert.Equal(t, 1, recorder.count(), "inside the TTL the cached pair is served")
+	})
+
+	t.Run("an expired entry is refreshed on the next lookup", func(t *testing.T) {
+		t.Parallel()
+
+		clock := newTestClock()
+		recorder := &fetchRecorder{}
+		provider := newTTLTenantCredentials(t, recorder.fetch, clock, ttl)
+
+		_, err := provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+
+		clock.Advance(ttl)
+
+		_, err = provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, 2, recorder.count(), "at the TTL the secret store is read again")
+
+		clock.Advance(ttl - time.Second)
+
+		_, err = provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, 2, recorder.count(), "the refreshed entry starts a new TTL window")
+	})
+
+	t.Run("an expired entry whose refresh fails is served stale with one Warn", func(t *testing.T) {
+		t.Parallel()
+
+		logger := &recordingLogger{}
+		ctx := libObservability.ContextWithLogger(context.Background(), logger)
+		clock := newTestClock()
+		recorder := &fetchRecorder{}
+		provider := newTTLTenantCredentials(t, recorder.fetch, clock, ttl)
+
+		first, err := provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+
+		transient := fmt.Errorf("%w: .../credentials", secretsmanager.ErrM2MRetrievalFailed)
+		recorder.setErr(transient)
+		clock.Advance(ttl)
+
+		stale, err := provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err, "a failed refresh never breaks a tenant that already has a pair")
+		assert.Equal(t, first, stale)
+		assert.Equal(t, 2, recorder.count(), "the refresh was attempted")
+		require.Len(t, logger.atLevel(libLog.LevelWarn), 1, "the failed refresh is logged at Warn")
+		assert.Contains(t, logger.atLevel(libLog.LevelWarn)[0], "tenant-a")
+		assert.NotContains(t, logger.atLevel(libLog.LevelWarn)[0], "secret-tenant-a", "the pair never reaches the log")
+
+		stale, err = provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, first, stale)
+		assert.Equal(t, 3, recorder.count(), "every lookup retries the refresh while the entry is stale")
+		assert.Len(t, logger.atLevel(libLog.LevelWarn), 1, "the failure is logged once per stale period")
+		assert.Empty(t, logger.atLevel(libLog.LevelError))
+
+		recorder.setErr(nil)
+
+		fresh, err := provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, first, fresh)
+		assert.Equal(t, 4, recorder.count(), "a refresh that succeeds ends the stale period")
+
+		recorder.setErr(transient)
+		clock.Advance(ttl)
+
+		_, err = provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+		assert.Len(t, logger.atLevel(libLog.LevelWarn), 2, "a new stale period is logged again")
+	})
+
+	t.Run("a stale entry is served through a cached missing-secret window", func(t *testing.T) {
+		t.Parallel()
+
+		logger := &recordingLogger{}
+		ctx := libObservability.ContextWithLogger(context.Background(), logger)
+		clock := newTestClock()
+		recorder := &fetchRecorder{}
+		provider := newTTLTenantCredentials(t, recorder.fetch, clock, ttl)
+
+		first, err := provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+
+		recorder.setErr(fmt.Errorf("%w: .../credentials", secretsmanager.ErrM2MCredentialsNotFound))
+		clock.Advance(ttl)
+
+		stale, err := provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, first, stale)
+		assert.Equal(t, 2, recorder.count())
+
+		clock.Advance(missingCredentialFailureTTL - time.Millisecond)
+
+		stale, err = provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, first, stale)
+		assert.Equal(t, 2, recorder.count(), "inside the miss window the stale pair is served without a read")
+		assert.Len(t, logger.atLevel(libLog.LevelWarn), 1)
+
+		clock.Advance(time.Millisecond)
+
+		_, err = provider.Credentials(ctx, "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, 3, recorder.count(), "the window closes and the refresh is tried again")
+	})
+
+	t.Run("tenants expire independently", func(t *testing.T) {
+		t.Parallel()
+
+		clock := newTestClock()
+		recorder := &fetchRecorder{}
+		provider := newTTLTenantCredentials(t, recorder.fetch, clock, ttl)
+
+		_, err := provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+
+		clock.Advance(2 * time.Minute)
+
+		_, err = provider.Credentials(context.Background(), "tenant-b")
+		require.NoError(t, err)
+
+		clock.Advance(ttl - 2*time.Minute)
+
+		_, err = provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+
+		_, err = provider.Credentials(context.Background(), "tenant-b")
+		require.NoError(t, err)
+
+		assert.Equal(t, []string{"tenant-a", "tenant-b", "tenant-a"}, recorder.reads, "only the tenant whose TTL passed is read again")
+	})
+
+	t.Run("a non-positive ttl keeps the entry until it is invalidated", func(t *testing.T) {
+		t.Parallel()
+
+		clock := newTestClock()
+		recorder := &fetchRecorder{}
+		provider := newTTLTenantCredentials(t, recorder.fetch, clock, 0)
+
+		_, err := provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+
+		clock.Advance(24 * time.Hour)
+
+		_, err = provider.Credentials(context.Background(), "tenant-a")
+		require.NoError(t, err)
+		assert.Equal(t, 1, recorder.count())
+	})
+}

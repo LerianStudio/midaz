@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/fs"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/LerianStudio/lib-auth/v5/auth/middleware"
@@ -35,40 +34,37 @@ import (
 	ledgerembed "github.com/LerianStudio/midaz/v4/components/ledger"
 	systemfactsadapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/systemfacts"
 	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
 const (
-	// systemFactsContractsDir is where the embedded System Facts manifest and
-	// schemas live under ledgerembed.SystemFactsContracts.
+	// systemFactsContractsDir holds the embedded manifest and schemas under
+	// ledgerembed.SystemFactsContracts.
 	systemFactsContractsDir = "contracts/system-facts"
 	// systemFactsM2MTargetService is the target-service segment of the ledger's
-	// M2M secret path for the System Facts producer credential.
+	// M2M secret path for the producer credential.
 	systemFactsM2MTargetService = "system-facts"
-	// systemFactsCredentialTTL bounds how long a tenant's credential is served
-	// from memory: the kit asks for it on every token call, so it must be cheap,
-	// and a rotated secret must be picked up without a restart.
+	// systemFactsPlatformTenant is the platform tenant lib-commons appends to the
+	// dispatch scopes; the ledger records nothing under it.
+	systemFactsPlatformTenant = "default"
+	// systemFactsCredentialTTL bounds how long a tenant credential is served from
+	// memory, so a rotated secret reaches the token grant without a restart.
 	systemFactsCredentialTTL = 5 * time.Minute
 
-	// defaultSystemFactsPreflightTimeout bounds the boot-time contract
-	// preflight when SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS is unset.
+	// defaultSystemFactsPreflightTimeout bounds the boot-time contract preflight
+	// when SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS is unset.
 	defaultSystemFactsPreflightTimeout = 10 * time.Second
-	// minSystemFactsPreflightTimeoutMs and maxSystemFactsPreflightTimeoutMs
-	// bound an explicit SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS: below the floor a
-	// healthy registry reads as unavailable, above the ceiling a dead one
-	// holds boot.
+	// An explicit SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS must sit within these bounds:
+	// below, a healthy registry reads as unavailable; above, a dead one holds boot.
 	minSystemFactsPreflightTimeoutMs = 1000
 	maxSystemFactsPreflightTimeoutMs = 60000
 )
 
 // errSystemFactsAuthClientNotAuthorizing refuses the producer on an Access
-// Manager client that is nil, disabled or has no address: every token grant
-// would fail, so no fact would ever be delivered.
+// Manager client that cannot mint: every token grant would fail.
 var errSystemFactsAuthClientNotAuthorizing = errors.New("system facts producer: PLUGIN_AUTH_ENABLED=true requires an enabled Access Manager client with an address (PLUGIN_AUTH_HOST)")
 
-// systemFactsPreflightTotal counts boot-time contract preflights by outcome. A
-// non-OK outcome means the pod runs with emission off, so any rate of it needs
-// an operator: the reconciler Job did not run, or the registry moved.
+// systemFactsPreflightTotal counts boot-time contract preflights by outcome; a
+// non-OK outcome means the pod runs with emission off.
 var systemFactsPreflightTotal = metrics.Metric{
 	Name:        "system_facts_preflight_total",
 	Unit:        "1",
@@ -83,25 +79,19 @@ type systemFactsPreflightFunc func(ctx context.Context, m *manifest.Manifest, c 
 // producer: the recorder the completion Store records through, and the
 // producer whose forwarder the Launcher runs and the readiness probe reads.
 type systemFactsComponents struct {
-	// recorder is always non-nil: it wraps the validating emitter when the
-	// preflight answered OK and the kit's no-op emitter otherwise.
+	// recorder is always non-nil: around the validating emitter after an OK
+	// preflight, around the kit's no-op emitter otherwise.
 	recorder *systemfactsadapter.Recorder
-	// producer is nil when SYSTEM_FACTS_ENABLED=false. It is kept even when
-	// emission is off so the forwarder can still drain a backlog.
+	// producer is nil with SYSTEM_FACTS_ENABLED=false; otherwise it is kept even
+	// with emission off, so the forwarder drains a backlog.
 	producer *libSystemFacts.Producer
-	// emitting is true only when the producer is enabled and the preflight
-	// outcome was OK.
+	// emitting is true only when the preflight outcome was OK.
 	emitting bool
 }
 
-// systemFactsDeps carries the collaborators the producer is built from.
-// authClient is the ledger's Access Manager client, which mints the producer
-// token; tenantServiceName is the application segment the tenant-manager writes
-// the ledger's M2M secrets under; tenantClient enumerates the tenants the
-// forwarder drains; metricsFactory records the preflight counter;
-// newAWSSecretsClient builds the AWS Secrets Manager client when that is the
-// custody backend (from the default AWS credential chain when nil); preflight
-// is the contract preflight (reconciler.Preflight when nil).
+// systemFactsDeps carries the collaborators the producer is built from. A nil
+// newAWSSecretsClient, preflight or now means the default AWS credential
+// chain, reconciler.Preflight or time.Now.
 type systemFactsDeps struct {
 	authClient          *middleware.AuthClient
 	tenantServiceName   string
@@ -109,17 +99,28 @@ type systemFactsDeps struct {
 	metricsFactory      *metrics.MetricsFactory
 	newAWSSecretsClient awsSecretsClientFactory
 	preflight           systemFactsPreflightFunc
+	now                 func() time.Time
 }
 
-// buildSystemFacts wires the System Facts producer. With SYSTEM_FACTS_ENABLED
-// false it wires the kit's no-op emitter and builds nothing else. Otherwise it
-// compiles the embedded contracts, builds the token source (the static
-// SYSTEM_FACTS_M2M_* pair single-tenant, each tenant's own secret-store
-// credential multi-tenant), the transport, the producer and the registry
-// client, then runs the read-only contract preflight: only an OK outcome turns
-// emission on. Any other outcome, or an error, keeps the no-op emitter and the
-// producer, logs a Warn and counts it; it never refuses boot, because the
-// reconciler Job already gates the rollout.
+func (d systemFactsDeps) preflightFunc() systemFactsPreflightFunc {
+	if d.preflight == nil {
+		return reconciler.Preflight
+	}
+
+	return d.preflight
+}
+
+func (d systemFactsDeps) clock() time.Time {
+	if d.now == nil {
+		return time.Now()
+	}
+
+	return d.now()
+}
+
+// buildSystemFacts wires the producer. SYSTEM_FACTS_ENABLED=false wires only
+// the kit's no-op emitter; otherwise the embedded contracts, token source,
+// transport, producer and registry client, with emission gated on the preflight.
 func buildSystemFacts(
 	ctx context.Context,
 	cfg *Config,
@@ -161,14 +162,9 @@ func buildSystemFacts(
 		return nil, err
 	}
 
-	var httpsyncOpts []httpsync.Option
-	if cfg.SystemFactsInsecureHTTP {
-		httpsyncOpts = append(httpsyncOpts, httpsync.WithInsecureHTTP())
-	}
-
-	transport, err := httpsync.New(cfg.SystemFactsURL, tokens, httpsyncOpts...)
+	transport, client, err := buildSystemFactsClients(cfg, tokens)
 	if err != nil {
-		return nil, fmt.Errorf("build the System Facts transport: %w", err)
+		return nil, err
 	}
 
 	tenancy, err := buildSystemFactsTenancy(cfg, txnPG, txnPGManager, deps)
@@ -192,16 +188,6 @@ func buildSystemFacts(
 		return nil, fmt.Errorf("build the System Facts producer: %w", err)
 	}
 
-	var registryOpts []registry.Option
-	if cfg.SystemFactsInsecureHTTP {
-		registryOpts = append(registryOpts, registry.WithInsecureHTTP())
-	}
-
-	client, err := registry.New(cfg.SystemFactsURL, tokens, registryOpts...)
-	if err != nil {
-		return nil, fmt.Errorf("build the System Facts registry client: %w", err)
-	}
-
 	facts, emitting := gateSystemFactsEmission(ctx, logger, deps, producer, m, catalog, identity, client, preflightTimeout)
 
 	recorder, err := systemfactsadapter.NewRecorder(facts, logger)
@@ -212,10 +198,35 @@ func buildSystemFacts(
 	return &systemFactsComponents{recorder: recorder, producer: producer, emitting: emitting}, nil
 }
 
+// buildSystemFactsClients builds the delivery transport and the registry client
+// over tokens, admitting plain http only with SYSTEM_FACTS_INSECURE_HTTP.
+func buildSystemFactsClients(cfg *Config, tokens httpsync.TokenSource) (*httpsync.Client, *registry.Client, error) {
+	var (
+		transportOpts []httpsync.Option
+		registryOpts  []registry.Option
+	)
+
+	if cfg.SystemFactsInsecureHTTP {
+		transportOpts = append(transportOpts, httpsync.WithInsecureHTTP())
+		registryOpts = append(registryOpts, registry.WithInsecureHTTP())
+	}
+
+	transport, err := httpsync.New(cfg.SystemFactsURL, tokens, transportOpts...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build the System Facts transport: %w", err)
+	}
+
+	client, err := registry.New(cfg.SystemFactsURL, tokens, registryOpts...)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build the System Facts registry client: %w", err)
+	}
+
+	return transport, client, nil
+}
+
 // systemFactsTelemetry is the tracer and meter provider the kit instruments
-// the forwarder and the emitter with. Each is handed over only when telemetry
-// built it: a nil SDK provider boxed in the interface would be a non-nil value
-// the kit then dereferences.
+// with, each handed over only when telemetry built it: a nil SDK provider
+// boxed in the interface would be dereferenced by the kit.
 func systemFactsTelemetry(telemetry *libOpentelemetry.Telemetry) (trace.Tracer, metric.MeterProvider) {
 	if telemetry == nil {
 		return nil, nil
@@ -255,20 +266,10 @@ func loadSystemFactsCatalog() (*manifest.Manifest, *manifest.Catalog, error) {
 	return m, catalog, nil
 }
 
-// systemFactsTokenSource is what the transport and the registry client
-// authenticate with; the Access Manager sources also invalidate on a 401,
-// which the transport discovers by type.
-type systemFactsTokenSource interface {
-	Token(ctx context.Context) (string, error)
-}
-
 // buildSystemFactsTokenSource selects the credential every call carries: the
-// static SYSTEM_FACTS_M2M_CLIENT_ID / SYSTEM_FACTS_M2M_CLIENT_SECRET pair in
-// single-tenant mode, and each tenant's own secret-store credential in
-// multi-tenant mode (the static pair is never a fallback there, because its
-// token would ingest every tenant's facts into one tenant). The source-service
-// check stays at the kit's Warn default until every credential is rotated.
-func buildSystemFactsTokenSource(ctx context.Context, cfg *Config, deps systemFactsDeps) (tracerSeamIdentity, systemFactsTokenSource, error) {
+// static SYSTEM_FACTS_M2M_* pair single-tenant, each tenant's own secret-store
+// credential multi-tenant (a shared token would merge every tenant's facts).
+func buildSystemFactsTokenSource(ctx context.Context, cfg *Config, deps systemFactsDeps) (tracerSeamIdentity, httpsync.TokenSource, error) {
 	if deps.authClient == nil || !deps.authClient.Enabled || strings.TrimSpace(deps.authClient.Address) == "" {
 		return "", nil, errSystemFactsAuthClientNotAuthorizing
 	}
@@ -312,11 +313,7 @@ func buildSystemFactsTokenSource(ctx context.Context, cfg *Config, deps systemFa
 }
 
 // buildSystemFactsTenancy is the zero (single-tenant) tenancy, or the
-// database-per-tenant tenancy over the transaction tenant pools. lib-commons
-// requires a platform default tenant it resolves from the root pool and appends
-// to the tenant list; the ledger serves no such tenant, so the streaming
-// default name is passed: no request ever carries it, so nothing is recorded
-// under it, and the dispatcher skips a root database without the kit table.
+// database-per-tenant tenancy over the transaction tenant pools.
 func buildSystemFactsTenancy(cfg *Config, txnPG *libPostgres.Client, txnPGManager *tmpostgres.Manager, deps systemFactsDeps) (libSystemFacts.TenancyConfig, error) {
 	if !cfg.MultiTenantEnabled {
 		return libSystemFacts.TenancyConfig{}, nil
@@ -331,7 +328,7 @@ func buildSystemFactsTenancy(cfg *Config, txnPG *libPostgres.Client, txnPGManage
 	}
 
 	pools, err := libOutboxPostgres.NewManagerPoolResolver(txnPGManager, deps.tenantClient, txnPG,
-		strings.TrimSpace(deps.tenantServiceName), pkgStreaming.DefaultTenantID)
+		strings.TrimSpace(deps.tenantServiceName), systemFactsPlatformTenant)
 	if err != nil {
 		return libSystemFacts.TenancyConfig{}, fmt.Errorf("build the System Facts tenant pool resolver: %w", err)
 	}
@@ -339,10 +336,9 @@ func buildSystemFactsTenancy(cfg *Config, txnPG *libPostgres.Client, txnPGManage
 	return libSystemFacts.TenancyConfig{MultiTenantEnabled: true, Pools: pools}, nil
 }
 
-// gateSystemFactsEmission runs the read-only contract preflight under its
-// timeout and returns the emitter business code records through: the
-// producer's validating emitter on OK, the kit's no-op emitter otherwise. The
-// outcome is logged and counted either way.
+// gateSystemFactsEmission runs the read-only contract preflight under timeout
+// and returns the emitter business code records through: the producer's
+// validating emitter on OK, the kit's no-op emitter otherwise.
 func gateSystemFactsEmission(
 	ctx context.Context,
 	logger libLog.Logger,
@@ -354,15 +350,10 @@ func gateSystemFactsEmission(
 	client reconciler.Registry,
 	timeout time.Duration,
 ) (emitter.Emitter, bool) {
-	preflight := deps.preflight
-	if preflight == nil {
-		preflight = reconciler.Preflight
-	}
-
-	preflightCtx, cancel := context.WithTimeout(ctx, timeout)
+	preflightCtx, cancel := context.WithDeadline(ctx, deps.clock().Add(timeout))
 	defer cancel()
 
-	report, err := preflight(preflightCtx, m, client, reconciler.Options{})
+	report, err := deps.preflightFunc()(preflightCtx, m, client, reconciler.Options{})
 
 	outcome := string(report.Outcome)
 	if outcome == "" {
@@ -387,8 +378,6 @@ func gateSystemFactsEmission(
 
 	facts, err := libSystemFacts.New(libSystemFacts.Config{Enabled: false})
 	if err != nil {
-		// Config{Enabled: false} reads no field, so this cannot fail; the
-		// no-op emitter is still the only safe answer.
 		logger.Log(ctx, libLog.LevelError, "System Facts no-op emitter could not be built", libLog.Err(err))
 	}
 
@@ -435,72 +424,24 @@ func systemFactsPreflightTimeout(cfg *Config) (time.Duration, error) {
 }
 
 // systemFactsTenantCredentials is the kit's per-tenant credential lookup over
-// the M2M secret the tenant-manager writes at
-// tenants/{env}/{tenant}/{applicationName}/m2m/system-facts/credentials. The
-// tracer seam's credential provider caches each tenant's pair, shares concurrent
-// reads and remembers a missing or malformed secret briefly; the kit asks for
-// the pair on every token call, so that cache is what keeps the secret store
-// off the delivery path. An entry older than systemFactsCredentialTTL is
-// dropped before the next read, which is how a rotated secret reaches the
-// Access Manager grant without a restart.
+// the M2M secret at tenants/{env}/{tenant}/{applicationName}/m2m/system-facts/credentials,
+// cached per tenant for systemFactsCredentialTTL with stale-while-revalidate.
 func systemFactsTenantCredentials(reader secretsmanager.SecretsManagerClient, env, applicationName string) (accessmanager.TenantCredentials, error) {
 	fetch := func(ctx context.Context, tenantOrgID string) (*secretsmanager.M2MCredentials, error) {
 		return secretsmanager.GetM2MCredentials(ctx, reader, env, tenantOrgID, applicationName, systemFactsM2MTargetService)
 	}
 
-	provider, err := tracerclient.NewTenantCredentials(fetch)
+	provider, err := tracerclient.NewTenantCredentials(fetch, tracerclient.WithCredentialTTL(systemFactsCredentialTTL))
 	if err != nil {
 		return nil, fmt.Errorf("build the System Facts tenant credential provider: %w", err)
 	}
 
-	expiring := &expiringTenantCredentials{provider: provider, ttl: systemFactsCredentialTTL, now: time.Now, readAt: make(map[string]time.Time)}
+	return func(ctx context.Context, tenantID string) (string, string, error) {
+		creds, err := provider.Credentials(ctx, tenantID)
+		if err != nil {
+			return "", "", err
+		}
 
-	return expiring.lookup, nil
-}
-
-// expiringTenantCredentials bounds how long a cached credential is served:
-// it drops the provider's entry for a tenant once ttl has passed since the
-// read that filled it, so the next lookup reads the secret store again.
-type expiringTenantCredentials struct {
-	provider tracerclient.CredentialProvider
-	ttl      time.Duration
-	now      func() time.Time
-
-	mu     sync.Mutex
-	readAt map[string]time.Time
-}
-
-func (e *expiringTenantCredentials) lookup(ctx context.Context, tenantID string) (string, string, error) {
-	if strings.TrimSpace(tenantID) == "" {
-		return "", "", errors.New("system facts tenant credential requires a tenant")
-	}
-
-	e.expire(tenantID)
-
-	creds, err := e.provider.Credentials(ctx, tenantID)
-	if err != nil {
-		return "", "", err
-	}
-
-	e.mu.Lock()
-	if _, ok := e.readAt[tenantID]; !ok {
-		e.readAt[tenantID] = e.now()
-	}
-	e.mu.Unlock()
-
-	return creds.ClientID, creds.ClientSecret, nil
-}
-
-// expire drops the tenant's cached credential once it is older than ttl.
-func (e *expiringTenantCredentials) expire(tenantID string) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	at, ok := e.readAt[tenantID]
-	if !ok || e.now().Sub(at) < e.ttl {
-		return
-	}
-
-	e.provider.Invalidate(tenantID)
-	delete(e.readAt, tenantID)
+		return creds.ClientID, creds.ClientSecret, nil
+	}, nil
 }

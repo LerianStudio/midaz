@@ -26,10 +26,9 @@ const (
 	// systemFactsForwarderShutdownTimeout is the HTTP server's graceful-drain
 	// budget, so the forwarder never outlives the server it shares a pod with.
 	systemFactsForwarderShutdownTimeout = 30 * time.Second
-	// A forwarder that stopped before shutdown restarts after
-	// systemFactsForwarderRestartBackoff, doubling per consecutive stop up to
-	// systemFactsForwarderRestartBackoffMax; a run longer than
-	// systemFactsForwarderStableRun resets the backoff.
+	// A forwarder that stopped before shutdown restarts after the backoff,
+	// doubling per consecutive stop up to the cap; a run longer than
+	// systemFactsForwarderStableRun resets it.
 	systemFactsForwarderRestartBackoff    = time.Second
 	systemFactsForwarderRestartBackoffMax = 30 * time.Second
 	systemFactsForwarderStableRun         = time.Minute
@@ -52,11 +51,9 @@ type systemFactsForwarder interface {
 
 var _ systemFactsForwarder = (*outbox.Forwarder)(nil)
 
-// systemFactsForwarderRunnable adapts the System Facts forwarder to the
-// libCommons.App interface: it supervises Run on its own goroutine until
-// SIGINT/SIGTERM, then shuts the forwarder down under a bounded budget.
-// signalContext, now and wait are the test seams; nil means the real signal
-// context, clock and timer.
+// systemFactsForwarderRunnable is the libCommons.App that supervises the
+// forwarder until SIGINT/SIGTERM and then shuts it down under a bounded budget.
+// signalContext, now and wait are the test seams; nil means the real ones.
 type systemFactsForwarderRunnable struct {
 	forwarder      systemFactsForwarder
 	logger         libLog.Logger
@@ -82,11 +79,8 @@ func newSystemFactsForwarderRunnable(forwarder *outbox.Forwarder, logger libLog.
 }
 
 // Run supervises the forwarder until SIGINT/SIGTERM and then shuts it down.
-// The forwarder runs under its own context rather than the signal one so that
-// Shutdown, not a cancelled context, ends the in-flight cycle: the records it
-// holds are persisted FAILED and retried after the retry window. A Shutdown
-// error is logged at Warn; nothing is propagated, because at shutdown the
-// Launcher cannot meaningfully react.
+// The forwarder runs under its own context, not the signal one, so that
+// Shutdown ends the in-flight cycle and its records are persisted FAILED.
 func (r *systemFactsForwarderRunnable) Run(_ *libCommons.Launcher) error {
 	signalCtx, stop := r.notifyContext()
 	defer stop()

@@ -21,8 +21,6 @@ import (
 	"github.com/LerianStudio/lib-system-facts/reconciler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	tracerclient "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 )
 
 // enabledSystemFactsConfig is a single-tenant configuration the validator
@@ -244,19 +242,15 @@ func TestBuildSystemFacts_PreflightContextCarriesTheConfiguredTimeout(t *testing
 	cfg.SystemFactsURL = systemFactsLoopbackURL
 	cfg.SystemFactsPreflightTimeoutMs = 2500
 	seam := &preflightRecorder{report: reconciler.Report{Outcome: reconciler.OutcomeOK}}
+	boot := time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC)
 
-	parent, cancel := context.WithTimeout(context.Background(), time.Hour)
-	defer cancel()
-
-	_, err := buildSystemFacts(parent, &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
-		systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight})
+	_, err := buildSystemFacts(context.Background(), &cfg, libLog.NewNop(), nil, nil, offlineTransactionClient(t), nil,
+		systemFactsDeps{authClient: systemFactsAuthClient(), preflight: seam.preflight, now: func() time.Time { return boot }})
 	require.NoError(t, err)
 
 	require.True(t, seam.hasDeadline)
-
-	parentDeadline, _ := parent.Deadline()
-	assert.True(t, seam.deadline.Before(parentDeadline), "the preflight deadline must be tighter than the caller's")
-	assert.LessOrEqual(t, time.Until(seam.deadline), 2500*time.Millisecond)
+	assert.True(t, seam.deadline.Equal(boot.Add(2500*time.Millisecond)),
+		"the preflight deadline is the configured timeout past the boot clock, got %s", seam.deadline)
 }
 
 func TestBuildSystemFacts_Enabled_RefusesAnAuthClientThatCannotMint(t *testing.T) {
@@ -377,55 +371,4 @@ func TestBuildSystemFacts_MultiTenant_BuildsThePerTenantProducer(t *testing.T) {
 	assert.True(t, components.emitting)
 	assert.Equal(t, 1, seam.calls)
 	assert.Empty(t, secrets.read(), "no tenant secret is read until a tenant's facts are delivered")
-}
-
-// countingCredentialProvider answers a fixed pair and counts reads and
-// invalidations, standing in for the tracer seam's cached provider.
-type countingCredentialProvider struct {
-	mu           sync.Mutex
-	reads        int
-	invalidated  []string
-	clientSecret string
-}
-
-func (p *countingCredentialProvider) Credentials(context.Context, string) (tracerclient.Credentials, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.reads++
-
-	return tracerclient.Credentials{ClientID: "ledger-tenant", ClientSecret: p.clientSecret}, nil
-}
-
-func (p *countingCredentialProvider) Invalidate(tenantID string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.invalidated = append(p.invalidated, tenantID)
-}
-
-func TestExpiringTenantCredentials_InvalidatesOnlyAfterTheTTL(t *testing.T) {
-	t.Parallel()
-
-	start := time.Date(2026, time.October, 9, 12, 0, 0, 0, time.UTC)
-	now := start
-	provider := &countingCredentialProvider{clientSecret: "s3cret"}
-	creds := &expiringTenantCredentials{provider: provider, ttl: 5 * time.Minute, now: func() time.Time { return now }, readAt: make(map[string]time.Time)}
-
-	for range 2 {
-		_, _, err := creds.lookup(context.Background(), seamTenantID)
-		require.NoError(t, err)
-	}
-
-	assert.Empty(t, provider.invalidated, "inside the TTL the cached pair is served")
-
-	now = start.Add(5 * time.Minute)
-
-	_, _, err := creds.lookup(context.Background(), seamTenantID)
-	require.NoError(t, err)
-	assert.Equal(t, []string{seamTenantID}, provider.invalidated, "at the TTL the entry is dropped so the next read reaches the secret store")
-
-	_, _, err = creds.lookup(context.Background(), seamTenantID)
-	require.NoError(t, err)
-	assert.Len(t, provider.invalidated, 1, "the refilled entry starts a new TTL window")
 }

@@ -65,10 +65,9 @@ func (c *SystemFactsForwarderChecker) TLSEnabled() bool {
 	return c.tlsEnabled
 }
 
-// Check always answers up: the money path does not depend on fact delivery,
-// so the forwarder state never takes the pod out of rotation. A forwarder
-// that is stopped or failed is logged at Warn and named in the reason, as is
-// emission kept off by the contract preflight.
+// Check always answers up: the money path does not depend on fact delivery, so
+// the forwarder state never takes the pod out of rotation. A stopped or failed
+// forwarder, and emission kept off by the preflight, are named in the reason.
 func (c *SystemFactsForwarderChecker) Check(ctx context.Context) DependencyCheck {
 	var reasons []string
 
