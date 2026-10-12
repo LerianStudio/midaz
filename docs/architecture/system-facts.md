@@ -3,7 +3,8 @@
 The ledger is a System Facts producer through `github.com/LerianStudio/lib-system-facts`,
 pinned at the stable `v1.0.0`. It records one fact, `midaz.transaction_committed`, inside the
 PostgreSQL transaction that commits an APPROVED transaction row, and a forwarder delivers it
-from the kit's outbox table.
+from the kit's outbox table once the contract the ledger reconciles at boot is active at System
+Facts.
 Everything below is grounded in code under `components/ledger/`; the cited symbols are the
 durable anchors.
 
@@ -81,11 +82,11 @@ holds `validateSystemFactsConfig`.
 
 | Variable | Default | Role |
 |---|---|---|
-| `SYSTEM_FACTS_ENABLED` | `false` | Builds the producer, runs the forwarder, registers the readiness check; requires `PLUGIN_AUTH_ENABLED=true` |
-| `SYSTEM_FACTS_URL` | — | Delivery target and preflight registry; required when enabled |
-| `SYSTEM_FACTS_M2M_CLIENT_ID` / `_SECRET` | — | Single-tenant producer credential, both required when enabled |
+| `SYSTEM_FACTS_ENABLED` | `false` | Records the fact from the first commit, reconciles the contract at boot, runs the forwarder once it is active, registers the readiness check; requires `PLUGIN_AUTH_ENABLED=true` |
+| `SYSTEM_FACTS_URL` | — | Delivery target and contract registry; required when enabled |
+| `SYSTEM_FACTS_M2M_CLIENT_ID` / `_SECRET` | — | Required in both modes: single-tenant the producer's own credential (delivery and registration); multi-tenant the tenantless service credential that registers the contract, delivery being per tenant |
 | `SYSTEM_FACTS_INSECURE_HTTP` | `false` | Plain `http://` to a non-loopback host; accepted only with `DEPLOYMENT_MODE=local` set explicitly (an unset mode, which elsewhere defaults to local, refuses boot) |
-| `SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS` | `10000` | Bound on the boot preflight, `1000..60000` |
+| `SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS` | `60000` | Per-call bound on each `Preflight`/`Run` of the boot reconcile, `5000..600000` |
 | `SYSTEM_FACTS_RETENTION_INVALID_HOURS` | `0` | Sweep of `INVALID` outbox records; `0` keeps them |
 | `SYSTEM_FACTS_RETENTION_PUBLISHED_HOURS` | `0` | Sweep of `PUBLISHED` outbox records; `0` is the kit's 7 days |
 | `SYSTEM_FACTS_FORWARDER_BATCH_SIZE` | `0` | Records a dispatch cycle claims; `0` is the kit's 10 |
@@ -99,72 +100,109 @@ Above a sustained arrival rate the outbox grows; the kit's `system_facts_outbox_
 gauge is the signal to raise the batch or shorten the interval, keeping the processing timeout
 above the claim bound.
 
-Credentials: single-tenant uses the static pair. Multi-tenant reads each tenant's own credential at
+Credentials: the static `SYSTEM_FACTS_M2M_*` pair is the service credential and is required in
+both modes. Single-tenant it is the producer's own credential and authenticates both delivery and
+the contract registration, because the contract owner is the verified subject of the token that
+delivers. Multi-tenant it is a tenantless credential that only registers the contract: it is
+exchanged through the same `accessmanager.NewTokenSource` with the same options and must be issued
+with the same `source` as every tenant credential, so the owner is the same `svc:<sourceService>`.
+Multi-tenant delivery reads each tenant's own credential at
 `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/system-facts/credentials` on the
-`M2M_SECRETS_BACKEND` backend (`aws` or `vault`, `M2M_VAULT_MOUNT`); the static pair is never a
-fallback there, because its token would ingest every tenant's facts into one tenant. The pair is
-cached in-process per tenant for five minutes (`tracer.WithCredentialTTL`): an entry older than that
-is read again on the next lookup, and a read that fails serves the cached pair and logs once at
-Warn until a read succeeds (stale-while-revalidate), so a rotated secret reaches the token grant
-without a restart and a secret-store outage never stops delivery. This is a documented deviation
-from the multi-tenant standard's two-level M2M credential cache (L1 in-process plus L2 in Valkey):
-the kit asks for the pair only when it mints a token, so a per-pod cache is enough and no shared
-L2 is read or invalidated.
+`M2M_SECRETS_BACKEND` backend (`aws` or `vault`, `M2M_VAULT_MOUNT`); the static pair never
+authenticates a tenant's delivery, because its token would ingest every tenant's facts into one
+tenant. Each tenant's pair is cached in-process for five minutes (`tracer.WithCredentialTTL`): an
+entry older than that is read again on the next lookup, and a read that fails serves the cached
+pair and logs once at Warn until a read succeeds (stale-while-revalidate), so a rotated secret
+reaches the token grant without a restart and a secret-store outage never stops delivery. This is
+a documented deviation from the multi-tenant standard's two-level M2M credential cache (L1
+in-process plus L2 in Valkey): the kit asks for the pair only when it mints a token, so a per-pod
+cache is enough and no shared L2 is read or invalidated.
 
 Access Manager prerequisites: `AUTH_M2M_INVERSION_ENABLED=true`; the producer application
 `midaz` created with a `source` (otherwise the service refuses deliveries with SF-0028); every
 credential issued or rotated after the `sourceService` claim exists (otherwise SF-0027); the
-reconciler identity granted `catalog:reserved` (role `lerian-producer`) to register `lerian.*`
-names. Keep `SYSTEM_FACTS_SOURCE_SERVICE_CHECK=warn` until every credential (every tenant's, in
-multi-tenant mode) was issued after the claim existed, then switch to `require`: a bad credential
-then fails the grant and its facts wait in the outbox instead of being refused by the service.
+registration credential (the `SYSTEM_FACTS_M2M_*` pair) granted `catalog:reserved` (role
+`lerian-producer`) to register `lerian.*` names. Keep `SYSTEM_FACTS_SOURCE_SERVICE_CHECK=warn`
+until every credential (every tenant's, in multi-tenant mode) was issued after the claim existed,
+then switch to `require`: a bad credential then fails the grant and its facts wait in the outbox
+instead of being refused by the service.
 
 ## Rollout order
 
 1. System Facts is up and its `/readyz` is green in the target environment.
-2. The ledger's reconciler runs as a pre-sync Job over `contracts/system-facts` and exits `0`
-   (`1` rejected, `2` unavailable, `3` invalid; any non-zero exit keeps the previous release).
-3. Migration `000046` (`system_facts_outbox`) is applied in every transaction database: the
+2. Migration `000046` (`system_facts_outbox`) is applied in every transaction database: the
    single-tenant database, or every tenant database through the tenant-manager migration image.
-4. Multi-tenant: one M2M credential per tenant at the path above.
-5. The ledger rolls out with `SYSTEM_FACTS_ENABLED=true`. Pix and Fees declare
-   `lerian.midaz.transaction_id` as external and wait for the Midaz reconciler
-   (`--external-type-wait`).
+3. Credentials: the `SYSTEM_FACTS_M2M_*` pair in both modes (granted `catalog:reserved`);
+   multi-tenant also one M2M credential per tenant at the path above.
+4. The ledger rolls out with `SYSTEM_FACTS_ENABLED=true`, which can be on from the first
+   rollout: the app records from the first commit and delivers once its boot reconcile reaches
+   `OK`. Pix and Fees declare `lerian.midaz.transaction_id` as external and wait for it
+   (`--external-type-wait`), so they keep retrying until the ledger has registered it.
 
-Helm values and the reconciler Job live in the downstream GitOps repo, not here.
+There is no pre-sync Job, no init container and no deploy step: the app reconciles its own
+contract at boot. The kit's `reconciler` command remains an operator tool, to register the
+contract ahead of a rollout or to diagnose a refusal. Helm values live in the downstream GitOps
+repo, not here.
 
 ## Operations
 
 - **Boot**: `buildSystemFacts` (`bootstrap/system_facts.go`) compiles the embedded contracts,
-  builds the token source, transport, producer and registry client, then runs
-  `reconciler.Preflight` under `SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS`. Only `OK` wires the
-  validating emitter; any other outcome wires the kit's no-op emitter, logs a Warn and counts
-  `system_facts_preflight_total{outcome}`. Boot is never refused for a preflight outcome.
-- **Forwarder**: the `System Facts Forwarder` Launcher app (`bootstrap/system_facts_forwarder.go`)
-  runs `producer.Forwarder().Run` on a recovered goroutine whenever a producer exists, even with
-  emission off, so a backlog recorded before a failed preflight still drains. On SIGINT/SIGTERM it
-  calls `Shutdown` under a 30s budget, the server's graceful-drain budget. A `Run` that returns
-  before that signal, with or without an error, is logged at Error and restarted with backoff
-  (1s, doubling, capped at 30s, reset after a run longer than a minute); each restart counts
+  builds the token sources (delivery and registration), transport, producer, registry client and
+  the contract gate (`bootstrap/system_facts_reconcile.go`). With `SYSTEM_FACTS_ENABLED=true` the
+  recorder wraps the kit's recording emitter from the first commit; nothing gates the emitter, and
+  the flag off keeps the kit's no-op emitter. Boot is never refused for a registry outcome.
+- **Contract reconcile**: the `System Facts Forwarder` Launcher app
+  (`bootstrap/system_facts_forwarder.go`) first reconciles the ledger's own contract on its
+  recovered goroutine, in the background and fail-open. One attempt is `reconciler.Preflight`
+  (read-only): `OK` releases the forwarder; a gap (`Rejected`) runs `reconciler.Run` (PUT and
+  read-back), whose `OK` releases. `Unavailable` from either call, and a `Run` refused with a 404
+  (an ingress default backend mid-rollout, or a `SYSTEM_FACTS_URL` naming something else), waits
+  `FullJitter(min(Exponential(5s, attempt-1), 5min))` and retries without limit while the process
+  lives. `Rejected` or `Invalid` from `Run`, and `Invalid` from `Preflight`, are permanent: one
+  Error log, the forwarder stays stopped and only a redeploy retries, because the inputs (manifest,
+  credential, URL) are static under a running process. Each call is bounded by
+  `SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS`. The gate moves `pending` → `active` | `rejected`.
+  No cross-replica lock is taken: the kit's `Run` is idempotent (a rerun on an unchanged manifest
+  answers `Replayed`) and the service serialises concurrent PUTs. Records stay `PENDING` in the
+  outbox until the forwarder starts, and none turns `INVALID` while waiting, because a record
+  turns `INVALID` only through dispatch attempts. A shutdown while the loop waits ends it quietly
+  with the gate still pending.
+- **Forwarder**: once the contract is active the same app runs `producer.Forwarder().Run` on that
+  goroutine. On SIGINT/SIGTERM it calls `Shutdown` under a 30s budget, the server's graceful-drain
+  budget, whether or not the contract was released. A `Run` that returns before that signal, with
+  or without an error, is logged at Error and restarted with backoff (1s, doubling, capped at 30s,
+  reset after a run longer than a minute); each restart counts
   `system_facts_forwarder_restarts_total`. The kit allows the restart: `beginRun` refuses a new run
   only after `Shutdown`.
 - **Readiness**: `/readyz` carries `system_facts_forwarder` whenever `SYSTEM_FACTS_ENABLED=true`
   and never reports it down: the money path does not depend on delivery, so the forwarder state
-  never takes the pod out of rotation. `idle` and `running` are `up` with no reason; `stopped` and
-  `failed` are `up` with the fixed reason `forwarder <state>; facts are not draining on this pod`,
-  and the forwarder's own error is logged at Warn, never written to the response. With emission
-  off the reason carries `emission disabled by contract preflight`, after the forwarder reason
-  when both apply. The outbox depth is not probed: its error can carry tenant ids and hosts.
+  never takes the pod out of rotation. While the gate is pending the reason is `contract not
+  active`; after a permanent refusal it is `contract rejected`. Once the contract is active,
+  `idle` and `running` are `up` with no reason; `stopped` and `failed` are `up` with the fixed
+  reason `forwarder <state>; facts are not draining on this pod`, and the forwarder's own error
+  is logged at Warn, never written to the response. The outbox depth is not probed: its error can
+  carry tenant ids and hosts.
   `tls` is `true` when `SYSTEM_FACTS_URL` is `https://`, and `DEPLOYMENT_MODE=saas` refuses boot
   otherwise, as for every other dependency.
-- **Metrics**: `system_facts_preflight_total{outcome}` and
+- **Logs**: the reconcile logs Info `System Facts contract active` (`source` `preflight` or
+  `reconcile`, `created`/`replayed`/`verified` step counts), Warn `System Facts contract reconcile
+  deferred` (`attempt`, `outcome`, `next_retry_in`, `step_kind`, `step_subject`) per retry, and
+  once Error `System Facts contract rejected; the forwarder stays stopped` (`outcome`,
+  `step_kind`, `step_subject`, `problem_code`, `problem_detail` sanitized). The step detail is
+  never logged: a registry client error embeds the target URL.
+- **Metrics**: `system_facts_contract_reconcile_total{outcome}` (`ok`, `unavailable`,
+  `rejected`, `invalid`; one sample per attempt) and
   `system_facts_forwarder_restarts_total` (ledger) and the kit's
   `system_facts_emit_refused_total{reason,type}`, `system_facts_delivery_total{route,outcome}`,
   `system_facts_outbox_depth{status}`, `system_facts_outbox_oldest_age_seconds`,
   `system_facts_outbox_depth_sample_errors_total` and
   `system_facts_outbox_terminal_failures_total{reason,route}`. Aggregate the gauges across
   replicas with `max()`.
-- **Alerts**: `increase(system_facts_emit_refused_total[5m]) > 0` — every refusal is a producer
+- **Alerts**: `increase(system_facts_contract_reconcile_total{outcome=~"rejected|invalid"}[10m]) > 0`
+  — the contract was refused and nothing delivers from that pod until a redeploy fixes the
+  manifest, the credential or the URL; a sustained `unavailable` rate means the registry is
+  unreachable while facts accumulate `PENDING`.
+  `increase(system_facts_emit_refused_total[5m]) > 0` — every refusal is a producer
   defect and a lost fact. `increase(system_facts_forwarder_restarts_total[10m]) > 0` — the
   forwarder keeps stopping and nothing drains on that pod while readiness stays green.
   `max(system_facts_outbox_depth{status="pending"})` sustained above the capacity ceiling — the

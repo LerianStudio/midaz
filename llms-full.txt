@@ -69,8 +69,11 @@ a cross-ledger commit creates are `direct` with a `groupId`) to the
 legs ignored): `INFLOW` (every source external, no destination external), `OUTFLOW` (the mirror),
 `INTERNAL` (no external leg), else `MIXED`; amounts are plain decimal strings with trailing zeros
 trimmed; `createdAt` is the effective `transactionDate` and `occurredAt` the completion's
-`updated_at`. Emission is enabled only when the boot-time contract preflight answers OK; otherwise
-the no-op emitter is wired with a Warn and the forwarder still drains the backlog. A forwarder that
+`updated_at`. With `SYSTEM_FACTS_ENABLED=true` the fact is recorded from the first commit; the
+forwarder is gated on the boot reconcile of the ledger's own contract (`reconciler.Preflight`, then
+`Run` on a gap), which retries an unavailable registry without limit while facts wait `PENDING`,
+holds the forwarder for good on a refusal until a redeploy, counts
+`system_facts_contract_reconcile_total{outcome}` and never refuses boot. A forwarder that
 stops is restarted with backoff (`system_facts_forwarder_restarts_total`) and `/readyz`'s
 `system_facts_forwarder` never reports down for it. See
 [docs/architecture/system-facts.md](docs/architecture/system-facts.md).
@@ -1110,12 +1113,12 @@ Seam topology and TLS posture: [docs/architecture/ledger-tracer-topology.md](doc
 #### System Facts producer (ledger → system-facts)
 | Variable | Default | Description |
 |----------|---------|-------------|
-| SYSTEM_FACTS_ENABLED | `false` | Records the `midaz.transaction_committed` fact and runs the outbox forwarder; `false` wires the kit's no-op emitter, builds no producer and reads none of the other `SYSTEM_FACTS_*` values; `true` requires `PLUGIN_AUTH_ENABLED=true` |
-| SYSTEM_FACTS_URL | — | System Facts base URL: delivery target of the forwarder and registry of the boot-time contract preflight; required when enabled; plain `http://` only to a loopback host unless `SYSTEM_FACTS_INSECURE_HTTP=true` |
-| SYSTEM_FACTS_M2M_CLIENT_ID | — | Single-tenant Access Manager client id the producer token is minted with (required when enabled; multi-tenant reads each tenant's credential at `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/system-facts/credentials` on the `M2M_SECRETS_BACKEND` backend instead, never the static pair) |
-| SYSTEM_FACTS_M2M_CLIENT_SECRET | — | Secret of `SYSTEM_FACTS_M2M_CLIENT_ID`; never logged |
+| SYSTEM_FACTS_ENABLED | `false` | Records the `midaz.transaction_committed` fact from the first commit, reconciles the contract at boot and runs the outbox forwarder once it is active; `false` wires the kit's no-op emitter, builds no producer and reads none of the other `SYSTEM_FACTS_*` values; `true` requires `PLUGIN_AUTH_ENABLED=true` |
+| SYSTEM_FACTS_URL | — | System Facts base URL: delivery target of the forwarder and registry the boot reconcile registers the contract with; required when enabled; plain `http://` only to a loopback host unless `SYSTEM_FACTS_INSECURE_HTTP=true` |
+| SYSTEM_FACTS_M2M_CLIENT_ID | — | Access Manager client id of the static service credential, required when enabled in both modes: single-tenant the producer's own credential (delivery and contract registration); multi-tenant the tenantless credential that registers the contract, issued with the same `source` as every tenant credential, while delivery reads each tenant's credential at `tenants/{ENV_NAME}/{tenant UUID without dashes}/ledger/m2m/system-facts/credentials` on the `M2M_SECRETS_BACKEND` backend (the pair never authenticates a tenant's delivery) |
+| SYSTEM_FACTS_M2M_CLIENT_SECRET | — | Secret of `SYSTEM_FACTS_M2M_CLIENT_ID`; required with it; never logged |
 | SYSTEM_FACTS_INSECURE_HTTP | `false` | Admits a plain `http://` URL to a non-loopback host (the token and the secret ride every call); accepted only with `DEPLOYMENT_MODE=local` set explicitly (an unset mode refuses boot) |
-| SYSTEM_FACTS_PREFLIGHT_TIMEOUT_MS | `10000` | Bound (ms) on the boot-time contract preflight; `1000..60000`, else boot refuses; a non-OK preflight keeps emission off with a Warn and `system_facts_preflight_total{outcome}` and never refuses boot |
+| SYSTEM_FACTS_RECONCILE_ATTEMPT_TIMEOUT_MS | `60000` | Bound (ms) on each registry call (`Preflight`, `Run`) of the boot contract reconcile; `5000..600000`, else boot refuses; the reconcile itself never refuses boot: an unavailable registry is retried without limit while facts wait `PENDING`, a refused contract keeps the forwarder stopped until a redeploy (`/readyz` reason `contract rejected`, never down), every attempt counts `system_facts_contract_reconcile_total{outcome}` |
 | SYSTEM_FACTS_RETENTION_INVALID_HOURS | `0` | Hours the forwarder keeps `INVALID` outbox records before sweeping them; `0` (the kit default) keeps them until Security sets a value; negative refuses boot |
 | SYSTEM_FACTS_RETENTION_PUBLISHED_HOURS | `0` | Hours the forwarder keeps `PUBLISHED` outbox records before sweeping them; `0` is the kit default (7 days); negative refuses boot |
 | SYSTEM_FACTS_FORWARDER_BATCH_SIZE | `0` | Records a dispatch cycle claims; `0` is the kit default (10); negative refuses boot. One replica delivers at most `BatchSize / DispatchInterval` facts per second per dispatch scope |
