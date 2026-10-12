@@ -66,13 +66,32 @@ func withNilAmount() legOption {
 	return func(op *operation.Operation) { op.Amount = operation.Amount{} }
 }
 
+func withDirection(direction string) legOption {
+	return func(op *operation.Operation) { op.Direction = direction }
+}
+
+// withoutDirection makes the row a legacy one, written before the direction
+// column existed.
+func withoutDirection() legOption {
+	return withDirection("")
+}
+
+// leg builds a row the way the completion persists it: the side rides on
+// Direction, which the engine sets to debit for a source leg and credit for a
+// destination leg, whatever the row Type.
 func leg(n int, opType, amount, accountID, alias string, opts ...legOption) *operation.Operation {
 	value := decimal.RequireFromString(amount)
+
+	direction := constant.DirectionDebit
+	if opType == constant.CREDIT {
+		direction = constant.DirectionCredit
+	}
 
 	op := &operation.Operation{
 		ID:             legID(n),
 		TransactionID:  fixedTransactionID,
 		Type:           opType,
+		Direction:      direction,
 		AssetCode:      "BRL",
 		Amount:         operation.Amount{Value: &value},
 		AccountID:      accountID,
@@ -102,6 +121,12 @@ func aliceDebit(n int, amount string, opts ...legOption) *operation.Operation {
 
 func bobCredit(n int, amount string, opts ...legOption) *operation.Operation {
 	return leg(n, constant.CREDIT, amount, bobAccountID, bobAlias, opts...)
+}
+
+// aliceOnHoldSource is the source row of a route-validated commit: the engine
+// persists the unreserve as an ON_HOLD-typed row on the debit side.
+func aliceOnHoldSource(n int, amount string, opts ...legOption) *operation.Operation {
+	return leg(n, constant.ONHOLD, amount, aliceAccountID, aliceAlias, opts...)
 }
 
 func feeCredit(n int, amount string, feeLegValue any, opts ...legOption) *operation.Operation {
@@ -346,6 +371,118 @@ func payloadCases() []payloadCase {
 				Operations: []TransactionCommittedOperation{
 					wantLeg(1, constant.DEBIT, "150", aliceAccountID, false, false),
 					wantLeg(2, constant.CREDIT, "150", feeAccountID, false, false),
+				},
+			},
+		},
+		{
+			name: "route-validated commit: on-hold source leg to the external counterparty",
+			record: writeSet(constant.ActionCommit,
+				[]*operation.Operation{aliceOnHoldSource(1, "89.90"), externalCredit(2, "89.90")},
+				withAmount("89.90"), withScheme("PIX")),
+			wantFact: true,
+			want: TransactionCommittedPayload{
+				Action:    constant.ActionCommit,
+				Status:    constant.APPROVED,
+				Direction: "OUTFLOW",
+				Amount:    "89.9",
+				AssetCode: "BRL",
+				Scheme:    "PIX",
+				CreatedAt: fixedCreatedAtWire,
+				Operations: []TransactionCommittedOperation{
+					wantLeg(1, constant.ONHOLD, "89.9", aliceAccountID, false, false),
+					wantLeg(2, constant.CREDIT, "89.9", externalAccountID, true, false),
+				},
+			},
+		},
+		{
+			name: "outflow with a fee leg: the fee engine's internal credit does not mask the flow",
+			record: writeSet(constant.ActionDirect,
+				[]*operation.Operation{
+					aliceDebit(1, "1000.00"),
+					externalCredit(2, "985.00"),
+					feeCredit(3, "15.00", constant.MetadataValueFeeLeg),
+				},
+				withAmount("1000.00"), withScheme("PIX")),
+			wantFact: true,
+			want: TransactionCommittedPayload{
+				Action:    constant.ActionDirect,
+				Status:    constant.APPROVED,
+				Direction: "OUTFLOW",
+				Amount:    "1000",
+				AssetCode: "BRL",
+				Scheme:    "PIX",
+				CreatedAt: fixedCreatedAtWire,
+				Operations: []TransactionCommittedOperation{
+					wantLeg(1, constant.DEBIT, "1000", aliceAccountID, false, false),
+					wantLeg(2, constant.CREDIT, "985", externalAccountID, true, false),
+					wantLeg(3, constant.CREDIT, "15", feeAccountID, false, true),
+				},
+			},
+		},
+		{
+			name: "inflow with a fee leg stays an inflow",
+			record: writeSet(constant.ActionDirect,
+				[]*operation.Operation{
+					externalDebit(1, "1000.00"),
+					bobCredit(2, "985.00"),
+					feeCredit(3, "15.00", constant.MetadataValueFeeLeg),
+				},
+				withAmount("1000.00")),
+			wantFact: true,
+			want: TransactionCommittedPayload{
+				Action:    constant.ActionDirect,
+				Status:    constant.APPROVED,
+				Direction: "INFLOW",
+				Amount:    "1000",
+				AssetCode: "BRL",
+				CreatedAt: fixedCreatedAtWire,
+				Operations: []TransactionCommittedOperation{
+					wantLeg(1, constant.DEBIT, "1000", externalAccountID, true, false),
+					wantLeg(2, constant.CREDIT, "985", bobAccountID, false, false),
+					wantLeg(3, constant.CREDIT, "15", feeAccountID, false, true),
+				},
+			},
+		},
+		{
+			name: "legacy rows without a direction fall back to the row type",
+			record: writeSet(constant.ActionDirect,
+				[]*operation.Operation{
+					externalDebit(1, "150.00", withoutDirection()),
+					bobCredit(2, "150.00", withoutDirection()),
+				}),
+			wantFact: true,
+			want: TransactionCommittedPayload{
+				Action:    constant.ActionDirect,
+				Status:    constant.APPROVED,
+				Direction: "INFLOW",
+				Amount:    "150",
+				AssetCode: "BRL",
+				CreatedAt: fixedCreatedAtWire,
+				Operations: []TransactionCommittedOperation{
+					wantLeg(1, constant.DEBIT, "150", externalAccountID, true, false),
+					wantLeg(2, constant.CREDIT, "150", bobAccountID, false, false),
+				},
+			},
+		},
+		{
+			name: "a legacy on-hold row without a direction is not counted",
+			record: writeSet(constant.ActionCommit,
+				[]*operation.Operation{
+					aliceOnHoldSource(1, "89.90", withoutDirection()),
+					externalCredit(2, "89.90", withoutDirection()),
+				},
+				withAmount("89.90")),
+			wantFact: true,
+			want: TransactionCommittedPayload{
+				Action:    constant.ActionCommit,
+				Status:    constant.APPROVED,
+				Direction: "MIXED",
+				Amount:    "89.9",
+				AssetCode: "BRL",
+				CreatedAt: fixedCreatedAtWire,
+				Operations: []TransactionCommittedOperation{
+					wantLeg(1, constant.ONHOLD, "89.9", aliceAccountID, false, false),
+					wantLeg(2, constant.CREDIT, "89.9", externalAccountID, true, false),
 				},
 			},
 		},

@@ -341,6 +341,28 @@ func systemFactsTerminalRecord(hold command.TransactionWriteSet, action, termina
 	return record
 }
 
+// systemFactsCommitRecord is the route-validated commit of hold: the CAS from
+// PENDING to APPROVED persists the unreserve as an ON_HOLD-typed row on the
+// debit side plus the external CREDIT destination, which the adapter
+// classifies OUTFLOW.
+func systemFactsCommitRecord(hold command.TransactionWriteSet) command.TransactionWriteSet {
+	record := systemFactsTerminalRecord(hold, constant.ActionCommit, constant.APPROVED)
+	seed := uuid.MustParse(record.Transaction.ID)
+
+	source := record.Transaction.Operations[0]
+	source.Type, source.Direction = constant.ONHOLD, constant.DirectionDebit
+
+	destination := *source
+	destination.ID = uuid.NewSHA1(seed, []byte("commit:credit")).String()
+	destination.Type, destination.Direction = constant.CREDIT, constant.DirectionCredit
+	destination.AccountAlias = constant.DefaultExternalAccountAliasPrefix + record.Transaction.AssetCode
+	destination.AccountID = uuid.NewSHA1(seed, []byte("commit:credit:account")).String()
+	destination.BalanceID = uuid.NewSHA1(seed, []byte("commit:credit:balance")).String()
+	record.Transaction.Operations = append(record.Transaction.Operations, &destination)
+
+	return record
+}
+
 // systemFactsRevertRecord is the revert of origin: a new transaction whose
 // parent is origin, with every leg re-identified.
 func systemFactsRevertRecord(origin command.TransactionWriteSet) command.TransactionWriteSet {
@@ -470,7 +492,7 @@ func TestIntegration_CompletionStore_RecordsTransactionFactInOutbox(t *testing.T
 		require.Equal(t, 1, systemFactsTransactionCount(t, infra.db, transactionID))
 		assert.Empty(t, systemFactsOutboxRows(t, infra.db), "a hold is not a fact")
 
-		commit := systemFactsTerminalRecord(hold, constant.ActionCommit, constant.APPROVED)
+		commit := systemFactsCommitRecord(hold)
 
 		commitOutcome, err := store.PersistWithOutcome(t.Context(), commit)
 		require.NoError(t, err)
@@ -485,6 +507,15 @@ func TestIntegration_CompletionStore_RecordsTransactionFactInOutbox(t *testing.T
 		assert.Equal(t, constant.ActionCommit, rows[0].Envelope.Data.Action)
 		assert.Equal(t, constant.APPROVED, rows[0].Envelope.Data.Status)
 		assert.True(t, rows[0].Envelope.OccurredAt.Equal(commit.Transaction.UpdatedAt))
+
+		// The routed commit's source row is ON_HOLD-typed: the side, not the
+		// type, is what classifies the movement.
+		assert.Equal(t, "OUTFLOW", rows[0].Envelope.Data.Direction)
+		require.Len(t, rows[0].Envelope.Data.Operations, 2)
+		assert.Equal(t, constant.ONHOLD, rows[0].Envelope.Data.Operations[0].Type)
+		assert.False(t, rows[0].Envelope.Data.Operations[0].External)
+		assert.Equal(t, constant.CREDIT, rows[0].Envelope.Data.Operations[1].Type)
+		assert.True(t, rows[0].Envelope.Data.Operations[1].External)
 	})
 
 	t.Run("revert records a revert fact naming its parent", func(t *testing.T) {

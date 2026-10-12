@@ -1,0 +1,38 @@
+{
+  "action": "direct",
+  "status": "APPROVED",
+  "direction": "OUTFLOW",
+  "amount": "1000",
+  "assetCode": "BRL",
+  "scheme": "PIX",
+  "createdAt": "2026-10-09T17:30:00Z",
+  "operations": [
+    {
+      "id": "0199c3a6-bf65-7d70-9b92-ae1f2a3b4c01",
+      "type": "DEBIT",
+      "amount": "1000",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000a1",
+      "external": false,
+      "feeLeg": false
+    },
+    {
+      "id": "0199c3a6-bf65-7d70-9b92-ae1f2a3b4c02",
+      "type": "CREDIT",
+      "amount": "985",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000e1",
+      "external": true,
+      "feeLeg": false
+    },
+    {
+      "id": "0199c3a6-bf65-7d70-9b92-ae1f2a3b4c03",
+      "type": "CREDIT",
+      "amount": "15",
+      "assetCode": "BRL",
+      "accountId": "0199c3a6-0001-7000-8000-0000000000f1",
+      "external": false,
+      "feeLeg": true
+    }
+  ]
+}

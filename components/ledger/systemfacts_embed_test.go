@@ -162,6 +162,7 @@ func TestSystemFactsContracts_TransactionCommittedFixtures_CarryEveryRequiredRoo
 		{name: "inflow revert", fixture: "inflow_revert.json"},
 		{name: "internal fee", fixture: "internal_fee.json"},
 		{name: "mixed direct", fixture: "mixed_direct.json"},
+		{name: "outflow fee", fixture: "outflow_fee.json"},
 	}
 
 	for _, tc := range tests {
@@ -193,6 +194,7 @@ func TestSystemFactsContracts_TransactionCommittedFixtures_CoverEveryBranch(t *t
 		transactionCommittedFixtures + "inflow_revert.json",
 		transactionCommittedFixtures + "internal_fee.json",
 		transactionCommittedFixtures + "mixed_direct.json",
+		transactionCommittedFixtures + "outflow_fee.json",
 	}
 	assert.ElementsMatch(t, wantFixtures, m.Facts[0].Fixtures)
 

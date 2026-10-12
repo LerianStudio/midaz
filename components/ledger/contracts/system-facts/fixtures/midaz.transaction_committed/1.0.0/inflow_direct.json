@@ -2,14 +2,14 @@
   "action": "direct",
   "status": "APPROVED",
   "direction": "INFLOW",
-  "amount": "150.00",
+  "amount": "150",
   "assetCode": "BRL",
   "createdAt": "2026-10-09T12:00:00Z",
   "operations": [
     {
       "id": "0199c3a6-5f2e-7d1a-9b3c-4e5f6a7b8c01",
       "type": "DEBIT",
-      "amount": "150.00",
+      "amount": "150",
       "assetCode": "BRL",
       "accountId": "0199c3a6-0001-7000-8000-0000000000e1",
       "external": true,
@@ -18,7 +18,7 @@
     {
       "id": "0199c3a6-5f2e-7d1a-9b3c-4e5f6a7b8c02",
       "type": "CREDIT",
-      "amount": "150.00",
+      "amount": "150",
       "assetCode": "BRL",
       "accountId": "0199c3a6-0001-7000-8000-0000000000a1",
       "external": false,

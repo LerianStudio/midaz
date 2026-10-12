@@ -77,7 +77,7 @@ func NewTransactionCommitted(record command.TransactionWriteSet) (TransactionCom
 	return TransactionCommittedPayload{
 		Action:                   record.Action,
 		Status:                   constant.APPROVED,
-		Direction:                directionOf(operations),
+		Direction:                directionOf(tx.Operations),
 		Amount:                   tx.Amount.String(),
 		AssetCode:                tx.AssetCode,
 		ChartOfAccountsGroupName: tx.ChartOfAccountsGroupName,
@@ -107,9 +107,13 @@ func newTransactionCommittedOperation(op *operation.Operation) TransactionCommit
 		AssetCode:       op.AssetCode,
 		ChartOfAccounts: op.ChartOfAccounts,
 		AccountID:       op.AccountID,
-		External:        strings.HasPrefix(op.AccountAlias, constant.DefaultExternalAccountAliasPrefix),
+		External:        isExternal(op),
 		FeeLeg:          isFeeLeg(op.Metadata),
 	}
+}
+
+func isExternal(op *operation.Operation) bool {
+	return strings.HasPrefix(op.AccountAlias, constant.DefaultExternalAccountAliasPrefix)
 }
 
 // isFeeLeg reads the fee engine's mark, which reaches a row either as the
@@ -125,47 +129,73 @@ func isFeeLeg(metadata map[string]any) bool {
 	}
 }
 
-// directionOf classifies the movement by which legs touch the external
-// counterparty. Legs are classified by Type, because Direction may be empty
-// on a persisted row:
-//
-//	INFLOW    every DEBIT leg is external and no CREDIT leg is
-//	OUTFLOW   every CREDIT leg is external and no DEBIT leg is
-//	INTERNAL  no leg is external
-//	MIXED     anything else, including a transaction with no DEBIT or no
-//	          CREDIT leg when some leg is external
-func directionOf(operations []TransactionCommittedOperation) string {
-	var debits, externalDebits, credits, externalCredits, externals int
+// legSide is the side of a leg in the movement: the debit side is the source,
+// the credit side the destination.
+type legSide int
 
-	for _, op := range operations {
-		if op.External {
-			externals++
-		}
+const (
+	sideUncounted legSide = iota
+	sideSource
+	sideDestination
+)
 
+// sideOf reads the leg's Direction, falling back to its Type for a legacy row
+// written before the direction column existed.
+func sideOf(op *operation.Operation) legSide {
+	switch op.Direction {
+	case constant.DirectionDebit:
+		return sideSource
+	case constant.DirectionCredit:
+		return sideDestination
+	case "":
 		switch op.Type {
 		case constant.DEBIT:
-			debits++
-
-			if op.External {
-				externalDebits++
-			}
+			return sideSource
 		case constant.CREDIT:
-			credits++
+			return sideDestination
+		}
+	}
 
-			if op.External {
-				externalCredits++
+	return sideUncounted
+}
+
+// directionOf classifies by leg side (Direction, else Type), ignoring fee legs so
+// the fee engine's internal credit cannot mask a flow: INFLOW when every source is
+// external and no destination is, OUTFLOW the reverse, INTERNAL when none is, else MIXED.
+func directionOf(legs []*operation.Operation) string {
+	var sources, externalSources, destinations, externalDestinations int
+
+	for _, op := range legs {
+		if isFeeLeg(op.Metadata) {
+			continue
+		}
+
+		external := isExternal(op)
+
+		switch sideOf(op) {
+		case sideSource:
+			sources++
+
+			if external {
+				externalSources++
+			}
+		case sideDestination:
+			destinations++
+
+			if external {
+				externalDestinations++
 			}
 		}
 	}
 
 	switch {
-	case externals == 0:
+	case externalSources+externalDestinations == 0:
 		return directionInternal
-	case debits == 0 || credits == 0:
+	case sources == 0 || destinations == 0:
 		return directionMixed
-	case externalDebits == debits && externalCredits == 0:
+	case externalSources == sources && externalDestinations == 0:
 		return directionInflow
-	case externalCredits == credits && externalDebits == 0:
+	case externalDestinations == destinations && externalSources == 0:
 		return directionOutflow
 	default:
 		return directionMixed

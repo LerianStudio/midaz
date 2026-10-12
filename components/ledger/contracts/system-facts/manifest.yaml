@@ -14,7 +14,7 @@ facts:
   - type: midaz.transaction_committed
     schemaVersion: 1.0.0
     schema: schemas/midaz.transaction_committed/1.0.0.json
-    hash: sha256:231d7ed11358deddc25f0edc14ed9b1b9f94d34f928aca991842cd8f2f354adb
+    hash: sha256:0de339d84117abbab4ab5b0fd7dd047f1b1e1a53a46cf5e6f58004ef0d75fc13
     compatibilityPolicy: TRANSITIVE
     references:
       - {type: lerian.midaz.transaction_id, cardinality: one, required: true, correlation: exact}
@@ -25,3 +25,4 @@ facts:
       - fixtures/midaz.transaction_committed/1.0.0/inflow_revert.json
       - fixtures/midaz.transaction_committed/1.0.0/internal_fee.json
       - fixtures/midaz.transaction_committed/1.0.0/mixed_direct.json
+      - fixtures/midaz.transaction_committed/1.0.0/outflow_fee.json

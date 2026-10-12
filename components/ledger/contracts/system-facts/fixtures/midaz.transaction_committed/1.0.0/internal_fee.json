@@ -2,7 +2,7 @@
   "action": "direct",
   "status": "APPROVED",
   "direction": "INTERNAL",
-  "amount": "1000.00",
+  "amount": "1000",
   "assetCode": "USDC",
   "chartOfAccountsGroupName": "CARD_PURCHASES",
   "scheme": "CARD",
@@ -12,7 +12,7 @@
     {
       "id": "0199c3a6-9d43-7b5e-9f70-8c9d0e1f2a01",
       "type": "DEBIT",
-      "amount": "1000.00",
+      "amount": "1000",
       "assetCode": "USDC",
       "chartOfAccounts": "1102",
       "accountId": "0199c3a6-0001-7000-8000-0000000000a3",
@@ -22,7 +22,7 @@
     {
       "id": "0199c3a6-9d43-7b5e-9f70-8c9d0e1f2a02",
       "type": "CREDIT",
-      "amount": "985.00",
+      "amount": "985",
       "assetCode": "USDC",
       "chartOfAccounts": "2102",
       "accountId": "0199c3a6-0001-7000-8000-0000000000a4",
@@ -32,7 +32,7 @@
     {
       "id": "0199c3a6-9d43-7b5e-9f70-8c9d0e1f2a03",
       "type": "CREDIT",
-      "amount": "15.00",
+      "amount": "15",
       "assetCode": "USDC",
       "chartOfAccounts": "4101",
       "accountId": "0199c3a6-0001-7000-8000-0000000000f1",
