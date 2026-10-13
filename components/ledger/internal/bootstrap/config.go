@@ -406,28 +406,57 @@ func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
-// validateBootAuthGates enforces the auth-presence invariants that must hold
-// before any infrastructure opens. It runs before the logger exists, so it
-// returns errors rather than logging. Two independent gates:
+// Boot Warns returned by authPresenceWarning when PLUGIN_AUTH_ENABLED=false.
+const (
+	authDisabledLocalMsg    = "Authentication is DISABLED — every business route is open (acceptable for local development only)"
+	authDisabledNonLocalMsg = "Authentication is DISABLED — every business route is open; set PLUGIN_AUTH_ENABLED=true"
+)
+
+// authPresenceWarning decides whether the ledger may boot without the Access
+// Manager. lib-auth fail-opens when PLUGIN_AUTH_ENABLED=false, so every
+// business route then serves unauthenticated. The deployment mode decides,
+// not ENV_NAME: a customer-hosted production may run without the Access
+// Manager behind its own perimeter.
 //
-//  1. Multi-tenant mode requires auth in every environment — tenant identity
-//     comes from the JWT, so disabling auth allows cross-tenant data access.
-//  2. Production requires auth even single-tenant — lib-auth fail-opens when
-//     disabled, so a production deploy that forgets PLUGIN_AUTH_ENABLED=true
-//     would serve every business endpoint unauthenticated. Non-production
-//     (local/dev/staging) keeps Warn-free boot for developer onboarding.
-func validateBootAuthGates(cfg *Config) error {
-	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
-		return fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
+// rawAuthEnabled is PLUGIN_AUTH_ENABLED as set in the environment. The config
+// loader reads a value strconv.ParseBool rejects as false, so such a value is
+// refused in every mode instead of silently disabling authentication.
+//
+// With PLUGIN_AUTH_ENABLED=false:
+//   - MULTI_TENANT_ENABLED=true ⇒ error in every mode: the tenant comes from
+//     the JWT, so no auth means cross-tenant data access.
+//   - DEPLOYMENT_MODE=saas (normalized) ⇒ error: saas never serves an open API.
+//   - local or unset ⇒ the development Warn.
+//   - any other mode (byoc, undocumented values) ⇒ the Warn naming
+//     PLUGIN_AUTH_ENABLED.
+//
+// It returns the Warn message for the caller to log, "" when auth is enabled.
+// It must run before any connection opens.
+func authPresenceWarning(cfg *Config, rawAuthEnabled string) (string, error) {
+	if rawAuthEnabled != "" {
+		if _, err := strconv.ParseBool(rawAuthEnabled); err != nil {
+			return "", fmt.Errorf("PLUGIN_AUTH_ENABLED=%q is not a valid boolean; set true or false", rawAuthEnabled)
+		}
+	}
+
+	if cfg.AuthEnabled {
+		return "", nil
+	}
+
+	if cfg.MultiTenantEnabled {
+		return "", errors.New("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
 			"running multi-tenant mode without authentication allows cross-tenant data access")
 	}
 
-	if strings.EqualFold(strings.TrimSpace(cfg.EnvName), "production") && !cfg.AuthEnabled {
-		return fmt.Errorf("ENV_NAME=production requires PLUGIN_AUTH_ENABLED=true; " +
-			"a single-tenant production deployment without authentication serves every endpoint unauthenticated")
+	switch ResolveDeploymentMode(cfg.DeploymentMode) {
+	case DeploymentModeSaaS:
+		return "", errors.New("DEPLOYMENT_MODE=saas requires PLUGIN_AUTH_ENABLED=true; " +
+			"a saas deployment never serves the business routes without authentication")
+	case DeploymentModeLocal:
+		return authDisabledLocalMsg, nil
+	default:
+		return authDisabledNonLocalMsg, nil
 	}
-
-	return nil
 }
 
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
@@ -445,10 +474,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	applyConfigDefaults(cfg)
 
 	if err := validateTransactionBatchConfig(cfg); err != nil {
-		return nil, err
-	}
-
-	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
 	}
 
@@ -486,6 +511,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("env", cfg.EnvName),
 	)
 
+	authWarning, err := authPresenceWarning(cfg, os.Getenv("PLUGIN_AUTH_ENABLED"))
+	if err != nil {
+		return nil, err
+	}
+
 	// Telemetry
 	telemetry, err := libOpentelemetry.NewTelemetry(telemetryConfig(cfg, baseLogger))
 	if err != nil {
@@ -506,6 +536,14 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// (installed in the logger core) can forward log records to the OTLP exporter.
 	if err := telemetry.ApplyGlobals(); err != nil {
 		return nil, fmt.Errorf("failed to apply telemetry globals: %w", err)
+	}
+
+	// Logged after ApplyGlobals so the warning also reaches the OTLP log exporter.
+	if authWarning != "" {
+		logger.Log(context.Background(), libLog.LevelWarn, authWarning,
+			libLog.String("config", "PLUGIN_AUTH_ENABLED"),
+			libLog.String("deployment_mode", ResolveDeploymentMode(cfg.DeploymentMode)),
+		)
 	}
 
 	// Multi-tenant client setup
