@@ -133,10 +133,10 @@ func TestMountV1_OmitsCRMSurface(t *testing.T) {
 
 // TestMountV1_OmitsCompositionSurface pins that the /v1 version group serves NO
 // composition route. The holder-account composition orchestration
-// (POST /organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts) is
+// (POST /organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts) is
 // /v2-only in the unified binary, so MountV1 must not mount it. The probe anchors on the
-// POST method plus the "/holders/:id/accounts" tail so it cannot match the CRM
-// holder-accounts read (GET .../holders/:id/accounts), which is /v2-only anyway.
+// POST method plus the "/holders/:holder_id/accounts" tail so it cannot match the CRM
+// holder-accounts read (GET .../holders/:holder_id/accounts), which is /v2-only anyway.
 func TestMountV1_OmitsCompositionSurface(t *testing.T) {
 	// NOT parallel: AssembleHumaContract mutates process-global huma state.
 	unsetDocsGate(t)
@@ -154,7 +154,7 @@ func TestMountV1_OmitsCompositionSurface(t *testing.T) {
 			hasLedgerRoute = true
 		}
 
-		if r.Method == fiber.MethodPost && strings.Contains(p, "/holders/:id/accounts") {
+		if r.Method == fiber.MethodPost && strings.Contains(p, "/holders/:holder_id/accounts") {
 			compositionRoutes = append(compositionRoutes, r.Method+" "+p)
 		}
 	}
@@ -174,7 +174,7 @@ func TestMountV1_OmitsCompositionSurface(t *testing.T) {
 // routes. The org-scoped fee resources hang directly off the organization
 // (/organizations/:organization_id/packages|estimates|billing-packages|billing/calculate),
 // so the probe anchors there. Composition's holder-accounts route sits under a ledger
-// (/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts) and CRM/v2
+// (/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts) and CRM/v2
 // live on /v2, so neither can false-match.
 func TestMountV1_OmitsFeesSurface(t *testing.T) {
 	// NOT parallel: AssembleHumaContract mutates process-global huma state.

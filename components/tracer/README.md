@@ -2,7 +2,7 @@
 
 > Real-time transaction validation and fraud prevention API for financial systems
 
-[![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?style=flat&logo=go)](https://golang.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-336791?style=flat&logo=postgresql)](https://www.postgresql.org)
 [![License](https://img.shields.io/badge/license-Elastic%20License%202.0-4c1.svg)](LICENSE)
 
@@ -55,7 +55,7 @@ released on the single unified Midaz version.
 
 Every transaction submitted to Tracer contains:
 - **Request ID** - Unique identifier for idempotency
-- **Transaction data** - Type (CARD/WIRE/PIX/CRYPTO), amount (decimal), asset, timestamp
+- **Transaction data** - Payment scheme (free-form, e.g. CARD, WIRE, PIX, CRYPTO), amount (decimal), asset, timestamp
 - **Account context** - Account ID, type, status (required)
 - **Optional contexts** - Segment, portfolio, merchant information
 - **Metadata** - Custom key-value pairs for business rules
@@ -357,7 +357,7 @@ tracer/
 
 | Layer                | Technology                  | Purpose                                   |
 |----------------------|-----------------------------|-------------------------------------------|
-| **Language**         | Go 1.27.0                   | Performance, concurrency, static typing   |
+| **Language**         | Go 1.27.0, toolchain 1.27.2 | Performance, concurrency, static typing   |
 | **HTTP Framework**   | Fiber v3.4.0                | Fast, Express-like API framework          |
 | **Database**         | PostgreSQL 17               | ACID transactions, JSON support           |
 | **Expression Engine**| CEL (google/cel-go v0.28.1) | Type-safe rule evaluation                 |
@@ -374,7 +374,7 @@ tracer/
 ### Prerequisites
 
 - Docker 20+ & Docker Compose 2+
-- Go 1.27.0+ (for local development)
+- Go 1.27.2+ (for local development)
 - Make (optional, for convenience commands)
 
 ### 1. Clone & Setup
@@ -440,7 +440,7 @@ curl -X POST http://localhost:4020/v1/rules \
   }'
 ```
 
-**Note:** Rules are created in `DRAFT` status and must be activated via `POST /v1/rules/{id}/activate` before they can be evaluated.
+**Note:** Rules are created in `DRAFT` status and must be activated via `POST /v1/rules/{rule_id}/activate` before they can be evaluated.
 
 ```bash
 # Execute validation (minimal request)
@@ -449,7 +449,7 @@ curl -X POST http://localhost:4020/v1/validations \
   -H "Content-Type: application/json" \
   -d '{
     "requestId": "123e4567-e89b-12d3-a456-426614174000",
-    "transactionType": "CARD",
+    "scheme": "CARD",
     "amount": "15000.00",
     "asset": "USD",
     "transactionTimestamp": "2026-01-28T10:30:00Z",
@@ -587,23 +587,23 @@ X-API-Key: your-api-key
 |----------|---------------------------------|--------------------------------------------------|
 | `POST`   | `/v1/validations`               | Execute transaction validation                   |
 | `GET`    | `/v1/validations`               | List validation history (with filters)           |
-| `GET`    | `/v1/validations/{id}`          | Get validation by ID                             |
+| `GET`    | `/v1/validations/{validation_id}`          | Get validation by ID                             |
 | `GET`    | `/v1/audit-events`              | List audit events (with filters)                 |
-| `GET`    | `/v1/audit-events/{id}`         | Get audit event by ID                            |
-| `GET`    | `/v1/audit-events/{id}/verify`  | Verify hash chain integrity (SOX compliance)     |
+| `GET`    | `/v1/audit-events/{audit_event_id}`         | Get audit event by ID                            |
+| `GET`    | `/v1/audit-events/{audit_event_id}/verify`  | Verify hash chain integrity (SOX compliance)     |
 | `POST`   | `/v1/rules`                     | Create fraud rule                                |
 | `GET`    | `/v1/rules`                     | List rules                                       |
-| `PATCH`  | `/v1/rules/{id}`                | Update rule                                      |
-| `DELETE` | `/v1/rules/{id}`                | Delete rule                                      |
-| `POST`   | `/v1/rules/{id}/activate`       | Activate rule                                    |
-| `POST`   | `/v1/rules/{id}/deactivate`     | Deactivate rule                                  |
+| `PATCH`  | `/v1/rules/{rule_id}`                | Update rule                                      |
+| `DELETE` | `/v1/rules/{rule_id}`                | Delete rule                                      |
+| `POST`   | `/v1/rules/{rule_id}/activate`       | Activate rule                                    |
+| `POST`   | `/v1/rules/{rule_id}/deactivate`     | Deactivate rule                                  |
 | `POST`   | `/v1/limits`                    | Create spending limit                            |
 | `GET`    | `/v1/limits`                    | List limits                                      |
-| `GET`    | `/v1/limits/{id}/usage`         | Get limit usage                                  |
-| `PATCH`  | `/v1/limits/{id}`               | Update limit                                     |
-| `POST`   | `/v1/limits/{id}/activate`      | Activate limit                                   |
-| `DELETE` | `/v1/limits/{id}`               | Delete limit (DRAFT/INACTIVE only)               |
-| `POST`   | `/v1/limits/{id}/deactivate`    | Deactivate limit                                 |
+| `GET`    | `/v1/limits/{limit_id}/usage`         | Get limit usage                                  |
+| `PATCH`  | `/v1/limits/{limit_id}`               | Update limit                                     |
+| `POST`   | `/v1/limits/{limit_id}/activate`      | Activate limit                                   |
+| `DELETE` | `/v1/limits/{limit_id}`               | Delete limit (DRAFT/INACTIVE only)               |
+| `POST`   | `/v1/limits/{limit_id}/deactivate`    | Deactivate limit                                 |
 
 ### Example: Execute Validation
 
@@ -616,7 +616,7 @@ X-API-Key: your-api-key
 
 {
   "requestId": "123e4567-e89b-12d3-a456-426614174000",
-  "transactionType": "CARD",
+  "scheme": "CARD",
   "amount": "5000.00",
   "asset": "USD",
   "transactionTimestamp": "2026-01-28T10:30:00Z",
@@ -635,7 +635,7 @@ X-API-Key: your-api-key
 
 {
   "requestId": "123e4567-e89b-12d3-a456-426614174000",
-  "transactionType": "CARD",
+  "scheme": "CARD",
   "subType": "debit",
   "amount": "5000.00",
   "asset": "USD",
@@ -671,7 +671,8 @@ X-API-Key: your-api-key
 
 **Notes:**
 - `amount` is a decimal string value. Example: $5,000.00 = "5000.00"
-- `transactionType` must be one of: `CARD`, `WIRE`, `PIX`, `CRYPTO`
+- `scheme` (or its deprecated alias `transactionType`) is required: a free-form payment scheme, trimmed and upper-cased, then matching `^[A-Z0-9_-]{1,50}$`. `CARD`, `WIRE`, `PIX`, `CRYPTO` are examples, not a closed set; `CARD` covers any card, never the brand. Sending both with different values is a 400 (`0540`)
+- `transactionType` is deprecated wherever it appears (validation requests and rule/limit scopes): send `scheme` alone, `transactionType` alone, or both with the same value. Responses carry both, so a read-modify-write that changes only one of them sends two different values and returns `0540`
 - `asset` is an asset code of 1 to 100 uppercase Unicode letters, the Midaz ledger's own asset-code grammar (`USD`, `BRL`, `BTC`, a points or token code)
 - `account.type` is free-form, at most 256 characters, and reaches CEL verbatim (the Midaz ledger sends its own account type)
 - `account.status` is free-form, at most 50 characters, and reaches CEL verbatim

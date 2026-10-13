@@ -16,6 +16,7 @@ package pack
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	model "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
@@ -123,6 +124,21 @@ func (mr *MockRepositoryMockRecorder) FindList(ctx, filters any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), ctx, filters)
 }
 
+// FindNotDeletedByOrganizationIDAndLedgerID mocks base method.
+func (m *MockRepository) FindNotDeletedByOrganizationIDAndLedgerID(ctx context.Context, organizationID, ledgerID uuid.UUID) ([]*Package, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindNotDeletedByOrganizationIDAndLedgerID", ctx, organizationID, ledgerID)
+	ret0, _ := ret[0].([]*Package)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindNotDeletedByOrganizationIDAndLedgerID indicates an expected call of FindNotDeletedByOrganizationIDAndLedgerID.
+func (mr *MockRepositoryMockRecorder) FindNotDeletedByOrganizationIDAndLedgerID(ctx, organizationID, ledgerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindNotDeletedByOrganizationIDAndLedgerID", reflect.TypeOf((*MockRepository)(nil).FindNotDeletedByOrganizationIDAndLedgerID), ctx, organizationID, ledgerID)
+}
+
 // SoftDelete mocks base method.
 func (m *MockRepository) SoftDelete(ctx context.Context, id, organizationID, ledgerID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -138,16 +154,16 @@ func (mr *MockRepositoryMockRecorder) SoftDelete(ctx, id, organizationID, ledger
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updateFields *bson.M) (*Package, error) {
+func (m *MockRepository) Update(ctx context.Context, id, organizationID, ledgerID uuid.UUID, updatedAt time.Time, updateFields *bson.M) (*Package, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Update", ctx, id, organizationID, ledgerID, updateFields)
+	ret := m.ctrl.Call(m, "Update", ctx, id, organizationID, ledgerID, updatedAt, updateFields)
 	ret0, _ := ret[0].(*Package)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // Update indicates an expected call of Update.
-func (mr *MockRepositoryMockRecorder) Update(ctx, id, organizationID, ledgerID, updateFields any) *gomock.Call {
+func (mr *MockRepositoryMockRecorder) Update(ctx, id, organizationID, ledgerID, updatedAt, updateFields any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, id, organizationID, ledgerID, updateFields)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Update", reflect.TypeOf((*MockRepository)(nil).Update), ctx, id, organizationID, ledgerID, updatedAt, updateFields)
 }

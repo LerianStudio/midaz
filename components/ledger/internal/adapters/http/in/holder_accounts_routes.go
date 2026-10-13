@@ -25,7 +25,7 @@ func RegisterHolderAccountsRoutes(api huma.API, h *HolderAccountsHandler, opSuff
 	huma.Register(api, huma.Operation{
 		OperationID: "listAccountsByHolder" + opSuffix,
 		Method:      http.MethodGet,
-		Path:        "/organizations/{organization_id}/holders/{id}/accounts",
+		Path:        "/organizations/{organization_id}/holders/{holder_id}/accounts",
 		Summary:     "List Accounts by Holder",
 		Tags:        []string{"Holders"},
 		Security:    secHolderBearer,
@@ -52,7 +52,7 @@ func RegisterHolderAccountsV2RoutesToApp(group fiber.Router, api huma.API, auth 
 // holder-accounts-scoped tenant PostAuthMiddlewares + ParseUUIDPathParameters("holder") as MIDDLEWARE ONLY on
 // the versioned group, then registers the Huma terminal on the same group's Huma API.
 func registerHolderAccountsRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *HolderAccountsHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
-	const acctsPath = "/organizations/:organization_id/holders/:id/accounts"
+	const acctsPath = "/organizations/:organization_id/holders/:holder_id/accounts"
 
 	routeGet(group, acctsPath, protectedMidaz(auth, "holders", "get", routeOptions, pkgHTTP.ParseUUIDPathParameters("holder")))
 

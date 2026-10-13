@@ -3,8 +3,9 @@
 // that can be found in the LICENSE file.
 
 // Command backfill is a standalone, idempotent maintenance runner that
-// provisions deterministic self-holders for existing organizations (Mongo first)
-// and materialises account.holder_id for non-external accounts (PostgreSQL).
+// provisions deterministic self-holders for existing organizations (Mongo first),
+// materialises account.holder_id for non-external accounts (PostgreSQL), then
+// folds duplicate metadata documents of one entity and makes entity_id unique.
 //
 // It is not a SQL migration: it spans two stores in a mandatory order and is safe
 // to re-run. In multi-tenant mode it enumerates active tenants and runs one pass

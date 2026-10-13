@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	feesmongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/billing_package"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
@@ -42,17 +43,15 @@ func newConnection(t *testing.T, container *mongotestutil.ContainerResult) *fees
 	}
 }
 
-// newRepository builds the repository and ensures indexes against the real
-// container, mirroring the production constructor's EnsureIndexes call.
+// newRepository builds the repository through the production constructor, which
+// also ensures the indexes against the real container.
 func newRepository(t *testing.T, container *mongotestutil.ContainerResult) *billing_package.BillingPackageMongoDBRepository {
 	t.Helper()
 
-	conn := newConnection(t, container)
+	repo, err := billing_package.NewBillingPackageMongoDBRepository(newConnection(t, container), libLog.NewNop())
+	require.NoError(t, err, "repository construction must succeed")
 
-	require.NoError(t, billing_package.EnsureIndexes(context.Background(), conn),
-		"EnsureIndexes must succeed during repository setup")
-
-	return billing_package.NewBillingPackageMongoDBRepositoryFromConnection(conn)
+	return repo
 }
 
 // collection returns the raw billing_package collection on the test database so
@@ -659,7 +658,8 @@ func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
 	_, err := repo.Create(ctx, bp)
 	require.NoError(t, err)
 
-	update := &bson.M{"$set": bson.M{"label": "Updated Label", "enable": false}}
+	// A value starting with "$" is stored as written, never read as a field path.
+	update := &bson.M{"$set": bson.M{"label": "Updated Label", "description": "$label", "enable": false}}
 	updated, err := repo.Update(ctx, bp.ID, orgID, billing_package.AnyLedger, update)
 	require.NoError(t, err)
 	require.NotNil(t, updated, "Update must return the persisted entity")
@@ -670,6 +670,8 @@ func TestIntegration_BillingPackageRepo_Update_PersistsChange(t *testing.T) {
 	got, err := repo.FindByID(ctx, bp.ID, orgID, billing_package.AnyLedger)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Label", got.Label, "label change must be persisted")
+	require.NotNil(t, got.Description)
+	assert.Equal(t, "$label", *got.Description)
 	require.NotNil(t, got.Enable)
 	assert.False(t, *got.Enable, "enable change must be persisted")
 }
@@ -741,4 +743,144 @@ func TestIntegration_BillingPackageRepo_SoftDelete_Idempotency(t *testing.T) {
 	require.Error(t, err, "deleting an already-deleted package must report not found")
 	var notFound pkg.EntityNotFoundError
 	require.ErrorAs(t, err, &notFound)
+}
+
+// ============================================================================
+// FindNotDeletedByLedger Tests
+// ============================================================================
+
+func TestIntegration_BillingPackageRepo_FindNotDeletedByLedger(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerID := uuid.New().String()
+
+	// Enabled volume package, created first so it sorts last (created_at desc).
+	enabled := newVolumePackage(orgID, ledgerID)
+	_, err := repo.Create(ctx, enabled)
+	require.NoError(t, err)
+
+	// Disabled maintenance package -> included (no enable filter).
+	disabled := newMaintenancePackage(orgID, ledgerID, "route-m")
+	disabled.Enable = ptr(false)
+	disabled.CreatedAt = "2026-01-02T00:00:00Z"
+	_, err = repo.Create(ctx, disabled)
+	require.NoError(t, err)
+
+	// Soft-deleted -> excluded.
+	deleted := newVolumePackage(orgID, ledgerID)
+	_, err = repo.Create(ctx, deleted)
+	require.NoError(t, err)
+	require.NoError(t, repo.SoftDelete(ctx, deleted.ID, orgID, ledgerID))
+
+	// Another ledger of the same organization -> excluded.
+	_, err = repo.Create(ctx, newVolumePackage(orgID, uuid.New().String()))
+	require.NoError(t, err)
+
+	// Same ledger id under another organization -> excluded.
+	_, err = repo.Create(ctx, newVolumePackage(uuid.New().String(), ledgerID))
+	require.NoError(t, err)
+
+	results, err := repo.FindNotDeletedByLedger(ctx, orgID, ledgerID)
+	require.NoError(t, err)
+	require.Len(t, results, 2, "enabled and disabled live packages of the ledger are returned")
+
+	assert.Equal(t, disabled.ID, results[0].ID, "results are sorted by created_at descending")
+	assert.Equal(t, enabled.ID, results[1].ID)
+	require.NotNil(t, results[0].Enable)
+	assert.False(t, *results[0].Enable)
+
+	anyLedger, err := repo.FindNotDeletedByLedger(ctx, orgID, billing_package.AnyLedger)
+	require.NoError(t, err)
+	assert.Empty(t, anyLedger, "the finder is ledger-scoped: AnyLedger matches nothing")
+}
+
+// ============================================================================
+// Update: account alias removal
+// ============================================================================
+
+func TestIntegration_BillingPackageRepo_Update_UnsetCreditAliasAndDisable(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerID := uuid.New().String()
+	bp := newVolumePackage(orgID, ledgerID)
+	_, err := repo.Create(ctx, bp)
+	require.NoError(t, err)
+
+	update := &bson.M{
+		"$unset": bson.M{"credit_account_alias": ""},
+		"$set":   bson.M{"enable": false, "updated_at": "2026-01-03T00:00:00Z"},
+	}
+
+	updated, err := repo.Update(ctx, bp.ID, orgID, ledgerID, update)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	assert.Nil(t, updated.CreditAccountAlias, "the credit alias is removed")
+	require.NotNil(t, updated.DebitAccountAlias, "the debit alias is kept")
+	assert.Equal(t, "account_fees_debit", *updated.DebitAccountAlias)
+	require.NotNil(t, updated.Enable)
+	assert.False(t, *updated.Enable)
+	assert.Equal(t, "2026-01-03T00:00:00Z", updated.UpdatedAt)
+
+	var raw bson.M
+	require.NoError(t, collection(container).FindOne(ctx, bson.M{"_id": bp.ID}).Decode(&raw))
+	assert.NotContains(t, raw, "credit_account_alias", "the field is removed from the stored document")
+	assert.Equal(t, false, raw["enable"])
+}
+
+func TestIntegration_BillingPackageRepo_Update_PullAccountTargetAlias(t *testing.T) {
+	container := mongotestutil.SetupContainer(t)
+	repo := newRepository(t, container)
+	ctx := context.Background()
+
+	orgID := uuid.New().String()
+	ledgerID := uuid.New().String()
+	bp := newMaintenancePackage(orgID, ledgerID, "route-m")
+	bp.AccountTarget = &model.AccountTarget{Aliases: []string{"account_alpha", "account_beta"}}
+	_, err := repo.Create(ctx, bp)
+	require.NoError(t, err)
+
+	update := &bson.M{
+		"$pull": bson.M{"account_target.aliases": "account_alpha"},
+		"$set":  bson.M{"updated_at": "2026-01-03T00:00:00Z"},
+	}
+
+	updated, err := repo.Update(ctx, bp.ID, orgID, ledgerID, update)
+	require.NoError(t, err)
+	require.NotNil(t, updated)
+	require.NotNil(t, updated.AccountTarget)
+	assert.Equal(t, []string{"account_beta"}, updated.AccountTarget.Aliases, "only the matching alias is pulled")
+	require.NotNil(t, updated.Enable)
+	assert.True(t, *updated.Enable, "a pull alone leaves enable untouched")
+
+	got, err := repo.FindByID(ctx, bp.ID, orgID, ledgerID)
+	require.NoError(t, err)
+	require.NotNil(t, got.AccountTarget)
+	assert.Equal(t, []string{"account_beta"}, got.AccountTarget.Aliases)
+
+	lastUpdate := &bson.M{
+		"$pull": bson.M{"account_target.aliases": "account_beta"},
+		"$set":  bson.M{"enable": false, "updated_at": "2026-01-04T00:00:00Z"},
+	}
+
+	emptied, err := repo.Update(ctx, bp.ID, orgID, ledgerID, lastUpdate)
+	require.NoError(t, err)
+	require.NotNil(t, emptied)
+	require.NotNil(t, emptied.Enable)
+	assert.False(t, *emptied.Enable)
+
+	var stored struct {
+		AccountTarget *struct {
+			Aliases []string `bson:"aliases"`
+		} `bson:"account_target"`
+	}
+	require.NoError(t, collection(container).FindOne(ctx, bson.M{"_id": bp.ID}).Decode(&stored))
+	require.NotNil(t, stored.AccountTarget, "account_target stays a document after the last pull")
+	assert.NotNil(t, stored.AccountTarget.Aliases, "aliases stays an array after the last pull")
+	assert.Empty(t, stored.AccountTarget.Aliases, "pulling the last alias empties the stored list")
 }

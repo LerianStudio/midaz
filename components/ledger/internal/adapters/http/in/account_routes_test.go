@@ -37,11 +37,11 @@ var accountV2Ops = []struct {
 }{
 	{action: "create", method: http.MethodPost, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts", v1OperationID: "createAccount", accountBody: true},
 	{action: "list", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts", v1OperationID: "listAccounts"},
-	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", v1OperationID: "getAccountByID", accountBody: true},
+	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}", v1OperationID: "getAccountByID", accountBody: true},
 	{action: "getByAlias", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}", v1OperationID: "getAccountByAlias", accountBody: true},
 	{action: "getExternalByCode", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}", v1OperationID: "getAccountExternalByCode", accountBody: true},
-	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", v1OperationID: "updateAccount", accountBody: true},
-	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{id}", v1OperationID: "deleteAccount"},
+	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}", v1OperationID: "updateAccount", accountBody: true},
+	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}", v1OperationID: "deleteAccount"},
 	{action: "count", method: http.MethodHead, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/accounts/metrics/count", v1OperationID: "countAccounts"},
 }
 

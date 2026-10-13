@@ -186,10 +186,10 @@ func TestUpdatePackageByID_OwningLedger_PassesLedgerToRepository(t *testing.T) {
 			MaxAmount: decimal.NewFromInt(1000),
 			Fees:      map[string]model.Fee{},
 			LedgerID:  ledgerID,
-		}, nil)
+		}, nil).Times(2)
 
 	mockPackRepo.EXPECT().
-		Update(gomock.Any(), gomock.Eq(packID), gomock.Eq(orgID), gomock.Eq(ledgerID), gomock.Any()).
+		Update(gomock.Any(), gomock.Eq(packID), gomock.Eq(orgID), gomock.Eq(ledgerID), gomock.Any(), gomock.Any()).
 		Return(&pack.Package{ID: packID, LedgerID: ledgerID}, nil)
 
 	svc := &UseCase{packageRepo: mockPackRepo}

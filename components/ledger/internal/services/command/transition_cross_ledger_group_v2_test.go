@@ -308,7 +308,7 @@ func TestTransitionCrossLedgerGroupV2_RefusesMemberClosedOutsideTheEngine(t *tes
 			}
 
 			uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().
-				Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+				DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 
 			_, err := uc.transitionCrossLedgerGroupV2(context.Background(), in, target, test.status)
 

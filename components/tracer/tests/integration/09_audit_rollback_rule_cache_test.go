@@ -43,7 +43,7 @@ import (
 //  1. Create a DRAFT rule via the API.
 //  2. Install a fault-injection trigger that fails the audit INSERT for that
 //     rule's RULE_ACTIVATED event.
-//  3. Call POST /v1/rules/:id/activate. Expect a 5xx response.
+//  3. Call POST /v1/rules/:rule_id/activate. Expect a 5xx response.
 //  4. Assert directly against the DB that the rule status is still DRAFT and
 //     that no RULE_ACTIVATED audit event was persisted.
 //

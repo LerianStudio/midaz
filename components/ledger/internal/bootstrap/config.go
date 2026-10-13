@@ -610,6 +610,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	if onbMgo.connection != nil {
 		addCleanup(func() { _ = onbMgo.connection.Close(context.Background()) })
+		ensureMetadataIndexes(onbMgo.connection, logger, onboardingMetadataEntities)
 	}
 
 	// 4. Transaction MongoDB → metadata repo
@@ -623,6 +624,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	if txnMgo.connection != nil {
 		addCleanup(func() { _ = txnMgo.connection.Close(context.Background()) })
+		ensureMetadataIndexes(txnMgo.connection, logger, transactionMetadataEntities)
 	}
 
 	// 4b. CRM MongoDB → holder/instrument repos + handlers (collapsed from the
@@ -979,6 +981,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.HolderReader = newHolderReaderAdapter(crmMgo.holderHandler.Service, crmMgo.mongoManager)
 	commandUseCase.SettingsReader = queryUseCase
 
+	// Account delete soft-deletes the account's CRM instruments through the
+	// shared CRM service, resolving the tenant CRM database per call.
+	commandUseCase.InstrumentCascader = newInstrumentCascadeAdapter(crmMgo.holderHandler.Service, crmMgo.mongoManager)
+
 	// === Transaction create seam reads (F1) ===
 	// The transaction create path reads settings, balances and accounting rules
 	// through the narrow TransactionReader port, satisfied directly by the query
@@ -1030,6 +1036,17 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// ledger with no fee packages skips the Mongo lookup; invalidated on package CUD.
 	fees.useCase.PackageCache = txnRedisRepo
 
+	// Serialize each ledger's package writes and each billing route's enabling
+	// writes across replicas, so an overlap guard and the write it admits run as
+	// one step.
+	fees.useCase.PackageLock, err = libRedis.NewRedisLockManager(redisConnection)
+	if err != nil {
+		doCleanup()
+		return nil, fmt.Errorf("failed to initialize fee package lock: %w", err)
+	}
+
+	fees.billingPackageService.RouteLock = fees.useCase.PackageLock
+
 	// === Handlers ===
 
 	// Onboarding handlers
@@ -1050,6 +1067,10 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	commandUseCase.FeeApplier = fees.useCase
 	commandUseCase.FeesMongoManager = feeMgo.mongoManager
 	commandUseCase.MultiTenantEnabled = cfg.MultiTenantEnabled
+
+	// Account delete removes the account alias from fee and billing packages,
+	// resolving the tenant fees database per call.
+	commandUseCase.FeeAliasDetacher = newFeeAliasDetachAdapter(fees.useCase, feeMgo.mongoManager)
 
 	// Transaction handlers
 	transactionHandler := &httpin.TransactionHandler{
@@ -1165,8 +1186,9 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// the onboarding and CRM registrars already use — it composes them, it never
 	// reimplements them. The cross-store composition tenant middleware travels via
 	// routeSetup.compositionRouteOptions so it applies ONLY to the composition route.
+	// The shared CRM use case also holds the composition's X-Idempotency slots.
 	compositionService := composition.NewService(commandUseCase, crmMgo.instrumentHandler.Service)
-	compositionHandler := &httpin.CompositionHandler{Service: compositionService}
+	compositionHandler := &httpin.CompositionHandler{Service: compositionService, Idempotency: crmMgo.instrumentHandler.Service}
 
 	logger.Log(context.Background(), libLog.LevelInfo, "Fee routes mounted on unified server")
 
@@ -1272,6 +1294,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		WithQuarantineRepository(txnPG.quarantineRepo).
 		WithMetricsFactory(metricsFactory)
 
+	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory)
+
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 	balanceSyncWorker.WithMetricsFactory(metricsFactory)
@@ -1328,6 +1352,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		MultiQueueConsumer:       rmq.multiQueueConsumer,
 		MultiTenantConsumer:      rmq.multiTenantConsumer,
 		RedisQueueConsumer:       redisConsumer,
+		EngineRecoveryCleanup:    engineRecoveryCleanup,
 		BalanceSyncWorker:        balanceSyncWorker,
 		LegacyBalanceSyncDrainer: legacyDrainer,
 		EventListener:            eventListener,

@@ -84,7 +84,7 @@ type compositionTenant struct {
 // distinct onboarding-PG database AND a distinct CRM-Mongo database, resolved
 // per request from a fake tenant-manager via the JWT tenantId — exactly the
 // production seam. It fires the composition POST
-// /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts for
+// /v2/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts for
 // both tenants CONCURRENTLY (errgroup), each with an instrument, and asserts:
 //
 //	(1) tenant A's account lands ONLY in A's onboarding PG, never in B's;

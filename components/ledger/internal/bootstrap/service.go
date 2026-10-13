@@ -26,6 +26,7 @@ type Service struct {
 	MultiQueueConsumer       *MultiQueueConsumer
 	MultiTenantConsumer      *tmconsumer.MultiTenantConsumer
 	RedisQueueConsumer       *RedisQueueConsumer
+	EngineRecoveryCleanup    *EngineRecoveryCleanupRunner
 	BalanceSyncWorker        *BalanceSyncWorker
 	LegacyBalanceSyncDrainer *LegacyBalanceSyncDrainer
 	EventListener            *tmevent.TenantEventListener
@@ -137,6 +138,10 @@ func (s *Service) launcherApps() []launcherApp {
 	// Redis recovery runner
 	if s.RedisQueueConsumer != nil {
 		apps = append(apps, launcherApp{"Redis Recovery Runner", s.RedisQueueConsumer})
+	}
+
+	if s.EngineRecoveryCleanup != nil {
+		apps = append(apps, launcherApp{"Engine Recovery Cleanup", s.EngineRecoveryCleanup})
 	}
 
 	// Balance sync worker (optional, started when configured)

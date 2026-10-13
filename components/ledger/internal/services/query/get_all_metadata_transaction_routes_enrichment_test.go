@@ -83,8 +83,8 @@ func TestGetAllMetadataTransactionRoutes_OperationRoutesPopulated(t *testing.T) 
 		trID1: {orID1, orID2},
 	}
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
-		Return(junctionMap, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
+		Return(requiredLinkMap(junctionMap), nil)
 
 	opRoutes := []*mmodel.OperationRoute{
 		{ID: orID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op1", OperationType: "source"},
@@ -160,7 +160,7 @@ func TestGetAllMetadataTransactionRoutes_JunctionQueryError(t *testing.T) {
 	// Junction table query returns error
 	junctionErr := errors.New("junction table connection refused")
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
 		Return(nil, junctionErr)
 
 	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
@@ -223,8 +223,8 @@ func TestGetAllMetadataTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T
 
 	// Junction returns empty map — no linked operation routes
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
-		Return(map[uuid.UUID][]uuid.UUID{}, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
+		Return(requiredLinkMap(map[uuid.UUID][]uuid.UUID{}), nil)
 
 	result, curResult, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 

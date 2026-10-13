@@ -353,7 +353,8 @@ func (r *streamingProducerRunnable) drain() {
 //     the pool until its goroutine exits.
 //
 // Reversing steps 1-3 is FORBIDDEN: it produces dropped in-flight requests
-// during rolling deploys.
+// during rolling deploys. Every step runs even when the HTTP drain fails; that
+// error is returned, the close failures after it are logged where they occur.
 func (app *Service) Shutdown(ctx context.Context) error {
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -384,14 +385,14 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		}
 	}
 
+	var httpErr error
+
 	if app.HTTPServer != nil && app.app != nil {
-		if err := app.app.ShutdownWithContext(ctx); err != nil {
+		if httpErr = app.app.ShutdownWithContext(ctx); httpErr != nil {
 			logger.With(
 				libLog.String("service.name", "HTTP Service"),
-				libLog.String("error.message", err.Error()),
+				libLog.String("error.message", httpErr.Error()),
 			).Log(ctx, libLog.LevelError, "failed to shutdown HTTP server")
-
-			return err
 		}
 	}
 
@@ -462,5 +463,5 @@ func (app *Service) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return httpErr
 }

@@ -475,7 +475,7 @@ func TestHandler_UpdateRule(t *testing.T) {
 			handler := NewHandler(mockService)
 
 			app := fiber.New()
-			app.Patch("/v1/rules/:id", handler.UpdateRule)
+			app.Patch("/v1/rules/:rule_id", handler.UpdateRule)
 
 			var body []byte
 			var err error
@@ -634,7 +634,7 @@ func TestHandler_GetRule(t *testing.T) {
 			handler := NewHandler(mockService)
 
 			app := fiber.New()
-			app.Get("/v1/rules/:id", handler.GetRule)
+			app.Get("/v1/rules/:rule_id", handler.GetRule)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/rules/"+tt.ruleIDParam, nil)
 
@@ -915,8 +915,8 @@ func TestHandler_ListRules(t *testing.T) {
 			},
 		},
 		{
-			name:        "error - invalid transactionType enum",
-			queryParams: "?transaction_type=INVALID",
+			name:        "error - invalid transactionType",
+			queryParams: "?transaction_type=bad%20value!",
 			mockSetup: func(ctrl *gomock.Controller) *MockRuleService {
 				mockService := NewMockRuleService(ctrl)
 				return mockService

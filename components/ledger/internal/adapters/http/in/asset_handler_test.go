@@ -87,10 +87,10 @@ func buildHumaAssetApp(t *testing.T, handler *AssetHandler, orgID, ledgerID uuid
 	parse := pkgHTTP.ParseUUIDPathParameters("asset")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/assets"
 	apiV1.Post(base, parse)
-	apiV1.Patch(base+"/:id", parse)
+	apiV1.Patch(base+"/:asset_id", parse)
 	apiV1.Get(base, parse)
-	apiV1.Get(base+"/:id", parse)
-	apiV1.Delete(base+"/:id", parse)
+	apiV1.Get(base+"/:asset_id", parse)
+	apiV1.Delete(base+"/:asset_id", parse)
 	apiV1.Head(base+"/metrics/count", parse)
 
 	RegisterAssetRoutes(hAPI, handler, v1OpSuffix)
@@ -403,10 +403,13 @@ func TestDeleteAsset_204Empty(t *testing.T) {
 		Return(&mmodel.Asset{ID: assetID.String(), Code: "TST"}, nil).Times(1)
 	accountRepo.EXPECT().ListExternalAccountsByAssetCode(gomock.Any(), orgID, ledgerID, "TST").Return([]*mmodel.Account{}, nil).Times(1)
 	assetRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, assetID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityAsset, assetID.String()).Return(nil).Times(1)
 
 	handler := &AssetHandler{Command: &command.UseCase{
-		AssetRepo:   assetRepo,
-		AccountRepo: accountRepo,
+		AssetRepo:              assetRepo,
+		AccountRepo:            accountRepo,
+		OnboardingMetadataRepo: metadataRepo,
 	}}
 
 	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
@@ -574,7 +577,8 @@ func TestCreateAsset_ServiceError_Canonical4xx(t *testing.T) {
 
 func TestGetAllAssets_MetadataFilter(t *testing.T) {
 	// NOT parallel: process-global huma state. Exercises getAllAssets' metadata
-	// branch (GetAllMetadataAssets), not the plain FindAll path.
+	// branch (GetAllMetadataAssets), which resolves the matched IDs through
+	// FindAll, scoped to the path's ledger.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -585,10 +589,13 @@ func TestGetAllAssets_MetadataFilter(t *testing.T) {
 	assetRepo := asset.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAsset, gomock.Any()).
-		Return([]*mongodb.Metadata{{EntityID: asset1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
-	assetRepo.EXPECT().ListByIDs(gomock.Any(), orgID, ledgerID, gomock.Any()).
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityAsset, gomock.Any(), "", gomock.Any()).
+		Return([]string{asset1}, nil).Times(1)
+	assetRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return([]*mmodel.Asset{{ID: asset1, Name: "Premium One", Code: "PRM", Type: "commodity"}}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), constant.EntityAsset, []string{asset1}).
+		Return([]*mongodb.Metadata{{EntityID: asset1, Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &AssetHandler{Query: &query.UseCase{AssetRepo: assetRepo, OnboardingMetadataRepo: metadataRepo}}
 
@@ -609,9 +616,9 @@ func TestGetAllAssets_MetadataFilter(t *testing.T) {
 	assert.Len(t, items, 1)
 }
 
-func TestGetAllAssets_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
-	// NOT parallel: process-global huma state. The metadata branch's error path:
-	// no matching metadata is a canonical 404.
+func TestGetAllAssets_MetadataFilter_NoMatch_EmptyPage(t *testing.T) {
+	// NOT parallel: process-global huma state. A metadata filter that matches
+	// nothing in the path's scope answers 200 with an empty page.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
 
@@ -619,7 +626,8 @@ func TestGetAllAssets_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 
 	metadataRepo := mongodb.NewMockRepository(ctrl)
-	metadataRepo.EXPECT().FindList(gomock.Any(), constant.EntityAsset, gomock.Any()).Return(nil, nil).Times(1)
+	// No metadata matches, so the PostgreSQL read is never reached.
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), constant.EntityAsset, gomock.Any(), "", gomock.Any()).Return([]string{}, nil).Times(1)
 
 	handler := &AssetHandler{Query: &query.UseCase{
 		AssetRepo:              asset.NewMockRepository(ctrl),
@@ -628,17 +636,14 @@ func TestGetAllAssets_MetadataFilter_NoMatch_Canonical404(t *testing.T) {
 
 	app := buildHumaAssetApp(t, handler, orgID, ledgerID, true)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets?metadata.tier=nonexistent", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/assets?metadata.tier=nonexistent&limit=5&page=2", nil)
 	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
-
-	var got map[string]any
-	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Contains(t, got, "code")
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
+	assertEmptyOffsetPage(t, respBody, 5, 2)
 }
 
 func TestGetAllAssets_ServiceError_Canonical404(t *testing.T) {

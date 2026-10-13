@@ -668,9 +668,10 @@ func TestIntegration_UsageCounter_SynchronousIncrement_SeesHeldCapacity(t *testi
 
 	// The synchronous path on the SAME counter bucket. 900 committed on top of 900
 	// held would put the customer at 1800 against a cap of 1000.
-	_, err = repo.UpsertAndIncrementAtomic(ctx, db, limitID, scopeKey, periodKey, held, maxAmount, nil)
+	consumed, err := repo.UpsertAndIncrementAtomic(ctx, db, limitID, scopeKey, periodKey, held, maxAmount, nil)
 	require.ErrorIs(t, err, constant.ErrUsageCounterExceedsLimit,
 		"the synchronous check must count capacity already held by a reservation")
+	assert.True(t, held.Equal(consumed), "a refusal must report the held capacity it was refused against; got %s", consumed)
 
 	current, stillHeld := readCounterDecimal(t, db, limitID, scopeKey, periodKey)
 	assert.True(t, current.IsZero(), "a refused synchronous write must not move current_usage; got %s", current)
@@ -681,5 +682,6 @@ func TestIntegration_UsageCounter_SynchronousIncrement_SeesHeldCapacity(t *testi
 
 	newUsage, err := repo.UpsertAndIncrementAtomic(ctx, db, limitID, scopeKey, periodKey, headroom, maxAmount, nil)
 	require.NoError(t, err, "a synchronous amount inside the real headroom must still be allowed")
-	assert.True(t, headroom.Equal(newUsage), "want current_usage 100, got %s", newUsage)
+	assert.True(t, decimal.NewFromInt(1000).Equal(newUsage),
+		"want consumed capacity 1000 (100 committed plus 900 held), got %s", newUsage)
 }

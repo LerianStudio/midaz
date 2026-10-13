@@ -6,9 +6,11 @@ package mongodb
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	base "github.com/LerianStudio/lib-commons/v7/commons/mongo"
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	mg "go.mongodb.org/mongo-driver/v2/mongo"
 )
@@ -27,6 +29,9 @@ type MongoConnection struct {
 
 	// DB allows tests to inject a pre-connected *mongo.Client directly.
 	DB *mg.Client
+
+	// RequireTenant marks multi-tenant mode; see ResolveDatabase.
+	RequireTenant bool
 
 	mu     sync.Mutex
 	client *base.Client
@@ -75,6 +80,26 @@ func (c *MongoConnection) GetDB(ctx context.Context) (*mg.Client, error) {
 	c.client = client
 
 	return c.client.Client(ctx)
+}
+
+// ResolveDatabase returns the fee database for ctx. With RequireTenant it is the tenant
+// database on ctx, and a ctx without one is tmcore.ErrTenantContextRequired rather than
+// the static database every tenant would share; without it, the static database.
+func (c *MongoConnection) ResolveDatabase(ctx context.Context) (*mg.Database, error) {
+	if c.RequireTenant {
+		if db := tmcore.GetMBContext(ctx); db != nil {
+			return db, nil
+		}
+
+		return nil, tmcore.ErrTenantContextRequired
+	}
+
+	client, err := c.GetDB(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Database(strings.ToLower(c.Database)), nil
 }
 
 // Close gracefully shuts down the underlying connection, if one was created.

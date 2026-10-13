@@ -7,6 +7,7 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
@@ -102,7 +103,7 @@ func TestUpdatePackageByIDRefusesMinimumUnderStoredDeductibleFee(t *testing.T) {
 
 	mockPackageRepo.EXPECT().
 		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(amountData, nil)
+		Return(amountData, nil).Times(2)
 	mockPackageRepo.EXPECT().
 		FindList(gomock.Any(), gomock.Any()).
 		Return([]*pack.Package{}, nil).
@@ -158,7 +159,7 @@ func TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee(t *tes
 
 			mockPackageRepo.EXPECT().
 				FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(amountData, nil)
+				Return(amountData, nil).Times(2)
 			mockPackageRepo.EXPECT().
 				FindList(gomock.Any(), gomock.Any()).
 				Return([]*pack.Package{}, nil).
@@ -167,8 +168,8 @@ func TestUpdatePackageByIDAcceptsALoweredMinimumWhenThePatchRemovesTheFee(t *tes
 			var written bson.M
 
 			mockPackageRepo.EXPECT().
-				Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
-				DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, updateFields *bson.M) (*pack.Package, error) {
+				Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ time.Time, updateFields *bson.M) (*pack.Package, error) {
 					written = *updateFields
 
 					return &pack.Package{ID: packageID, LedgerID: ledgerID}, nil
@@ -237,7 +238,7 @@ func TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum(t *testing.T) {
 
 			mockPackageRepo.EXPECT().
 				FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(amountData, nil)
+				Return(amountData, nil).Times(2)
 			mockPackageRepo.EXPECT().
 				FindList(gomock.Any(), gomock.Any()).
 				Return([]*pack.Package{}, nil).
@@ -250,8 +251,8 @@ func TestUpdatePackageByIDMeasuresAddedFeesAgainstTheNewMinimum(t *testing.T) {
 			var written bson.M
 
 			mockPackageRepo.EXPECT().
-				Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
-				DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, updateFields *bson.M) (*pack.Package, error) {
+				Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, _, _, _ uuid.UUID, _ time.Time, updateFields *bson.M) (*pack.Package, error) {
 					written = *updateFields
 
 					return &pack.Package{ID: packageID, LedgerID: ledgerID}, nil
@@ -333,13 +334,13 @@ func TestUpdatePackageByIDMeasuresPatchedFeesAgainstTheNewMinimum(t *testing.T) 
 
 			mockPackageRepo.EXPECT().
 				FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-				Return(amountData, nil)
+				Return(amountData, nil).Times(2)
 			mockPackageRepo.EXPECT().
 				FindList(gomock.Any(), gomock.Any()).
 				Return([]*pack.Package{}, nil).
 				AnyTimes()
 			mockPackageRepo.EXPECT().
-				Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+				Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 				Return(&pack.Package{ID: packageID, LedgerID: ledgerID}, nil).
 				AnyTimes()
 

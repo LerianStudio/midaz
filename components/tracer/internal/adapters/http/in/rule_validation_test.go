@@ -473,7 +473,7 @@ func TestScope_TransactionTypeValidation(t *testing.T) {
 	}
 
 	t.Run("invalid transactionType", func(t *testing.T) {
-		invalidType := model.TransactionType("INVALID")
+		invalidType := model.TransactionType("bad value!")
 		input := CreateRuleInput{
 			Name:       "Test Rule",
 			Expression: "amount > 1000",
@@ -1031,10 +1031,10 @@ func TestListRulesInput_Validate(t *testing.T) {
 			errMsg:  "merchant_id",
 		},
 		{
-			name: "invalid - transactionType not a valid enum",
+			name: "invalid - transactionType not a valid scheme",
 			input: ListRulesInput{
 				Limit:           testutil.Ptr(10),
-				TransactionType: testutil.StringPtr("INVALID_TYPE"),
+				TransactionType: testutil.StringPtr("bad value!"),
 			},
 			wantErr: true,
 			errMsg:  "transaction_type",

@@ -53,11 +53,14 @@ type seededValidation struct {
 	dayOffset       int
 	decision        string
 	transactionType string
-	asset           string
-	amount          string
-	processingMs    float64
-	matchedRules    []uuid.UUID
-	evaluatedRules  []uuid.UUID
+	// scheme, when set, is written to the free-form scheme column; a row with
+	// only transactionType is shaped like one written before that column existed.
+	scheme         string
+	asset          string
+	amount         string
+	processingMs   float64
+	matchedRules   []uuid.UUID
+	evaluatedRules []uuid.UUID
 }
 
 // seedValidations inserts the fixture inside the given window.
@@ -78,13 +81,23 @@ func seedValidations(t *testing.T, db *sql.DB, window model.DashboardWindow, row
 			evaluated = []uuid.UUID{}
 		}
 
-		_, err := db.Exec(`
+		var transactionType, scheme any
+		if row.transactionType != "" {
+			transactionType = row.transactionType
+		}
+
+		if row.scheme != "" {
+			scheme = row.scheme
+		}
+
+		_, err := db.Exec(
+			`
 			INSERT INTO transaction_validations
-				(request_id, transaction_type, amount, asset, transaction_timestamp,
+				(request_id, transaction_type, scheme, amount, asset, transaction_timestamp,
 				 account, decision, matched_rule_ids, evaluated_rule_ids,
 				 processing_time_ms, created_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-			uuid.New(), row.transactionType, row.amount, row.asset, createdAt,
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+			uuid.New(), transactionType, scheme, row.amount, row.asset, createdAt,
 			`{"accountId":"11111111-1111-1111-1111-111111111111","type":"CHECKING"}`,
 			row.decision, pqUUIDArray(matched), pqUUIDArray(evaluated),
 			row.processingMs, createdAt,
@@ -325,6 +338,133 @@ func TestDashboardRepository_FraudTypes_Integration(t *testing.T) {
 	assert.InDelta(t, 1.0, shares, 1e-9, "shares of the flagged traffic sum to one")
 }
 
+// More schemes than the panel shows fold into one OTHER slice carrying the
+// remainder. SCHEME_12 flags most and ranks first; the rest tie on one flag
+// and rank by name, so SCHEME_10 and SCHEME_11 are the remainder. CARD is
+// written with only the enum column, as rows predating the scheme column are.
+func TestDashboardRepository_FraudTypes_FoldsTheTailIntoOther_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	window := dashboardWindowAt(t, 13)
+
+	rows := []seededValidation{
+		{dayOffset: 0, decision: "DENY", scheme: "SCHEME_12", asset: "USD", amount: "1.00", processingMs: 1},
+		{dayOffset: 0, decision: "DENY", scheme: "SCHEME_12", asset: "USD", amount: "1.00", processingMs: 1},
+		{dayOffset: 0, decision: "REVIEW", scheme: "SCHEME_12", asset: "USD", amount: "1.00", processingMs: 1},
+		{dayOffset: 1, decision: "DENY", transactionType: "CARD", asset: "USD", amount: "1.00", processingMs: 1},
+	}
+
+	for _, name := range []string{
+		"SCHEME_02", "SCHEME_03", "SCHEME_04", "SCHEME_05", "SCHEME_06",
+		"SCHEME_07", "SCHEME_08", "SCHEME_09", "SCHEME_10", "SCHEME_11",
+	} {
+		rows = append(rows, seededValidation{dayOffset: 2, decision: "DENY", scheme: name, asset: "USD", amount: "1.00", processingMs: 1})
+	}
+
+	rows = append(
+		rows,
+		seededValidation{dayOffset: 3, decision: "ALLOW", scheme: "SCHEME_10", asset: "USD", amount: "1.00", processingMs: 1},
+		seededValidation{dayOffset: 3, decision: "ALLOW", scheme: "SCHEME_11", asset: "USD", amount: "1.00", processingMs: 1},
+	)
+
+	seedValidations(t, db, window, rows)
+
+	result, err := newDashboardTestRepo(t, db).FraudTypes(context.Background(), window)
+	require.NoError(t, err)
+
+	assert.EqualValues(t, 14, result.TotalFlagged)
+
+	got := make([]string, 0, len(result.Types))
+	for _, slice := range result.Types {
+		got = append(got, slice.Type)
+	}
+
+	assert.Equal(t, []string{
+		"SCHEME_12", "CARD", "SCHEME_02", "SCHEME_03", "SCHEME_04",
+		"SCHEME_05", "SCHEME_06", "SCHEME_07", "SCHEME_08", "SCHEME_09", "OTHER",
+	}, got, "the top ten by flagged count, then the remainder")
+
+	require.Len(t, result.Types, 11)
+
+	other := result.Types[10]
+	assert.EqualValues(t, 2, other.Count, "SCHEME_10 and SCHEME_11 flag one each")
+	assert.EqualValues(t, 4, other.Total, "and carry one ALLOW each")
+	assert.InDelta(t, 2.0/14.0, other.Percentage, 1e-9)
+
+	assert.EqualValues(t, 3, result.Types[0].Count)
+	assert.EqualValues(t, 1, result.Types[1].Count, "a row with only the enum column is grouped under its scheme")
+
+	var shares float64
+	for _, slice := range result.Types {
+		shares += slice.Percentage
+	}
+
+	assert.InDelta(t, 1.0, shares, 1e-9, "shares of the flagged traffic sum to one")
+}
+
+// Ten schemes or fewer leave nothing to fold, so no OTHER slice appears.
+func TestDashboardRepository_FraudTypes_NoOtherWithoutRemainder_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	window := dashboardWindowAt(t, 14)
+
+	rows := make([]seededValidation, 0, 10)
+	for _, name := range []string{
+		"BOLETO", "TED", "DOC", "SCHEME_A", "SCHEME_B",
+		"SCHEME_C", "SCHEME_D", "SCHEME_E", "SCHEME_F",
+	} {
+		rows = append(rows, seededValidation{dayOffset: 0, decision: "DENY", scheme: name, asset: "USD", amount: "1.00", processingMs: 1})
+	}
+
+	rows = append(rows, seededValidation{dayOffset: 1, decision: "ALLOW", transactionType: "PIX", scheme: "PIX", asset: "USD", amount: "1.00", processingMs: 1})
+
+	seedValidations(t, db, window, rows)
+
+	result, err := newDashboardTestRepo(t, db).FraudTypes(context.Background(), window)
+	require.NoError(t, err)
+
+	require.Len(t, result.Types, 10, "exactly ten schemes, none folded")
+
+	for _, slice := range result.Types {
+		assert.NotEqual(t, "OTHER", slice.Type)
+	}
+
+	assert.Equal(t, "PIX", result.Types[9].Type, "a clean scheme ranks last")
+	assert.EqualValues(t, 9, result.TotalFlagged)
+}
+
+// Rows that reach the same effective scheme through different raw columns are
+// one slice: a row written with scheme alone, a row predating the scheme
+// column, and a row carrying both all report as PIX, and their counts add up.
+func TestDashboardRepository_FraudTypes_FoldsRawPairsOntoTheirEffectiveScheme_Integration(t *testing.T) {
+	testutil.SetupTestTracing(t)
+
+	db := testutil.SetupIntegrationDB(t)
+	window := dashboardWindowAt(t, 15)
+
+	seedValidations(t, db, window, []seededValidation{
+		{dayOffset: 0, decision: "DENY", scheme: "PIX", asset: "BRL", amount: "1.00", processingMs: 1},
+		{dayOffset: 0, decision: "REVIEW", transactionType: "PIX", asset: "BRL", amount: "1.00", processingMs: 1},
+		{dayOffset: 1, decision: "ALLOW", transactionType: "PIX", scheme: "PIX", asset: "BRL", amount: "1.00", processingMs: 1},
+		{dayOffset: 1, decision: "DENY", scheme: "BOLETO", asset: "BRL", amount: "1.00", processingMs: 1},
+	})
+
+	result, err := newDashboardTestRepo(t, db).FraudTypes(context.Background(), window)
+	require.NoError(t, err)
+
+	require.Len(t, result.Types, 2, "three raw PIX pairs must fold into one slice")
+
+	assert.Equal(t, "PIX", result.Types[0].Type)
+	assert.EqualValues(t, 2, result.Types[0].Count, "one DENY written with scheme alone, one REVIEW with the enum alone")
+	assert.EqualValues(t, 3, result.Types[0].Total, "plus one ALLOW carrying both columns")
+
+	assert.Equal(t, "BOLETO", result.Types[1].Type)
+	assert.EqualValues(t, 1, result.Types[1].Count)
+	assert.EqualValues(t, 3, result.TotalFlagged)
+}
+
 // Active counts are point-in-time, not windowed: they describe the rules
 // guarding traffic NOW, and a window far in the past must not change them.
 func TestDashboardRepository_Metrics_ActiveCounts_Integration(t *testing.T) {
@@ -352,20 +492,22 @@ func TestDashboardRepository_Metrics_ActiveCounts_Integration(t *testing.T) {
 
 	var wantRules int64
 	require.NoError(t, db.QueryRow(
-		`SELECT COUNT(*) FROM rules WHERE status='ACTIVE' AND deleted_at IS NULL`).Scan(&wantRules))
+		`SELECT COUNT(*) FROM rules WHERE status='ACTIVE' AND deleted_at IS NULL`,
+	).Scan(&wantRules))
 
 	assert.Equal(t, wantRules, metrics.ActiveRules)
 	assert.GreaterOrEqual(t, metrics.ActiveRules, int64(1))
 
 	var softDeletedCounted bool
 	require.NoError(t, db.QueryRow(
-		`SELECT EXISTS(SELECT 1 FROM rules WHERE id=$1 AND deleted_at IS NOT NULL)`, deletedID).Scan(&softDeletedCounted))
+		`SELECT EXISTS(SELECT 1 FROM rules WHERE id=$1 AND deleted_at IS NOT NULL)`, deletedID,
+	).Scan(&softDeletedCounted))
 	assert.True(t, softDeletedCounted, "fixture sanity: the soft-deleted rule exists")
 	assert.NotEqual(t, wantRules+1, metrics.ActiveRules, "a soft-deleted rule is not active")
 }
 
 // The cost story is a contract, not a note. If someone drops the INCLUDE
-// columns from migration 000024, these reads silently fall back to a heap
+// columns from migration 000030, these reads silently fall back to a heap
 // fetch that measured 3-7x slower at 1,000,000 rows — this test is what makes
 // that regression loud.
 func TestDashboardRepository_QueriesUseTheCoveringIndex_Integration(t *testing.T) {
@@ -387,9 +529,10 @@ func TestDashboardRepository_QueriesUseTheCoveringIndex_Integration(t *testing.T
 
 	var indexExists bool
 	require.NoError(t, db.QueryRow(
-		`SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE indexname = 'idx_transaction_validations_dashboard')`).
+		`SELECT EXISTS(SELECT 1 FROM pg_indexes WHERE indexname = 'idx_transaction_validations_dashboard_scheme')`,
+	).
 		Scan(&indexExists))
-	require.True(t, indexExists, "migration 000024 must have created the covering index")
+	require.True(t, indexExists, "migration 000030 must have created the covering index")
 
 	tests := []struct {
 		name  string
@@ -407,8 +550,8 @@ func TestDashboardRepository_QueriesUseTheCoveringIndex_Integration(t *testing.T
 				"%s must not fetch heap rows; plan was:\n%s", tt.name, plan)
 			assert.NotContains(t, plan, "Heap",
 				"%s must not fetch heap rows; plan was:\n%s", tt.name, plan)
-			assert.Contains(t, plan, "idx_transaction_validations_dashboard",
-				"%s reads decision/asset/amount/processing_time_ms, which only the covering index carries; plan was:\n%s",
+			assert.Contains(t, plan, "idx_transaction_validations_dashboard_scheme",
+				"%s reads decision/scheme/transaction_type/asset/amount/processing_time_ms, which only the covering index carries; plan was:\n%s",
 				tt.name, plan)
 		})
 	}

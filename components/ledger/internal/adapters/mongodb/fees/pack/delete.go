@@ -35,7 +35,7 @@ func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organiza
 
 	span.SetAttributes(attributes...)
 
-	db, err := pm.getDatabase(ctx)
+	db, err := pm.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 

@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,8 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
@@ -59,10 +62,17 @@ func newDeleteAssetStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, e
 		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAsset, gomock.Any()).
+		Return(nil).AnyTimes()
+
 	return &UseCase{
-		AssetRepo:   mockAssetRepo,
-		AccountRepo: mockAccountRepo,
-		Streaming:   emitter,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+		AssetRepo:              mockAssetRepo,
+		AccountRepo:            mockAccountRepo,
+		Streaming:              emitter,
 	}
 }
 
@@ -148,4 +158,29 @@ func TestDeleteAssetByID_NilStreamingDoesNotPanic(t *testing.T) {
 
 	err := uc.DeleteAssetByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
 	require.NoError(t, err)
+}
+
+// TestDeleteAssetByID_MetadataSoftDeleteFailureStillEmits verifies that a
+// metadata soft delete failing on every attempt neither fails the request nor
+// suppresses the deleted event.
+func TestDeleteAssetByID_MetadataSoftDeleteFailureStillEmits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newDeleteAssetStreamingTestUseCase(t, ctrl, mockEmitter, uuid.New())
+
+	failingMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	failingMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAsset, gomock.Any()).
+		Return(errors.New("mongo unavailable")).
+		Times(fastMetadataDeleteRetryPolicy().Attempts)
+
+	uc.OnboardingMetadataRepo = failingMetadataRepo
+
+	err := uc.DeleteAssetByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	require.NoError(t, err, "a metadata soft delete failure must not fail the delete")
+
+	require.Len(t, mockEmitter.Events(), 1)
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "asset", "deleted")
 }

@@ -5,7 +5,9 @@
 package in
 
 import (
+	"encoding/json"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -138,92 +140,140 @@ func transactionRouteReferencedComponents(paths map[string]*huma.PathItem) map[s
 	return refs
 }
 
-// TestRegisterTransactionRouteV2Routes_ReusesV1SchemaComponents proves the core correctness claim
-// of the straight-mirror approach: the /v2 transaction-route twin REUSES the v1 request/response
-// Go types, so Huma's registry dedups them to ONE schema component and the v2 op's body $ref is
-// byte-identical to the v1 op's. It reads the REAL unified document, the same huma.API the served
-// contract and the committed dump come from.
-//
-// Were a v2 twin to mint its own type for any body, its op would $ref a different (V2-named)
-// component and the equality below would turn red.
-func TestRegisterTransactionRouteV2Routes_ReusesV1SchemaComponents(t *testing.T) {
+// transactionRouteComponent is the schema component a $ref names, from the assembled document.
+func transactionRouteComponent(t *testing.T, api huma.API, ref string) *huma.Schema {
+	t.Helper()
+
+	name, ok := strings.CutPrefix(ref, "#/components/schemas/")
+	require.Truef(t, ok, "unexpected ref %q", ref)
+
+	schema, ok := api.OpenAPI().Components.Schemas.Map()[name]
+	require.Truef(t, ok, "the document must publish the %s component", name)
+
+	return schema
+}
+
+// The /v1 transaction-route contract is the one v1 clients already bind to: its
+// ops keep naming the canonical TransactionRoute, CreateTransactionRouteInput and
+// UpdateTransactionRouteInput components, and none of those carries the /v2-only
+// optionalOperationRoutes list.
+func TestRegisterTransactionRouteRoutes_V1PublishesNoOptionalLinks(t *testing.T) {
 	t.Parallel()
 
 	_, api := buildUnifiedHumaAPI()
 	paths := api.OpenAPI().Paths
 
-	// Guards the assertions below against vacuously passing on a document where every ref came
-	// back "": at least one transaction-route op must actually name a response-body component.
-	sawSharedResponseRef := false
+	want := map[string]struct{ request, response string }{
+		"create":  {"#/components/schemas/CreateTransactionRouteInput", "#/components/schemas/TransactionRoute"},
+		"getByID": {"", "#/components/schemas/TransactionRoute"},
+		"update":  {"#/components/schemas/UpdateTransactionRouteInput", "#/components/schemas/TransactionRoute"},
+	}
 
 	for _, op := range transactionRouteV2Ops {
-		v1Item, ok := paths["/v1"+op.opPath]
+		expected, ok := want[op.action]
+		if !ok {
+			continue
+		}
+
+		item, ok := paths["/v1"+op.opPath]
 		require.Truef(t, ok, "the /v1 surface must publish the %s transaction-route op", op.action)
 
-		v2Item, ok := paths["/v2"+op.opPath]
-		require.Truef(t, ok, "the /v2 surface must publish the %s transaction-route op", op.action)
-
-		v1Op := operationForMethod(v1Item, op.method)
+		v1Op := operationForMethod(item, op.method)
 		require.NotNilf(t, v1Op, "the v1 %s transaction-route op must carry a %s operation", op.action, op.method)
 
-		v2Op := operationForMethod(v2Item, op.method)
-		require.NotNilf(t, v2Op, "the v2 %s transaction-route op must carry a %s operation", op.action, op.method)
+		request, responses := transactionRouteOpBodyRefs(v1Op)
+		assert.Equalf(t, expected.request, request, "the v1 %s request component", op.action)
+		assert.Containsf(t, responses, expected.response, "the v1 %s response component", op.action)
 
-		v1Req, v1Resp := transactionRouteOpBodyRefs(v1Op)
-		v2Req, v2Resp := transactionRouteOpBodyRefs(v2Op)
-
-		assert.Equalf(t, v1Req, v2Req,
-			"the v2 %s transaction-route op must name the SAME request-body schema as v1 (a straight mirror mints no new request type)", op.action)
-		assert.ElementsMatchf(t, v1Resp, v2Resp,
-			"the v2 %s transaction-route op must name the SAME response-body component(s) as v1 (Huma dedups the reused Go type to one schema)", op.action)
-
-		for _, ref := range v2Resp {
+		for _, ref := range append(responses, request) {
 			if ref == "" {
 				continue
 			}
 
-			sawSharedResponseRef = true
-
-			assert.Falsef(t, strings.HasSuffix(ref, transactionRouteV2OperationSuffix),
-				"the v2 %s transaction-route op response ref %q must not name a %s-suffixed component — the v1 type is reused, not re-minted",
-				op.action, ref, transactionRouteV2OperationSuffix)
+			_, hasOptional := transactionRouteComponent(t, api, ref).Properties["optionalOperationRoutes"]
+			assert.Falsef(t, hasOptional, "the v1 %s component %s must not publish optionalOperationRoutes", op.action, ref)
 		}
 	}
-
-	require.True(t, sawSharedResponseRef,
-		"at least one transaction-route op must reference a response-body component, or the reuse claim is vacuous")
 }
 
-// TestRegisterTransactionRouteV2Routes_MintsNoV2SchemaComponents guards against accidental
-// new-type creation for the straight mirror: no transaction-route schema component may carry the
-// version suffix. The reused v1 TransactionRoute body type is registered ONCE, so the suffixed
-// twin of each referenced component must be absent.
-func TestRegisterTransactionRouteV2Routes_MintsNoV2SchemaComponents(t *testing.T) {
+// The /v2 transaction-route contract, at ledger and at organization level, takes
+// and answers the optional links as a sibling list of operationRoutes.
+func TestRegisterTransactionRouteV2Routes_PublishesOptionalLinks(t *testing.T) {
 	t.Parallel()
 
 	_, api := buildUnifiedHumaAPI()
-	doc := api.OpenAPI()
-	schemas := doc.Components.Schemas.Map()
+	paths := api.OpenAPI().Paths
 
-	// The components the transaction-route ops actually name, gathered from the assembled document
-	// rather than hardcoded, so a renamed transaction-route type is followed here. The reused v1
-	// type is registered ONCE, so the suffixed twin of each must be absent.
-	referenced := transactionRouteReferencedComponents(doc.Paths)
-	require.Containsf(t, referenced, "TransactionRoute",
-		"the transaction-route ops must reference the TransactionRoute body component, or this test guards nothing")
-
-	for name := range referenced {
-		assert.NotContainsf(t, schemas, name+transactionRouteV2OperationSuffix,
-			"no %s twin of the reused transaction-route body component %q may be minted", transactionRouteV2OperationSuffix, name)
+	ops := []struct {
+		name, method, path string
+		hasRequest         bool
+	}{
+		{"create", http.MethodPost, "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes", true},
+		{"getByID", http.MethodGet, "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}", false},
+		{"update", http.MethodPatch, "/v2/organizations/{organization_id}/ledgers/{ledger_id}/transaction-routes/{transaction_route_id}", true},
+		{"createOrganization", http.MethodPost, "/v2/organizations/{organization_id}/transaction-routes", true},
+		{"getOrganization", http.MethodGet, "/v2/organizations/{organization_id}/transaction-routes/{transaction_route_id}", false},
+		{"updateOrganization", http.MethodPatch, "/v2/organizations/{organization_id}/transaction-routes/{transaction_route_id}", true},
 	}
 
-	// The document-wide guard: no transaction-route-named schema carries the V2 suffix.
-	for name := range schemas {
-		if !strings.HasPrefix(name, "TransactionRoute") {
-			continue
+	for _, op := range ops {
+		item, ok := paths[op.path]
+		require.Truef(t, ok, "the /v2 surface must publish %s", op.path)
+
+		v2Op := operationForMethod(item, op.method)
+		require.NotNilf(t, v2Op, "%s must carry a %s operation", op.path, op.method)
+
+		request, responses := transactionRouteOpBodyRefs(v2Op)
+
+		if op.hasRequest {
+			require.NotEmptyf(t, request, "the v2 %s op must name a request component", op.name)
+
+			optional, hasOptional := transactionRouteComponent(t, api, request).Properties["optionalOperationRoutes"]
+			require.Truef(t, hasOptional, "the v2 %s request %s must accept optionalOperationRoutes", op.name, request)
+			assert.Truef(t, optional.Nullable || slices.Contains(schemaTypes(optional), "null"),
+				"the v2 %s request %s must declare optionalOperationRoutes nullable: null keeps the stored list", op.name, request)
 		}
 
-		assert.Falsef(t, strings.HasSuffix(name, transactionRouteV2OperationSuffix),
-			"no transaction-route schema component may carry the %s suffix; found %q", transactionRouteV2OperationSuffix, name)
+		require.NotEmptyf(t, responses, "the v2 %s op must name a response component", op.name)
+
+		for _, ref := range responses {
+			properties := transactionRouteComponent(t, api, ref).Properties
+
+			_, hasRequired := properties["operationRoutes"]
+			_, hasOptional := properties["optionalOperationRoutes"]
+			assert.Truef(t, hasRequired && hasOptional, "the v2 %s response %s must answer both link lists", op.name, ref)
+		}
 	}
+}
+
+// schemaTypes is the JSON type list of a schema, whether published as one type or several.
+func schemaTypes(schema *huma.Schema) []string {
+	data, err := json.Marshal(schema)
+	if err != nil {
+		return nil
+	}
+
+	var decoded struct {
+		Type any `json:"type"`
+	}
+
+	if json.Unmarshal(data, &decoded) != nil {
+		return nil
+	}
+
+	switch typed := decoded.Type.(type) {
+	case string:
+		return []string{typed}
+	case []any:
+		types := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if name, ok := item.(string); ok {
+				types = append(types, name)
+			}
+		}
+
+		return types
+	}
+
+	return nil
 }

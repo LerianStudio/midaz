@@ -29,7 +29,7 @@ import (
 func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/account-types"
-		idPath   = listPath + "/{id}"
+		idPath   = listPath + "/{account_type_id}"
 		tag      = "Account Types"
 	)
 
@@ -64,15 +64,18 @@ func RegisterAccountTypeRoutes(api huma.API, h *AccountTypeHandler, opSuffix str
 		Security:    secAccountTypeBearer,
 	}, h.GetAccountTypeByID)
 
+	metadataNull, patchDoc := patchMetadataFor(opSuffix)
+
 	huma.Register(api, huma.Operation{
 		OperationID:      "updateAccountType" + opSuffix,
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update an account type",
+		Description:      patchDoc,
 		Tags:             []string{tag},
 		Security:         secAccountTypeBearer,
 		SkipValidateBody: true, // body validated imperatively — see createAccountType.
-	}, h.UpdateAccountType)
+	}, withMetadataNull(metadataNull, h.UpdateAccountType))
 	attachTypedRequestBody[mmodel.UpdateAccountTypeInput](api, "updateAccountType"+opSuffix)
 
 	huma.Register(api, huma.Operation{
@@ -118,7 +121,7 @@ func RegisterAccountTypeV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 func registerAccountTypeRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *AccountTypeHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		listPath = "/organizations/:organization_id/ledgers/:ledger_id/account-types"
-		idPath   = listPath + "/:id"
+		idPath   = listPath + "/:account_type_id"
 	)
 
 	parse := pkgHTTP.ParseUUIDPathParameters("account_type")

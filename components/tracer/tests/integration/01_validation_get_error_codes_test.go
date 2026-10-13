@@ -9,6 +9,7 @@ package integration
 import (
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ import (
 // =============================================================================
 //
 // These tests document the error handling behavior for the transaction
-// validation endpoints (GET /v1/validations and GET /v1/validations/{id}).
+// validation endpoints (GET /v1/validations and GET /v1/validations/{validation_id}).
 //
 // Errors follow the RFC 9457 (application/problem+json) envelope with a numeric
 // `code`, a specific `title`, and a `detail`. Each error code carries its own
@@ -38,7 +39,7 @@ import (
 // =============================================================================
 
 // =============================================================================
-// 3.1 GET /v1/validations/{id} - Invalid ID Tests
+// 3.1 GET /v1/validations/{validation_id} - Invalid ID Tests
 // =============================================================================
 
 // TestGetTransactionValidation_InvalidID_ReturnsError verifies invalid UUID handling in path parameter.
@@ -398,8 +399,9 @@ func TestListTransactionValidations_InvalidDecision_ReturnsError(t *testing.T) {
 	}
 }
 
-// TestListTransactionValidations_InvalidTransactionType_ReturnsError verifies invalid transactionType filter handling.
-// Returns code 0431 (title "Invalid Transaction Validation Filters") for invalid filter values.
+// TestListTransactionValidations_InvalidTransactionType_ReturnsError verifies that a scheme filter, under scheme or
+// its deprecated alias transaction_type, that is not 1 to 50 characters of A-Z, 0-9, _ or - after trimming and
+// upper-casing returns code 0431 (title "Invalid Transaction Validation Filters").
 func TestListTransactionValidations_InvalidTransactionType_ReturnsError(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -411,26 +413,26 @@ func TestListTransactionValidations_InvalidTransactionType_ReturnsError(t *testi
 		wantMsg  string
 	}{
 		{
-			name:     "invalid-transactionType-value",
-			query:    "transaction_type=INVALID",
+			name:     "transactionType-with-space",
+			query:    "transaction_type=PIX%20TRANSFER",
 			wantCode: "0431",
 			wantMsg:  "",
 		},
 		{
-			name:     "transactionType-lowercase",
-			query:    "transaction_type=card",
+			name:     "transactionType-with-symbol",
+			query:    "transaction_type=PIX!",
 			wantCode: "0431",
 			wantMsg:  "",
 		},
 		{
-			name:     "transactionType-cash",
-			query:    "transaction_type=CASH",
+			name:     "transactionType-too-long",
+			query:    "transaction_type=" + strings.Repeat("A", 51),
 			wantCode: "0431",
 			wantMsg:  "",
 		},
 		{
-			name:     "transactionType-numeric",
-			query:    "transaction_type=123",
+			name:     "scheme-with-space",
+			query:    "scheme=PIX%20TRANSFER",
 			wantCode: "0431",
 			wantMsg:  "",
 		},
@@ -646,7 +648,7 @@ func TestListTransactionValidations_MultipleInvalidParams_ReturnsFirstError(t *t
 }
 
 // =============================================================================
-// 3.5 GET /v1/validations/{id} - Valid UUID but Non-existent
+// 3.5 GET /v1/validations/{validation_id} - Valid UUID but Non-existent
 // =============================================================================
 
 // TestGetTransactionValidation_ValidUUIDButNotFound_Returns404 verifies 404 for non-existent validation.

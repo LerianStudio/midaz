@@ -140,6 +140,20 @@ func TestTransactionPostgreSQLModel_ToEntity(t *testing.T) {
 			},
 		},
 		{
+			name: "transaction with scheme",
+			model: TransactionPostgreSQLModel{
+				ID:             transactionID,
+				Description:    "Scheme transaction",
+				Status:         "ACTIVE",
+				AssetCode:      "BRL",
+				LedgerID:       ledgerID,
+				OrganizationID: organizationID,
+				Scheme:         ptr("PIX"),
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+		},
+		{
 			name: "transaction with deleted at",
 			model: TransactionPostgreSQLModel{
 				ID:             transactionID,
@@ -243,6 +257,13 @@ func TestTransactionPostgreSQLModel_ToEntity(t *testing.T) {
 				assert.Equal(t, *tt.model.Route, entity.Route)
 			} else {
 				assert.Empty(t, entity.Route)
+			}
+
+			// Check Scheme
+			if tt.model.Scheme != nil {
+				assert.Equal(t, *tt.model.Scheme, entity.Scheme)
+			} else {
+				assert.Empty(t, entity.Scheme)
 			}
 
 			// Check DeletedAt
@@ -381,6 +402,22 @@ func TestTransactionPostgreSQLModel_FromEntity(t *testing.T) {
 			expectedIDOverride: existingID,
 		},
 		{
+			name: "entity with scheme",
+			entity: &Transaction{
+				ID:             existingID,
+				Description:    "With scheme",
+				Status:         Status{Code: "ACTIVE"},
+				AssetCode:      "BRL",
+				Scheme:         "PIX",
+				LedgerID:       ledgerID,
+				OrganizationID: organizationID,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			},
+			expectGeneratedID:  false,
+			expectedIDOverride: existingID,
+		},
+		{
 			name: "entity with deleted at",
 			entity: &Transaction{
 				ID:             existingID,
@@ -447,6 +484,14 @@ func TestTransactionPostgreSQLModel_FromEntity(t *testing.T) {
 				assert.Equal(t, tt.entity.Route, *model.Route)
 			} else {
 				assert.Nil(t, model.Route)
+			}
+
+			// Check Scheme
+			if tt.entity.Scheme != "" {
+				require.NotNil(t, model.Scheme)
+				assert.Equal(t, tt.entity.Scheme, *model.Scheme)
+			} else {
+				assert.Nil(t, model.Scheme)
 			}
 
 			// Check DeletedAt

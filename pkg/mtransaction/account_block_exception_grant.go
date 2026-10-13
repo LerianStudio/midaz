@@ -11,8 +11,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
-// AccountBlockExceptionGrant is a single-use account-block exception as the Go
-// pre-validation reads it out of the cache. It carries the identifier the caller
+// AccountBlockExceptionGrant is a single-use account-block exception as the
+// balance step reads it out of the cache. It carries the identifier the caller
 // presented plus the two values the grant is bound to: the source account alias
 // it authorizes and the exact amount of the debit it authorizes.
 //
@@ -40,14 +40,12 @@ type AccountBlockExceptionGrant struct {
 //
 // What the binding authorizes is scoped to those balances by their FULL identity
 // (alias AND balance key), never by alias alone. Two balances of one account are
-// two different permission surfaces: the per-balance sending/receiving flags are
-// set independently, and the atomic script does not re-check them. Relieving them
-// per alias would let a grant minted for one segment's debit release an unrelated
-// segment's restriction inside the same transaction.
+// two different permission surfaces with independently set sending flags, so
+// relieving them per alias would let a grant minted for one segment's debit
+// release an unrelated segment's restriction inside the same transaction.
 //
-// The binding is derived ONCE, in the balance step, and the same value reaches
-// both the Go pre-validation and the atomic script — so the balances Go stops
-// fast-failing are exactly the balances the script bypasses the block on.
+// The binding is derived ONCE, in the balance step; its internal keys are the
+// balances the atomic script is allowed to bypass the block on.
 type AccountBlockExceptionBinding struct {
 	// ID is the presented identifier, which the script validates and deletes.
 	ID uuid.UUID
@@ -58,27 +56,12 @@ type AccountBlockExceptionBinding struct {
 	// portion of it and is never the value the grant is matched against.
 	Amount string
 
-	// authorized identifies the balances the binding covers by "alias#balanceKey".
+	// authorized identifies the balances the binding covers by "alias#balanceKey",
+	// so a balance reached by several legs is listed once in internalKeys.
 	authorized map[string]struct{}
 	// internalKeys are the unprefixed balance internal keys of the same set, in
 	// the order they appear in the batch, for the script's bypass list.
 	internalKeys []string
-}
-
-// Authorizes reports whether the binding covers the balance identified by its
-// alias and balance key.
-//
-// A nil receiver means "no grant presented" and authorizes nothing, so callers
-// need no separate nil guard. An empty balance key is read as the default key,
-// matching how the rest of the package resolves a balance's identity.
-func (b *AccountBlockExceptionBinding) Authorizes(alias, balanceKey string) bool {
-	if b == nil {
-		return false
-	}
-
-	_, ok := b.authorized[AliasKey(alias, balanceKey)]
-
-	return ok
 }
 
 // InternalKeys returns the unprefixed balance internal keys the binding covers.
@@ -97,8 +80,8 @@ func (b *AccountBlockExceptionBinding) InternalKeys() []string {
 // It is deliberately NOT mmodel.BalanceOperation. The model package imports this
 // one (Balance.ToTransactionBalance), so this package cannot import the model
 // back; the caller projects each operation onto this shape instead. The rule
-// itself — what a grant authorizes — stays here, next to the validation that
-// applies it, rather than being restated in the adapter.
+// itself — what a grant authorizes — stays here rather than being restated in
+// the adapter.
 type AccountBlockExceptionLeg struct {
 	// Alias is the balance's plain account alias.
 	Alias string

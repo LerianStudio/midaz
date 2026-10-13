@@ -9,6 +9,7 @@ const (
 	FailureOverdraftLimitExceeded       = "overdraft_limit_exceeded"
 	FailureOverdraftNotEligible         = "overdraft_not_eligible"
 	FailureOverdraftCompanionMissing    = "overdraft_companion_missing"
+	FailureOverdraftRepayRouteDenied    = "overdraft_repay_route_denied"
 	FailureBalanceDeleted               = "balance_deleted"
 	FailureAccountBlocked               = "account_blocked"
 	FailureOnHoldUnderflow              = "onhold_underflow"

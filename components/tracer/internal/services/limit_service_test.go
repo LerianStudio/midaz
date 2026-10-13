@@ -265,7 +265,7 @@ func TestLimitService_GetLimitUsage_ResetAtFromServiceClock(t *testing.T) {
 			stored := storedLimit(t, int64(10+i), model.LimitTypeDaily, model.LimitStatusActive, tt.resetTime)
 
 			f.queryRepo.EXPECT().GetByID(gomock.Any(), stored.ID).Return(stored, nil)
-			f.usageRepo.EXPECT().GetByLimitID(gomock.Any(), stored.ID).Return([]model.UsageCounter{
+			f.usageRepo.EXPECT().GetByLimitIDAndPeriod(gomock.Any(), stored.ID, gomock.Any()).Return([]model.UsageCounter{
 				{LimitID: stored.ID, ScopeKey: "account", PeriodKey: "2026-10-01", CurrentUsage: decimal.RequireFromString("250")},
 			}, nil)
 
@@ -273,9 +273,66 @@ func TestLimitService_GetLimitUsage_ResetAtFromServiceClock(t *testing.T) {
 			require.NoError(t, err)
 
 			requireResetAt(t, tt.want, got.ResetAt)
-			assert.True(t, decimal.RequireFromString("250").Equal(got.CurrentUsage), "usage sum is unchanged")
+			assert.True(t, decimal.RequireFromString("250").Equal(got.CurrentUsage), "usage is unchanged")
 		})
 	}
+}
+
+// TestLimitService_GetLimitUsage_ReadsCurrentPeriodOnly proves the snapshot
+// reads the counters of the period that contains the service clock's now, so
+// consumption from earlier periods never surfaces as current usage. The
+// period follows the limit's reset time: at 00:30 a 09:00 reset is still in
+// the previous day's period.
+func TestLimitService_GetLimitUsage_ReadsCurrentPeriodOnly(t *testing.T) {
+	tests := []struct {
+		name       string
+		limitType  model.LimitType
+		resetTime  string
+		wantPeriod string
+	}{
+		{name: "daily at midnight", limitType: model.LimitTypeDaily, wantPeriod: "2026-10-02"},
+		{name: "daily reset at 09:00", limitType: model.LimitTypeDaily, resetTime: "09:00", wantPeriod: "2026-10-01"},
+		{name: "monthly", limitType: model.LimitTypeMonthly, wantPeriod: "2026-10"},
+		{name: "weekly", limitType: model.LimitTypeWeekly, wantPeriod: "2026-W40"},
+		{name: "custom", limitType: model.LimitTypeCustom, wantPeriod: "custom"},
+	}
+
+	for i, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newLimitServiceFixture(t, limitServiceNow, limitServiceNow)
+			stored := storedLimit(t, int64(30+i), tt.limitType, model.LimitStatusActive, tt.resetTime)
+
+			f.queryRepo.EXPECT().GetByID(gomock.Any(), stored.ID).Return(stored, nil)
+			f.usageRepo.EXPECT().GetByLimitIDAndPeriod(gomock.Any(), stored.ID, tt.wantPeriod).Return([]model.UsageCounter{
+				{LimitID: stored.ID, ScopeKey: "acct:a", PeriodKey: tt.wantPeriod, CurrentUsage: decimal.RequireFromString("900")},
+			}, nil)
+
+			got, err := f.service.GetLimitUsage(context.Background(), stored.ID)
+			require.NoError(t, err)
+
+			assert.True(t, decimal.RequireFromString("900").Equal(got.CurrentUsage), "want 900, got %s", got.CurrentUsage)
+			assert.Equal(t, 90.0, got.UtilizationPercent)
+			assert.True(t, got.NearLimit)
+		})
+	}
+}
+
+// TestLimitService_GetLimitUsage_PerTransactionReadsNoCounters proves a
+// PER_TRANSACTION limit, which keeps no counters, answers zero usage without a
+// counter read.
+func TestLimitService_GetLimitUsage_PerTransactionReadsNoCounters(t *testing.T) {
+	f := newLimitServiceFixture(t, limitServiceNow, limitServiceNow)
+	stored := storedLimit(t, 40, model.LimitTypePerTransaction, model.LimitStatusActive, "")
+
+	f.queryRepo.EXPECT().GetByID(gomock.Any(), stored.ID).Return(stored, nil)
+
+	got, err := f.service.GetLimitUsage(context.Background(), stored.ID)
+	require.NoError(t, err)
+
+	assert.True(t, got.CurrentUsage.IsZero())
+	assert.Equal(t, 0.0, got.UtilizationPercent)
+	assert.False(t, got.NearLimit)
+	assert.Nil(t, got.ResetAt)
 }
 
 func TestLimitService_CreateLimit_ResetAtFromServiceClock(t *testing.T) {

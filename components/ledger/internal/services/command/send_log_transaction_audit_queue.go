@@ -11,21 +11,17 @@ import (
 	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	// SendLogTransactionAuditQueue sends transaction audit log data to a message queue for processing and storage.
-	// ctx is the request-scoped context for cancellation and deadlines.
-	// operations is the list of operations to be logged in the audit queue.
-	// organizationID is the UUID of the associated organization.
-	// ledgerID is the UUID of the ledger linked to the transaction.
-	// transactionID is the UUID of the transaction being logged.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// SendLogTransactionAuditQueue publishes the operations of an applied transaction to the audit exchange.
+// Publication is an explicit opt-in: it happens only when AUDIT_LOG_ENABLED, trimmed and lowercased,
+// equals "true"; any other value or its absence disables it. Failures are logged and never propagated.
 func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -85,6 +81,7 @@ func (uc *UseCase) SendLogTransactionAuditQueue(ctx context.Context, operations 
 	}
 }
 
+// sendLogTransactionAuditQueueAsync starts the audit publication in a goroutine only when the audit gate is enabled.
 func (uc *UseCase) sendLogTransactionAuditQueueAsync(ctx context.Context, operations []*operation.Operation, organizationID, ledgerID, transactionID uuid.UUID) {
 	if !isAuditLogEnabled() {
 		return
@@ -93,7 +90,9 @@ func (uc *UseCase) sendLogTransactionAuditQueueAsync(ctx context.Context, operat
 	go uc.SendLogTransactionAuditQueue(ctx, operations, organizationID, ledgerID, transactionID)
 }
 
+// isAuditLogEnabled reports whether AUDIT_LOG_ENABLED, trimmed and lowercased, equals "true".
+// Any other value, including an empty or unset variable, disables audit publication.
 func isAuditLogEnabled() bool {
 	envValue := strings.ToLower(strings.TrimSpace(os.Getenv("AUDIT_LOG_ENABLED")))
-	return envValue != "false"
+	return envValue == "true"
 }

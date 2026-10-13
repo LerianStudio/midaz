@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/backfill"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	mongotestutil "github.com/LerianStudio/midaz/v4/tests/utils/mongodb"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
 )
 
@@ -57,11 +58,16 @@ func TestIntegration_HolderBackfillRunner_SingleTenant_Run(t *testing.T) {
 	ledgerID := seedLedger(t, pgContainer.DB, orgID)
 	accountID := seedAccount(t, pgContainer.DB, orgID, ledgerID, "@normal-a", "deposit")
 
+	mongoContainer := mongotestutil.SetupReusableContainer(t)
+	mongoConn := mongotestutil.CreateConnection(t, mongoContainer.URI, mongoContainer.DBName)
+
 	r := &HolderBackfillRunner{
 		logger:             libLog.NewNop(),
 		multiTenantEnabled: false,
 		runner:             backfill.NewHolderBackfiller(orgRepo, fakeProvisioner{}),
 		onbPG:              &onboardingPostgresComponents{connection: pgClient},
+		onbMgo:             &onboardingMongoComponents{connection: mongoConn},
+		txnMgo:             &transactionMongoComponents{connection: mongoConn},
 	}
 
 	// Real entrypoint, bare context: this is the path the binary takes.
@@ -71,6 +77,11 @@ func TestIntegration_HolderBackfillRunner_SingleTenant_Run(t *testing.T) {
 	// Proof the PG step ran against the injected connection: holder_id is set.
 	assert.Equal(t, command.DeriveSelfHolderID(orgID).String(), *holderID(t, pgContainer.DB, accountID),
 		"account holder_id must be materialised by the single-tenant backfill")
+
+	// Proof the metadata dedupe ran against both modules' ambient databases.
+	for _, collection := range []string{"organization", "transaction"} {
+		assert.True(t, entityIDIndexUnique(t, mongoContainer.Database.Collection(collection)), collection)
+	}
 }
 
 func seedOrg(t *testing.T, db *sql.DB, legalName, legalDoc string) uuid.UUID {

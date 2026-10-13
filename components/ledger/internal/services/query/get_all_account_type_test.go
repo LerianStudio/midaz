@@ -243,7 +243,7 @@ func TestGetAllAccountTypeRepoError(t *testing.T) {
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }
 
-// TestGetAllAccountTypeMetadataError tests getting all account types with metadata error
+// TestGetAllAccountTypeMetadataError locks that a metadata store failure is returned unchanged.
 func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -273,7 +273,6 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 	}
 
 	metadataError := errors.New("metadata service error")
-	expectedBusinessError := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccountType)
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
@@ -298,8 +297,7 @@ func TestGetAllAccountTypeMetadataError(t *testing.T) {
 
 	result, cur, err := uc.GetAllAccountType(context.Background(), organizationID, ledgerID, filter)
 
-	assert.Error(t, err)
-	assert.Equal(t, expectedBusinessError, err)
+	assert.ErrorIs(t, err, metadataError)
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
 }

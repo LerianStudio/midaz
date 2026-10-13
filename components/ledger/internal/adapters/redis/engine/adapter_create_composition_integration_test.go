@@ -62,6 +62,11 @@ func (r *adapterCreateReader) GetEngineBalances(ctx context.Context, organizatio
 	return pool.ExplicitBalances, pool.Balances, err
 }
 
+// GetFeeDebtSeeds answers that no balance it serves holds fee debt.
+func (r *adapterCreateReader) GetFeeDebtSeeds(context.Context, uuid.UUID, uuid.UUID, []string) (map[string][]core.FeeDebtItem, error) {
+	return nil, nil
+}
+
 func (r *adapterCreateReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }

@@ -849,6 +849,90 @@ func TestUpdateBillingPackage_RepoUpdateError(t *testing.T) {
 	}
 }
 
+// An update that enables a package is judged against its route only when it turns
+// a disabled volume package on; every other enabling update goes straight to the write.
+func TestUpdateBillingPackage_EnableJudgesRouteOverlap(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	bpID := uuid.New()
+
+	stored := func(bpType string, enable bool) *model.BillingPackage {
+		bp := validVolumeBillingPackage()
+		bp.ID, bp.OrganizationID, bp.Type, bp.Enable = bpID.String(), orgID.String(), bpType, &enable
+
+		return bp
+	}
+
+	volume, maintenance := model.BillingPackageTypeVolume, model.BillingPackageTypeMaintenance
+
+	tests := []struct {
+		name string
+		// reads are the package FindByID answers, in order: before the lock, then under it.
+		reads      []*model.BillingPackage
+		findErr    error
+		matching   []*model.BillingPackage
+		judged     bool
+		wantUpdate bool
+		wantCode   string
+	}{
+		{name: "disabled volume package on an occupied route is refused", reads: []*model.BillingPackage{stored(volume, false), stored(volume, false)}, matching: []*model.BillingPackage{{ID: uuid.NewString()}}, judged: true, wantCode: constant.ErrBillingRouteOverlap.Error()},
+		{name: "disabled volume package on a free route is enabled", reads: []*model.BillingPackage{stored(volume, false), stored(volume, false)}, judged: true, wantUpdate: true},
+		{name: "package enabled before the lock is not judged", reads: []*model.BillingPackage{stored(volume, false), stored(volume, true)}, wantUpdate: true},
+		{name: "maintenance package is not judged", reads: []*model.BillingPackage{stored(maintenance, false)}, wantUpdate: true},
+		{name: "absent package is left to the write", findErr: mongo.ErrNoDocuments, wantUpdate: true},
+		{name: "failed read stops the update", findErr: errors.New("read failed")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc, mockRepo, _ := newTestBillingPackageService(t)
+
+			if tt.findErr != nil {
+				mockRepo.EXPECT().
+					FindByID(gomock.Any(), bpID.String(), orgID.String(), billing_package.AnyLedger).
+					Return(nil, tt.findErr)
+			}
+
+			for _, read := range tt.reads {
+				mockRepo.EXPECT().
+					FindByID(gomock.Any(), bpID.String(), orgID.String(), billing_package.AnyLedger).
+					Return(read, nil)
+			}
+
+			if tt.judged {
+				underLock := tt.reads[len(tt.reads)-1]
+
+				mockRepo.EXPECT().
+					FindMatchingPackages(gomock.Any(), underLock.OrganizationID, underLock.LedgerID, underLock.EventFilter.TransactionRoute).
+					Return(tt.matching, nil)
+			}
+
+			if tt.wantUpdate {
+				mockRepo.EXPECT().
+					Update(gomock.Any(), bpID.String(), orgID.String(), billing_package.AnyLedger, gomock.Any()).
+					Return(&model.BillingPackage{ID: bpID.String(), UpdatedAt: "2026-01-02T00:00:00Z"}, nil)
+			}
+
+			_, err := svc.UpdateBillingPackage(context.Background(), bpID, orgID, uuid.Nil, map[string]any{"enable": true})
+
+			switch {
+			case tt.wantCode != "":
+				var conflict pkg.EntityConflictError
+
+				assert.ErrorAs(t, err, &conflict)
+				assert.Equal(t, tt.wantCode, conflict.Code)
+			case tt.wantUpdate:
+				assert.NoError(t, err)
+			default:
+				assert.ErrorIs(t, err, tt.findErr)
+			}
+		})
+	}
+}
+
 func TestValidateMaintenanceCreate_CreditAccountFails(t *testing.T) {
 	t.Parallel()
 

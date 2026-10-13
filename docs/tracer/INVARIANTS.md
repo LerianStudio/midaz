@@ -50,7 +50,8 @@ core differentiator and carries rules that exist nowhere else in the monorepo.
 Rules evaluate against the complete transaction context. Available variables:
 
 ```cel
-transactionType       // String: "CARD", "WIRE", "PIX", "CRYPTO"
+scheme                // String: normalized payment scheme, free-form (e.g. "CARD", "WIRE", "PIX", "CRYPTO")
+transactionType       // String: deprecated alias of scheme, always the same value
 subType               // String: "debit", "credit", "instant", etc.
 amount                // dyn (decimal.Decimal as float64 — supports == with int and double literals)
 asset                 // String: asset code, 1 to 100 uppercase Unicode letters ("USD", "BTC", a points code)
@@ -103,7 +104,9 @@ be written against these variables:
 - `metadata` — the transaction metadata the ledger forwards: keys matching `^[a-zA-Z0-9_]+$` of
   at most 64 characters, at most 50 entries, and every value a STRING (the ledger renders numbers
   and booleans as strings, so compare `metadata["tier"] == "1"`, not `== 1`).
-- `transactionType` and `subType` are empty strings, `account["status"]` is empty, and
+- `scheme` and `transactionType` both hold the normalized scheme the ledger transaction declared
+  (free-form, e.g. `CARD`, `PIX`) or an empty string when none was declared; `subType` is an empty string,
+  `account["status"]` is empty, and
   `account["metadata"]`, `segment`, `portfolio` and `merchant` are empty maps.
 
 On reserve the transaction timestamp is only checked for being in the future; the maximum-age
@@ -144,7 +147,7 @@ results.
 
 - **No priority-based evaluation.** All active rules are evaluated; `DENY` takes precedence in
   the final decision. Do not introduce ordered/short-circuit rule evaluation.
-- Rules are created in `DRAFT` and must be activated (`POST /v1/rules/{id}/activate`) before
+- Rules are created in `DRAFT` and must be activated (`POST /v1/rules/{rule_id}/activate`) before
   they participate in validation.
 
 ---
@@ -160,7 +163,7 @@ are why several migrations are held to the renumbering invariant below.
   DB-side: the `calculate_audit_event_hash()` trigger function (migration `000001`) runs
   `encode(sha256(hash_input::bytea), 'hex')`, backed by the `pgcrypto` extension enabled in
   migration `000004`. There is no application-side SHA-256 (`pkg/hash/` holds only an FNV-1a
-  `HashUUIDToInt32` helper, unrelated to the audit chain). `GET /v1/audit-events/{id}/verify`
+  `HashUUIDToInt32` helper, unrelated to the audit chain). `GET /v1/audit-events/{audit_event_id}/verify`
   re-walks the chain to prove integrity; this is the compliance proof and must keep working
   across upgrades.
 - **Synchronous, compliance-blocking write.** Audit persistence is SYNCHRONOUS, not

@@ -65,15 +65,15 @@ const upsertAndIncrementCTEQuery = `
 			last_updated_at = $8,
 			expires_at = $11
 		WHERE usage_counters.current_usage + usage_counters.reserved_usage + $9 <= $10
-		RETURNING current_usage, true as succeeded
+		RETURNING current_usage + reserved_usage AS consumed, true as succeeded
 	)
 	SELECT 
 		COALESCE(
-			(SELECT current_usage FROM attempt),
-			(SELECT current_usage FROM usage_counters 
+			(SELECT consumed FROM attempt),
+			(SELECT current_usage + reserved_usage FROM usage_counters 
 			 WHERE limit_id = $2 AND scope_key = $3 AND period_key = $4),
 			$5
-		) as current_usage,
+		) as consumed,
 		COALESCE(
 			(SELECT succeeded FROM attempt),
 			false
@@ -170,7 +170,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 	).Log(ctx, libLog.LevelDebug, "Getting or creating usage counter with lock")
 
 	// Try to get existing counter with FOR UPDATE lock
-	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+	selectQuery := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 		From(usageCountersTable).
 		Where(sq.Eq{
 			"limit_id":   limitID,
@@ -238,7 +238,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 		// Handle concurrent insert race condition
 		// Another transaction inserted the counter, try to select it again
-		selectQuery = sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+		selectQuery = sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 			From(usageCountersTable).
 			Where(sq.Eq{
 				"limit_id":   limitID,
@@ -273,7 +273,7 @@ func (r *UsageCounterRepository) GetOrCreateForUpdate(ctx context.Context, limit
 
 	// Re-select the inserted row with FOR UPDATE to acquire the row-level lock
 	// This ensures the returned counter has the lock, matching the existing row path
-	selectInserted := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+	selectInserted := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 		From(usageCountersTable).
 		Where(sq.Eq{"id": newCounter.ID}).
 		Suffix("FOR UPDATE").
@@ -456,11 +456,11 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 	}
 
 	var (
-		currentUsage decimal.Decimal
-		succeeded    bool
+		consumed  decimal.Decimal
+		succeeded bool
 	)
 
-	err := db.QueryRowContext(ctx, query, args...).Scan(&currentUsage, &succeeded)
+	err := db.QueryRowContext(ctx, query, args...).Scan(&consumed, &succeeded)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Database error in CTE upsert", err)
 
@@ -470,20 +470,17 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 
 	// Check the succeeded flag to determine if the operation was successful
 	if !succeeded {
-		// WHERE guard failed: current_usage + amount > maxAmount
-		// The CTE attempt returned no rows, so COALESCE returned the old current_usage
+		// WHERE guard failed: current_usage + reserved_usage + amount > maxAmount.
+		// The CTE attempt returned no rows, so COALESCE returned the unchanged consumed capacity.
 		logger.With(
 			libLog.String("operation", operationName),
 			libLog.String("limit_id", limitID.String()),
 			libLog.String("scope_key", scopeKey),
 			libLog.String("period_key", periodKey),
-			libLog.String("current_usage", currentUsage.String()),
-			libLog.String("amount", amount.String()),
-			libLog.String("max_amount", maxAmount.String()),
 		).Log(ctx, libLog.LevelDebug, "Limit exceeded (WHERE guard)")
 		libOtel.HandleSpanBusinessErrorEvent(span, "Limit exceeded", constant.ErrUsageCounterExceedsLimit)
 
-		return currentUsage, constant.ErrUsageCounterExceedsLimit
+		return consumed, constant.ErrUsageCounterExceedsLimit
 	}
 
 	// Success: counter was incremented
@@ -492,10 +489,9 @@ func (r *UsageCounterRepository) upsertAndIncrementAtomicInternal(
 		libLog.String("limit_id", limitID.String()),
 		libLog.String("scope_key", scopeKey),
 		libLog.String("period_key", periodKey),
-		libLog.String("new_usage", currentUsage.String()),
 	).Log(ctx, libLog.LevelDebug, "Upsert and increment completed")
 
-	return currentUsage, nil
+	return consumed, nil
 }
 
 // UpsertAndReserveAtomic atomically creates or reserves capacity on a usage counter
@@ -618,11 +614,11 @@ func (r *UsageCounterRepository) UpsertAndReserveAtomic(
 	return reservedUsage, nil
 }
 
-// GetByLimitID retrieves all usage counters for a specific limit.
-func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.UUID) ([]model.UsageCounter, error) {
+// GetByLimitIDAndPeriod retrieves the usage counters of a limit in one period.
+func (r *UsageCounterRepository) GetByLimitIDAndPeriod(ctx context.Context, limitID uuid.UUID, periodKey string) ([]model.UsageCounter, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "repository.usage_counter.get_by_limit_id")
+	ctx, span := tracer.Start(ctx, "repository.usage_counter.get_by_limit_id_and_period")
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
@@ -633,10 +629,10 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 		return nil, fmt.Errorf("failed to get database connection: %w", err)
 	}
 
-	query := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "last_updated_at").
+	query := sq.Select("id", "limit_id", "scope_key", "period_key", "current_usage", "reserved_usage", "last_updated_at").
 		From(usageCountersTable).
-		Where(sq.Eq{"limit_id": limitID}).
-		OrderBy("period_key DESC", "scope_key ASC").
+		Where(sq.Eq{"limit_id": limitID, "period_key": periodKey}).
+		OrderBy("scope_key ASC").
 		PlaceholderFormat(sq.Dollar)
 
 	sqlStr, args, err := query.ToSql()
@@ -646,9 +642,10 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	}
 
 	logger.With(
-		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
+		libLog.String("operation", "repository.usage_counter.get_by_limit_id_and_period"),
 		libLog.String("limit_id", limitID.String()),
-	).Log(ctx, libLog.LevelDebug, "Getting usage counters by limit ID")
+		libLog.String("period_key", periodKey),
+	).Log(ctx, libLog.LevelDebug, "Getting usage counters by limit ID and period")
 
 	rows, err := db.QueryContext(ctx, sqlStr, args...)
 	if err != nil {
@@ -675,8 +672,9 @@ func (r *UsageCounterRepository) GetByLimitID(ctx context.Context, limitID uuid.
 	}
 
 	logger.With(
-		libLog.String("operation", "repository.usage_counter.get_by_limit_id"),
+		libLog.String("operation", "repository.usage_counter.get_by_limit_id_and_period"),
 		libLog.String("limit_id", limitID.String()),
+		libLog.String("period_key", periodKey),
 		libLog.Int("count", len(counters)),
 	).Log(ctx, libLog.LevelDebug, "Retrieved usage counters")
 
@@ -716,7 +714,7 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 	span trace.Span,
 	operationName string,
 ) (map[uuid.UUID]decimal.Decimal, error) {
-	query := sq.Select("limit_id", "current_usage").
+	query := sq.Select("limit_id", "current_usage + reserved_usage").
 		From(usageCountersTable).
 		Where(sq.Eq{
 			"limit_id":   limitIDs,
@@ -750,14 +748,14 @@ func (r *UsageCounterRepository) getUsageForLimitsInternal(
 	for rows.Next() {
 		var limitID uuid.UUID
 
-		var currentUsage decimal.Decimal
+		var consumed decimal.Decimal
 
-		if err := rows.Scan(&limitID, &currentUsage); err != nil {
+		if err := rows.Scan(&limitID, &consumed); err != nil {
 			libOtel.HandleSpanError(span, "Failed to scan usage", err)
 			return nil, fmt.Errorf("failed to scan usage: %w", err)
 		}
 
-		result[limitID] = currentUsage
+		result[limitID] = consumed
 	}
 
 	if err := rows.Err(); err != nil {
@@ -788,6 +786,7 @@ func (r *UsageCounterRepository) scanCounter(ctx context.Context, row *sql.Row) 
 		&dbModel.ScopeKey,
 		&dbModel.PeriodKey,
 		&dbModel.CurrentUsage,
+		&dbModel.ReservedUsage,
 		&dbModel.LastUpdatedAt,
 	)
 	if err != nil {
@@ -818,6 +817,7 @@ func (r *UsageCounterRepository) scanCounterFromRows(ctx context.Context, rows *
 		&dbModel.ScopeKey,
 		&dbModel.PeriodKey,
 		&dbModel.CurrentUsage,
+		&dbModel.ReservedUsage,
 		&dbModel.LastUpdatedAt,
 	)
 	if err != nil {

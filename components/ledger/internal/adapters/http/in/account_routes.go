@@ -19,7 +19,7 @@ import (
 // every versioned contract that serves it.
 const (
 	accountListPath     = "/organizations/{organization_id}/ledgers/{ledger_id}/accounts"
-	accountIDPath       = accountListPath + "/{id}"
+	accountIDPath       = accountListPath + "/{account_id}"
 	accountAliasPath    = accountListPath + "/alias/{alias}"
 	accountExternalPath = accountListPath + "/external/{code}"
 	accountCountPath    = accountListPath + "/metrics/count"
@@ -41,6 +41,16 @@ const accountClosedAtInputDoc = "The closing instant is output only: a body nami
 // deletion that deletes every balance of the account.
 const balanceDeletionRefusalDoc = "A balance that still owes pending fees (0527) or that other balances still owe pending fees to (0528) is refused with 422. " +
 	"A state that cannot be established answers 503 (0520) and may be retried."
+
+// accountDeleteCascadeDoc lists the effects an account deletion has on the CRM and on fees.
+// It is the same text on both contracts, because the deletion is the same use case.
+const accountDeleteCascadeDoc = "The CRM instrument linked to the account is soft-deleted. " +
+	"In every fee package of the ledger, a fee whose creditAccount is the account's alias is removed and the alias leaves waivedAccounts; " +
+	"a package left without fees is disabled. " +
+	"In billing packages, a debitAccountAlias, creditAccountAlias or maintenanceCreditAccount equal to the alias is cleared and the package is disabled; " +
+	"the alias leaves accountTarget.aliases, and the package is disabled only when that list empties. " +
+	"These effects happen before the account is deleted. " +
+	"If one of them fails, the account stays in place and the request may be retried."
 
 // RegisterAccountRoutes registers the eight /v1 account operations on the shared Huma
 // API. Paths are GROUP-RELATIVE (the Huma API is bound to a versioned Fiber group, so
@@ -110,7 +120,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
-		Description:      accountClosedAtInputDoc,
+		Description:      accountClosedAtInputDoc + " " + patchMetadataDocV1,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.
@@ -122,7 +132,7 @@ func RegisterAccountRoutes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
-		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc + " " + accountDeleteCascadeDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
@@ -207,7 +217,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:           http.MethodPatch,
 		Path:             accountIDPath,
 		Summary:          "Update an account",
-		Description:      accountClosedAtInputDoc,
+		Description:      accountClosedAtInputDoc + " " + patchMetadataDocV2,
 		Tags:             []string{accountTag},
 		Security:         secAccountBearer,
 		SkipValidateBody: true, // body validated imperatively.
@@ -219,7 +229,7 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 		Method:        http.MethodDelete,
 		Path:          accountIDPath,
 		Summary:       "Delete an account",
-		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc,
+		Description:   "Deletes an account together with its balances. " + balanceDeletionRefusalDoc + " " + accountDeleteCascadeDoc,
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
@@ -244,7 +254,8 @@ func RegisterAccountV2Routes(api huma.API, h *AccountHandler, opSuffix string) {
 			"The command takes no body and the closing instant is read back as the account's closedAt, which every account read then exposes. " +
 			"An external account is never eligible (0074), balances that are not exactly zero (0523), a pending transaction still holding the account's funds (0524), a balance that still owes pending fees (0527) and a balance that other balances still owe pending fees to (0528) are refused with 422. " +
 			"An account already closed (0521), an account whose closing is already in progress (0522), an account held by another operation such as transactions loading its balances or a balance creation or deletion (0526) and an account whose accounting persistence is still settling (0518) are refused with 409, the last two of which may be retried later. " +
-			"An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination.",
+			"An indeterminate protection or an unavailable dependency answers 503 (0520). Once the account is closed, any movement that would touch it is refused with 0519, including the commit of a pending transaction that names it as destination, and the revert of a transaction whose fee legs credited it. " +
+			"Closing is permanent. To retire a fee account, point the fee package at the new fee account and leave the old account open: reverts of earlier transactions and collections of fee debt already owed to it still post there.",
 		Tags:          []string{accountTag},
 		Security:      secAccountBearer,
 		DefaultStatus: http.StatusNoContent, // bodiless 204.
@@ -285,7 +296,7 @@ func RegisterAccountV2RoutesToApp(group fiber.Router, api huma.API, auth *middle
 func attachAccountRouteChain(group fiber.Router, auth *middleware.AuthClient, routeOptions *pkgHTTP.ProtectedRouteOptions) {
 	const (
 		listPath     = "/organizations/:organization_id/ledgers/:ledger_id/accounts"
-		idPath       = listPath + "/:id"
+		idPath       = listPath + "/:account_id"
 		aliasPath    = listPath + "/alias/:alias"
 		externalPath = listPath + "/external/:code"
 		countPath    = listPath + "/metrics/count"

@@ -89,6 +89,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 			redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 			redisRepository.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 
 			realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
@@ -100,6 +101,10 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 				TransactionRepo:             pendingLifecycleRows{reader: reader},
 				Engine:                      executor,
 				AppliedTransactionCompleter: &pendingLifecycleFinalizer{outcomes: []string{constant.PENDING, test.terminalStatus}},
+				TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
+					client:     client,
+					executions: func() []command.EngineExecution { return executor.executions },
+				},
 			}
 
 			amount := decimal.NewFromInt(30)
@@ -138,6 +143,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 			require.NoError(t, markers.SetAccountClosedMarker(ctx, organizationID, ledgerID, destinationAccountID, accountClosingLifecycleInstant))
 
 			reader.persisted = pending
+			reader.executionID = executor.executions[0].Execution.ExecutionID
 			reader.balances[0].Available = decimal.NewFromInt(70)
 			reader.balances[0].OnHold = decimal.NewFromInt(30)
 			reader.balances[0].Version = 8

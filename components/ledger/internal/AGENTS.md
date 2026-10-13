@@ -14,7 +14,6 @@ the repository root. Keep all `AGENTS.md` content in English.
 ## Read First
 
 - [Engine architecture](../../../docs/architecture/engine.md): accounting boundary, receipts, protection, and rollout.
-- [Recovery inventory](../../../docs/runbooks/transaction-recovery-inventory.md): record families, quarantine, and reprocessing.
 - [Batch contract](../../../docs/api/atomic-transaction-batch.md): identity, order, limits, and replay.
 - [Telemetry](../../../docs/standards/telemetry.md) and [error handling](../../../docs/standards/error-handling.md): binding standards.
 - [Performance report](../../../docs/performance/engine-report.md): measurements and evidence limitations.
@@ -73,9 +72,12 @@ turn incidental behavior into a new guarantee.
   genuine conflicts must be reported without overwriting valid projections.
 - SQL committed with Mongo pending is not complete projection. Retries verify
   SQL and complete/verify frozen metadata before acknowledging durability.
-- Publish projection events after SQL and metadata confirmation, using the
-  durable lifecycle phase. Preserve the existing best-effort contract; do not
-  promise exactly-once delivery or publish early merely because HTTP returned 201.
+- Publish projection events once SQL commits, before metadata and fee-debt
+  projection, using the durable lifecycle phase. A noop phase publishes nothing:
+  the attempt that wrote the operations already published, and a projection
+  failure retried after the commit replays as noop. Preserve the existing
+  best-effort contract; do not promise exactly-once delivery or publish early
+  merely because HTTP returned 201.
 - Bulk uses grouped SQL persistence, row limits, and ordered locks. Preserve
   causal order and result correlation even if internal ordering differs from
   input. Process every wrapper entry, not just the first.

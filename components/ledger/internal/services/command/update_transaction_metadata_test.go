@@ -300,6 +300,14 @@ func TestUpdateTransactionMetadataKeepsReservedKeysOfTheFreshRead(t *testing.T) 
 			},
 		},
 		{
+			name: "a null-valued key deletes that key and keeps the reserved keys", entity: constant.EntityTransaction,
+			sent: map[string]any{"purpose": nil}, want: map[string]any{"feeApplied": "true"},
+			expect: func(repo *mongodb.MockRepositoryMockRecorder, want map[string]any) {
+				repo.FindByEntity(gomock.Any(), constant.EntityTransaction, "id").Return(stored(pending), nil)
+				repo.UpdateIfUnchanged(gomock.Any(), constant.EntityTransaction, "id", "", want, absent).Return(true, nil)
+			},
+		},
+		{
 			name: "nil input without a document writes nothing", entity: constant.EntityTransaction,
 			sent: nil, want: nil,
 			expect: func(repo *mongodb.MockRepositoryMockRecorder, _ map[string]any) {

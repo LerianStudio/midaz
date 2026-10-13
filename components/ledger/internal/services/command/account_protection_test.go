@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -38,6 +39,9 @@ type protectionMocks struct {
 	balance *balance.MockRepository
 	account *account.MockRepository
 	redis   *redis.MockRedisRepository
+	// metadata has no expectation by default: a protection refusal answers before
+	// the account row is deleted, so its metadata is never touched.
+	metadata *onbMongo.MockRepository
 }
 
 func newProtectionMocks(t *testing.T) *protectionMocks {
@@ -46,19 +50,22 @@ func newProtectionMocks(t *testing.T) *protectionMocks {
 	ctrl := gomock.NewController(t)
 
 	mocks := &protectionMocks{
-		balance: balance.NewMockRepository(ctrl),
-		account: account.NewMockRepository(ctrl),
-		redis:   redis.NewMockRedisRepository(ctrl),
+		balance:  balance.NewMockRepository(ctrl),
+		account:  account.NewMockRepository(ctrl),
+		redis:    redis.NewMockRedisRepository(ctrl),
+		metadata: onbMongo.NewMockRepository(ctrl),
 	}
 
 	allowEmptyEngineRecovery(mocks.redis)
 
 	mocks.uc = &UseCase{
-		BalanceRepo:          mocks.balance,
-		AccountRepo:          mocks.account,
-		TransactionRedisRepo: mocks.redis,
-		TransactionReader:    &feeDebtReader{},
-		FeeDebts:             &owedFeeDebts{},
+		BalanceRepo:            mocks.balance,
+		AccountRepo:            mocks.account,
+		TransactionRedisRepo:   mocks.redis,
+		TransactionReader:      &feeDebtReader{},
+		FeeDebts:               &owedFeeDebts{},
+		OnboardingMetadataRepo: mocks.metadata,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
 	}
 
 	return mocks

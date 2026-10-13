@@ -203,7 +203,7 @@ type UpdateLedgerResponse struct {
 
 // UpdateLedger decodes+validates the raw body imperatively then delegates to the
 // shared updateLedger core.
-func (handler *LedgerHandler) UpdateLedger(ctx context.Context, in *UpdateLedgerRequest) (*UpdateLedgerResponse, error) {
+func (handler *LedgerHandler) UpdateLedger(ctx context.Context, in *UpdateLedgerRequest, metadataNull metadataNullPolicy) (*UpdateLedgerResponse, error) {
 	orgID, err := parseOrg(in.OrganizationID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -215,7 +215,7 @@ func (handler *LedgerHandler) UpdateLedger(ctx context.Context, in *UpdateLedger
 	}
 
 	payload := new(mmodel.UpdateLedgerInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

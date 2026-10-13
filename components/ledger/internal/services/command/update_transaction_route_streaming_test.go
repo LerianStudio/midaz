@@ -32,7 +32,7 @@ import (
 // UpdatedAt — mirroring the contract of the refactored squirrel +
 // RETURNING repo method.
 //
-// FindOperationRouteIDsByTransactionRouteIDs returns the configured
+// FindOperationRouteLinksByTransactionRouteIDs returns the configured
 // preserved IDs so the post-update hydration path covers the
 // `input.OperationRoutes == nil` case (i.e. PATCHes that omit the
 // link set should still see the canonical post-state on the wire).
@@ -44,8 +44,8 @@ func newUpdateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
 	mockTransactionRouteRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, orgID, id uuid.UUID, in *mmodel.TransactionRoute, _, _ []uuid.UUID) (*mmodel.TransactionRoute, error) {
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, orgID, id uuid.UUID, in *mmodel.TransactionRoute, _ transactionroute.LinkChanges) (*mmodel.TransactionRoute, error) {
 			out := &mmodel.TransactionRoute{
 				ID:             id,
 				OrganizationID: orgID,
@@ -63,13 +63,13 @@ func newUpdateTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 		}).AnyTimes()
 
 	mockTransactionRouteRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, trIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, trIDs []uuid.UUID) (map[uuid.UUID][]transactionroute.OperationRouteLink, error) {
 			result := make(map[uuid.UUID][]uuid.UUID)
 			if len(trIDs) > 0 {
 				result[trIDs[0]] = preservedOperationRouteIDs
 			}
-			return result, nil
+			return requiredLinkMap(result), nil
 		}).AnyTimes()
 
 	// Hydration step: return mirror OperationRoute objects so the
@@ -127,7 +127,7 @@ func TestUpdateTransactionRoute_EmitsTransactionRouteUpdatedEvent(t *testing.T) 
 		Description: "Updated description",
 	}
 
-	tr, err := uc.UpdateTransactionRoute(ctx, orgID, transactionRouteID, input)
+	tr, err := uc.UpdateTransactionRoute(ctx, orgID, transactionRouteID, input, LinksFullSetV1)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 
@@ -155,7 +155,7 @@ func TestUpdateTransactionRoute_EmitsTransactionRouteUpdatedEvent(t *testing.T) 
 	// === Post-update link set ===
 	// Since the caller omitted OperationRoutes from the PATCH, the
 	// producer MUST source the canonical post-state from the join
-	// table via FindOperationRouteIDsByTransactionRouteIDs +
+	// table via FindOperationRouteLinksByTransactionRouteIDs +
 	// FindByIDs.
 	ids, ok := payload["operationRouteIds"].([]any)
 	require.True(t, ok, "operationRouteIds must be present as an array")
@@ -173,7 +173,7 @@ func TestUpdateTransactionRoute_NoopEmitterDoesNotPanic(t *testing.T) {
 
 	input := &mmodel.UpdateTransactionRouteInput{Title: "Noop Updated Transaction Route"}
 
-	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
+	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input, LinksFullSetV1)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 }
@@ -189,7 +189,7 @@ func TestUpdateTransactionRoute_EmitFailureDoesNotFailRequest(t *testing.T) {
 
 	input := &mmodel.UpdateTransactionRouteInput{Title: "Emit Fail Updated Transaction Route"}
 
-	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
+	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input, LinksFullSetV1)
 	require.NoError(t, err, "Emit failure must NOT fail the request (IMPORTANT posture)")
 	require.NotNil(t, tr)
 }
@@ -205,7 +205,7 @@ func TestUpdateTransactionRoute_NilStreamingDoesNotPanic(t *testing.T) {
 
 	input := &mmodel.UpdateTransactionRouteInput{Title: "Nil Streaming Updated Transaction Route"}
 
-	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input)
+	tr, err := uc.UpdateTransactionRoute(context.Background(), uuid.New(), uuid.New(), input, LinksFullSetV1)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 }

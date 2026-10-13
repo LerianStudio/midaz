@@ -149,6 +149,12 @@ func mapEnginePostingFailure(posting accounting.Posting, failure *accounting.Fai
 		default:
 			return fmt.Errorf("unexpected draw policy for engine failure: %w", cause)
 		}
+	case accounting.FailureOverdraftRepayRouteDenied:
+		if !posting.RepayRouteDenied {
+			return fmt.Errorf("unexpected repay policy for engine failure: %w", cause)
+		}
+
+		return pkg.ValidateBusinessError(constant.ErrOverdraftRouteNotConfigured, balanceValidationEntity)
 	case "overdraft_companion_missing":
 		return fmt.Errorf("overdraft companion missing: %w", cause)
 	case "balance_deleted":

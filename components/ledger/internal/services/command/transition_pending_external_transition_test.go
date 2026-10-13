@@ -13,10 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -92,7 +90,6 @@ func TestPendingTransitionRefusesDurableHoldTransitionedOutsideTheEngine(t *test
 			t.Run(entry.name+" over "+primaryStatus+" primary", func(t *testing.T) {
 				uc, reader, executor, in := newPrimaryRowTransition(t, entry.status, uuid.New(), true)
 				reader.row.Status.Code = primaryStatus
-				uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 
 				err := entry.call(uc, tmcore.ContextWithTenantID(t.Context(), "tenant-external-transition"), in)
 
@@ -160,7 +157,6 @@ func TestPendingTransitionFailsClosedWhenTheDurableRowCannotBeConfirmed(t *testi
 		t.Run(test.name, func(t *testing.T) {
 			uc, reader, executor, in := newPrimaryRowTransition(t, constant.APPROVED, uuid.New(), true)
 			reader.rowErr = test.rowErr
-			uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 			if test.noRow {
 				reader.row = nil
 			}

@@ -36,12 +36,14 @@ func TestMapEngineError(t *testing.T) {
 		name       string
 		code       string
 		drawPolicy accounting.DrawPolicy
+		repayDeny  bool
 		wantCode   string
 	}{
 		{name: "insufficient funds", code: "insufficient_funds", wantCode: "0018"},
 		{name: "overdraft limit", code: "overdraft_limit_exceeded", wantCode: "0167"},
 		{name: "route denied", code: "overdraft_not_eligible", drawPolicy: accounting.DrawRouteDenied, wantCode: "0492"},
 		{name: "draw forbidden", code: "overdraft_not_eligible", drawPolicy: accounting.DrawForbidden, wantCode: "0018"},
+		{name: "repay route denied", code: accounting.FailureOverdraftRepayRouteDenied, repayDeny: true, wantCode: "0492"},
 		{name: "balance deleted", code: "balance_deleted", wantCode: "0019"},
 		{name: "account blocked", code: "account_blocked", wantCode: "0502"},
 		{name: "invalid account-block exception", code: accounting.FailureAccountBlockExceptionInvalid, wantCode: "0508"},
@@ -54,8 +56,9 @@ func TestMapEngineError(t *testing.T) {
 			t.Parallel()
 
 			request := accounting.Execution{Transactions: []accounting.Transaction{{Postings: []accounting.Posting{{
-				BalanceRef: "balance-1",
-				DrawPolicy: tt.drawPolicy,
+				BalanceRef:       "balance-1",
+				DrawPolicy:       tt.drawPolicy,
+				RepayRouteDenied: tt.repayDeny,
 			}}}}}
 			failure := &accounting.Failure{Code: tt.code, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "balance-1"}
 
@@ -118,6 +121,7 @@ func TestMapEngineError_NilAndUnmappedInputs(t *testing.T) {
 		{name: "unknown requirement", err: &accounting.Failure{Code: accounting.FailureAssetMismatch, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "balance-2"}, req: validRequirementEngineRequest(accounting.BalancePermissionSend, true)},
 		{name: "wrong requirement permission", err: &accounting.Failure{Code: accounting.FailureReceivingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "balance-1"}, req: validRequirementEngineRequest(accounting.BalancePermissionSend, true)},
 		{name: "unexpected allowed policy", err: &accounting.Failure{Code: "overdraft_not_eligible", BalanceRef: "balance-1"}, req: validEngineRequest()},
+		{name: "unexpected repay policy", err: &accounting.Failure{Code: accounting.FailureOverdraftRepayRouteDenied, BalanceRef: "balance-1"}, req: validEngineRequest()},
 		{name: "companion missing", err: &accounting.Failure{Code: "overdraft_companion_missing", BalanceRef: "balance-1"}, req: validEngineRequest()},
 		{name: "onhold underflow", err: &accounting.Failure{Code: "onhold_underflow", BalanceRef: "balance-1"}, req: validEngineRequest()},
 	}

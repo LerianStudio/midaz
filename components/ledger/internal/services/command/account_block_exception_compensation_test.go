@@ -122,16 +122,19 @@ func TestAccountBlockExceptionGrant_PendingFailureUnlocksBeforeEngine(t *testing
 
 	src := readTransportSource(t, "commit_transaction.go", "func (uc *UseCase) transitionPendingV2")
 	fn := findFuncDecl(t, src, "transitionPendingV2")
-	resolvePos, enginePos := -1, -1
-	unlocks, returns := false, false
+	releasePos, resolvePos, enginePos := -1, -1, -1
+	returns := false
 	for i, stmt := range fn.Body.List {
+		if releasePos == -1 && stmtDefersFunction(stmt, "unlock") {
+			releasePos = i
+			continue
+		}
 		if resolvePos == -1 && stmtCallsMethod(stmt, grantResolverName) {
 			resolvePos = i
 			continue
 		}
 		if resolvePos != -1 && i == resolvePos+1 {
 			if ifStmt, ok := stmt.(*ast.IfStmt); ok {
-				unlocks = blockCallsFunction(ifStmt.Body, "unlock")
 				returns = blockEndsInReturn(ifStmt.Body)
 			}
 		}
@@ -140,28 +143,23 @@ func TestAccountBlockExceptionGrant_PendingFailureUnlocksBeforeEngine(t *testing
 		}
 	}
 
+	require.NotEqual(t, -1, releasePos, "transitionPendingV2 must defer the pending lock release")
 	require.NotEqual(t, -1, resolvePos)
 	require.NotEqual(t, -1, enginePos)
+	assert.Less(t, releasePos, resolvePos, "the lock release must be deferred before the grant read can fail")
 	assert.Less(t, resolvePos, enginePos)
-	assert.True(t, unlocks)
 	assert.True(t, returns)
 }
 
-func blockCallsFunction(block *ast.BlockStmt, name string) bool {
-	found := false
-	ast.Inspect(block, func(node ast.Node) bool {
-		call, ok := node.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		function, ok := call.Fun.(*ast.Ident)
-		if ok && function.Name == name {
-			found = true
-		}
-		return true
-	})
+func stmtDefersFunction(stmt ast.Stmt, name string) bool {
+	deferStmt, ok := stmt.(*ast.DeferStmt)
+	if !ok {
+		return false
+	}
 
-	return found
+	function, ok := deferStmt.Call.Fun.(*ast.Ident)
+
+	return ok && function.Name == name
 }
 
 // TestAccountBlockExceptionGrant_CreateSideCompensationGateBites proves the

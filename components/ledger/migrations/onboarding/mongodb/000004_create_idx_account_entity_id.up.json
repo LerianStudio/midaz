@@ -1,0 +1,14 @@
+{
+  "collection": "account",
+  "indexes": [
+    {
+      "keys": {
+        "entity_id": 1
+      },
+      "options": {
+        "name": "entity_id_1",
+        "unique": true
+      }
+    }
+  ]
+}

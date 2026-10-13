@@ -165,7 +165,7 @@ func buildHumaAccountV2App(t *testing.T, handler *AccountHandler) *fiber.App {
 	parse := pkgHTTP.ParseUUIDPathParameters("account")
 	base := "/organizations/:organization_id/ledgers/:ledger_id/accounts"
 	apiV2.Post(base, parse)
-	apiV2.Patch(base+"/:id", parse)
+	apiV2.Patch(base+"/:account_id", parse)
 
 	RegisterAccountV2Routes(hAPI, handler, v2OpSuffix)
 

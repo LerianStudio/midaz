@@ -740,7 +740,7 @@ func TestTransitionCrossLedgerGroupV2_CommitValidatesTheOriginAsAGroupPart(t *te
 		}
 
 		// A refused commit releases the pending locks it took.
-		uc.TransactionRedisRepo.(*redisadapter.MockRedisRepository).EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+		uc.TransactionRedisRepo.(*redisadapter.MockRedisRepository).EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 		repo.EXPECT().FindByID(gomock.Any(), group.ID).Return(group, nil)
 		repo.EXPECT().UpdateStatus(gomock.Any(), group.ID, constant.PENDING, constant.APPROVED).Return(true, nil).MaxTimes(1)
 

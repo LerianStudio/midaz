@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,7 +17,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/portfolio"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
 
@@ -32,9 +35,16 @@ func newDeletePortfolioStreamingTestUseCase(t *testing.T, ctrl *gomock.Controlle
 		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityPortfolio, gomock.Any()).
+		Return(nil).AnyTimes()
+
 	return &UseCase{
-		PortfolioRepo: mockPortfolioRepo,
-		Streaming:     emitter,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+		PortfolioRepo:          mockPortfolioRepo,
+		Streaming:              emitter,
 	}
 }
 
@@ -118,4 +128,29 @@ func TestDeletePortfolioByID_NilStreamingDoesNotPanic(t *testing.T) {
 
 	err := uc.DeletePortfolioByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
 	require.NoError(t, err)
+}
+
+// TestDeletePortfolioByID_MetadataSoftDeleteFailureStillEmits verifies that a
+// metadata soft delete failing on every attempt neither fails the request nor
+// suppresses the deleted event.
+func TestDeletePortfolioByID_MetadataSoftDeleteFailureStillEmits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newDeletePortfolioStreamingTestUseCase(t, ctrl, mockEmitter)
+
+	failingMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	failingMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityPortfolio, gomock.Any()).
+		Return(errors.New("mongo unavailable")).
+		Times(fastMetadataDeleteRetryPolicy().Attempts)
+
+	uc.OnboardingMetadataRepo = failingMetadataRepo
+
+	err := uc.DeletePortfolioByID(context.Background(), uuid.New(), uuid.New(), uuid.New())
+	require.NoError(t, err, "a metadata soft delete failure must not fail the delete")
+
+	require.Len(t, mockEmitter.Events(), 1)
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "portfolio", "deleted")
 }

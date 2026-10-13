@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -35,10 +37,21 @@ import (
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
 	CreateBulk(ctx context.Context, collection string, metadataList []*Metadata) (*repository.MongoDBBulkInsertResult, error)
+	// FindList returns every live metadata document of the collection that matches filter.Metadata,
+	// in no defined order and without paging. The result is never nil.
 	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)
+	// FindEntityIDs returns up to limit entity IDs of the live metadata documents of the collection
+	// that match filter.Metadata, ordered by entity_id (descending when filter.SortOrder is "desc",
+	// ascending otherwise) and strictly after `after` in that order; an empty after starts from the
+	// first. The result is never nil.
+	FindEntityIDs(ctx context.Context, collection string, filter http.QueryHeader, after string, limit int) ([]string, error)
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
 	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
+	// Delete soft-deletes the entity's metadata by stamping deleted_at and updated_at on every live
+	// document of the entity, keeping its metadata keys; the readers then skip them. It never
+	// creates a document: an entity without a live document, including one already deleted, is a
+	// no-op that keeps the first deleted_at.
 	Delete(ctx context.Context, collection, id string) error
 	CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
 	FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error)
@@ -159,17 +172,9 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	coll := db.Collection(strings.ToLower(collection))
 
-	opts := options.Find()
-
-	if filter.UseMetadata {
-		limit := int64(filter.Limit)
-		skip := int64(filter.Page*filter.Limit - filter.Limit)
-		opts = options.Find().SetLimit(limit).SetSkip(skip)
-	}
-
 	_, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	cur, err := coll.Find(ctx, filter.Metadata, opts)
+	cur, err := coll.Find(ctx, buildMetadataFilter(filter))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, "Failed to find metadata", err)
 
@@ -211,6 +216,106 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	return metadata, nil
 }
 
+// FindEntityIDs implements Repository.FindEntityIDs.
+func (mmr *MetadataMongoDBRepository) FindEntityIDs(ctx context.Context, collection string, filter http.QueryHeader, after string, limit int) ([]string, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "mongodb.find_entity_ids")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int("app.request.limit", limit),
+		attribute.String("app.request.sort_order", filter.SortOrder),
+	)
+
+	db, err := mmr.getDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
+
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower(collection))
+
+	mongoFilter, opts := buildFindEntityIDsQuery(filter, after, limit)
+
+	cur, err := coll.Find(ctx, mongoFilter, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to find metadata entity ids", err)
+
+		return nil, err
+	}
+
+	ids := make([]string, 0, max(limit, 0))
+
+	for cur.Next(ctx) {
+		var record struct {
+			EntityID string `bson:"entity_id"`
+		}
+
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to decode metadata entity id", err)
+
+			return nil, errors.Join(err, cur.Close(ctx))
+		}
+
+		ids = append(ids, record.EntityID)
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate metadata entity ids", err)
+
+		return nil, errors.Join(err, cur.Close(ctx))
+	}
+
+	if err := cur.Close(ctx); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to close cursor", err)
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(ids)))
+
+	return ids, nil
+}
+
+// buildMetadataFilter copies the caller's metadata condition and restricts it to live documents.
+func buildMetadataFilter(filter http.QueryHeader) bson.M {
+	mongoFilter := bson.M{}
+
+	if filter.Metadata != nil {
+		for key, value := range *filter.Metadata {
+			mongoFilter[key] = value
+		}
+	}
+
+	mongoFilter["deleted_at"] = nil
+
+	return mongoFilter
+}
+
+// buildFindEntityIDsQuery assembles the FindEntityIDs keyset query: the metadata filter bounded to
+// entity IDs strictly after `after` in the walk's order, sorted on entity_id and projected onto it.
+func buildFindEntityIDsQuery(filter http.QueryHeader, after string, limit int) (bson.M, *options.FindOptionsBuilder) {
+	mongoFilter := buildMetadataFilter(filter)
+
+	direction, bound := 1, "$gt"
+	if strings.ToLower(filter.SortOrder) == "desc" {
+		direction, bound = -1, "$lt"
+	}
+
+	if after != "" {
+		mongoFilter["entity_id"] = bson.M{bound: after}
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "entity_id", Value: direction}}).
+		SetProjection(bson.D{{Key: "_id", Value: 0}, {Key: "entity_id", Value: 1}}).
+		SetLimit(int64(limit))
+
+	return mongoFilter, opts
+}
+
 // FindByEntity retrieves a metadata from the mongodb using the provided entity_id.
 func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collection, id string) (*Metadata, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -231,7 +336,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntity(ctx context.Context, collecti
 
 	_, spanFindOne := tracer.Start(ctx, "mongodb.find_by_entity.find_one")
 
-	if err = coll.FindOne(ctx, bson.M{"entity_id": id}).Decode(&record); err != nil {
+	if err = coll.FindOne(ctx, bson.M{"entity_id": id, "deleted_at": nil}).Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, nil
 		}
@@ -266,7 +371,7 @@ func (mmr *MetadataMongoDBRepository) FindByEntityIDs(ctx context.Context, colle
 
 	coll := db.Collection(strings.ToLower(collection))
 
-	filter := bson.M{"entity_id": bson.M{"$in": entityIDs}}
+	filter := bson.M{"entity_id": bson.M{"$in": entityIDs}, "deleted_at": nil}
 
 	_, spanFind := tracer.Start(ctx, "mongodb.find_by_entity_ids.find")
 	defer spanFind.End()
@@ -334,6 +439,12 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	_, spanUpdate := tracer.Start(ctx, "mongodb.update_metadata.update_one")
 
 	_, err = coll.UpdateOne(ctx, filter, update, opts)
+	if mongo.IsDuplicateKeyError(err) {
+		// The unique entity_id index refused a concurrent upsert. DocumentDB does not retry the
+		// losing upsert (MongoDB >= 4.2 does), so match the winner's document.
+		_, err = coll.UpdateOne(ctx, filter, update, opts)
+	}
+
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, collection)
@@ -353,7 +464,7 @@ func (mmr *MetadataMongoDBRepository) Update(ctx context.Context, collection, id
 	return nil
 }
 
-// Delete an metadata entity into mongodb.
+// Delete implements Repository.
 func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id string) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -367,20 +478,21 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 		return err
 	}
 
-	opts := options.DeleteOne()
-
 	coll := db.Collection(strings.ToLower(collection))
 
-	_, spanDelete := tracer.Start(ctx, "mongodb.delete_metadata.delete_one")
+	now := time.Now().UTC()
+	filter := bson.D{{Key: "entity_id", Value: id}, {Key: "deleted_at", Value: nil}}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "deleted_at", Value: now}, {Key: "updated_at", Value: now}}}}
 
-	_, err = coll.DeleteOne(ctx, bson.D{{Key: "entity_id", Value: id}}, opts)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete metadata", err)
+	_, spanUpdate := tracer.Start(ctx, "mongodb.delete_metadata.update_many")
+	defer spanUpdate.End()
+
+	// UpdateMany marks every duplicate left on a collection that predates the unique entity_id index.
+	if _, err := coll.UpdateMany(ctx, filter, update); err != nil {
+		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to soft delete metadata", err)
 
 		return err
 	}
-
-	spanDelete.End()
 
 	return nil
 }
@@ -735,13 +847,28 @@ func (mmr *MetadataMongoDBRepository) DeleteIndex(ctx context.Context, collectio
 	_, spanDelete := tracer.Start(ctx, "mongodb.delete_index.delete_one")
 	defer spanDelete.End()
 
+	// MongoDB 8 drops a missing index without error, so presence is checked first.
+	specs, err := coll.Indexes().ListSpecifications(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanDelete, "Failed to list indexes", err)
+
+		return err
+	}
+
+	if !slices.ContainsFunc(specs, func(s mongo.IndexSpecification) bool { return s.Name == indexName }) {
+		notFound := pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, constant.EntityMetadataIndex)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Metadata index not found", notFound)
+
+		return notFound
+	}
+
 	err = coll.Indexes().DropOne(ctx, indexName)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete index", err)
 
 		var cmdErr mongo.CommandError
 		if errors.As(err, &cmdErr) && cmdErr.Name == "IndexNotFound" {
-			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, "metadata_index")
+			return pkg.ValidateBusinessError(constant.ErrMetadataIndexNotFound, constant.EntityMetadataIndex)
 		}
 
 		return err

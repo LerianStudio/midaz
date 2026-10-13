@@ -88,7 +88,7 @@ func (handler *AccountHandler) ListAccountsV2(ctx context.Context, in *ListAccou
 	return &ListAccountsV2Response{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET /accounts/{id} + the two by-key reads --------------------------------
+// --- GET /accounts/{account_id} + the two by-key reads -----------------------
 
 // GetAccountV2Response carries the canonical account.
 type GetAccountV2Response struct {
@@ -103,7 +103,7 @@ func (handler *AccountHandler) GetAccountByIDV2(ctx context.Context, in *GetAcco
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -149,7 +149,7 @@ func (handler *AccountHandler) GetAccountExternalByCodeV2(ctx context.Context, i
 	return &GetAccountV2Response{Status: http.StatusOK, Body: account}, nil
 }
 
-// --- PATCH /accounts/{id} -----------------------------------------------------
+// --- PATCH /accounts/{account_id} --------------------------------------------
 
 // UpdateAccountV2Response carries the updated account (200, matching http.OK).
 type UpdateAccountV2Response struct {
@@ -165,7 +165,7 @@ func (handler *AccountHandler) UpdateAccountV2(ctx context.Context, in *UpdateAc
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "account_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -175,7 +175,7 @@ func (handler *AccountHandler) UpdateAccountV2(ctx context.Context, in *UpdateAc
 	}
 
 	payload := new(mmodel.UpdateAccountInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullKeepsV2); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
@@ -187,7 +187,7 @@ func (handler *AccountHandler) UpdateAccountV2(ctx context.Context, in *UpdateAc
 	return &UpdateAccountV2Response{Status: http.StatusOK, Body: account}, nil
 }
 
-// --- POST /accounts/{account_id}/close ----------------------------------------
+// --- POST /accounts/{account_id}/close ---------------------------------------
 
 // CloseAccountRequest is the close request envelope. The operation takes NO body:
 // closing is a transition of the account, with nothing for the caller to state

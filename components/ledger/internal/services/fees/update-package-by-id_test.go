@@ -7,13 +7,16 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	mongoPack "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	feeshared "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/bsondecimal"
+	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 	http "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/nethttp"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 
@@ -161,12 +164,12 @@ func TestUpdatePackage(t *testing.T) {
 			packInput: &model.UpdatePackageInput{Fee: feeRemove},
 			mockSetup: func() {
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr: false,
 		},
@@ -186,12 +189,12 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 					Return(updatedPkg, nil)
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr: false,
 		},
@@ -211,12 +214,17 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
-					Return(nil, ErrDatabaseItemNotFound)
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection))
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
+
+				// The re-read after the no-match finds nothing: the package is gone.
+				mockPackageRepo.EXPECT().
+					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+					Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", constant.EntityPackage))
 			},
 			expectErr:   true,
 			errContains: "No entity was found",
@@ -237,12 +245,12 @@ func TestUpdatePackage(t *testing.T) {
 					Return(packEntity, nil)
 
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 					Return(nil, constant.ErrBadRequest)
 
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr:   true,
 			errContains: "0047",
@@ -255,7 +263,7 @@ func TestUpdatePackage(t *testing.T) {
 			mockSetup: func() {
 				mockPackageRepo.EXPECT().
 					FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(amountData, nil)
+					Return(amountData, nil).Times(2)
 			},
 			expectErr:   true,
 			errContains: "0183",
@@ -300,7 +308,12 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 		Fees:      map[string]model.Fee{},
 		LedgerID:  uuid.New(),
 		SegmentID: nil,
+		UpdatedAt: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 	}
+
+	// The read under the lock sees a later version than the read that named the ledger.
+	lockedRead := *amountData
+	lockedRead.UpdatedAt = time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)
 
 	packSvc := &UseCase{
 		packageRepo: mockPackageRepo,
@@ -313,13 +326,19 @@ func TestUpdatePackageByID_UpdatedAtFieldSet(t *testing.T) {
 
 	var capturedUpdateFields interface{}
 
-	mockPackageRepo.EXPECT().
-		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(amountData, nil)
+	gomock.InOrder(
+		mockPackageRepo.EXPECT().
+			FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(amountData, nil),
+		mockPackageRepo.EXPECT().
+			FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return(&lockedRead, nil),
+	)
 
+	// The write is conditioned on the version the read under the lock saw.
 	mockPackageRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
-		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, updateFields interface{}) (*pack.Package, error) {
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Eq(lockedRead.UpdatedAt), gomock.Any()).
+		DoAndReturn(func(_ context.Context, id, _, _ uuid.UUID, _ time.Time, updateFields interface{}) (*pack.Package, error) {
 			capturedUpdateFields = updateFields
 			return &pack.Package{ID: id, LedgerID: amountData.LedgerID}, nil
 		})
@@ -372,9 +391,9 @@ func TestUpdatePackageByID_EmitsFeesPackageUpdated(t *testing.T) {
 
 	mockPackRepo.EXPECT().
 		FindFeesAndAmountDataByPackageID(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(amountData, nil)
+		Return(amountData, nil).Times(2)
 	mockPackRepo.EXPECT().
-		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any()).
+		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 		Return(persisted, nil)
 
 	svc := &UseCase{
@@ -436,4 +455,126 @@ func TestSetAmountsDataToUpdate_KeepsStoredSelector(t *testing.T) {
 		&model.UpdatePackageInput{MinAmount: &minAmount, MaxAmount: &maxAmount},
 		stored, uuid.New(), &packageID, bson.M{})
 	require.NoError(t, err, "a selector-scoped package must not collide with an unscoped one on its band")
+}
+
+// A patch entry that leaves priority out keeps the stored one, so two stored fees
+// patched without priority do not collide with each other.
+func TestValidationFeesSetUnset_PriorityComesFromStoreWhenOmitted(t *testing.T) {
+	t.Parallel()
+
+	existing := map[string]model.Fee{"feeA": storedFee(1), "feeB": storedFee(2)}
+
+	tests := []struct {
+		name    string
+		patch   map[string]model.Fee
+		wantErr error
+	}{
+		{"two stored fees relabelled without priority", map[string]model.Fee{"feeA": {FeeLabel: "a"}, "feeB": {FeeLabel: "b"}}, nil},
+		{"patched priority taken by another stored fee", map[string]model.Fee{"feeA": {Priority: 2}}, constant.ErrPriorityInvalid},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := (&UseCase{}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
+				existing, tt.patch, bson.M{}, bson.M{})
+
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+
+			require.ErrorContains(t, err, tt.wantErr.Error())
+		})
+	}
+}
+
+// A fee added by a patch is set whole under the key the client sent, verbatim.
+func TestValidationFeesSetUnset_NewFeeStoredUnderVerbatimKey(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	resolver := feeshared.NewMockMidazResolver(ctrl)
+	resolver.EXPECT().AccountExistsByAlias(gomock.Any(), gomock.Any(), gomock.Any(), "@fees").Return(nil)
+
+	patch := map[string]model.Fee{"tarifaTED2": {
+		FeeLabel:         "Tarifa TED",
+		CalculationModel: &model.CalculationModel{ApplicationRule: "flatFee", Calculations: []model.Calculation{{Type: model.Flat, Value: "2"}}},
+		ReferenceAmount:  "originalAmount",
+		Priority:         2,
+		IsDeductibleFrom: boolPtr(false),
+		CreditAccount:    "@fees",
+	}}
+	setFields := bson.M{}
+
+	count, err := (&UseCase{resolver: resolver}).validationFeesSetUnset(context.Background(), decimal.NewFromInt(100), uuid.New(), uuid.New(),
+		map[string]model.Fee{"feeA": storedFee(1)}, patch, setFields, bson.M{})
+	require.NoError(t, err)
+	assert.Equal(t, 2, count)
+
+	stored, ok := setFields["fees.tarifaTED2"].(mongoPack.Fee)
+	require.True(t, ok, "fee must be set under the key sent, got %v", setFields)
+	assert.Equal(t, "Tarifa TED", stored.FeeLabel)
+	assert.Equal(t, 2, stored.Priority)
+	assert.Equal(t, "originalAmount", stored.ReferenceAmount)
+	assert.Equal(t, "@fees", stored.CreditAccount)
+	assert.Equal(t, "flatFee", stored.CalculationModel.ApplicationRule)
+	require.Len(t, stored.CalculationModel.Calculations, 1)
+	assert.Equal(t, model.Flat, stored.CalculationModel.Calculations[0].Type)
+	assert.True(t, stored.CalculationModel.Calculations[0].Value.Equal(decimal.NewFromInt(2)))
+}
+
+// A package the patch leaves without fees is disabled in the same write, and the
+// disable wins over an enable the same patch asks for.
+func TestBuildUpdateFields_DisablesPackageLeftWithoutFees(t *testing.T) {
+	t.Parallel()
+
+	removeFeeA := map[string]model.Fee{"feeA": {}}
+
+	tests := []struct {
+		name         string
+		stored       map[string]model.Fee
+		patch        *model.UpdatePackageInput
+		wantDisabled bool
+	}{
+		{"last fee removed", map[string]model.Fee{"feeA": storedFee(1)}, &model.UpdatePackageInput{Fee: removeFeeA}, true},
+		{"last fee removed while enabling", map[string]model.Fee{"feeA": storedFee(1)}, &model.UpdatePackageInput{Fee: removeFeeA, EnablePackage: boolPtr(true)}, true},
+		{"enabling a package that has no fees", map[string]model.Fee{}, &model.UpdatePackageInput{EnablePackage: boolPtr(true)}, true},
+		{"one of two fees removed", map[string]model.Fee{"feeA": storedFee(1), "feeB": storedFee(2)}, &model.UpdatePackageInput{Fee: removeFeeA}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stored := &model.AmountData{MinAmount: decimal.NewFromInt(100), MaxAmount: decimal.NewFromInt(1000), Fees: tt.stored, LedgerID: uuid.New()}
+
+			setFields, _, err := (&UseCase{}).buildUpdateFields(context.Background(), nil, uuid.New(), uuid.New(), stored, tt.patch)
+			require.NoError(t, err)
+
+			enable, has := setFields["enable"]
+			if !tt.wantDisabled {
+				assert.False(t, has, "a package keeping fees must not have enable written")
+				return
+			}
+
+			assert.Equal(t, false, enable)
+		})
+	}
+}
+
+func storedFee(priority int) model.Fee {
+	return model.Fee{
+		FeeLabel:         "stored",
+		CalculationModel: &model.CalculationModel{ApplicationRule: "flatFee", Calculations: []model.Calculation{{Type: "flat", Value: "1"}}},
+		ReferenceAmount:  "originalAmount",
+		Priority:         priority,
+		IsDeductibleFrom: boolPtr(false),
+		CreditAccount:    "account",
+	}
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

@@ -28,9 +28,9 @@ var orgV2Ops = []struct {
 }{
 	{action: "create", method: http.MethodPost, opPath: "/organizations", v1OperationID: "createOrganization"},
 	{action: "list", method: http.MethodGet, opPath: "/organizations", v1OperationID: "listOrganizations"},
-	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{id}", v1OperationID: "getOrganizationByID"},
-	{action: "update", method: http.MethodPatch, opPath: "/organizations/{id}", v1OperationID: "updateOrganization"},
-	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{id}", v1OperationID: "deleteOrganization"},
+	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}", v1OperationID: "getOrganizationByID"},
+	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}", v1OperationID: "updateOrganization"},
+	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}", v1OperationID: "deleteOrganization"},
 	{action: "count", method: http.MethodHead, opPath: "/organizations/metrics/count", v1OperationID: "countOrganizations"},
 }
 

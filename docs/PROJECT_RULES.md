@@ -451,7 +451,7 @@ superset carrying `type`, `title`, `status`, `detail`, `instance`, plus midaz's 
 - API version prefix: `/v1/`
 - Plural resource names: `transactions`, `balances`, `operations`
 - Path parameters: snake_case with `_id` suffix
-- Actions via POST: `/transactions/{id}/commit`, `/transactions/{id}/revert`
+- Actions via POST: `/transactions/{transaction_id}/commit`, `/transactions/{transaction_id}/revert`
 
 ### HTTP Methods and Status Codes
 
@@ -916,7 +916,7 @@ make ledger COMMAND=lint
 
 ```dockerfile
 # Stage 1: Builder (multi-platform support)
-FROM --platform=$BUILDPLATFORM golang:1.27.0-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine AS builder
 WORKDIR /ledger-app
 COPY go.mod go.sum ./
 RUN go mod download
@@ -960,7 +960,7 @@ dumps + the consolidated spec) and `check-proto` (regenerates and drift-checks t
 stubs under `pkg/proto`).
 
 Required checks before merge:
-1. golangci-lint **v2.13.2** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
+1. golangci-lint **v2.14.0** — the CI gate and local Makefile pin match (`GOLANGCI_LINT_VERSION`)
 2. Go analysis + security scanning from the shared workflow
 3. Unit tests (must pass, 80% coverage threshold enforced by `scripts/check-tests.sh` via `make check-tests`)
 4. `check-docs` — OpenAPI spec drift gate
@@ -1130,17 +1130,27 @@ inside the ledger binary as a launcher app, not as a separate service, and depen
   in the shared tenant cache each cycle.
 - Reads the whole `backup_queue:{transactions}` hash, skips entries under 30 minutes old
   (`MessageTimeOfLife`), and replays the rest with up to 100 workers (`MaxWorkers`).
-- The entry (`mmodel.TransactionRedisQueue`) is written by the create/commit paths
-  BEFORE the balance-mutating Lua script runs; the Lua script records the before/after
-  balances into it atomically with the balance mutation, and the create/commit paths
-  append the materialized `operations` after `BuildOperations`. The consumer never runs
-  Lua: it only replays what those paths recorded, and the entry is removed by the
-  persistence path (`CreateBalanceTransactionOperationsAsync`) once the write completes.
+- The entry (`mmodel.TransactionRedisQueue`) is written once by the annotation (NOTED)
+  create path, after `BuildOperations` and before the database write, already carrying
+  the materialized `operations` and no balance snapshots. Entries left by earlier
+  versions may lack `operations`, and some also lack balance snapshots. The consumer
+  never runs Lua: it only replays what the entry recorded, and the entry is removed by
+  the persistence path (`CreateBalanceTransactionOperationsAsync`) once the write
+  completes.
 - Replay prefers the materialized operations and only rebuilds them via
-  `command.BuildOperations` when they are missing, recording that fallback with the
-  `redis_backup_replay_recomputed_balances_after_total` metric.
-- Persists via `WriteTransactionAsync`: publishes to RabbitMQ and, if publishing fails,
-  writes directly to Postgres.
+  `command.BuildOperations` from the entry's balance snapshots when they are missing,
+  recording that fallback with the `redis_backup_replay_recomputed_balances_after_total`
+  metric. A rebuild that yields no operation, from an entry without balance snapshots,
+  is never written, since it would persist a transaction without operations. It counts
+  as poison (`empty_rebuilt_operations`).
+- Persists via `WriteTransactionSync`, writing directly to Postgres; it never republishes
+  to RabbitMQ. The transaction row and its operations commit in one database
+  transaction, and the MongoDB metadata follows the commit. A failed write leaves the
+  entry for the next cycle without counting an attempt, unless the record's own content
+  makes it fail: an invalid operation direction, or a PostgreSQL data exception (SQLSTATE
+  class 22) or integrity violation (class 23 other than the idempotent `23505`). Those
+  write failures count as poison (`deterministic_write_failure`). Outages, timeouts, and
+  any unrecognized error do not.
 - A poison entry counts attempts and moves to the Postgres quarantine table after 3
   consecutive failures (`QuarantineThreshold`); cycle health is exposed via the
   `redis_backup_queue_depth`, `redis_backup_queue_oldest_age_seconds`, and
@@ -1165,7 +1175,9 @@ multiQueueConsumer := NewMultiQueueConsumer(routes, useCase)
   - `RABBITMQ_CIRCUIT_BREAKER_CONSECUTIVE_FAILURES`
   - `RABBITMQ_CIRCUIT_BREAKER_FAILURE_RATIO`
   - `RABBITMQ_CIRCUIT_BREAKER_TIMEOUT` (seconds)
-  - `RABBITMQ_OPERATION_TIMEOUT` (Go duration, e.g., "5s")
+- `RABBITMQ_OPERATION_TIMEOUT` (Go duration, e.g., "5s", default 5s) bounds each confirmed
+  write-behind publish of the accounting engine and the broker-confirmation wait of
+  `ProducerDefault` (audit and overdraft events); it is not a circuit breaker setting.
 - States: CLOSED (healthy) -> OPEN (on failures) -> HALF-OPEN (after timeout) -> CLOSED/OPEN
 - Multi-tenant mode uses per-tenant vhost connections with LRU eviction via `tmrabbitmq.Manager`
 
@@ -1276,4 +1288,4 @@ Multi-tenancy is provided by `lib-commons/v6`:
 - **Project Structure:** `STRUCTURE.md`
 - **Linter Config:** `.golangci.yml`
 - **CRM Field Encryption / KMS:** `docs/architecture/crm-field-encryption.md`
-- **Go Version:** 1.27.0 (go.mod `go 1.27.0`)
+- **Go Version:** 1.27.0 (go.mod `go 1.27.0`); Docker builders and CI use toolchain 1.27.2

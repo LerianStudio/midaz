@@ -23,6 +23,9 @@ var UUIDPathParameters = []string{
 	"holder_id",
 	"instrument_id",
 	"related_party_id",
+	"account_type_id",
+	"billing_package_id",
+	"package_id",
 }
 
 const (

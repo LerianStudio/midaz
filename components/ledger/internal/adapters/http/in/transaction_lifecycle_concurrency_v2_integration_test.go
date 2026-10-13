@@ -32,10 +32,11 @@ import (
 //
 // Concurrent commit/cancel of the SAME pending transaction is deterministic: exactly ONE request
 // wins (201, APPROVED for commit / CANCELED for cancel) and applies the balance effect EXACTLY
-// ONCE; every other concurrent request is rejected 409 ErrPendingTransactionLocked (0486). The
-// single-contention 0486 mapping and the not-PENDING status backstop (0099) are covered by unit +
-// integration tests elsewhere and are NOT re-proved here. What IS proved here is the real
-// concurrent race: single winner + balance effect applied EXACTLY ONCE.
+// ONCE; every other concurrent request is rejected 409, with ErrPendingTransactionLocked (0486)
+// while the winner still holds the pending lock or ErrCommitTransactionNotPending (0099) once it
+// has released it. The single-contention 0486 mapping and the not-PENDING status backstop (0099)
+// are covered by unit + integration tests elsewhere and are NOT re-proved here. What IS proved
+// here is the real concurrent race: single winner + balance effect applied EXACTLY ONCE.
 //
 // NOT PARALLEL: the app builders call libProblem.Install() (process-global huma.NewError hook) and
 // Huma validation uses process-global sync.Pools; concurrent BUILDS cross-contaminate. Every test
@@ -100,11 +101,11 @@ func racePendingLifecycleOp(ctx context.Context, t *testing.T, app *fiber.App, u
 }
 
 // assertExactlyOneLifecycleWinner asserts EXACTLY one racer succeeded (201) and every other racer
-// was rejected with 409 ErrPendingTransactionLocked (0486), then returns the winner's transaction
-// id as a parsed uuid.UUID. Unlike revert, commit/cancel take no idempotency slot: there is no 201
-// replay outcome, and the pending-transaction lock is held for its full TTL rather than released on
-// success, so a losing racer can only ever be 0486 — never the 0099 not-pending backstop, and never
-// a server error. All assertions run on the test goroutine, after the WaitGroup drained.
+// was rejected with 409, then returns the winner's transaction id as a parsed uuid.UUID. Unlike
+// revert, commit/cancel take no idempotency slot, so there is no 201 replay outcome. The winner
+// releases its pending lock when it answers, so a losing racer is either 0486 (it met the lock) or
+// 0099 (it arrived after the release and met the terminal status), and never a server error. All
+// assertions run on the test goroutine, after the WaitGroup drained.
 func assertExactlyOneLifecycleWinner(t *testing.T, results []revertRaceResult) uuid.UUID {
 	t.Helper()
 
@@ -124,8 +125,8 @@ func assertExactlyOneLifecycleWinner(t *testing.T, results []revertRaceResult) u
 
 		assert.Equalf(t, nethttp.StatusConflict, res.status,
 			"racer %d: a losing commit/cancel must be 409 Conflict, not %d; body: %s", i, res.status, res.body)
-		assert.Equalf(t, cn.ErrPendingTransactionLocked.Error(), res.problemCode,
-			"racer %d: a losing commit/cancel may only be rejected for losing the pending-transaction lock (0486); body: %s", i, res.body)
+		assert.Containsf(t, []string{cn.ErrPendingTransactionLocked.Error(), cn.ErrCommitTransactionNotPending.Error()}, res.problemCode,
+			"racer %d: a losing commit/cancel may only be rejected for the pending-transaction lock (0486) or the terminal status (0099); body: %s", i, res.body)
 
 		loserCodes = append(loserCodes, res.problemCode)
 	}
@@ -148,7 +149,7 @@ func assertExactlyOneLifecycleWinner(t *testing.T, results []revertRaceResult) u
 // =============================================================================
 // CONCURRENT COMMIT OF ONE PENDING TRANSACTION — EXACTLY ONE WINNER (money path): N racers commit
 // the SAME pending transaction from a common start barrier. The per-transaction SetNX mutex serializes
-// them, so exactly one wins (201, APPROVED) and every other gets 409/0486 BEFORE any balance work. The
+// them, so exactly one wins (201, APPROVED) and every other gets 409 (0486 or 0099) BEFORE any balance work. The
 // held 500 releases from the source and credits the destination EXACTLY ONCE — asserted by exact
 // equality, so a second application (destination available reads 1000, source on-hold goes non-zero)
 // fails the test deterministically.
@@ -210,7 +211,7 @@ func TestIntegration_TransactionV2Commit_ConcurrentSingleWinner(t *testing.T) {
 // =============================================================================
 // CONCURRENT CANCEL OF ONE PENDING TRANSACTION — EXACTLY ONE WINNER (money path): N racers cancel
 // the SAME pending transaction from a common start barrier. Exactly one wins (201, CANCELED) and every
-// other gets 409/0486. The reservation is released back to available EXACTLY ONCE — the source returns
+// other gets 409 (0486 or 0099). The reservation is released back to available EXACTLY ONCE — the source returns
 // to its full 1000 and the destination is never credited — asserted by exact equality, so an over-release
 // (source at 1500) fails deterministically.
 // =============================================================================

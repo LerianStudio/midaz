@@ -21,6 +21,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees/pack"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
@@ -63,6 +64,15 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 
 		return nil, errAccountOnMidaz
 	}
+
+	unlock, err := uc.lockPackageScope(ctx, organizationID, ledgerID)
+	if err != nil {
+		spanattr.HandleSpanByErrorClass(span, "Failed to lock the ledger's fee packages", err)
+
+		return nil, err
+	}
+
+	defer unlock()
 
 	if errRange := uc.ValidatePackageMaxAndMinAmountRange(ctx, logger, cpi.MaxAmount, cpi.MinAmount, cpi.GetTransactionRoute(), cpi.MetadataSelector, organizationID, ledgerID, newSegmentID, nil); errRange != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate package max and min amount range", errRange)
@@ -111,6 +121,9 @@ func (uc *UseCase) CreatePackage(ctx context.Context, cpi *model.CreatePackageIn
 
 		return nil, err
 	}
+
+	// The write has landed: the cache and the broker are no reason to hold the lock.
+	unlock()
 
 	// Invalidate the cached enabled-package set for this (org,ledger) so the next
 	// transaction create re-fetches the now-changed set instead of a stale one.

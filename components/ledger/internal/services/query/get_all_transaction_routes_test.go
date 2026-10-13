@@ -96,8 +96,8 @@ func TestGetAllTransactionRoutesSuccess(t *testing.T) {
 
 	// Enrichment: junction returns empty map (no links)
 	mockTransactionRouteRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-		Return(map[uuid.UUID][]uuid.UUID{}, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(requiredLinkMap(map[uuid.UUID][]uuid.UUID{}), nil)
 
 	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
@@ -167,8 +167,8 @@ func TestGetAllTransactionRoutesSuccessWithoutMetadata(t *testing.T) {
 
 	// Enrichment: junction returns empty map (no links)
 	mockTransactionRouteRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-		Return(map[uuid.UUID][]uuid.UUID{}, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(requiredLinkMap(map[uuid.UUID][]uuid.UUID{}), nil)
 
 	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 

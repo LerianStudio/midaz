@@ -108,6 +108,8 @@ func (uc *UseCase) DeleteOperationRouteByID(ctx context.Context, organizationID,
 		return err
 	}
 
+	uc.softDeleteTransactionMetadata(ctx, span, logger, constant.EntityOperationRoute, id.String())
+
 	uc.emitOperationRouteDeletedEvent(ctx, span, logger, id.String(), organizationID.String(), routeLedgerIDString(operationRoute.LedgerID), time.Now())
 
 	return nil

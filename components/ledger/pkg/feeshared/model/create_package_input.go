@@ -24,7 +24,7 @@ type CreatePackageInput struct {
 	MinAmount        string            `json:"minimumAmount" validate:"required" example:"100.00" minimum:"0"`
 	MaxAmount        string            `json:"maximumAmount" validate:"required" example:"1000.20" minimum:"0"`
 	WaivedAccounts   *[]string         `json:"waivedAccounts,omitempty" example:"[\"acc001\", \"acc002\"]"`
-	Fee              map[string]Fee    `json:"fees" validate:"required,min=1,dive"`
+	Fee              map[string]Fee    `json:"fees" validate:"required,min=1,dive" doc:"Fees keyed by fee key. A key must match ^[a-z][a-zA-Z0-9]*$ (a lowercase ASCII letter, then ASCII letters and digits) and is stored and returned verbatim; any other key is refused with 400."`
 	Enable           *bool             `json:"enable" validate:"required"`
 }
 
@@ -39,6 +39,10 @@ func (cp *CreatePackageInput) GetTransactionRoute() string {
 // ValidateFees Validating the Fee map values
 func (cp *CreatePackageInput) ValidateFees() error {
 	for key, fee := range cp.Fee {
+		if err := ValidateFeeKey(key); err != nil {
+			return err
+		}
+
 		if fee.Priority == 1 && fee.ReferenceAmount != OriginalAmount {
 			return pkg.ValidateBusinessError(constant.ErrPriorityOne, "", key)
 		}

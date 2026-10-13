@@ -9,8 +9,10 @@ import (
 	"errors"
 	"testing"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
@@ -22,8 +24,12 @@ func TestDeleteSegmentByID(t *testing.T) {
 
 	mockSegmentRepo := segment.NewMockRepository(ctrl)
 
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+
 	uc := &UseCase{
-		SegmentRepo: mockSegmentRepo,
+		SegmentRepo:            mockSegmentRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
 	}
 
 	ctx := context.Background()
@@ -43,6 +49,24 @@ func TestDeleteSegmentByID(t *testing.T) {
 					Delete(gomock.Any(), organizationID, ledgerID, segmentID).
 					Return(nil).
 					Times(1)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntitySegment, segmentID.String()).
+					Return(nil).
+					Times(1)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "success - metadata soft delete failure does not fail the delete",
+			setupMocks: func() {
+				mockSegmentRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, segmentID).
+					Return(nil).
+					Times(1)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntitySegment, segmentID.String()).
+					Return(errors.New("mongo unavailable")).
+					Times(3)
 			},
 			expectedErr: nil,
 		},
@@ -53,6 +77,9 @@ func TestDeleteSegmentByID(t *testing.T) {
 					Delete(gomock.Any(), organizationID, ledgerID, segmentID).
 					Return(services.ErrDatabaseItemNotFound).
 					Times(1)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntitySegment, segmentID.String()).
+					Times(0)
 			},
 			expectedErr: errors.New("The provided segment ID does not exist in our records. Please verify the segment ID and try again."),
 		},
@@ -63,6 +90,9 @@ func TestDeleteSegmentByID(t *testing.T) {
 					Delete(gomock.Any(), organizationID, ledgerID, segmentID).
 					Return(errors.New("failed to delete segment")).
 					Times(1)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntitySegment, segmentID.String()).
+					Times(0)
 			},
 			expectedErr: errors.New("failed to delete segment"),
 		},

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -24,13 +25,21 @@ func TestDeleteAccountTypeByIDSuccess(t *testing.T) {
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 
-	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-	}
-
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	id := uuid.New()
+
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAccountType, id.String()).
+		Return(nil).
+		Times(1)
+
+	uc := &UseCase{
+		AccountTypeRepo:        mockAccountTypeRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+	}
 
 	mockAccountTypeRepo.EXPECT().
 		Delete(gomock.Any(), organizationID, ledgerID, id).
@@ -48,13 +57,20 @@ func TestDeleteAccountTypeByIDNotFound(t *testing.T) {
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 
-	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-	}
-
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	id := uuid.New()
+
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAccountType, id.String()).
+		Times(0)
+
+	uc := &UseCase{
+		AccountTypeRepo:        mockAccountTypeRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+	}
 
 	expectedErr := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
@@ -75,13 +91,20 @@ func TestDeleteAccountTypeByIDError(t *testing.T) {
 
 	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
 
-	uc := &UseCase{
-		AccountTypeRepo: mockAccountTypeRepo,
-	}
-
 	organizationID := uuid.New()
 	ledgerID := uuid.New()
 	id := uuid.New()
+
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAccountType, id.String()).
+		Times(0)
+
+	uc := &UseCase{
+		AccountTypeRepo:        mockAccountTypeRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+	}
 
 	expectedErr := errors.New("repository error")
 
@@ -94,4 +117,37 @@ func TestDeleteAccountTypeByIDError(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
+}
+
+// The account type is already deleted when its metadata soft delete keeps failing, so the request still succeeds.
+func TestDeleteAccountTypeByID_MetadataSoftDeleteFailureDoesNotFailTheDelete(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	id := uuid.New()
+
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAccountType, id.String()).
+		Return(errors.New("mongo unavailable")).
+		Times(3)
+
+	uc := &UseCase{
+		AccountTypeRepo:        mockAccountTypeRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+	}
+
+	mockAccountTypeRepo.EXPECT().
+		Delete(gomock.Any(), organizationID, ledgerID, id).
+		Return(nil).
+		Times(1)
+
+	err := uc.DeleteAccountTypeByID(context.Background(), organizationID, ledgerID, id)
+
+	assert.NoError(t, err)
 }

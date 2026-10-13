@@ -134,13 +134,13 @@ func (handler *SegmentHandler) ListSegments(ctx context.Context, in *ListSegment
 	return &ListSegmentsResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET /segments/{id} -------------------------------------------------------
+// --- GET /segments/{segment_id} ----------------------------------------------
 
 // GetSegmentRequest is the by-id request envelope.
 type GetSegmentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Segment ID (UUID)"`
+	ID             string `path:"segment_id" doc:"Segment ID (UUID)"`
 }
 
 // GetSegmentResponse carries the segment verbatim.
@@ -156,7 +156,7 @@ func (handler *SegmentHandler) GetSegmentByID(ctx context.Context, in *GetSegmen
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "segment_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -169,13 +169,13 @@ func (handler *SegmentHandler) GetSegmentByID(ctx context.Context, in *GetSegmen
 	return &GetSegmentResponse{Status: http.StatusOK, Body: segment}, nil
 }
 
-// --- PATCH /segments/{id} -----------------------------------------------------
+// --- PATCH /segments/{segment_id} --------------------------------------------
 
 // UpdateSegmentRequest is the update request envelope (RawBody, see Create).
 type UpdateSegmentRequest struct {
 	OrganizationID string `path:"organization_id" doc:"Organization ID (UUID)"`
 	LedgerID       string `path:"ledger_id" doc:"Ledger ID (UUID)"`
-	ID             string `path:"id" doc:"Segment ID (UUID)"`
+	ID             string `path:"segment_id" doc:"Segment ID (UUID)"`
 	RawBody        []byte `contentType:"application/json"`
 }
 
@@ -187,19 +187,19 @@ type UpdateSegmentResponse struct {
 
 // UpdateSegment decodes+validates the raw body imperatively then delegates to the
 // shared updateSegment core.
-func (handler *SegmentHandler) UpdateSegment(ctx context.Context, in *UpdateSegmentRequest) (*UpdateSegmentResponse, error) {
+func (handler *SegmentHandler) UpdateSegment(ctx context.Context, in *UpdateSegmentRequest, metadataNull metadataNullPolicy) (*UpdateSegmentResponse, error) {
 	orgID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "segment_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
 	payload := new(mmodel.UpdateSegmentInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
@@ -211,7 +211,7 @@ func (handler *SegmentHandler) UpdateSegment(ctx context.Context, in *UpdateSegm
 	return &UpdateSegmentResponse{Status: http.StatusOK, Body: segment}, nil
 }
 
-// --- DELETE /segments/{id} ----------------------------------------------------
+// --- DELETE /segments/{segment_id} -------------------------------------------
 
 // DeleteSegmentResponse has NO Body field: paired with DefaultStatus 204 it makes
 // Huma emit a bodiless 204, matching the Fiber http.NoContent path.
@@ -224,7 +224,7 @@ func (handler *SegmentHandler) DeleteSegmentByID(ctx context.Context, in *GetSeg
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "segment_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

@@ -18,7 +18,7 @@ func TestLimitUpdatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "limit.updated", events.LimitUpdatedDefinition.Key())
 	assert.Equal(t, "limit", events.LimitUpdatedDefinition.ResourceType)
 	assert.Equal(t, "updated", events.LimitUpdatedDefinition.EventType)
-	assert.Equal(t, "1.1.0", events.LimitUpdatedDefinition.SchemaVersion)
+	assert.Equal(t, "1.2.0", events.LimitUpdatedDefinition.SchemaVersion)
 }
 
 func TestNewLimitUpdated_MapsMinimalLimit(t *testing.T) {
@@ -46,6 +46,8 @@ func TestNewLimitUpdated_MapsAllOptionalFields(t *testing.T) {
 	require.NotNil(t, payload.ResetAt)
 	assert.Equal(t, "2026-05-13T12:34:56Z", *payload.ResetAt)
 	require.Len(t, payload.Scopes, 1)
+	require.NotNil(t, payload.Scopes[0].Scheme)
+	assert.Equal(t, *payload.Scopes[0].TransactionType, *payload.Scopes[0].Scheme)
 }
 
 func TestNewLimitUpdated_MapsResetTime(t *testing.T) {

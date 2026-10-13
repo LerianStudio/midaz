@@ -40,7 +40,7 @@ func TestActivateRuleHandler_Success(t *testing.T) {
 		Return(rule, nil)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/activate", handler.ActivateRule)
+	app.Post("/v1/rules/:rule_id/activate", handler.ActivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/activate", nil)
 	resp, err := app.Test(req)
@@ -64,7 +64,7 @@ func TestActivateRuleHandler_InvalidUUID(t *testing.T) {
 	mockService := NewMockRuleService(ctrl)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/activate", handler.ActivateRule)
+	app.Post("/v1/rules/:rule_id/activate", handler.ActivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/invalid-uuid/activate", nil)
 	resp, err := app.Test(req)
@@ -92,7 +92,7 @@ func TestActivateRuleHandler_ServiceError(t *testing.T) {
 		Return(nil, model.NewInvalidTransitionError(model.RuleStatusDeleted, model.RuleStatusActive))
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/activate", handler.ActivateRule)
+	app.Post("/v1/rules/:rule_id/activate", handler.ActivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/activate", nil)
 	resp, err := app.Test(req)
@@ -120,7 +120,7 @@ func TestActivateRuleHandler_NotFound(t *testing.T) {
 		Return(nil, constant.ErrRuleNotFound)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/activate", handler.ActivateRule)
+	app.Post("/v1/rules/:rule_id/activate", handler.ActivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/activate", nil)
 	resp, err := app.Test(req)
@@ -148,7 +148,7 @@ func TestActivateRuleHandler_InternalError(t *testing.T) {
 		Return(nil, errors.New("database connection failed"))
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/activate", handler.ActivateRule)
+	app.Post("/v1/rules/:rule_id/activate", handler.ActivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/activate", nil)
 	resp, err := app.Test(req)
@@ -182,7 +182,7 @@ func TestDeactivateRuleHandler_Success(t *testing.T) {
 		Return(rule, nil)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/deactivate", handler.DeactivateRule)
+	app.Post("/v1/rules/:rule_id/deactivate", handler.DeactivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/deactivate", nil)
 	resp, err := app.Test(req)
@@ -206,7 +206,7 @@ func TestDeactivateRuleHandler_InvalidUUID(t *testing.T) {
 	mockService := NewMockRuleService(ctrl)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/deactivate", handler.DeactivateRule)
+	app.Post("/v1/rules/:rule_id/deactivate", handler.DeactivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/invalid-uuid/deactivate", nil)
 	resp, err := app.Test(req)
@@ -234,7 +234,7 @@ func TestDeactivateRuleHandler_ServiceError(t *testing.T) {
 		Return(nil, model.NewInvalidTransitionError(model.RuleStatusDeleted, model.RuleStatusInactive))
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/deactivate", handler.DeactivateRule)
+	app.Post("/v1/rules/:rule_id/deactivate", handler.DeactivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/deactivate", nil)
 	resp, err := app.Test(req)
@@ -262,7 +262,7 @@ func TestDeactivateRuleHandler_NotFound(t *testing.T) {
 		Return(nil, constant.ErrRuleNotFound)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/deactivate", handler.DeactivateRule)
+	app.Post("/v1/rules/:rule_id/deactivate", handler.DeactivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/deactivate", nil)
 	resp, err := app.Test(req)
@@ -290,7 +290,7 @@ func TestDeactivateRuleHandler_InternalError(t *testing.T) {
 		Return(nil, errors.New("database connection failed"))
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/deactivate", handler.DeactivateRule)
+	app.Post("/v1/rules/:rule_id/deactivate", handler.DeactivateRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/deactivate", nil)
 	resp, err := app.Test(req)
@@ -318,7 +318,7 @@ func TestDeleteRuleHandler_Success(t *testing.T) {
 		Return(nil)
 
 	handler := NewHandler(mockService)
-	app.Delete("/v1/rules/:id", handler.DeleteRule)
+	app.Delete("/v1/rules/:rule_id", handler.DeleteRule)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/"+ruleID.String(), nil)
 	resp, err := app.Test(req)
@@ -336,7 +336,7 @@ func TestDeleteRuleHandler_InvalidUUID(t *testing.T) {
 	mockService := NewMockRuleService(ctrl)
 
 	handler := NewHandler(mockService)
-	app.Delete("/v1/rules/:id", handler.DeleteRule)
+	app.Delete("/v1/rules/:rule_id", handler.DeleteRule)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/invalid-uuid", nil)
 	resp, err := app.Test(req)
@@ -364,7 +364,7 @@ func TestDeleteRuleHandler_NotFound(t *testing.T) {
 		Return(constant.ErrRuleNotFound)
 
 	handler := NewHandler(mockService)
-	app.Delete("/v1/rules/:id", handler.DeleteRule)
+	app.Delete("/v1/rules/:rule_id", handler.DeleteRule)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/"+ruleID.String(), nil)
 	resp, err := app.Test(req)
@@ -392,7 +392,7 @@ func TestDeleteRuleHandler_InvalidTransition(t *testing.T) {
 		Return(model.NewInvalidTransitionError(model.RuleStatusActive, model.RuleStatusDeleted))
 
 	handler := NewHandler(mockService)
-	app.Delete("/v1/rules/:id", handler.DeleteRule)
+	app.Delete("/v1/rules/:rule_id", handler.DeleteRule)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/"+ruleID.String(), nil)
 	resp, err := app.Test(req)
@@ -420,7 +420,7 @@ func TestDeleteRuleHandler_InternalError(t *testing.T) {
 		Return(errors.New("database connection failed"))
 
 	handler := NewHandler(mockService)
-	app.Delete("/v1/rules/:id", handler.DeleteRule)
+	app.Delete("/v1/rules/:rule_id", handler.DeleteRule)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/rules/"+ruleID.String(), nil)
 	resp, err := app.Test(req)
@@ -454,7 +454,7 @@ func TestDraftRuleHandler_Success(t *testing.T) {
 		Return(rule, nil)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+	app.Post("/v1/rules/:rule_id/draft", handler.DraftRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
 	resp, err := app.Test(req)
@@ -478,7 +478,7 @@ func TestDraftRuleHandler_InvalidUUID(t *testing.T) {
 	mockService := NewMockRuleService(ctrl)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+	app.Post("/v1/rules/:rule_id/draft", handler.DraftRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/invalid-uuid/draft", nil)
 	resp, err := app.Test(req)
@@ -506,7 +506,7 @@ func TestDraftRuleHandler_ServiceError(t *testing.T) {
 		Return(nil, model.NewInvalidTransitionError(model.RuleStatusActive, model.RuleStatusDraft))
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+	app.Post("/v1/rules/:rule_id/draft", handler.DraftRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
 	resp, err := app.Test(req)
@@ -534,7 +534,7 @@ func TestDraftRuleHandler_NotFound(t *testing.T) {
 		Return(nil, constant.ErrRuleNotFound)
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+	app.Post("/v1/rules/:rule_id/draft", handler.DraftRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
 	resp, err := app.Test(req)
@@ -562,7 +562,7 @@ func TestDraftRuleHandler_InternalError(t *testing.T) {
 		Return(nil, errors.New("database connection failed"))
 
 	handler := NewHandler(mockService)
-	app.Post("/v1/rules/:id/draft", handler.DraftRule)
+	app.Post("/v1/rules/:rule_id/draft", handler.DraftRule)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/rules/"+ruleID.String()+"/draft", nil)
 	resp, err := app.Test(req)

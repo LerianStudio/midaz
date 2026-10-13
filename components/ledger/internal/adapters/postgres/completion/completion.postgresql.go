@@ -585,9 +585,9 @@ func confirmedTransactionInsert(inserted *repository.BulkInsertResult, transacti
 
 func verifyTransaction(ctx context.Context, querier repository.DBQuerier, record command.TransactionWriteSet) (string, bool, error) {
 	tran := record.Transaction
-	columns := []string{"organization_id", "ledger_id", "parent_transaction_id", "amount", "asset_code", "chart_of_accounts_group_name", "created_at", "route", "route_id", "fees_skipped", "tracer_skipped"}
+	columns := []string{"organization_id", "ledger_id", "parent_transaction_id", "amount", "asset_code", "chart_of_accounts_group_name", "created_at", "route", "route_id", "fees_skipped", "tracer_skipped", "scheme"}
 	legacyRoute := nullableText(tran.Route) //nolint:staticcheck // Recovery verifies the persisted legacy column without changing it.
-	args := []any{tran.ID, tran.OrganizationID, tran.LedgerID, tran.ParentTransactionID, tran.Amount, tran.AssetCode, tran.ChartOfAccountsGroupName, tran.CreatedAt, legacyRoute, tran.RouteID, tran.FeesSkipped, tran.TracerSkipped}
+	args := []any{tran.ID, tran.OrganizationID, tran.LedgerID, tran.ParentTransactionID, tran.Amount, tran.AssetCode, tran.ChartOfAccountsGroupName, tran.CreatedAt, legacyRoute, tran.RouteID, tran.FeesSkipped, tran.TracerSkipped, nullableText(tran.Scheme)}
 	predicate := equalityPredicate(columns, 2)
 
 	if record.Action == "hold" {

@@ -27,7 +27,7 @@ import (
 var TransactionRouteCreatedDefinition = Definition{
 	ResourceType:  "transaction_route",
 	EventType:     "created",
-	SchemaVersion: "1.1.0",
+	SchemaVersion: "1.2.0",
 }
 
 // TransactionRouteCreatedPayload is the wire payload for transaction_route.created.
@@ -50,8 +50,12 @@ type TransactionRouteCreatedPayload struct {
 	Title             string   `json:"title"`
 	Description       string   `json:"description,omitempty"`
 	OperationRouteIDs []string `json:"operationRouteIds,omitempty"`
-	CreatedAt         string   `json:"createdAt"`
-	UpdatedAt         string   `json:"updatedAt"`
+	// OptionalOperationRouteIDs names the links in OperationRouteIDs that a
+	// transaction may leave unused (schema 1.2.0). Absent when every link is
+	// required.
+	OptionalOperationRouteIDs []string `json:"optionalOperationRouteIds,omitempty"`
+	CreatedAt                 string   `json:"createdAt"`
+	UpdatedAt                 string   `json:"updatedAt"`
 }
 
 // NewTransactionRouteCreated maps a persisted transaction route into
@@ -69,14 +73,15 @@ func NewTransactionRouteCreated(tr *mmodel.TransactionRoute) TransactionRouteCre
 	}
 
 	return TransactionRouteCreatedPayload{
-		ID:                tr.ID.String(),
-		OrganizationID:    tr.OrganizationID.String(),
-		LedgerID:          derefUUIDString(tr.LedgerID),
-		Title:             tr.Title,
-		Description:       tr.Description,
-		OperationRouteIDs: operationRouteIDs,
-		CreatedAt:         tr.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:         tr.UpdatedAt.Format(time.RFC3339),
+		ID:                        tr.ID.String(),
+		OrganizationID:            tr.OrganizationID.String(),
+		LedgerID:                  derefUUIDString(tr.LedgerID),
+		Title:                     tr.Title,
+		Description:               tr.Description,
+		OperationRouteIDs:         operationRouteIDs,
+		OptionalOperationRouteIDs: optionalOperationRouteIDs(tr),
+		CreatedAt:                 tr.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:                 tr.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -96,4 +101,18 @@ func (p TransactionRouteCreatedPayload) ToEmitRequest(tenantID string, ts time.T
 		Timestamp:     ts,
 		Payload:       data,
 	}, nil
+}
+
+// optionalOperationRouteIDs is the optional subset of tr's links, in link
+// order, or nil when every link is required.
+func optionalOperationRouteIDs(tr *mmodel.TransactionRoute) []string {
+	var ids []string
+
+	for _, o := range tr.OperationRoutes {
+		if tr.IsOptional(o.ID) {
+			ids = append(ids, o.ID.String())
+		}
+	}
+
+	return ids
 }

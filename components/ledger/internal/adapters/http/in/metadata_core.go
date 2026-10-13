@@ -7,6 +7,7 @@ package in
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	tmmongo "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/mongo"
@@ -23,23 +24,25 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// onboardingEntities maps onboarding entity names to their MongoDB collection names.
+// onboardingEntities maps onboarding entity names to their MongoDB collection names,
+// which the metadata writers derive from the same entity constants.
 var onboardingEntities = map[string]string{
-	"organization": "organization",
-	"ledger":       "ledger",
-	"segment":      "segment",
-	"account":      "account",
-	"portfolio":    "portfolio",
-	"asset":        "asset",
-	"account_type": "account_type",
+	"organization": strings.ToLower(constant.EntityOrganization),
+	"ledger":       strings.ToLower(constant.EntityLedger),
+	"segment":      strings.ToLower(constant.EntitySegment),
+	"account":      strings.ToLower(constant.EntityAccount),
+	"portfolio":    strings.ToLower(constant.EntityPortfolio),
+	"asset":        strings.ToLower(constant.EntityAsset),
+	"account_type": strings.ToLower(constant.EntityAccountType),
 }
 
-// transactionEntities maps transaction entity names to their MongoDB collection names.
+// transactionEntities maps transaction entity names to their MongoDB collection names,
+// which the metadata writers derive from the same entity constants.
 var transactionEntities = map[string]string{
-	"transaction":       "transaction",
-	"operation":         "operation",
-	"operation_route":   "operation_route",
-	"transaction_route": "transaction_route",
+	"transaction":       strings.ToLower(constant.EntityTransaction),
+	"operation":         strings.ToLower(constant.EntityOperation),
+	"operation_route":   strings.ToLower(constant.EntityOperationRoute),
+	"transaction_route": strings.ToLower(constant.EntityTransactionRoute),
 }
 
 // MetadataIndexHandler handles HTTP requests for metadata index operations.

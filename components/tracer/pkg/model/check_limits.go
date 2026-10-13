@@ -28,7 +28,7 @@ type CheckLimitsInput struct {
 	SegmentID            *uuid.UUID       `json:"segmentId,omitempty"`
 	PortfolioID          *uuid.UUID       `json:"portfolioId,omitempty"`
 	MerchantID           *uuid.UUID       `json:"merchantId,omitempty"`
-	TransactionType      *TransactionType `json:"transactionType,omitempty" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	TransactionType      *TransactionType `json:"transactionType,omitempty" swaggertype:"string" maxLength:"50" example:"PIX"`
 	SubType              *string          `json:"subType,omitempty" maxLength:"50"`
 	TransactionTimestamp time.Time        `json:"transactionTimestamp"`
 }
@@ -38,6 +38,7 @@ type CheckLimitsInput struct {
 // Amount must be positive.
 // AccountID is required.
 // SegmentID, PortfolioID, MerchantID, transactionType and subType are optional scope fields.
+// transactionType is trimmed and upper-cased into a fresh pointer.
 func NewCheckLimitsInput(amount decimal.Decimal, asset string, accountID uuid.UUID, segmentID, portfolioID, merchantID *uuid.UUID, transactionType *TransactionType, subType *string, timestamp time.Time) (*CheckLimitsInput, error) {
 	normalizedAsset := strings.ToUpper(strings.TrimSpace(asset))
 
@@ -48,7 +49,7 @@ func NewCheckLimitsInput(amount decimal.Decimal, asset string, accountID uuid.UU
 		SegmentID:            segmentID,
 		PortfolioID:          portfolioID,
 		MerchantID:           merchantID,
-		TransactionType:      transactionType,
+		TransactionType:      normalizeTransactionTypePtr(transactionType),
 		SubType:              subType,
 		TransactionTimestamp: timestamp,
 	}
@@ -111,7 +112,7 @@ func (i *CheckLimitsInput) validate(requireAccount bool) error {
 		return constant.ErrCheckLimitsInvalidTimestamp
 	}
 
-	if i.TransactionType != nil && !i.TransactionType.IsValid() {
+	if i.TransactionType != nil && !i.TransactionType.Valid() {
 		return constant.ErrCheckLimitsInvalidTransactionType
 	}
 

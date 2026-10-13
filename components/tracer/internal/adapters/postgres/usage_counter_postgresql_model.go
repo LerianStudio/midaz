@@ -25,6 +25,7 @@ type UsageCounterPostgreSQLModel struct {
 	ScopeKey      string          `db:"scope_key"`
 	PeriodKey     string          `db:"period_key"`
 	CurrentUsage  decimal.Decimal `db:"current_usage"`
+	ReservedUsage decimal.Decimal `db:"reserved_usage"`
 	LastUpdatedAt time.Time       `db:"last_updated_at"`
 }
 
@@ -51,6 +52,7 @@ func (m *UsageCounterPostgreSQLModel) ToEntity() (*model.UsageCounter, error) {
 		ScopeKey:      m.ScopeKey,
 		PeriodKey:     m.PeriodKey,
 		CurrentUsage:  m.CurrentUsage,
+		ReservedUsage: m.ReservedUsage,
 		LastUpdatedAt: m.LastUpdatedAt,
 	}, nil
 }
@@ -69,6 +71,7 @@ func (m *UsageCounterPostgreSQLModel) FromEntity(entity *model.UsageCounter) err
 	m.ScopeKey = entity.ScopeKey
 	m.PeriodKey = entity.PeriodKey
 	m.CurrentUsage = entity.CurrentUsage
+	m.ReservedUsage = entity.ReservedUsage
 	m.LastUpdatedAt = entity.LastUpdatedAt
 
 	return nil

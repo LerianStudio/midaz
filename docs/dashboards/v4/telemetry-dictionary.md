@@ -223,8 +223,8 @@ unit: "1"
 ```
 
 `reason="expired"` is data loss: the pending delta is unrecoverable. `reason="unparseable"` is
-a key-format regression. Alert on them separately — the rules and the response procedure live
-in the runbooks repository, under `midaz/troubleshooting/balance-sync-alerting.md`.
+a key-format regression. Alert on them separately; the alert rules and the response procedure
+are maintained outside this repository.
 
 ### balance_sync_last_success_timestamp_seconds
 
@@ -409,7 +409,7 @@ unit: "1"
 declared_at: components/ledger/internal/adapters/redis/engine/telemetry.go:101
 description: Accounting adapter failures by a closed protocol classification vocabulary.
 labels: [code]
-label_values: [context_canceled, invalid_scope, invalid_request, invalid_recovery, connection_unavailable, unsupported_transport, invalid_response, transport, invalid_failure, invalid_technical_failure, invalid_json, invalid_protocol, invalid_balance, balance_identity_mismatch, wrong_key_type, execution_fingerprint_conflict, execution_guard_conflict, version_overflow, invalid_companion, prepared_bytes_exceeded, request_bytes_exceeded, serialization_failed, script_runtime_failed, indeterminate, execution_outcome_unknown, invalid_receipt, unknown_technical_failure, invalid_normalization_failure, normalization_required, script_runtime, normalization_read_failed, normalization_balance_missing, normalization_invalid_balance, normalization_repair_failed, insufficient_funds, overdraft_limit_exceeded, overdraft_not_eligible, overdraft_companion_missing, balance_deleted, onhold_underflow, balance_missing, unknown]
+label_values: [context_canceled, invalid_scope, invalid_request, invalid_recovery, connection_unavailable, unsupported_transport, invalid_response, transport, invalid_failure, invalid_technical_failure, invalid_json, invalid_protocol, invalid_balance, balance_identity_mismatch, wrong_key_type, execution_fingerprint_conflict, execution_guard_conflict, version_overflow, invalid_companion, prepared_bytes_exceeded, request_bytes_exceeded, serialization_failed, script_runtime_failed, account_closed, account_closing_in_progress, admission_not_confirmed, account_protection_unreadable, transaction_already_reverted, dependency_evidence_missing, dependency_evidence_conflict, dependency_evidence_invalid, transaction_state_conflict, fee_debt_conflict, fee_debt_record_pending, indeterminate, execution_outcome_unknown, invalid_receipt, unknown_technical_failure, invalid_normalization_failure, normalization_required, script_runtime, normalization_read_failed, normalization_balance_missing, normalization_invalid_balance, normalization_repair_failed, insufficient_funds, overdraft_limit_exceeded, overdraft_not_eligible, overdraft_companion_missing, balance_deleted, account_blocked, onhold_underflow, balance_missing, asset_mismatch, sending_not_allowed, receiving_not_allowed, external_hold_not_allowed, account_block_exception_invalid, unknown]
 label_cardinality_estimate: low
 live_observed: unknown
 unit: "1"

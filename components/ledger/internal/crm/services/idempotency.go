@@ -32,11 +32,12 @@ const (
 // infrastructure. It is satisfied structurally by the transaction
 // RedisConsumerRepository; the CRM use case never depends on the transaction
 // idempotency methods (those are typed to transaction.Transaction and live on
-// the money path).
+// the money path). Del releases a claimed slot whose create did not persist.
 type IdempotencyRepo interface {
 	SetNX(ctx context.Context, key, value string, ttl time.Duration) (bool, error)
 	Get(ctx context.Context, key string) (string, error)
 	Set(ctx context.Context, key, value string, ttl time.Duration) error
+	Del(ctx context.Context, key string) error
 }
 
 // CRMIdempotencyResult holds the outcome of a CRM idempotency claim.
@@ -60,6 +61,12 @@ func HolderIdempotencyKey(organizationID, key string) string {
 // instrument create. Instruments are scoped by their parent holder.
 func InstrumentIdempotencyKey(organizationID, holderID, key string) string {
 	return fmt.Sprintf("idempotency:crm:instrument:%s:%s:%s", organizationID, holderID, key)
+}
+
+// CompositionIdempotencyKey builds the CRM-namespaced Redis key for a holder
+// account composition, scoped by its ledger and parent holder.
+func CompositionIdempotencyKey(organizationID, ledgerID, holderID, key string) string {
+	return fmt.Sprintf("idempotency:crm:composition:%s:%s:%s:%s", organizationID, ledgerID, holderID, key)
 }
 
 // CRMIdempotencyToken derives the token that names a request body in its
@@ -179,6 +186,26 @@ func (uc *UseCase) SetCRMIdempotencyValue(ctx context.Context, organizationID, i
 	if err := uc.Idempotency.Set(ctx, internalKey, sealed, ttl); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to store CRM idempotency value in redis", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to store CRM idempotency value in redis", libLog.Err(err))
+	}
+}
+
+// ReleaseCRMIdempotency deletes a claimed slot whose create persisted nothing,
+// so a retry runs the create again instead of meeting the in-flight conflict.
+// A nil Idempotency repo is a no-op. A delete failure is logged and swallowed:
+// the slot then expires by its TTL and the caller's original outcome stands.
+func (uc *UseCase) ReleaseCRMIdempotency(ctx context.Context, internalKey string) {
+	if uc.Idempotency == nil {
+		return
+	}
+
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "service.release_crm_idempotency")
+	defer span.End()
+
+	if err := uc.Idempotency.Del(ctx, internalKey); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to release CRM idempotency slot", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to release CRM idempotency slot", libLog.Err(err))
 	}
 }
 

@@ -240,6 +240,7 @@ func TestTransactionValidationPostgresRepository_Insert(t *testing.T) {
 						tv.ID,
 						tv.RequestID,
 						string(tv.TransactionType),
+						string(tv.TransactionType),
 						tv.SubType,
 						tv.Amount,
 						tv.Asset,
@@ -269,6 +270,7 @@ func TestTransactionValidationPostgresRepository_Insert(t *testing.T) {
 					WithArgs(
 						tv.ID,
 						tv.RequestID,
+						string(tv.TransactionType),
 						string(tv.TransactionType),
 						tv.SubType,
 						tv.Amount,
@@ -575,13 +577,15 @@ func TestTransactionValidationPostgresRepository_List(t *testing.T) {
 		{
 			name: "Success - lists transaction validations with transactionType filter",
 			filters: &model.TransactionValidationFilters{
-				TransactionType: testutil.Ptr(model.TransactionTypeCard),
+				TransactionType: testutil.Ptr(model.TransactionType("BOLETO")),
 				Limit:           10,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				tv := testTransactionValidation()
 				rows := transactionValidationRow(t, tv)
-				mock.ExpectQuery(regexp.QuoteMeta(`SELECT`)).
+				// The filter must call the indexed function, never compare a column.
+				mock.ExpectQuery(regexp.QuoteMeta(`transaction_validation_scheme(scheme, transaction_type) = $`)).
+					WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "BOLETO").
 					WillReturnRows(rows)
 			},
 			wantLen: 1,
@@ -1487,6 +1491,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx(t *testing.T) {
 						tv.ID,
 						tv.RequestID,
 						string(tv.TransactionType),
+						string(tv.TransactionType),
 						tv.SubType,
 						tv.Amount,
 						tv.Asset,
@@ -1586,6 +1591,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_UsesProvidedDB(t *
 			tv.ID,
 			tv.RequestID,
 			string(tv.TransactionType),
+			string(tv.TransactionType),
 			tv.SubType,
 			tv.Amount,
 			tv.Asset,
@@ -1656,6 +1662,7 @@ func TestTransactionValidationPostgresRepository_InsertWithTx_UniqueViolation(t 
 		WithArgs(
 			tv.ID,
 			tv.RequestID,
+			string(tv.TransactionType),
 			string(tv.TransactionType),
 			tv.SubType,
 			tv.Amount,

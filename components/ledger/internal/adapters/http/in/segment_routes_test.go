@@ -30,9 +30,9 @@ var segmentV2Ops = []struct {
 }{
 	{action: "create", method: http.MethodPost, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments", v1OperationID: "createSegment"},
 	{action: "list", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments", v1OperationID: "listSegments"},
-	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", v1OperationID: "getSegmentByID"},
-	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", v1OperationID: "updateSegment"},
-	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments/{id}", v1OperationID: "deleteSegment"},
+	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}", v1OperationID: "getSegmentByID"},
+	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}", v1OperationID: "updateSegment"},
+	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments/{segment_id}", v1OperationID: "deleteSegment"},
 	{action: "count", method: http.MethodHead, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/segments/metrics/count", v1OperationID: "countSegments"},
 }
 

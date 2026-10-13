@@ -2,7 +2,7 @@
 
 Canonical reference for every streaming event the **tracer** component
 (`components/tracer`, :4020) emits. It complements — does not duplicate — the
-producer conventions in `CLAUDE.md` (Streaming section) and
+producer conventions in `docs/AGENTS-REFERENCE.md` (Streaming section) and
 `docs/PROJECT_RULES.md`.
 
 > **Drift discipline.** This document, the Payload structs in
@@ -95,23 +95,34 @@ Catalog (`buildCatalog`) and the manifest:
 | `ce-source` | `tracer` |
 | `ce-subject` | aggregate ID — rule UUID or limit UUID |
 | `ce-tenantid` | `pkgStreaming.ResolveTenantID(ctx)`, falls back to `"default"` |
-| Schema version | `1.1.0` for `limit.created` / `limit.updated`, `1.0.0` for the other 10 events |
+| Schema version | `1.2.0` for `limit.created` / `limit.updated`, `1.1.0` for `rule.created` / `rule.updated`, `1.0.0` for the other 8 events |
 
 ## Event catalog
 
-`limit.created` and `limit.updated` carry `SchemaVersion = 1.1.0` (the
-additive `resetTime` field); the other 10 events carry `SchemaVersion = 1.0.0`.
+`limit.created` and `limit.updated` carry `SchemaVersion = 1.2.0`;
+`rule.created` and `rule.updated` carry `SchemaVersion = 1.1.0`; the other 8
+events carry `SchemaVersion = 1.0.0`. The limit `1.1.0` bump added `resetTime`.
+The limit `1.2.0` and rule `1.1.0` bumps changed the meaning of the scope's
+`transactionType`: it widened from the closed set `CARD`/`WIRE`/`PIX`/`CRYPTO`
+to a free-form normalized scheme. The scope's `scheme` key arrived in the same
+bump as an additive alias of `transactionType`. A consumer that switched
+exhaustively on the four former values now sees other values and must handle
+them.
+
+An additive optional key (emitted with `omitempty`) does not bump
+`ce-schemaversion`: consumers must ignore keys they do not know, and the
+version moves only when an existing key changes meaning, type or presence.
 
 | Event key | `ce-type` | `ce-subject` | Schema version |
 |-----------|-----------|--------------|----------------|
-| `rule.created` | `studio.lerian.tracer.rule.created` | rule ID | `1.0.0` |
-| `rule.updated` | `studio.lerian.tracer.rule.updated` | rule ID | `1.0.0` |
+| `rule.created` | `studio.lerian.tracer.rule.created` | rule ID | `1.1.0` |
+| `rule.updated` | `studio.lerian.tracer.rule.updated` | rule ID | `1.1.0` |
 | `rule.activated` | `studio.lerian.tracer.rule.activated` | rule ID | `1.0.0` |
 | `rule.deactivated` | `studio.lerian.tracer.rule.deactivated` | rule ID | `1.0.0` |
 | `rule.drafted` | `studio.lerian.tracer.rule.drafted` | rule ID | `1.0.0` |
 | `rule.deleted` | `studio.lerian.tracer.rule.deleted` | rule ID | `1.0.0` |
-| `limit.created` | `studio.lerian.tracer.limit.created` | limit ID | `1.1.0` |
-| `limit.updated` | `studio.lerian.tracer.limit.updated` | limit ID | `1.1.0` |
+| `limit.created` | `studio.lerian.tracer.limit.created` | limit ID | `1.2.0` |
+| `limit.updated` | `studio.lerian.tracer.limit.updated` | limit ID | `1.2.0` |
 | `limit.activated` | `studio.lerian.tracer.limit.activated` | limit ID | `1.0.0` |
 | `limit.deactivated` | `studio.lerian.tracer.limit.deactivated` | limit ID | `1.0.0` |
 | `limit.drafted` | `studio.lerian.tracer.limit.drafted` | limit ID | `1.0.0` |
@@ -121,9 +132,9 @@ additive `resetTime` field); the other 10 events carry `SchemaVersion = 1.0.0`.
 
 Both `rule.created`/`rule.updated` and `limit.created`/`limit.updated` carry a
 `scopes[]` array. Every element is the same `RuleScopePayload`
-(`pkg/streaming/events/rule_scope.go`) — six structural identifiers/enums, each
-`*string` on the wire so JSON `null` distinguishes "unset" from empty. An empty
-domain scope slice serializes as `"scopes": []` (non-null).
+(`pkg/streaming/events/rule_scope.go`) — seven structural identifiers and
+classifiers, each `*string` on the wire so JSON `null` distinguishes "unset"
+from empty. An empty domain scope slice serializes as `"scopes": []` (non-null).
 
 ```jsonc
 {
@@ -131,14 +142,20 @@ domain scope slice serializes as `"scopes": []` (non-null).
   "portfolioId":     "uuid | null",
   "accountId":       "uuid | null",
   "merchantId":      "uuid | null",
-  "transactionType": "CARD | WIRE | PIX | CRYPTO | null",
+  "transactionType": "string | null",
+  "scheme":          "string (omitted when unset)",
   "subType":         "string | null"
 }
 ```
 
-The nested object is locked to exactly **6 keys**. `subType` is a structural
-sub-classifier and is deliberately INCLUDED; no free text otherwise appears in
-a scope.
+The nested object is locked to exactly **7 keys** when the scope names a
+scheme. `scheme` is the payment scheme and `transactionType` its deprecated
+alias: both carry the same value, normalized (trimmed, upper-cased, matching
+`^[A-Z0-9_-]{1,50}$`). The scheme is free-form — `CARD`, `WIRE`, `PIX`,
+`CRYPTO` are examples, not a closed set, and `CARD` covers any card, never the
+brand. A scope that names no scheme carries `"transactionType": null` and omits
+`scheme`. `subType` is a structural sub-classifier and is deliberately
+INCLUDED; no free text otherwise appears in a scope.
 
 ## Payload contracts
 
@@ -156,7 +173,7 @@ Source: `pkg/streaming/events/rule_created.go`, `rule_updated.go`.
   "id":        "uuid",
   "status":    "DRAFT | ACTIVE | INACTIVE | DELETED",
   "action":    "ALLOW | DENY | REVIEW",
-  "scopes":    [ { /* RuleScopePayload — 6 keys */ } ],
+  "scopes":    [ { /* RuleScopePayload — 7 keys */ } ],
   "createdAt": "RFC3339",
   "updatedAt": "RFC3339"
 }
@@ -167,7 +184,7 @@ Source: `pkg/streaming/events/rule_created.go`, `rule_updated.go`.
 | `id` | string | Rule ID. |
 | `status` | string | `DRAFT` / `ACTIVE` / `INACTIVE` / `DELETED`. |
 | `action` | string | Decision: `ALLOW` / `DENY` / `REVIEW`. |
-| `scopes` | array | Shared `RuleScopePayload` elements (6 keys each); `[]` when empty. |
+| `scopes` | array | Shared `RuleScopePayload` elements (7 keys each, `scheme` omitted when unset); `[]` when empty. |
 | `createdAt` | string | RFC3339. |
 | `updatedAt` | string | RFC3339. |
 
@@ -268,7 +285,7 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
   "status":          "DRAFT | ACTIVE | INACTIVE | DELETED",
   "limitType":       "DAILY | WEEKLY | MONTHLY | CUSTOM | PER_TRANSACTION",
   "asset":           "asset code",
-  "scopes":          [ { /* RuleScopePayload — 6 keys */ } ],
+  "scopes":          [ { /* RuleScopePayload — 7 keys */ } ],
   "activeTimeStart": "HH:MM | null",
   "activeTimeEnd":   "HH:MM | null",
   "customStartDate": "RFC3339 | null",
@@ -286,7 +303,7 @@ Source: `pkg/streaming/events/limit_created.go`, `limit_updated.go`.
 | `status` | string | `DRAFT` / `ACTIVE` / `INACTIVE` / `DELETED`. |
 | `limitType` | string | `DAILY` / `WEEKLY` / `MONTHLY` / `CUSTOM` / `PER_TRANSACTION`. |
 | `asset` | string | Asset code. |
-| `scopes` | array | Shared `RuleScopePayload` elements (6 keys each); `[]` when empty. |
+| `scopes` | array | Shared `RuleScopePayload` elements (7 keys each, `scheme` omitted when unset); `[]` when empty. |
 | `activeTimeStart` | string \| null | Time-of-day window start (`HH:MM`), `null` when unset. |
 | `activeTimeEnd` | string \| null | Time-of-day window end (`HH:MM`), `null` when unset. |
 | `customStartDate` | string \| null | RFC3339, `null` unless the period is `CUSTOM`. |
@@ -412,6 +429,7 @@ content-type:   application/json
       "accountId": null,
       "merchantId": "c4d5e6f7-8a9b-40c1-92d3-e4f5a6b7c8d9",
       "transactionType": "PIX",
+      "scheme": "PIX",
       "subType": "instant"
     }
   ],
@@ -480,7 +498,7 @@ point tracer at it:
   strictly larger than the record it quarantines.
 
 The default unit suite never touches a broker — the JSONShape and mapping tests
-in `pkg/streaming/events/` marshal payloads in memory. See the `CLAUDE.md`
+in `pkg/streaming/events/` marshal payloads in memory. See the `docs/AGENTS-REFERENCE.md`
 Streaming → Local testing section for the broker/environment conventions.
 
 ## Canonical code locations

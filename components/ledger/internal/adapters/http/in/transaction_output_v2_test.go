@@ -15,6 +15,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -60,6 +61,7 @@ func buildCanonicalTransactionFixture() *transaction.Transaction {
 		RouteID:                  &routeID,
 		FeesSkipped:              true,
 		TracerSkipped:            false,
+		Scheme:                   "PIX",
 		CreatedAt:                createdAt,
 		UpdatedAt:                updatedAt,
 		DeletedAt:                &deletedAt,
@@ -95,6 +97,7 @@ func TestNewTransactionV2_RenamesSourceDestinationKeepsEverythingElse(t *testing
 	assert.Equal(t, canonical.RouteID, got.RouteID)
 	assert.Equal(t, canonical.FeesSkipped, got.FeesSkipped)
 	assert.Equal(t, canonical.TracerSkipped, got.TracerSkipped)
+	assert.Equal(t, canonical.Scheme, got.Scheme)
 	assert.Equal(t, canonical.CreatedAt, got.CreatedAt)
 	assert.Equal(t, canonical.UpdatedAt, got.UpdatedAt)
 	assert.Equal(t, canonical.DeletedAt, got.DeletedAt)
@@ -115,6 +118,32 @@ func TestNewTransactionV2_NilInput(t *testing.T) {
 	assert.Nil(t, newTransactionV2(nil))
 }
 
+// TestNewTransactionV2_ReturnsLegacyFeeExemptionAsString pins the /v2 read of a feeExemption stored
+// as an object: MongoDB decodes it as bson.D, a stored PENDING body as a map.
+func TestNewTransactionV2_ReturnsLegacyFeeExemptionAsString(t *testing.T) {
+	t.Parallel()
+
+	const flat = `{"exempt":true,"reason":"all_source_accounts_exempt"}`
+
+	for name, stored := range map[string]any{
+		"bson.D": bson.D{{Key: "exempt", Value: true}, {Key: "reason", Value: "all_source_accounts_exempt"}},
+		"map":    map[string]any{"exempt": true, "reason": "all_source_accounts_exempt"},
+		"string": flat,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			canonical := buildCanonicalTransactionFixture()
+			canonical.Metadata = map[string]any{"purpose": "test", "feeExemption": stored}
+
+			got := newTransactionV2(canonical)
+
+			assert.Equal(t, map[string]any{"purpose": "test", "feeExemption": flat}, got.Metadata)
+			assert.Equal(t, stored, canonical.Metadata["feeExemption"], "the canonical transaction keeps its stored value")
+		})
+	}
+}
+
 // TestTransactionV2_JSONUsesDebitCreditKeys proves the wire encoding of TransactionV2 carries
 // `debit`/`credit` keys and never the v1 `source`/`destination` keys, at the byte level — the
 // contract a client actually reads, independent of the OpenAPI schema.
@@ -133,6 +162,47 @@ func TestTransactionV2_JSONUsesDebitCreditKeys(t *testing.T) {
 	assert.Contains(t, asMap, "credit", "the v2 wire body must carry the credit key")
 	assert.NotContains(t, asMap, "source", "the v2 wire body must not carry the v1 source key")
 	assert.NotContains(t, asMap, "destination", "the v2 wire body must not carry the v1 destination key")
+}
+
+// TestTransactionV2_JSONProjectsScheme proves the /v2 wire body carries the declared payment
+// scheme under `scheme` and emits NO key at all when none was declared, so a client never reads
+// an empty string as a scheme.
+func TestTransactionV2_JSONProjectsScheme(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		scheme     string
+		wantKey    bool
+		wantScheme string
+	}{
+		{name: "declared scheme is projected", scheme: "PIX", wantKey: true, wantScheme: "PIX"},
+		{name: "absent scheme emits no key", scheme: "", wantKey: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			canonical := buildCanonicalTransactionFixture()
+			canonical.Scheme = tt.scheme
+
+			raw, err := json.Marshal(newTransactionV2(canonical))
+			require.NoError(t, err)
+
+			var asMap map[string]any
+			require.NoError(t, json.Unmarshal(raw, &asMap))
+
+			if !tt.wantKey {
+				assert.NotContains(t, asMap, "scheme", "a transaction without a scheme must not publish the key")
+
+				return
+			}
+
+			require.Contains(t, asMap, "scheme", "the v2 wire body must carry the declared scheme")
+			assert.Equal(t, tt.wantScheme, asMap["scheme"])
+		})
+	}
 }
 
 func TestCreateTransactionV2Response_CrossLedgerEnvelope(t *testing.T) {
@@ -203,6 +273,22 @@ func TestNewPendingTransitionV2Response_PreservesSingularOrGroupedShape(t *testi
 	require.Len(t, response.Transactions, 2)
 	assert.Equal(t, []int{1, 2}, []int{response.Transactions[0].Order, response.Transactions[1].Order})
 	assert.Nil(t, response.TransactionV2)
+}
+
+// TestNewPendingTransitionV2Response_GroupReturnsLegacyFeeExemptionAsString pins the same read on
+// the grouped shape: a committed hold answers with members created before the commit.
+func TestNewPendingTransitionV2Response_GroupReturnsLegacyFeeExemptionAsString(t *testing.T) {
+	t.Parallel()
+
+	member := buildCanonicalTransactionFixture()
+	member.Metadata = map[string]any{"feeExemption": bson.D{{Key: "exempt", Value: true}}}
+
+	response := newPendingTransitionV2Response(&command.PendingTransitionV2Result{
+		Group: &command.CreateAtomicTransactionBatchV2Result{BatchID: uuid.New(), Transactions: []*transaction.Transaction{member}},
+	})
+
+	require.Len(t, response.Transactions, 1)
+	assert.Equal(t, `{"exempt":true}`, response.Transactions[0].Metadata["feeExemption"])
 }
 
 // TestRegisterTransactionV2Routes_ResponseSchemaNotNamedTransaction locks the v2 response

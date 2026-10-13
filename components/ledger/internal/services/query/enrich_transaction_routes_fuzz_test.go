@@ -118,7 +118,7 @@ func FuzzEnrichTransactionRoutes_SliceSize(f *testing.F) {
 
 		if junctionError {
 			mockTRRepo.EXPECT().
-				FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+				FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
 				Return(nil, errors.New("fuzz junction error"))
 
 			err := uc.enrichTransactionRoutesWithOperationRoutes(context.Background(), routes)
@@ -130,8 +130,8 @@ func FuzzEnrichTransactionRoutes_SliceSize(f *testing.F) {
 		}
 
 		mockTRRepo.EXPECT().
-			FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-			Return(junctionMap, nil)
+			FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+			Return(requiredLinkMap(junctionMap), nil)
 
 		// Build operation routes result based on opRoute miss rate
 		if len(allORIDs) > 0 {
@@ -297,8 +297,8 @@ func FuzzEnrichTransactionRoutes_JunctionMapShape(f *testing.F) {
 		}
 
 		mockTRRepo.EXPECT().
-			FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-			Return(junctionMap, nil)
+			FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+			Return(requiredLinkMap(junctionMap), nil)
 
 		// Build the full set of operation routes matching all unique IDs
 		if len(uniqueORIDs) > 0 {

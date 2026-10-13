@@ -420,7 +420,7 @@ func TestNewLimit(t *testing.T) {
 			limitType:   LimitTypeDaily,
 			maxAmount:   decimal.RequireFromString("1000"),
 			asset:       "USD",
-			scopes:      []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11)), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
+			scopes:      []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11)), TransactionType: testutil.Ptr(TransactionType("BAD VALUE!"))}},
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidScope,
 		},
@@ -715,7 +715,7 @@ func TestLimit_Update(t *testing.T) {
 		},
 		{
 			name:        "rejects scope with invalid TransactionType",
-			updateScope: &[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(15)), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
+			updateScope: &[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(15)), TransactionType: testutil.Ptr(TransactionType("BAD VALUE!"))}},
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidScope,
 		},
@@ -1724,18 +1724,56 @@ func TestNewUsageSnapshot_DailyLimit(t *testing.T) {
 	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
 
 	counters := []UsageCounter{
-		{CurrentUsage: decimal.RequireFromString("300")},
-		{CurrentUsage: decimal.RequireFromString("200")},
+		{ScopeKey: "acct:a", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("300")},
+		{ScopeKey: "acct:b", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("200")},
 	}
 
 	snapshot := NewUsageSnapshot(limit, counters)
 
 	assert.Equal(t, limit.ID, snapshot.LimitID)
-	assert.True(t, decimal.RequireFromString("500").Equal(snapshot.CurrentUsage), "should sum all counters")
+	assert.True(t, decimal.RequireFromString("300").Equal(snapshot.CurrentUsage), "should report the most consumed scope")
 	assert.True(t, decimal.RequireFromString("1000").Equal(snapshot.LimitAmount))
-	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
-	assert.False(t, snapshot.NearLimit, "50% should not be near limit")
+	assert.Equal(t, 30.0, snapshot.UtilizationPercent)
+	assert.False(t, snapshot.NearLimit, "30% should not be near limit")
 	assert.NotNil(t, snapshot.ResetAt, "DAILY limit should have resetAt")
+}
+
+// TestNewUsageSnapshot_ReportsWorstScopeOfPeriod proves the snapshot reports the
+// most consumed scope bucket, not the sum across scopes: every bucket is
+// enforced against maxAmount on its own, so a sum would exceed the cap for a
+// limit no transaction has exhausted.
+func TestNewUsageSnapshot_ReportsWorstScopeOfPeriod(t *testing.T) {
+	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
+
+	counters := []UsageCounter{
+		{ScopeKey: "acct:a", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("100")},
+		{ScopeKey: "acct:b", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("900")},
+		{ScopeKey: "acct:c", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("400")},
+	}
+
+	snapshot := NewUsageSnapshot(limit, counters)
+
+	assert.True(t, decimal.RequireFromString("900").Equal(snapshot.CurrentUsage), "want the worst scope, got %s", snapshot.CurrentUsage)
+	assert.Equal(t, 90.0, snapshot.UtilizationPercent)
+	assert.True(t, snapshot.NearLimit, "a scope above 80% makes the limit near its cap")
+}
+
+// TestNewUsageSnapshot_CountsReservedCapacity proves a bucket's consumption is
+// its committed usage plus outstanding reservations, because enforcement denies
+// on that sum.
+func TestNewUsageSnapshot_CountsReservedCapacity(t *testing.T) {
+	limit := newTestLimit(t) // Creates a DAILY limit with MaxAmount=1000
+
+	counters := []UsageCounter{
+		{ScopeKey: "acct:a", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("300"), ReservedUsage: decimal.RequireFromString("600")},
+		{ScopeKey: "acct:b", PeriodKey: "2026-10-02", CurrentUsage: decimal.RequireFromString("500"), ReservedUsage: decimal.Zero},
+	}
+
+	snapshot := NewUsageSnapshot(limit, counters)
+
+	assert.True(t, decimal.RequireFromString("900").Equal(snapshot.CurrentUsage), "want committed plus reserved of the worst scope, got %s", snapshot.CurrentUsage)
+	assert.Equal(t, 90.0, snapshot.UtilizationPercent)
+	assert.True(t, snapshot.NearLimit, "a scope above 80% of its cap counting reservations is near the limit")
 }
 
 // TestNewUsageSnapshot_NearLimitThreshold tests nearLimit flag at boundary.

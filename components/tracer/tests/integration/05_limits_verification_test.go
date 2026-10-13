@@ -484,7 +484,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 //
 // Test spec 5.1.9: PER_TRANSACTION limit checks value only
 func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.T) {
-	// Use valid transaction type (must be one of CARD, WIRE, PIX, CRYPTO)
+	// Any normalized scheme works; CARD keeps the fixture readable.
 	transactionType := "CARD"
 
 	// Create PER_TRANSACTION limit of 500
@@ -1987,7 +1987,7 @@ func TestLimitsVerification_5_4_4_AuditTrailPreservation(t *testing.T) {
 	validationID := result.ValidationID
 	require.NotEmpty(t, validationID, "Should return validationId")
 
-	// Retrieve the validation via GET /v1/validations/{id}
+	// Retrieve the validation via GET /v1/validations/{validation_id}
 	getResp, getBody := testutil.GetValidation(t, validationID)
 	defer getResp.Body.Close()
 

@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestJSON_Value(t *testing.T) {
@@ -165,6 +168,7 @@ func TestJSON_RoundTrip(t *testing.T) {
 func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
 	objectID := bson.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
+	deletedAt := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name  string
@@ -210,6 +214,18 @@ func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
 				UpdatedAt: now,
 			},
 		},
+		{
+			name: "soft-deleted model",
+			model: &MetadataMongoDBModel{
+				ID:         objectID,
+				EntityID:   "entity-deleted",
+				EntityName: "account",
+				Data:       JSON{"key": "value"},
+				CreatedAt:  now,
+				UpdatedAt:  deletedAt,
+				DeletedAt:  &deletedAt,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -223,6 +239,7 @@ func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
 			assert.Equal(t, tt.model.Data, entity.Data)
 			assert.Equal(t, tt.model.CreatedAt, entity.CreatedAt)
 			assert.Equal(t, tt.model.UpdatedAt, entity.UpdatedAt)
+			assert.Equal(t, tt.model.DeletedAt, entity.DeletedAt)
 		})
 	}
 }
@@ -230,6 +247,7 @@ func TestMetadataMongoDBModel_ToEntity(t *testing.T) {
 func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 	objectID := bson.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
+	deletedAt := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name   string
@@ -257,6 +275,18 @@ func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 				UpdatedAt:  now,
 			},
 		},
+		{
+			name: "soft-deleted entity",
+			entity: &Metadata{
+				ID:         objectID,
+				EntityID:   "entity-ghi",
+				EntityName: "asset",
+				Data:       JSON{"status": "active"},
+				CreatedAt:  now,
+				UpdatedAt:  deletedAt,
+				DeletedAt:  &deletedAt,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -271,6 +301,7 @@ func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 			assert.Equal(t, tt.entity.Data, model.Data)
 			assert.Equal(t, tt.entity.CreatedAt, model.CreatedAt)
 			assert.Equal(t, tt.entity.UpdatedAt, model.UpdatedAt)
+			assert.Equal(t, tt.entity.DeletedAt, model.DeletedAt)
 		})
 	}
 }
@@ -278,6 +309,7 @@ func TestMetadataMongoDBModel_FromEntity(t *testing.T) {
 func TestMetadataMongoDBModel_RoundTrip(t *testing.T) {
 	objectID := bson.NewObjectID()
 	now := time.Now().UTC().Truncate(time.Second)
+	deletedAt := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
 
 	original := &Metadata{
 		ID:         objectID,
@@ -289,6 +321,7 @@ func TestMetadataMongoDBModel_RoundTrip(t *testing.T) {
 		},
 		CreatedAt: now,
 		UpdatedAt: now.Add(time.Hour * 24),
+		DeletedAt: &deletedAt,
 	}
 
 	var model MetadataMongoDBModel
@@ -303,4 +336,82 @@ func TestMetadataMongoDBModel_RoundTrip(t *testing.T) {
 	assert.Equal(t, original.Data, result.Data)
 	assert.Equal(t, original.CreatedAt, result.CreatedAt)
 	assert.Equal(t, original.UpdatedAt, result.UpdatedAt)
+	assert.Equal(t, original.DeletedAt, result.DeletedAt)
+}
+
+func TestMetadataMongoDBModel_BSON_DeletedAt(t *testing.T) {
+	deletedAt := time.Date(2026, time.October, 7, 12, 0, 0, 0, time.UTC)
+
+	t.Run("live document omits deleted_at", func(t *testing.T) {
+		raw, err := bson.Marshal(MetadataMongoDBModel{EntityID: "entity-live", Data: JSON{"k": "v"}})
+		require.NoError(t, err)
+
+		assert.True(t, bson.Raw(raw).Lookup("deleted_at").IsZero(), "a live document must not carry deleted_at")
+	})
+
+	t.Run("soft-deleted document round-trips deleted_at", func(t *testing.T) {
+		raw, err := bson.Marshal(MetadataMongoDBModel{EntityID: "entity-deleted", DeletedAt: &deletedAt})
+		require.NoError(t, err)
+
+		var decoded MetadataMongoDBModel
+		require.NoError(t, bson.Unmarshal(raw, &decoded))
+		require.NotNil(t, decoded.DeletedAt)
+		assert.True(t, deletedAt.Equal(*decoded.DeletedAt))
+	})
+}
+
+func applyFindOptions(t *testing.T, builder *options.FindOptionsBuilder) *options.FindOptions {
+	t.Helper()
+
+	opts := &options.FindOptions{}
+
+	for _, apply := range builder.List() {
+		require.NoError(t, apply(opts))
+	}
+
+	return opts
+}
+
+func TestBuildFindEntityIDsQuery(t *testing.T) {
+	tests := []struct {
+		name          string
+		sortOrder     string
+		after         string
+		wantEntityID  any
+		wantDirection int
+	}{
+		{name: "ascending first batch", sortOrder: "asc", wantDirection: 1},
+		{name: "ascending resumes after the cursor", sortOrder: "asc", after: "id-5", wantEntityID: bson.M{"$gt": "id-5"}, wantDirection: 1},
+		{name: "empty sort order is ascending", after: "id-5", wantEntityID: bson.M{"$gt": "id-5"}, wantDirection: 1},
+		{name: "descending first batch", sortOrder: "desc", wantDirection: -1},
+		{name: "descending resumes before the cursor", sortOrder: "DESC", after: "id-5", wantEntityID: bson.M{"$lt": "id-5"}, wantDirection: -1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metadataFilter := bson.M{"metadata.group": "cash"}
+			filter := http.QueryHeader{Metadata: &metadataFilter, SortOrder: tt.sortOrder}
+
+			mongoFilter, builder := buildFindEntityIDsQuery(filter, tt.after, 7)
+
+			want := bson.M{"metadata.group": "cash", "deleted_at": nil}
+			if tt.wantEntityID != nil {
+				want["entity_id"] = tt.wantEntityID
+			}
+
+			assert.Equal(t, want, mongoFilter)
+			assert.Equal(t, bson.M{"metadata.group": "cash"}, metadataFilter, "the caller's metadata map must not be mutated")
+
+			opts := applyFindOptions(t, builder)
+
+			require.NotNil(t, opts.Limit)
+			assert.Equal(t, int64(7), *opts.Limit)
+			assert.Equal(t, bson.D{{Key: "entity_id", Value: tt.wantDirection}}, opts.Sort)
+			assert.Equal(t, bson.D{{Key: "_id", Value: 0}, {Key: "entity_id", Value: 1}}, opts.Projection)
+		})
+	}
+}
+
+func TestBuildMetadataFilter_NilMetadata(t *testing.T) {
+	assert.Equal(t, bson.M{"deleted_at": nil}, buildMetadataFilter(http.QueryHeader{}))
 }

@@ -131,6 +131,9 @@ var TransactionRevertedDefinition = Definition{
 // Amount is `*decimal.Decimal` because the underlying Transaction.Amount
 // is also a pointer (some PENDING transactions can have unset amount
 // until the operations resolve). omitempty drops the field when nil.
+//
+// Scheme is the payment scheme the transaction was authored under (e.g.
+// PIX). omitempty drops the field when the transaction carries none.
 type TransactionPayload struct {
 	ID                       string            `json:"id"`
 	ParentTransactionID      *string           `json:"parentTransactionId,omitempty"`
@@ -151,6 +154,7 @@ type TransactionPayload struct {
 	Metadata                 map[string]any    `json:"metadata,omitempty"`
 	FeesSkipped              bool              `json:"feesSkipped"`
 	TracerSkipped            bool              `json:"tracerSkipped"`
+	Scheme                   string            `json:"scheme,omitempty"`
 	CreatedAt                string            `json:"createdAt"`
 	UpdatedAt                string            `json:"updatedAt"`
 }
@@ -185,6 +189,7 @@ type TransactionSource struct {
 	Metadata                 map[string]any
 	FeesSkipped              bool
 	TracerSkipped            bool
+	Scheme                   string
 	CreatedAt                time.Time
 	UpdatedAt                time.Time
 }
@@ -218,6 +223,7 @@ func newTransactionPayload(src TransactionSource) TransactionPayload {
 		Metadata:                 src.Metadata,
 		FeesSkipped:              src.FeesSkipped,
 		TracerSkipped:            src.TracerSkipped,
+		Scheme:                   src.Scheme,
 		CreatedAt:                src.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:                src.UpdatedAt.Format(time.RFC3339),
 	}

@@ -40,10 +40,13 @@ type validationSpyService struct {
 	capturedTenant string
 	result         *services.ValidateResult
 	err            error
+	// captured is the normalized request the handler hands the service.
+	captured *model.ValidationRequest
 }
 
-func (s *validationSpyService) Validate(ctx context.Context, _ *model.ValidationRequest) (*services.ValidateResult, error) {
+func (s *validationSpyService) Validate(ctx context.Context, request *model.ValidationRequest) (*services.ValidateResult, error) {
 	s.capturedTenant = tmctx.GetTenantIDContext(ctx)
+	s.captured = request
 	return s.result, s.err
 }
 

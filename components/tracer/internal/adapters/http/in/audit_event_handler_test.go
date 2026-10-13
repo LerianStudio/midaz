@@ -336,7 +336,7 @@ func TestAuditEventHandler_ListAuditEvents_InvalidTransactionType(t *testing.T) 
 	app := fiber.New()
 	app.Get("/v1/audit-events", handler.ListAuditEvents)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?transaction_type=INVALID_TYPE", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?transaction_type=bad%20value!", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -355,7 +355,7 @@ func TestAuditEventHandler_ListAuditEvents_InvalidTransactionType(t *testing.T) 
 }
 
 func TestListAuditEventsInput_ValidTransactionTypes(t *testing.T) {
-	validTypes := []string{"CARD", "WIRE", "PIX", "CRYPTO"}
+	validTypes := []string{"CARD", "WIRE", "PIX", "CRYPTO", "pix", " boleto "}
 
 	for _, txType := range validTypes {
 		t.Run(txType, func(t *testing.T) {
@@ -372,7 +372,7 @@ func TestListAuditEventsInput_ValidTransactionTypes(t *testing.T) {
 }
 
 func TestListAuditEventsInput_InvalidTransactionType(t *testing.T) {
-	invalid := "INVALID"
+	invalid := "bad value!"
 	limit := 10
 	input := ListAuditEventsInput{
 		TransactionType: &invalid,
@@ -667,7 +667,7 @@ func TestAuditEventHandler_GetAuditEvent(t *testing.T) {
 			handler := NewAuditEventHandler(mockService)
 
 			app := fiber.New()
-			app.Get("/v1/audit-events/:id", handler.GetAuditEvent)
+			app.Get("/v1/audit-events/:audit_event_id", handler.GetAuditEvent)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+tt.eventID, nil)
 			resp, err := app.Test(req)
@@ -807,7 +807,7 @@ func TestAuditEventHandler_VerifyHashChain(t *testing.T) {
 			handler := NewAuditEventHandler(mockService)
 
 			app := fiber.New()
-			app.Get("/v1/audit-events/:id/verify", handler.VerifyHashChain)
+			app.Get("/v1/audit-events/:audit_event_id/verify", handler.VerifyHashChain)
 
 			req := httptest.NewRequest(http.MethodGet, "/v1/audit-events/"+tt.eventID+"/verify", nil)
 			resp, err := app.Test(req)

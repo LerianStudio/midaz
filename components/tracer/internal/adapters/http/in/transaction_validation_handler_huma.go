@@ -34,14 +34,14 @@ import (
 // so there is no RawBody/SkipValidateBody envelope here.
 
 // GetTransactionValidationInputHuma is the Huma request envelope for
-// GET /v1/validations/{id}. The path param carries NO format:"uuid": uuid.Parse
+// GET /v1/validations/{validation_id}. The path param carries NO format:"uuid": uuid.Parse
 // in the core is the sole validator (canonical 400/0065, never a native 422).
 type GetTransactionValidationInputHuma struct {
-	ID string `path:"id" doc:"Transaction Validation ID (UUID)"`
+	ID string `path:"validation_id" doc:"Transaction Validation ID (UUID)"`
 }
 
 // GetTransactionValidationOutputHuma is the Huma response envelope for
-// GET /v1/validations/{id}.
+// GET /v1/validations/{validation_id}.
 type GetTransactionValidationOutputHuma struct {
 	Status int
 	Body   *model.TransactionValidation
@@ -67,7 +67,8 @@ type ListTransactionValidationsInputHuma struct {
 	ExceededLimitID string `query:"exceeded_limit_id" doc:"Filter by exceeded limit ID (UUID)"`
 	SegmentID       string `query:"segment_id" doc:"Filter by segment ID (UUID)"`
 	PortfolioID     string `query:"portfolio_id" doc:"Filter by portfolio ID (UUID)"`
-	TransactionType string `query:"transaction_type" doc:"Filter by transaction type (CARD, WIRE, PIX, CRYPTO)"`
+	TransactionType string `query:"transaction_type" deprecated:"true" doc:"Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"`
+	Scheme          string `query:"scheme" doc:"Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"`
 
 	// rawQuery is the request's parsed query, captured by Resolve. It is the
 	// binding source (NOT the struct-tag fields above), so present-but-empty keys
@@ -135,6 +136,7 @@ func (in *ListTransactionValidationsInputHuma) bindListTransactionValidationsInp
 	out.SegmentID = last("segment_id")
 	out.PortfolioID = last("portfolio_id")
 	out.TransactionType = last("transaction_type")
+	out.Scheme = last("scheme")
 
 	// limit is a *int: a present key (even empty) yields a non-nil pointer; an
 	// absent key leaves it nil (SetDefaults fills the default). Empty limit binds
@@ -168,7 +170,7 @@ type ListTransactionValidationsOutputHuma struct {
 	Body   *ListTransactionValidationsResponse
 }
 
-// GetTransactionValidationHuma is the Huma handler for GET /v1/validations/{id}.
+// GetTransactionValidationHuma is the Huma handler for GET /v1/validations/{validation_id}.
 // It delegates to the shared core and, on success, returns 200 with the record.
 func (h *TransactionValidationHandler) GetTransactionValidationHuma(ctx context.Context, in *GetTransactionValidationInputHuma) (*GetTransactionValidationOutputHuma, error) {
 	result, err := h.getTransactionValidation(ctx, in.ID)
@@ -200,7 +202,7 @@ func RegisterTransactionValidationRoutes(api huma.API, h *TransactionValidationH
 	huma.Register(api, huma.Operation{
 		OperationID: "getValidation",
 		Method:      http.MethodGet,
-		Path:        "/validations/{id}",
+		Path:        "/validations/{validation_id}",
 		Summary:     "Get a transaction validation record by ID",
 		Tags:        []string{"Validations"},
 		Security:    secBearerOrAPIKey,

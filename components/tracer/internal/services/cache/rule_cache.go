@@ -314,6 +314,11 @@ func deepCopy(src *CachedRule) *CachedRule {
 				st := *s.SubType
 				scopesCopy[i].SubType = &st
 			}
+
+			if s.Scheme != nil {
+				sc := *s.Scheme
+				scopesCopy[i].Scheme = &sc
+			}
 		}
 
 		ruleCopy.Scopes = scopesCopy

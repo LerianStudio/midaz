@@ -78,7 +78,7 @@ func setupAtomicBatchHTTPIntegrationFixture(t *testing.T) *atomicBatchHTTPIntegr
 	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
 	infra := setupTestInfra(t)
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	engine, err := redisengine.NewAdapter(redisConn)
 	require.NoError(t, err)
 
@@ -1175,6 +1175,7 @@ func TestIntegration_DirectV2CrossLedger_AcknowledgesEveryRecoveryPart(t *testin
 	cleanup, err := repository.CleanupEngineRecovery(context.Background(),
 		time.Date(2026, time.September, 23, 12, 0, 0, 0, time.UTC), 10)
 	require.NoError(t, err)
+	require.Zero(t, cleanup.Failed, "group cleanup proof must be accepted: %v", cleanup.FirstFailure)
 	require.Equal(t, 1, cleanup.Cleaned, "one complete group receipt is due for cleanup")
 	for _, part := range created.Transactions {
 		_, err := repository.GetEngineTransactionIndex(context.Background(), fixture.infra.orgID,

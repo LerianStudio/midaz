@@ -77,6 +77,11 @@ func (r *pendingLifecycleReader) GetEngineBalances(ctx context.Context, organiza
 	return balances, balances, err
 }
 
+// GetFeeDebtSeeds answers that no balance it serves holds fee debt.
+func (r *pendingLifecycleReader) GetFeeDebtSeeds(context.Context, uuid.UUID, uuid.UUID, []string) (map[string][]core.FeeDebtItem, error) {
+	return nil, nil
+}
+
 func (r *pendingLifecycleReader) ValidateAccountingRules(context.Context, uuid.UUID, uuid.UUID, []mmodel.BalanceOperation, *mtransaction.Responses, string) (*mmodel.TransactionRouteCache, error) {
 	return nil, nil
 }
@@ -376,6 +381,7 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 				func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 			)
 			redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+			redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 
 			realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
@@ -531,8 +537,8 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 	redisRepository.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
 		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 	)
-	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).Return(true, nil).Times(2)
-	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).Return(true, nil).Times(2)
+	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
@@ -731,13 +737,13 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 	)
 	lockAcquisitions := 0
-	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Duration(300)).DoAndReturn(
+	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).DoAndReturn(
 		func(context.Context, string, string, time.Duration) (bool, error) {
 			lockAcquisitions++
 			return true, nil
 		},
 	).Times(3)
-	redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
@@ -822,9 +828,9 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 		{ref: "@target#default", available: "50", onHold: "0", version: 4},
 	})
 
-	// A successful SetNX is the command-visible state after the expiring Go lock
-	// has disappeared. Both later commands reacquire it, but neither may cross the
-	// durable PENDING -> APPROVED engine guard a second time.
+	// A successful SetNX is the command-visible state once the Go lock is gone,
+	// whether released or expired. Both later commands reacquire it, but neither
+	// may cross the durable PENDING -> APPROVED engine guard a second time.
 	transitioned, err = uc.CommitTransactionV2(ctx, transitionInput)
 	requirePendingLifecycleLockConflict(t, err)
 	require.Nil(t, transitioned)

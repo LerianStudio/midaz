@@ -25,6 +25,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/fee"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -64,7 +65,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 	span trace.Span,
 	logger libLog.Logger,
 	run *pendingTransitionRun,
-	unlock func(),
 	tracerEligible bool,
 ) (*transaction.Transaction, error) {
 	// The transition reloads the balances of the pending transaction. A cache miss
@@ -75,7 +75,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 
 	transition, err := uc.preparePendingEngineTransition(ctx, run)
 	if err != nil {
-		unlock()
 		return nil, err
 	}
 
@@ -96,7 +95,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 		},
 	})
 	if err != nil {
-		unlock()
 		return nil, err
 	}
 
@@ -104,7 +102,6 @@ func (uc *UseCase) transitionPendingWithEngine(
 
 	prepared, err := buildPendingEngineExecution(transition.persisted, transition.input, transition.validate, engineState, transition.stableContext, transition.action, transition.dependencies)
 	if err != nil {
-		unlock()
 		return nil, err
 	}
 
@@ -113,17 +110,11 @@ func (uc *UseCase) transitionPendingWithEngine(
 
 	if executeErr != nil {
 		if !outcome.Executed {
-			unlock()
 			return nil, executeErr
 		}
 
 		if isConfirmedEngineTransitionConflict(executeErr) {
-			unlock()
 			return nil, uc.resolvePendingGuardConflict(ctx, run.organizationID, run.ledgerID, transition.transactionID)
-		}
-
-		if confirmedPrecommitEngineFailure(prepared.Execution.Execution, executeErr) {
-			unlock()
 		}
 
 		return nil, MapEngineError(prepared.Execution.Execution, executeErr)
@@ -257,7 +248,7 @@ func (uc *UseCase) preparePendingEngineIntent(ctx context.Context, run *pendingT
 		return pendingEngineTransition{}, err
 	}
 
-	input.Metadata = flattenLegacyFeeExemption(input.Metadata)
+	input.Metadata = fee.FlattenLegacyFeeExemption(input.Metadata)
 	mtransaction.ApplyDefaultBalanceKeys(input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(input.Send.Distribute.To)
 	mtransaction.MutateConcatAliases(input.Send.Source.From)

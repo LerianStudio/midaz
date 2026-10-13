@@ -183,7 +183,7 @@ func (handler *InstrumentHandler) UpdateInstrument(ctx context.Context, in *Upda
 
 	payload := new(mmodel.UpdateInstrumentInput)
 
-	originalMap, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload)
+	originalMap, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullKeepsV2)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

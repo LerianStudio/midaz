@@ -2853,7 +2853,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidScopeUUID(t *testing.T) {
 }
 
 // TestLimits_CreateLimit_ValidationError_InvalidTransactionTypeInScope tests that
-// invalid transactionType in scope is rejected.
+// a scope transactionType that is not a valid scheme is rejected.
 func TestLimits_CreateLimit_ValidationError_InvalidTransactionTypeInScope(t *testing.T) {
 	apiKey := testutil.GetAPIKey()
 	baseURL := testutil.GetBaseURL()
@@ -2864,7 +2864,7 @@ func TestLimits_CreateLimit_ValidationError_InvalidTransactionTypeInScope(t *tes
 		MaxAmount: decimal.RequireFromString("1000"),
 		Asset:     "USD",
 		Scopes: []limitScopeInput{
-			{TransactionType: testutil.Ptr("INVALID")},
+			{TransactionType: testutil.Ptr("INVALID TYPE")},
 		},
 	}
 

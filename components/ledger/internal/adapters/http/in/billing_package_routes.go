@@ -25,7 +25,7 @@ import (
 func RegisterBillingPackageRoutes(api huma.API, h *BillingPackageHandler, opSuffix string) {
 	const (
 		listPath = "/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages"
-		idPath   = listPath + "/{id}"
+		idPath   = listPath + "/{billing_package_id}"
 		tag      = "Billing Packages"
 	)
 
@@ -106,7 +106,7 @@ func RegisterBillingPackageV2RoutesToApp(group fiber.Router, api huma.API, auth 
 func registerBillingPackageRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, h *BillingPackageHandler, routeOptions *pkgHTTP.ProtectedRouteOptions, opSuffix string) {
 	const (
 		billingPackagesPath  = "/organizations/:organization_id/ledgers/:ledger_id/billing-packages"
-		billingPackageIDPath = billingPackagesPath + "/:id"
+		billingPackageIDPath = billingPackagesPath + "/:billing_package_id"
 	)
 
 	billingPackageParse := pkgHTTP.ParseUUIDPathParameters("billing-packages")

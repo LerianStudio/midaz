@@ -117,7 +117,7 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
 
 	started := time.Now()
-	defer func() { recordExecutionOutcome(ctx, factory, logger, time.Since(started), err) }()
+	defer func() { recordExecutionOutcome(ctx, factory, logger, time.Since(started), input.Execution, err) }()
 
 	if err := ctx.Err(); err != nil {
 		return nil, technical("context_canceled", false, err)
@@ -522,7 +522,7 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 func validateFailure(failure accounting.Failure, request accounting.Execution) error {
 	switch failure.Code {
 	case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded, accounting.FailureOverdraftNotEligible,
-		accounting.FailureOverdraftCompanionMissing, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked, accounting.FailureOnHoldUnderflow,
+		accounting.FailureOverdraftCompanionMissing, accounting.FailureOverdraftRepayRouteDenied, accounting.FailureBalanceDeleted, accounting.FailureAccountBlocked, accounting.FailureOnHoldUnderflow,
 		accounting.FailureBalanceMissing, accounting.FailureAssetMismatch, accounting.FailureSendingNotAllowed,
 		accounting.FailureReceivingNotAllowed, accounting.FailureExternalHoldNotAllowed,
 		accounting.FailureAccountBlockExceptionInvalid:

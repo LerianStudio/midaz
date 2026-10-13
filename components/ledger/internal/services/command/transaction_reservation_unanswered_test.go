@@ -87,7 +87,7 @@ func TestReserveTransaction_MarksOnlyUnansweredFailures(t *testing.T) {
 
 			out := uc.reserveTransaction(ctx, span, logger, tc.settings,
 				transactionID, decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp,
-				reservationTTLDefault, reservationForCreate, tc.honoredSkip)
+				reservationTTLDefault, reservationForCreate, tc.honoredSkip, "")
 
 			assert.Equal(t, tc.wantUnanswered, out.Handle.Unanswered)
 

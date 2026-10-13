@@ -269,8 +269,8 @@ func TestListLimits_4_6_InvalidScopeFiltersReturnError(t *testing.T) {
 			expectMsg:   "filters",
 		},
 		{
-			name:        "invalid transaction_type enum",
-			queryParams: "transaction_type=INVALID_TYPE",
+			name:        "invalid transaction_type scheme",
+			queryParams: "transaction_type=INVALID%20TYPE",
 			expectCode:  "0082",
 			expectMsg:   "filters",
 		},

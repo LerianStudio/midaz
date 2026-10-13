@@ -567,7 +567,7 @@ func UpdateLimitE(limitID string, req *UpdateLimitRequest) (LimitResponse, int, 
 	return limit, resp.StatusCode, nil
 }
 
-// UsageSnapshot represents the response from GET /v1/limits/{id}/usage.
+// UsageSnapshot represents the response from GET /v1/limits/{limit_id}/usage.
 type UsageSnapshot struct {
 	LimitID            string          `json:"limitId"`
 	CurrentUsage       decimal.Decimal `json:"currentUsage"`

@@ -121,7 +121,7 @@ func (handler *OperationRouteHandler) UpdateOrganizationOperationRoute(ctx conte
 	}
 
 	payload := new(mmodel.UpdateOperationRouteInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNullKeepsV2); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

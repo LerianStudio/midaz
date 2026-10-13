@@ -150,13 +150,13 @@ func TestUpdatePackageByID_FeeWithoutCalculationIsRefused(t *testing.T) {
 						MaxAmount: decimal.NewFromInt(1000),
 						Fees:      map[string]model.Fee{},
 						LedgerID:  uuid.New(),
-					}, nil)
+					}, nil).Times(2)
 
 				// Nothing may be written. The expectation is explicit and zero
 				// so the write itself is what fails the case, rather than a
 				// later assertion on an error the write would not have stopped.
 				mockPackageRepo.EXPECT().
-					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 					Times(0)
 
 				svc := &UseCase{packageRepo: mockPackageRepo, resolver: mockResolver}

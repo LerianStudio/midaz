@@ -37,7 +37,7 @@ func RegisterCompositionV2RoutesToApp(group fiber.Router, api huma.API, auth *mi
 // v2OpSuffix. Nothing else varies between contracts, so a change to the surface reaches
 // every version it is mounted on.
 func registerCompositionRoutesToApp(group fiber.Router, api huma.API, auth *middleware.AuthClient, ch *CompositionHandler, routeOptions *http.ProtectedRouteOptions, opSuffix string) {
-	const path = "/organizations/:organization_id/ledgers/:ledger_id/holders/:id/accounts"
+	const path = "/organizations/:organization_id/ledgers/:ledger_id/holders/:holder_id/accounts"
 
 	routePost(group, path, protectedMidaz(auth, "accounts", "post", routeOptions, http.ParseUUIDPathParameters("holder")))
 

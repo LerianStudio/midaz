@@ -176,7 +176,7 @@ type UpdateOperationResponse struct {
 // UpdateOperation resolves the path UUIDs, decodes+validates the raw body
 // imperatively, then delegates to the shared updateOperation core
 // (command.UpdateOperation + query.GetOperationByID).
-func (handler *OperationHandler) UpdateOperation(ctx context.Context, in *UpdateOperationRequest) (*UpdateOperationResponse, error) {
+func (handler *OperationHandler) UpdateOperation(ctx context.Context, in *UpdateOperationRequest, metadataNull metadataNullPolicy) (*UpdateOperationResponse, error) {
 	organizationID, ledgerID, err := parseOrgLedger(in.OrganizationID, in.LedgerID)
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
@@ -193,7 +193,7 @@ func (handler *OperationHandler) UpdateOperation(ctx context.Context, in *Update
 	}
 
 	payload := new(operation.UpdateOperationInput)
-	if _, err := pkgHTTP.DecodeAndValidate(in.RawBody, payload); err != nil {
+	if _, err := decodePatchBody(in.RawBody, payload, &payload.Metadata, metadataNull); err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 

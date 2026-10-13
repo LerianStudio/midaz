@@ -28,7 +28,7 @@ import (
 var TransactionRouteUpdatedDefinition = Definition{
 	ResourceType:  "transaction_route",
 	EventType:     "updated",
-	SchemaVersion: "1.1.0",
+	SchemaVersion: "1.2.0",
 }
 
 // TransactionRouteUpdatedPayload is the wire payload for transaction_route.updated.
@@ -50,7 +50,11 @@ type TransactionRouteUpdatedPayload struct {
 	Title             string   `json:"title"`
 	Description       string   `json:"description,omitempty"`
 	OperationRouteIDs []string `json:"operationRouteIds,omitempty"`
-	UpdatedAt         string   `json:"updatedAt"`
+	// OptionalOperationRouteIDs names the links in OperationRouteIDs that a
+	// transaction may leave unused (schema 1.2.0). Absent when every link is
+	// required.
+	OptionalOperationRouteIDs []string `json:"optionalOperationRouteIds,omitempty"`
+	UpdatedAt                 string   `json:"updatedAt"`
 }
 
 // NewTransactionRouteUpdated maps the post-update transaction route
@@ -71,13 +75,14 @@ func NewTransactionRouteUpdated(tr *mmodel.TransactionRoute) TransactionRouteUpd
 	}
 
 	return TransactionRouteUpdatedPayload{
-		ID:                tr.ID.String(),
-		OrganizationID:    tr.OrganizationID.String(),
-		LedgerID:          derefUUIDString(tr.LedgerID),
-		Title:             tr.Title,
-		Description:       tr.Description,
-		OperationRouteIDs: operationRouteIDs,
-		UpdatedAt:         tr.UpdatedAt.Format(time.RFC3339),
+		ID:                        tr.ID.String(),
+		OrganizationID:            tr.OrganizationID.String(),
+		LedgerID:                  derefUUIDString(tr.LedgerID),
+		Title:                     tr.Title,
+		Description:               tr.Description,
+		OperationRouteIDs:         operationRouteIDs,
+		OptionalOperationRouteIDs: optionalOperationRouteIDs(tr),
+		UpdatedAt:                 tr.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

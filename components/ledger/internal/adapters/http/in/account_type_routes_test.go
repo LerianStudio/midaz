@@ -29,9 +29,9 @@ var accountTypeV2Ops = []struct {
 }{
 	{action: "create", method: http.MethodPost, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types", v1OperationID: "createAccountType"},
 	{action: "list", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types", v1OperationID: "listAccountTypes"},
-	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}", v1OperationID: "getAccountTypeByID"},
-	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}", v1OperationID: "updateAccountType"},
-	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{id}", v1OperationID: "deleteAccountType"},
+	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}", v1OperationID: "getAccountTypeByID"},
+	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}", v1OperationID: "updateAccountType"},
+	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/account-types/{account_type_id}", v1OperationID: "deleteAccountType"},
 }
 
 // accountTypeV2OperationSuffix is the version suffix a v2 twin appends to its v1 operationId.

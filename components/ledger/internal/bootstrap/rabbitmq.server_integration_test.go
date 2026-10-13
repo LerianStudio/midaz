@@ -34,6 +34,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 )
 
@@ -91,12 +92,18 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			Times(1)
 
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
+			BeginTx(gomock.Any()).
+			Return(rabbitLegacyDBTransaction{}, nil).
+			Times(1)
+
+		mockTransactionRepo.EXPECT().
+			CreateBulkTx(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ repository.DBExecutor, trans []*transaction.Transaction) (*repository.BulkInsertResult, error) {
 				// Signal that processing completed successfully
 				defer processingDone.Done()
-				t.Logf("Transaction created: ID=%s, Description=%s", tran.ID, tran.Description)
-				return tran, nil
+				require.Len(t, trans, 1)
+				t.Logf("Transaction created: ID=%s, Description=%s", trans[0].ID, trans[0].Description)
+				return &repository.BulkInsertResult{Attempted: 1, Inserted: 1}, nil
 			}).
 			Times(1)
 
@@ -128,6 +135,8 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			BalanceRepo:             mockBalanceRepo,
 			RabbitMQRepo:            mockRabbitMQRepo,
 			TransactionRedisRepo:    mockRedisRepo,
+			// A legacy message never reaches the completer.
+			AppliedTransactionCompleter: &appliedTransactionCompleterStub{},
 		}
 
 		// Setup RabbitMQ testcontainer
@@ -162,14 +171,9 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 		consumerRoutes, err := rabbitmq.NewConsumerRoutes(conn, 1, 1, logger, telemetry)
 		require.NoError(t, err, "failed to create consumer routes")
 
-		// Create MultiQueueConsumer with mocked UseCase
-		consumer := &MultiQueueConsumer{
-			consumerRoutes: consumerRoutes,
-			UseCase:        uc,
-		}
-
-		// Register handler for our test queue
-		consumerRoutes.Register(queueName, consumer.handlerBTOQueue)
+		t.Setenv("RABBITMQ_TRANSACTION_BALANCE_OPERATION_QUEUE", queueName)
+		_, err = NewMultiQueueConsumer(consumerRoutes, uc, false, nil)
+		require.NoError(t, err)
 
 		// Start consumer
 		err = consumerRoutes.RunConsumers()

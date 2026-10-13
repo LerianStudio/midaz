@@ -127,10 +127,10 @@ func (s *LimitService) ListLimits(ctx context.Context, filter *model.ListLimitsF
 	return result, nil
 }
 
-// GetLimitUsage retrieves a usage snapshot for a limit.
-// Returns aggregated usage information including currentUsage (sum of all counters),
-// utilizationPercent, nearLimit flag (>80%), and the limit's next reset after now.
-// For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
+// GetLimitUsage retrieves the usage snapshot of a limit in the period that
+// contains the service clock's now: the usage of its most consumed scope,
+// utilizationPercent, nearLimit flag (>80%), and the limit's next reset after
+// now. For PER_TRANSACTION limits, currentUsage is always 0 and resetAt is nil.
 func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*model.UsageSnapshot, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -152,7 +152,9 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 		return nil, err
 	}
 
-	counters, err := s.usageCounterRepo.GetByLimitID(ctx, limitID)
+	now := s.clock.Now()
+
+	counters, err := s.currentPeriodCounters(ctx, limit, now)
 	if err != nil {
 		libOtel.HandleSpanError(span, "Failed to get usage counters", err)
 
@@ -165,7 +167,7 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 		return nil, err
 	}
 
-	setCurrentResetAt(limit, s.clock.Now())
+	setCurrentResetAt(limit, now)
 
 	snapshot := model.NewUsageSnapshot(limit, counters)
 
@@ -179,6 +181,21 @@ func (s *LimitService) GetLimitUsage(ctx context.Context, limitID uuid.UUID) (*m
 	).Log(ctx, libLog.LevelDebug, "Retrieved usage snapshot")
 
 	return snapshot, nil
+}
+
+// currentPeriodCounters reads the counters of the period containing now. A
+// PER_TRANSACTION limit keeps no counters, so nothing is read for it.
+func (s *LimitService) currentPeriodCounters(ctx context.Context, limit *model.Limit, now time.Time) ([]model.UsageCounter, error) {
+	if limit.LimitType == model.LimitTypePerTransaction {
+		return nil, nil
+	}
+
+	periodKey, err := limit.PeriodKey(now)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.usageCounterRepo.GetByLimitIDAndPeriod(ctx, limit.ID, periodKey)
 }
 
 // withCurrentResetAt refreshes the ResetAt of a limit returned without error.

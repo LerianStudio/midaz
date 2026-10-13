@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/backfill"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -27,11 +29,8 @@ type activeTenantLister interface {
 	GetActiveTenantsByService(ctx context.Context, service string) ([]*tmclient.TenantSummary, error)
 }
 
-// HolderBackfillRunner is the composed entrypoint for the cross-store self-holder
-// backfill. It owns the dependencies the runner needs and the multi-tenant
-// iteration: single-tenant runs against the ambient connections; multi-tenant
-// enumerates active tenants and injects per-tenant PG + Mongo connections before
-// each pass, mirroring how the balance-sync worker scopes per-tenant work.
+// HolderBackfillRunner runs the cross-store self-holder backfill, then the metadata dedupe,
+// against the ambient connections in single-tenant mode or once per active tenant otherwise.
 type HolderBackfillRunner struct {
 	logger             libLog.Logger
 	multiTenantEnabled bool
@@ -39,8 +38,10 @@ type HolderBackfillRunner struct {
 
 	runner *backfill.HolderBackfiller
 
-	onbPG *onboardingPostgresComponents
-	crm   *crmComponents
+	onbPG  *onboardingPostgresComponents
+	crm    *crmComponents
+	onbMgo *onboardingMongoComponents
+	txnMgo *transactionMongoComponents
 
 	tenantClient activeTenantLister
 
@@ -107,6 +108,16 @@ func InitHolderBackfill() (*HolderBackfillRunner, error) {
 		return nil, fmt.Errorf("failed to initialize CRM: %w", err)
 	}
 
+	onbMgo, err := initOnboardingMongo(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize onboarding MongoDB: %w", err)
+	}
+
+	txnMgo, err := initTransactionMongo(opts, cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize transaction MongoDB: %w", err)
+	}
+
 	runner := backfill.NewHolderBackfiller(onbPG.organizationRepo, crm.holderHandler.Service)
 
 	r := &HolderBackfillRunner{
@@ -116,6 +127,8 @@ func InitHolderBackfill() (*HolderBackfillRunner, error) {
 		runner:             runner,
 		onbPG:              onbPG,
 		crm:                crm,
+		onbMgo:             onbMgo,
+		txnMgo:             txnMgo,
 	}
 
 	r.runForTenantFn = r.runForTenant
@@ -127,11 +140,8 @@ func InitHolderBackfill() (*HolderBackfillRunner, error) {
 	return r, nil
 }
 
-// Run executes the backfill. In single-tenant mode it runs one pass against the
-// ambient connections. In multi-tenant mode it enumerates active tenants and runs
-// one pass per tenant against per-tenant PG + Mongo connections. A failure on one
-// tenant aborts the whole run: leaving the rest unprocessed is safer than masking
-// a fault, and the runner is idempotent so a re-run after the fix is a no-op.
+// Run executes the backfill. A failure on one tenant aborts the run, which is idempotent; a
+// raced metadata collection does not, and the run ends with one error naming them all.
 func (r *HolderBackfillRunner) Run(ctx context.Context) error {
 	if !r.multiTenantEnabled {
 		pgDB, err := r.onbPG.connection.Resolver(ctx)
@@ -151,13 +161,25 @@ func (r *HolderBackfillRunner) Run(ctx context.Context) error {
 			libLog.Int("holders_provisioned", result.HoldersProvisioned),
 			libLog.Any("accounts_materialised", result.AccountsMaterialised))
 
-		return nil
+		onbDB, err := r.onbMgo.connection.Database(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to resolve onboarding Mongo database: %w", err)
+		}
+
+		txnDB, err := r.txnMgo.connection.Database(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to resolve transaction Mongo database: %w", err)
+		}
+
+		return r.dedupeMetadata(ctx, onbDB, txnDB)
 	}
 
 	tenants, err := r.tenantClient.GetActiveTenantsByService(ctx, r.tenantServiceName)
 	if err != nil {
 		return fmt.Errorf("failed to list active tenants: %w", err)
 	}
+
+	var raced error
 
 	for i, tenant := range tenants {
 		if tenant == nil {
@@ -167,7 +189,10 @@ func (r *HolderBackfillRunner) Run(ctx context.Context) error {
 			continue
 		}
 
-		if err := r.runForTenantFn(ctx, tenant.ID); err != nil {
+		switch err := r.runForTenantFn(ctx, tenant.ID); {
+		case errors.Is(err, backfill.ErrMetadataRaced):
+			raced = errors.Join(raced, fmt.Errorf("tenant %s: %w", tenant.ID, err))
+		case err != nil:
 			return fmt.Errorf("backfill failed for tenant %s: %w", tenant.ID, err)
 		}
 	}
@@ -175,7 +200,7 @@ func (r *HolderBackfillRunner) Run(ctx context.Context) error {
 	r.logger.Log(ctx, libLog.LevelInfo, "Holder backfill completed for all tenants",
 		libLog.Int("tenants_processed", len(tenants)))
 
-	return nil
+	return raced
 }
 
 // runForTenant resolves the tenant's PG and Mongo connections and injects them
@@ -215,5 +240,38 @@ func (r *HolderBackfillRunner) runForTenant(ctx context.Context, tenantID string
 		libLog.Int("holders_provisioned", result.HoldersProvisioned),
 		libLog.Any("accounts_materialised", result.AccountsMaterialised))
 
-	return nil
+	onbDB, err := r.onbMgo.mongoManager.GetDatabaseForTenant(tenantCtx, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to get onboarding Mongo database: %w", err)
+	}
+
+	txnDB, err := r.txnMgo.mongoManager.GetDatabaseForTenant(tenantCtx, tenantID)
+	if err != nil {
+		return fmt.Errorf("failed to get transaction Mongo database: %w", err)
+	}
+
+	return r.dedupeMetadata(tenantCtx, onbDB, txnDB)
+}
+
+// dedupeMetadata folds duplicate metadata documents in both modules' databases and makes
+// entity_id unique on every metadata collection; raced collections are joined, not fatal.
+func (r *HolderBackfillRunner) dedupeMetadata(ctx context.Context, onboarding, transaction *mongo.Database) error {
+	var raced error
+
+	for _, pass := range []struct {
+		db       *mongo.Database
+		entities []string
+	}{{onboarding, onboardingMetadataEntities}, {transaction, transactionMetadataEntities}} {
+		folded, err := backfill.DedupeMetadata(ctx, pass.db, pass.entities)
+		if err != nil && !errors.Is(err, backfill.ErrMetadataRaced) {
+			return err
+		}
+
+		raced = errors.Join(raced, err)
+
+		r.logger.Log(ctx, libLog.LevelInfo, "Metadata dedupe completed",
+			libLog.String("database", pass.db.Name()), libLog.Int("entities_folded", folded))
+	}
+
+	return raced
 }

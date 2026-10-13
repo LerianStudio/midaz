@@ -151,6 +151,85 @@ func TestRevertTransaction_EligibilityGateIsShared(t *testing.T) {
 	}
 }
 
+// TestRevertTransaction_RefusesBlockAndUnblock proves a block or unblock can never be
+// reverted on either contract, whatever shape its operations were written in: the
+// opposite operation is how it is undone, so the gate refuses before any reversal.
+func TestRevertTransaction_RefusesBlockAndUnblock(t *testing.T) {
+	blockWithLabeledCompanion := func() *transaction.Transaction {
+		origin := revertibleOrigin()
+		amount := decimal.NewFromInt(10)
+		origin.Operations[0].Type, origin.Operations[1].Type = constant.BLOCK, constant.BLOCK
+		origin.Operations = append(origin.Operations, &operation.Operation{
+			Type: constant.BLOCK, AccountAlias: "@payer", Amount: operation.Amount{Value: &amount}, AssetCode: "BRL", BalanceKey: constant.OverdraftBalanceKey,
+		})
+
+		return origin
+	}
+	withType := func(opType string) func() *transaction.Transaction {
+		return func() *transaction.Transaction {
+			origin := revertibleOrigin()
+			origin.Operations[0].Type, origin.Operations[1].Type = opType, opType
+
+			return origin
+		}
+	}
+
+	versions := []struct {
+		name   string
+		invoke func(uc *UseCase, in RevertTransactionInput) error
+	}{
+		{name: "v1", invoke: func(uc *UseCase, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV1(context.Background(), in)
+
+			return err
+		}},
+		{name: "v2", invoke: func(uc *UseCase, in RevertTransactionInput) error {
+			_, _, err := uc.RevertTransactionV2(context.Background(), in)
+
+			return err
+		}},
+	}
+
+	origins := []struct {
+		name   string
+		origin func() *transaction.Transaction
+	}{
+		{name: "block", origin: withType(constant.BLOCK)},
+		{name: "unblock", origin: withType(constant.UNBLOCK)},
+		{name: "block with a companion labeled block", origin: blockWithLabeledCompanion},
+	}
+
+	for _, version := range versions {
+		for _, tc := range origins {
+			t.Run(version.name+"/"+tc.name, func(t *testing.T) {
+				reader := &revertReader{origin: tc.origin()}
+				uc := newRevertUseCase(t, reader)
+
+				err := version.invoke(uc, revertInput())
+
+				var business pkg.UnprocessableOperationError
+
+				require.ErrorAs(t, err, &business)
+				assert.Equal(t, constant.ErrBlockUnblockNotRevertible.Error(), business.Code)
+				assert.Zero(t, reader.getBalancesCalls, "a block or unblock must be refused before the pipeline runs")
+			})
+		}
+	}
+
+	t.Run("a block that is not approved keeps the status refusal", func(t *testing.T) {
+		origin := withType(constant.BLOCK)()
+		origin.Status = transaction.Status{Code: constant.PENDING}
+		uc := newRevertUseCase(t, &revertReader{origin: origin})
+
+		_, _, err := uc.RevertTransactionV2(context.Background(), revertInput())
+
+		var business pkg.EntityConflictError
+
+		require.ErrorAs(t, err, &business)
+		assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), business.Code)
+	})
+}
+
 // TestRevertTransactionV1_NeverDialsTheTracer proves the /v1 revert reaches the balance
 // read with a reserver that fails the test on any call: the /v1 pipeline never asks the
 // tracer anything.

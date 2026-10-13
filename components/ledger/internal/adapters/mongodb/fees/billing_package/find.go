@@ -34,7 +34,7 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id, orga
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -90,7 +90,7 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -208,7 +208,7 @@ func (r *BillingPackageMongoDBRepository) FindMatchingPackages(ctx context.Conte
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -290,7 +290,7 @@ func (r *BillingPackageMongoDBRepository) FindActiveByType(ctx context.Context, 
 
 	span.SetAttributes(attributes...)
 
-	db, err := r.getDatabase(ctx)
+	db, err := r.connection.ResolveDatabase(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
 
@@ -314,6 +314,87 @@ func (r *BillingPackageMongoDBRepository) FindActiveByType(ctx context.Context, 
 	cur, err := coll.Find(ctx, queryFilter)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, "Failed to find active billing packages by type", err)
+		spanFind.End()
+
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	spanFind.End()
+
+	var results []*BillingPackageMongoDBModel
+
+	for cur.Next(ctx) {
+		var record BillingPackageMongoDBModel
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to decode billing package", err)
+
+			return nil, err
+		}
+
+		results = append(results, &record)
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate billing packages", err)
+
+		return nil, err
+	}
+
+	packages := make([]*model.BillingPackage, 0, len(results))
+	for i := range results {
+		entity, err := results[i].ToEntity()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to convert billing package record to entity", err)
+
+			return nil, err
+		}
+
+		packages = append(packages, entity)
+	}
+
+	return packages, nil
+}
+
+// FindNotDeletedByLedger sorts like FindAll, with _id breaking created_at ties.
+func (r *BillingPackageMongoDBRepository) FindNotDeletedByLedger(ctx context.Context, organizationID, ledgerID string) ([]*model.BillingPackage, error) {
+	_, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "repository.billing_package.find_not_deleted_by_ledger")
+	defer span.End()
+
+	attributes := []attribute.KeyValue{
+		attribute.String("app.request.request_id", reqId),
+		attribute.String("app.request.organization_id", organizationID),
+		attribute.String("app.request.ledger_id", ledgerID),
+	}
+
+	span.SetAttributes(attributes...)
+
+	db, err := r.connection.ResolveDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
+
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
+
+	queryFilter := bson.M{
+		"organization_id": organizationID,
+		"ledger_id":       ledgerID,
+		"deleted_at":      bson.M{"$eq": nil},
+	}
+
+	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: 1}})
+
+	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_not_deleted_by_ledger.find")
+
+	spanFind.SetAttributes(attributes...)
+
+	cur, err := coll.Find(ctx, queryFilter, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(spanFind, "Failed to find not deleted billing packages by ledger", err)
 		spanFind.End()
 
 		return nil, err

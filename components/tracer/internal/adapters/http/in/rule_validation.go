@@ -41,7 +41,8 @@ func registerRuleValidations(v *validator.Validate) error {
 		return fmt.Errorf("failed to register scopenotempty validator: %w", err)
 	}
 
-	// transactiontype validates that TransactionType is a valid enum value
+	// transactiontype validates that a scheme (or its deprecated alias
+	// transactionType) normalizes to a valid scheme
 	if err := v.RegisterValidation("transactiontype", validateTransactionType); err != nil {
 		return fmt.Errorf("failed to register transactiontype validator: %w", err)
 	}
@@ -84,7 +85,8 @@ func validateRuleStatus(fl validator.FieldLevel) bool {
 	return status.IsValid()
 }
 
-// validateTransactionType validates that the TransactionType is a valid enum value.
+// validateTransactionType accepts any value that trims and upper-cases into a
+// valid scheme; the caller normalizes it afterwards.
 func validateTransactionType(fl validator.FieldLevel) bool {
 	field := fl.Field()
 
@@ -97,10 +99,9 @@ func validateTransactionType(fl validator.FieldLevel) bool {
 		field = field.Elem()
 	}
 
-	// Get the string value and check if it's a valid TransactionType
-	txType := model.TransactionType(field.String())
+	_, ok := model.NewTransactionType(field.String())
 
-	return txType.IsValid()
+	return ok
 }
 
 // validateScopeNotEmpty validates that a model.Scope has at least one field set.
@@ -184,6 +185,7 @@ type ListRulesInput struct {
 	PortfolioID     *string           `query:"portfolio_id"`
 	MerchantID      *string           `query:"merchant_id"`
 	TransactionType *string           `query:"transaction_type"`
+	Scheme          *string           `query:"scheme"`
 	SubType         *string           `query:"sub_type" validate:"omitempty,max=50"`
 	Limit           *int              `query:"limit"`
 	Cursor          string            `query:"cursor"`
@@ -260,12 +262,12 @@ func (l *ListRulesInput) validateScopeFields() error {
 		}
 	}
 
-	// Validate transactionType enum
-	if l.TransactionType != nil && *l.TransactionType != "" {
-		txType := model.TransactionType(*l.TransactionType)
-		if !txType.IsValid() {
-			return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
+	if _, err := resolveSchemeFilter(l.TransactionType, l.Scheme); err != nil {
+		if errors.Is(err, constant.ErrValidationSchemeAliasConflict) {
+			return pkg.ValidateBusinessError(constant.ErrValidationSchemeAliasConflict, constant.EntityRule)
 		}
+
+		return pkg.ValidateBusinessError(constant.ErrInvalidQueryParameter, constant.EntityRule, "filters")
 	}
 
 	// Validate subType length against trimmed value so whitespace-only input
@@ -371,9 +373,8 @@ func buildScopeFromInput(input *ListRulesInput) *model.Scope {
 		hasField = true
 	}
 
-	if input.TransactionType != nil && *input.TransactionType != "" {
-		txType := model.TransactionType(*input.TransactionType)
-		scope.TransactionType = &txType
+	if txType, err := resolveSchemeFilter(input.TransactionType, input.Scheme); err == nil && txType != nil {
+		scope.TransactionType = txType
 		hasField = true
 	}
 

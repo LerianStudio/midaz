@@ -96,7 +96,8 @@ type ReserveRequest struct {
 	SegmentId   string          `protobuf:"bytes,6,opt,name=segment_id,json=segmentId,proto3" json:"segment_id,omitempty"`
 	PortfolioId string          `protobuf:"bytes,7,opt,name=portfolio_id,json=portfolioId,proto3" json:"portfolio_id,omitempty"`
 	MerchantId  string          `protobuf:"bytes,8,opt,name=merchant_id,json=merchantId,proto3" json:"merchant_id,omitempty"`
-	// transaction_type is optional on reserve; the ledger leaves it empty.
+	// transaction_type is optional on reserve; the ledger forwards the scheme
+	// the /v2 body declared, empty otherwise.
 	TransactionType string `protobuf:"bytes,9,opt,name=transaction_type,json=transactionType,proto3" json:"transaction_type,omitempty"`
 	// transaction_timestamp is RFC3339; the tracer rejects a future timestamp
 	// against its injected clock.

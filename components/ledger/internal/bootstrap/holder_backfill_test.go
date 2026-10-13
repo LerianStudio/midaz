@@ -7,6 +7,7 @@ package bootstrap
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
@@ -14,6 +15,8 @@ import (
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/backfill"
 )
 
 // fakeTenantLister returns a fixed tenant list (or an error) for the MT loop.
@@ -100,6 +103,34 @@ func TestRun_MT_AbortsOnFirstTenantFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "tenant-b", "error names the failing tenant")
 	assert.Equal(t, []string{"tenant-a", "tenant-b"}, seen,
 		"the loop aborts on tenant-b: tenant-c is never processed")
+}
+
+func TestRun_MT_ContinuesPastRacedMetadataAndNamesEveryTenant(t *testing.T) {
+	lister := &fakeTenantLister{tenants: []*tmclient.TenantSummary{{ID: "tenant-a"}, {ID: "tenant-b"}, {ID: "tenant-c"}}}
+
+	var seen []string
+
+	r := &HolderBackfillRunner{
+		logger:             newTestLoggerStrict(t),
+		multiTenantEnabled: true,
+		tenantServiceName:  "ledger",
+		tenantClient:       lister,
+		runForTenantFn: func(_ context.Context, tenantID string) error {
+			seen = append(seen, tenantID)
+			if tenantID == "tenant-c" {
+				return nil
+			}
+
+			return fmt.Errorf("%w %s.transaction", backfill.ErrMetadataRaced, tenantID)
+		},
+	}
+
+	err := r.Run(context.Background())
+
+	require.ErrorIs(t, err, backfill.ErrMetadataRaced)
+	assert.Equal(t, []string{"tenant-a", "tenant-b", "tenant-c"}, seen, "a raced tenant does not stop the loop")
+	assert.Contains(t, err.Error(), "tenant-a.transaction")
+	assert.Contains(t, err.Error(), "tenant-b.transaction")
 }
 
 func TestRun_MT_SkipsNilTenantEntries(t *testing.T) {

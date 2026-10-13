@@ -139,6 +139,20 @@ type UseCase struct {
 	// settings (RequireHolder false), preserving permissive behaviour.
 	SettingsReader SettingsReader
 
+	// --- Account delete cascade (CRM and fees seams, wired at bootstrap) ---
+
+	// InstrumentCascader soft-deletes the CRM instruments linked to an account
+	// before the account row is deleted, so command never imports the CRM
+	// package. A nil value skips the step; it is a test/compatibility seam, and
+	// production bootstrap always wires it.
+	InstrumentCascader InstrumentCascader
+
+	// FeeAliasDetacher removes a deleted account's alias from the ledger's fee
+	// and billing packages before the account row is deleted. A nil value skips
+	// the step; it is a test/compatibility seam, and production bootstrap always
+	// wires it.
+	FeeAliasDetacher FeeAliasDetacher
+
 	// --- Transaction create seam (wired at bootstrap) ---
 
 	// TransactionReader serves the reads the transaction create path needs
@@ -221,6 +235,10 @@ type UseCase struct {
 	// rather than a swapped package global so the many parallel tests that drain
 	// their own settles never share, or race on, one queue.
 	unansweredSettles *unansweredSettleQueue
+
+	// metadataDeleteRetry overrides the retry policy of the metadata soft delete
+	// that follows an entity delete. The zero value uses the production policy.
+	metadataDeleteRetry metadataDeleteRetryPolicy
 
 	// FeeDebts is the Fees projection of fee debts: a revert's refunds are expected
 	// from it, and balance deletion and account closing read the debts owed to a balance.

@@ -57,6 +57,7 @@ func minimalTransactionSource() events.TransactionSource {
 		Destination:              []string{"@person1"},
 		Route:                    "default-route",
 		Operations:               []json.RawMessage{stubOp},
+		Scheme:                   "PIX",
 		CreatedAt:                fixedTime,
 		UpdatedAt:                fixedTime,
 	}
@@ -103,6 +104,7 @@ func TestNewTransactionPosted_MapsAllSourceFields(t *testing.T) {
 	assert.Equal(t, "default-route", payload.Route)
 	assert.Nil(t, payload.RouteID)
 	require.Len(t, payload.Operations, 1)
+	assert.Equal(t, "PIX", payload.Scheme)
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.CreatedAt)
 	assert.Equal(t, "2026-05-13T12:34:56Z", payload.UpdatedAt)
 }
@@ -124,7 +126,7 @@ func TestTransactionPayload_GroupMemberCarriesGroupRole(t *testing.T) {
 	require.NoError(t, json.Unmarshal(data, &generic))
 	assert.Equal(t, tranGroup, generic["groupId"])
 	assert.Equal(t, "destination", generic["groupRole"])
-	assert.Len(t, generic, 18, "a group member adds exactly groupId and groupRole to the minimal payload")
+	assert.Len(t, generic, 19, "a group member adds exactly groupId and groupRole to the minimal payload")
 }
 
 func TestNewTransactionReverted_PopulatesParentTransactionID(t *testing.T) {
@@ -239,6 +241,7 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 		"operations":               {},
 		"feesSkipped":              {},
 		"tracerSkipped":            {},
+		"scheme":                   {},
 		"createdAt":                {},
 		"updatedAt":                {},
 	}
@@ -256,7 +259,7 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 	}
 
 	// Pin the count so additive drift is caught here too.
-	assert.Lenf(t, generic, 16, "expected 16 top-level fields, got %d (drift?)", len(generic))
+	assert.Lenf(t, generic, 17, "expected 17 top-level fields, got %d (drift?)", len(generic))
 
 	_, hasParent := generic["parentTransactionId"]
 	assert.False(t, hasParent, "parentTransactionId must omitempty when nil")
@@ -266,6 +269,42 @@ func TestTransactionPayload_JSONShape_OmitsScale(t *testing.T) {
 
 	_, hasScale := generic["scale"]
 	assert.False(t, hasScale, "scale is intentionally omitted (asset-level property)")
+}
+
+func TestTransactionPayload_JSONShape_SchemeOmittedWhenEmpty(t *testing.T) {
+	tests := []struct {
+		name       string
+		scheme     string
+		wantKey    bool
+		wantScheme string
+	}{
+		{name: "scheme set is carried verbatim", scheme: "PIX", wantKey: true, wantScheme: "PIX"},
+		{name: "empty scheme omits the key", scheme: "", wantKey: false},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			src := minimalTransactionSource()
+			src.Scheme = tc.scheme
+
+			payload := events.NewTransactionPosted(src)
+			assert.Equal(t, tc.scheme, payload.Scheme)
+
+			data, err := json.Marshal(payload)
+			require.NoError(t, err)
+
+			var generic map[string]any
+			require.NoError(t, json.Unmarshal(data, &generic))
+
+			got, ok := generic["scheme"]
+			assert.Equal(t, tc.wantKey, ok, "scheme must omitempty when unset")
+
+			if tc.wantKey {
+				assert.Equal(t, tc.wantScheme, got)
+			}
+		})
+	}
 }
 
 func TestTransactionPayload_JSONShape_RevertCarriesParent(t *testing.T) {

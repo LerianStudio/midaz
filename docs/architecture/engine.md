@@ -4,8 +4,6 @@ Related operational references:
 
 - [`engine/scripts/engine/README.md`](../../components/ledger/internal/adapters/redis/engine/scripts/engine/README.md)
   explains the assembled Lua call chain and maintenance rules.
-- [`transaction-recovery-inventory.md`](../runbooks/transaction-recovery-inventory.md)
-  defines safe drain/inventory evidence for both recovery generations.
 - [`engine-report.md`](../performance/engine-report.md) records the bounded local
   performance characterization and its evidence limits.
 - [`type-ownership.md`](type-ownership.md) defines where engine contracts and
@@ -139,7 +137,8 @@ revert, commit, or cancel that reaches the engine:
 9. SQL/MongoDB failure after accounting is confirmed is deferred to recovery and
    does not turn the already-applied financial operation into an HTTP failure.
    The recovery record was written atomically with accounting. Events are emitted
-   only after SQL and frozen metadata are confirmed. Multi-scope completion groups
+   once SQL commits, before frozen metadata and fee debts are projected, and only
+   by the attempt that wrote the operations. Multi-scope completion groups
    projections by each transaction's organization and ledger; recovery preserves
    those frozen per-transaction scopes and never re-derives them from the primary
    execution scope. Multi-scope batch recovery records also carry the
@@ -205,7 +204,7 @@ seams; they are not an operational rollout switch.
 | Authentication, tenant context, organization and ledger scoping | Go request/use-case layer |
 | Input targeting, cardinality, asset and sending/receiving validation | Go use cases over explicit transaction legs |
 | Fees, tracer, HTTP idempotency, transaction lifecycle and events | Go use cases |
-| Declarative posting-plan composition and route draw policy | Go command layer |
+| Declarative posting-plan composition and route draw and repay policy | Go command layer |
 | Live balance arithmetic, overdraft split/repayment, movement versions | Accounting engine |
 | Physical keys, cache codec, script transport, execution receipts and guards | Redis engine adapter |
 | Accounting rows, metadata, route attribution and historical row compatibility | Go projection shared by normal completion and recovery |
@@ -341,7 +340,14 @@ already-qualified alias. Do not recursively generate companions of companions.
 For non-external credit/empty-direction `credit`, repayment is `min(x, U)`.
 When `OverdraftAmount > 0`, additionally cap repayment at that value. Add only the
 remainder to A and generate a companion credit for the real repayment. Existing
-debt can be repaid even when future draws have been disabled.
+debt can be repaid even when future draws have been disabled. A `credit` posting
+marked `RepayForbidden` never repays: it adds the whole x to A, leaves U
+unchanged, and generates no companion movement. It is valid only on a `credit`
+with a zero `OverdraftAmount`. A `credit` marked `RepayRouteDenied` refuses with
+`overdraft_repay_route_denied` when its repayment would be positive and applies
+unchanged otherwise; Go sets it when route validation is on and the leg's route
+has no overdraft credit rubric. It is valid only on a `credit` and never together
+with `RepayForbidden`.
 
 `release` is not a general credit operation. With a zero override, it restores A
 and decreases H without repaying debt. Only a positive override on a non-external
@@ -357,6 +363,13 @@ Its inputs are intentionally limited to lifecycle action and status, leg side,
 the per-leg route-validation decision, and the historical cap. It cannot inspect
 the balance pool or derive monetary results.
 
+A block (`OperationTypeOverride` `BLOCK`) is kept away from overdraft: its plan
+forbids every draw, marks every credit `RepayForbidden`, drops the historical cap
+and builds no companion spec, so the amount it sets aside returns whole on the
+unblock. An unblock keeps the ordinary plan, so its credit repays outstanding
+debt first. Both label their primary rows with the override, while an overdraft
+companion row always keeps the `OVERDRAFT` type.
+
 There is one Lua accounting engine for every executable path. API version,
 lifecycle, and route-validation differences are expressed by the ordered
 postings in the plan instead of separate scripts. The engine reads the live
@@ -370,7 +383,7 @@ In this table, ON/OFF means route validation enabled/disabled.
 
 | Path | Source postings | Destination postings | Row compatibility |
 | --- | --- | --- | --- |
-| Direct / revert | Conclusive `debit` | `credit` | Apply route draw policy; use live splits |
+| Direct / revert | Conclusive `debit` | `credit` | Apply route draw and repay policy; use live splits |
 | Pending OFF | `hold` | None | One source version increment |
 | Pending ON | `debit(DrawForbidden)`, `reserve` | None | Two source increments |
 | Commit OFF | `unreserve` | `credit` | Source row remains DEBIT |
@@ -679,8 +692,7 @@ Before the first write, the engine must:
    took the admissions release them.
    Companions repeat the check at their mutation site, and an unused pool balance
    never causes a refusal. A proven receipt replay is answered before any of this,
-   so a recorded outcome survives the closing of its account. See
-   `docs/runbooks/account-closing-protection.md`.
+   so a recorded outcome survives the closing of its account.
 6. Execute transactions and postings in stable order against working state.
    Later transactions observe earlier intermediate results.
 7. Serialize all final blobs, per-transaction recovery envelopes, receipts,
@@ -792,7 +804,8 @@ failover to a replica that missed the last writes is data loss, not a cache miss
 later credits stop settling the lost debts, and a revert that must refund one
 fails with `fee_debt_conflict` instead of refunding from a guess. Verify the
 production instance's persistence and eviction policy before enabling deferrable
-fees, and detect divergence with `docs/runbooks/fee-debt-divergence.md`.
+fees, and compare the receivable lists with the `fee_debt` projection to detect
+divergence; the projection is never a source for rebuilding a lost list.
 
 A fee defers only when its package sets `deferrable: true` on it, which only a
 non-deductible fee accepts; without it an unfunded fee is still refused with
@@ -822,6 +835,7 @@ automatically repair a partially executed commit.
 | insufficient_funds | 0018, not 0025 |
 | overdraft_limit_exceeded | 0167 |
 | overdraft_not_eligible | 0492 only for eligible-account route denial; 0018 for forbidden/ineligible paths, preserving validation precedence |
+| overdraft_repay_route_denied | 0492; only for a posting that carries `RepayRouteDenied` |
 | balance_deleted | 0019 |
 | account_blocked | 0502; evaluated from the live cache value inside Lua |
 | account_block_exception_invalid | 0508 on `Transaction`, correlated to the primary posting; the live grant is missing, malformed, consumed, expired, or has a divergent alias/amount; no state or grant is mutated |
@@ -966,9 +980,13 @@ durable completion rather than at its original EVAL.
 Once those conditions hold, ACK records `cleanupAfterMs` on the receipt and each
 transaction coordinator and adds the execution to a tenant-global, same-slot due
 index. Valkey 8.1 does not provide independent expiry for hash fields, while
-receipts and guards share hashes across executions, so the recovery consumer owns
-bounded cleanup instead of expiring a whole hash. Each consumer cycle sweeps due
-members even when either recovery hash is empty. Cleanup revalidates the exact due
+receipts and guards share hashes across executions, so a dedicated cleanup runner
+owns bounded cleanup instead of expiring a whole hash. It runs a pass at startup
+and every 10 seconds, independently of the recovery cycle and under its own lock.
+Each pass drains due members page by page within a 5-second budget, in
+round-robin turns across tenants, and needs only Redis. A due execution is
+therefore released within its retention window plus one tick and one pass.
+Cleanup revalidates the exact due
 score, receipt scope and membership, terminal acknowledgement proof, absence of
 every recovery member from both hashes, and every coordinator deadline in one atomic script. It
 removes only that receipt and its coordinator links. A transaction guard is
@@ -976,7 +994,9 @@ removed only when no other execution remains linked to that transaction, so an
 earlier deadline cannot erase a newer transition's protection; a revert's origin
 marker goes with the revert's own guard. Missing receipts
 remove only their stale due-index member; changed deadlines are rescheduled.
-Malformed or inconsistent proofs fail without artifact writes.
+Malformed or inconsistent proofs fail without artifact writes: the execution keeps
+everything, including a revert's origin marker, is rescheduled one minute later,
+and is counted as failed, so it never blocks the executions behind it.
 
 Legacy receipts never enter the due index and do not receive retroactive cleanup
 eligibility. Pending, partially acknowledged, and durably incomplete executions
@@ -998,8 +1018,8 @@ insert, `updated` for a confirmed status transition, or `noop` for a verified
 replay. A concurrent insert won by another transaction is `noop`, not `created`.
 `FinalizeWithOutcome` exposes this information only after metadata verification;
 an error returns an empty outcome. The phase does not confirm broker publication,
-and it does not authorize receipt/guard expiry. These outcomes do not themselves
-change event dispatch or wire the posting engine into normal execution.
+and it does not authorize receipt/guard expiry. A `noop` outcome publishes no
+event: the attempt that wrote the operations already published them.
 
 ### Compatible recovery consumers
 
@@ -1051,8 +1071,9 @@ historical row already exists exactly; it cannot insert old rows or regress the
 terminal transaction. Persistence conflicts retain the recovery record.
 
 `NewTransactionCompletionServiceWithEvents` optionally dispatches the existing
-transaction, overdraft, and balance-change emitters after SQL and captured metadata
-have both been confirmed. It requires a store reporting the actual committed
+transaction, overdraft, and balance-change emitters once SQL commits, before the
+captured metadata and fee debts are projected, so a projection failure retried as
+`noop` does not lose them. It requires a store reporting the actual committed
 `created`, `updated`, or `noop` lifecycle phase; an absent or unknown phase fails
 without dispatch. The original service constructor remains persistence-only.
 Both paths project the same deterministic rows and preserve the legacy public
@@ -1101,9 +1122,11 @@ compare-and-swap succeeded publishes.
 Immediate acknowledgment reduces the common-case cardinality of
 `recover`; it is not by itself a hard memory bound. Prolonged completion or
 Redis failures can still create a backlog, and receipt/guard/protection removal
-still depends on cleanup throughput. Bounded recovery scans, backlog age and
-cardinality monitoring, and cleanup-capacity alerts remain separate operational
-safeguards.
+still depends on cleanup throughput. The cleanup runner reports, per tenant, the
+due count (`engine_recovery_cleanup_due`), the age of the most overdue execution
+(`engine_recovery_cleanup_oldest_overdue`, exported in seconds), and handled
+executions by outcome (`engine_recovery_cleanup_entries_total`). Bounded recovery
+scans and alerts on those metrics remain separate operational safeguards.
 
 ## Compatibility changes and rollout
 
@@ -1121,9 +1144,9 @@ readers and both recovery consumers until legacy in-flight work has drained.
 Account closing has a rollout order of its own, because the protection is only as
 strong as the least current writer: every binary that admits or rewrites a balance
 blob must carry the coordinated admission before the close route is exposed, and
-there is no key to backfill for the accounts that stay open. The procedure, the
-rollback that keeps `closed_at`, and the reconciliation an operator can run are in
-`docs/runbooks/account-closing-protection.md`.
+there is no key to backfill for the accounts that stay open. A rollback never clears
+`closed_at`. Operational procedures for rollout, rollback, and reconciliation are
+maintained outside this repository.
 
 Deferrable fees are one-way for a rolling deploy. A completion record that carries
 fee debt fails the strict decoder of an older binary, which quarantines it instead
@@ -1366,9 +1389,14 @@ accounting result or error. No monetary state or identifiers are emitted.
 | `engine_pool_balance_count` | Full snapshot pool carried into preflight | None |
 | `engine_touched_balance_count` | Distinct balance references targeted by postings | None |
 
-`refused` means a recognized pre-write protocol refusal, not necessarily an HTTP
-business error: missing companions and on-hold underflow remain integrity
-failures. The metrics do not perform public error mapping.
+`refused` means a recognized pre-write protocol refusal, or a confirmed technical
+code that the public error mapping answers as a client error:
+`transaction_already_reverted`, `execution_guard_conflict`, `account_closed`,
+`account_closing_in_progress`, and `fee_debt_record_pending`. It follows
+`command.MapEngineError` only, so a code a caller remaps on its own path, such as
+a pending-transition race answered 409, still counts as technical. A protocol
+refusal is not necessarily an HTTP business error: missing companions and on-hold
+underflow remain integrity failures.
 
 Duration buckets are 1, 5, 10, 25, 50, 100, 250, 500, 1000, and 5000 ms.
 Payload buckets are 1, 4, 16, 64, 256 KiB and 1, 4, 16 MiB; these are observation

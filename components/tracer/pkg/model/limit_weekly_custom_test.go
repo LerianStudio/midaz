@@ -631,16 +631,16 @@ func TestNewUsageSnapshot_WeeklyLimit(t *testing.T) {
 	}
 
 	counters := []UsageCounter{
-		{CurrentUsage: decimal.RequireFromString("3000")},
-		{CurrentUsage: decimal.RequireFromString("2000")},
+		{ScopeKey: "acct:a", PeriodKey: "2025-W03", CurrentUsage: decimal.RequireFromString("3000")},
+		{ScopeKey: "acct:b", PeriodKey: "2025-W03", CurrentUsage: decimal.RequireFromString("2000")},
 	}
 
 	snapshot := NewUsageSnapshot(limit, counters)
 
 	assert.Equal(t, limit.ID, snapshot.LimitID)
-	assert.True(t, decimal.RequireFromString("5000").Equal(snapshot.CurrentUsage))
+	assert.True(t, decimal.RequireFromString("3000").Equal(snapshot.CurrentUsage), "should report the most consumed scope")
 	assert.True(t, decimal.RequireFromString("10000").Equal(snapshot.LimitAmount))
-	assert.Equal(t, 50.0, snapshot.UtilizationPercent)
+	assert.Equal(t, 30.0, snapshot.UtilizationPercent)
 	assert.False(t, snapshot.NearLimit)
 	require.NotNil(t, snapshot.ResetAt)
 	assert.Equal(t, resetAt, *snapshot.ResetAt)

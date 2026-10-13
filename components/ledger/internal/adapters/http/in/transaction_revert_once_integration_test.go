@@ -194,8 +194,9 @@ func TestIntegration_RevertOnceAfterStrandedRevert(t *testing.T) {
 	h.expectBalances(t, "after refused second reverts", src, dst, srcID, dstID, 1000, 100)
 
 	// The marker outlives the origin's own engine index.
-	_, err := h.engineRedis.CleanupEngineRecovery(h.ctx(), time.Now().Add(3601*time.Second), 100)
+	cleanup, err := h.engineRedis.CleanupEngineRecovery(h.ctx(), time.Now().Add(3601*time.Second), 100)
 	require.NoError(t, err)
+	require.Zero(t, cleanup.Failed, "cleanup proof must be accepted: %v", cleanup.FirstFailure)
 	_, err = h.engineRedis.GetEngineTransactionIndex(h.ctx(), h.orgID, h.ledgerID, origin)
 	require.ErrorIs(t, err, redistransaction.ErrEngineWriteBehindNotFound)
 
@@ -223,12 +224,59 @@ func TestIntegration_RevertOnceMarkerReleasedAtCleanup(t *testing.T) {
 	require.Equal(t, 1, h.countReverts(t, origin))
 	require.True(t, h.revertMarkerExists(t, origin), "the marker outlives the acknowledgement")
 
-	_, err := h.engineRedis.CleanupEngineRecovery(h.ctx(), time.Now().Add(301*time.Second), 100)
+	cleanup, err := h.engineRedis.CleanupEngineRecovery(h.ctx(), time.Now().Add(301*time.Second), 100)
 	require.NoError(t, err)
+	require.Zero(t, cleanup.Failed, "cleanup proof must be accepted: %v", cleanup.FirstFailure)
 	require.False(t, h.revertMarkerExists(t, origin), "cleanup releases the marker with the revert's guard")
 
 	h.expireRevertIdempotencySlot(t, mustTxID(t, reverted))
 	requireAlreadyReverted(t, "revert after cleanup", h.post(t, h.v2, h.v2StatePath(origin, "revert"), "", nil))
+	h.expectBalances(t, "after refused revert", src, dst, srcID, dstID, 1000, 0)
+}
+
+// TestIntegration_RevertOnceMarkerKeptWhenCleanupFails rejects the durable
+// revert's cleanup proof: the revert is rescheduled with every artifact, so its
+// origin stays marked and a second revert is still refused.
+func TestIntegration_RevertOnceMarkerKeptWhenCleanupFails(t *testing.T) {
+	h := setupRevertOnceHarness(t)
+
+	src, dst := "@rf-src", "@rf-dst"
+	srcID := h.seedBalance(t, src, "USD", decimal.NewFromInt(1000), "deposit")
+	dstID := h.seedBalance(t, dst, "USD", decimal.Zero, "deposit")
+
+	created := h.createV2Direct(t, h.v2, h.v2Body("origin", "USD", "100", []string{h.v2Leg(src, "100")}, []string{h.v2Leg(dst, "100")}), nil)
+	require.Equalf(t, 201, created.status, "create: %s", created.rawBody)
+	origin := mustTxID(t, created)
+
+	reverted := h.post(t, h.v1, h.statePath(origin, "revert"), "", nil)
+	require.Equalf(t, 201, reverted.status, "revert: %s", reverted.rawBody)
+	revertID := mustTxID(t, reverted)
+	require.True(t, h.revertMarkerExists(t, origin))
+
+	indexRaw, err := h.engineRedis.GetEngineTransactionIndex(h.ctx(), h.orgID, h.ledgerID, revertID)
+	require.NoError(t, err)
+	index, err := command.DecodeTransactionEvidenceIndex(indexRaw)
+	require.NoError(t, err)
+
+	// A coordinator that no longer names the revert's execution fails its proof.
+	protection := "engine:" + cachepolicy.HashTag + ":protection:" + h.orgID.String() + ":" + h.ledgerID.String()
+	require.NoError(t, h.redisContainer.Client.HSet(h.ctx(), protection, revertID.String(), `{"formatVersion":1,"executions":{}}`).Err())
+
+	cleanupAt := time.Now().Add(301 * time.Second)
+	cleanup, err := h.engineRedis.CleanupEngineRecovery(h.ctx(), cleanupAt, 100)
+	require.NoError(t, err)
+	require.Equal(t, 1, cleanup.Failed)
+	require.ErrorContains(t, cleanup.FirstFailure, "cleanup coordinator differs")
+
+	schedule := redistransaction.EngineRecoveryCleanupSchedule
+	member := h.orgID.String() + ":" + h.ledgerID.String() + ":" + index.ExecutionID.String()
+	score, err := h.redisContainer.Client.ZScore(h.ctx(), schedule, member).Result()
+	require.NoError(t, err)
+	require.Equal(t, float64(cleanupAt.Add(time.Minute).UnixMilli()), score)
+	require.True(t, h.revertMarkerExists(t, origin), "a revert whose cleanup failed keeps its origin marked")
+
+	h.expireRevertIdempotencySlot(t, revertID)
+	requireAlreadyReverted(t, "revert after failed cleanup", h.post(t, h.v2, h.v2StatePath(origin, "revert"), "", nil))
 	h.expectBalances(t, "after refused revert", src, dst, srcID, dstID, 1000, 0)
 }
 

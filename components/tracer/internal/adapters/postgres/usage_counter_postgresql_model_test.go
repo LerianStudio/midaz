@@ -40,6 +40,7 @@ func TestUsageCounterPostgreSQLModel_FromEntity_Valid(t *testing.T) {
 		ScopeKey:      "acct:abc-123",
 		PeriodKey:     "2025-12-28",
 		CurrentUsage:  decimal.RequireFromString("5"),
+		ReservedUsage: decimal.RequireFromString("250"),
 		LastUpdatedAt: fixedTime,
 	}
 
@@ -52,6 +53,7 @@ func TestUsageCounterPostgreSQLModel_FromEntity_Valid(t *testing.T) {
 	assert.Equal(t, "acct:abc-123", dbModel.ScopeKey)
 	assert.Equal(t, "2025-12-28", dbModel.PeriodKey)
 	assert.True(t, decimal.RequireFromString("5").Equal(dbModel.CurrentUsage), "CurrentUsage should be 5")
+	assert.True(t, decimal.RequireFromString("250").Equal(dbModel.ReservedUsage), "ReservedUsage should be 250")
 	assert.Equal(t, fixedTime, dbModel.LastUpdatedAt)
 }
 
@@ -68,6 +70,7 @@ func TestUsageCounterPostgreSQLModel_ToEntity_Valid(t *testing.T) {
 		ScopeKey:      "segment:gold",
 		PeriodKey:     "2025-12",
 		CurrentUsage:  decimal.RequireFromString("10"),
+		ReservedUsage: decimal.RequireFromString("250"),
 		LastUpdatedAt: fixedTime,
 	}
 
@@ -79,6 +82,7 @@ func TestUsageCounterPostgreSQLModel_ToEntity_Valid(t *testing.T) {
 	assert.Equal(t, "segment:gold", entity.ScopeKey)
 	assert.Equal(t, "2025-12", entity.PeriodKey)
 	assert.True(t, decimal.RequireFromString("10").Equal(entity.CurrentUsage), "CurrentUsage should be 10")
+	assert.True(t, decimal.RequireFromString("250").Equal(entity.ReservedUsage), "ReservedUsage should be 250")
 	assert.Equal(t, fixedTime, entity.LastUpdatedAt)
 }
 
@@ -137,6 +141,7 @@ func TestUsageCounterPostgreSQLModel_RoundTrip(t *testing.T) {
 				ScopeKey:      "portfolio:xyz",
 				PeriodKey:     "2025-12-28",
 				CurrentUsage:  decimal.RequireFromString(tt.usage),
+				ReservedUsage: decimal.RequireFromString("250"),
 				LastUpdatedAt: fixedTime,
 			}
 
@@ -153,6 +158,8 @@ func TestUsageCounterPostgreSQLModel_RoundTrip(t *testing.T) {
 			assert.Equal(t, original.PeriodKey, restored.PeriodKey)
 			assert.True(t, original.CurrentUsage.Equal(restored.CurrentUsage),
 				"CurrentUsage mismatch: want %s, got %s", original.CurrentUsage, restored.CurrentUsage)
+			assert.True(t, original.ReservedUsage.Equal(restored.ReservedUsage),
+				"ReservedUsage mismatch: want %s, got %s", original.ReservedUsage, restored.ReservedUsage)
 			assert.Equal(t, original.LastUpdatedAt, restored.LastUpdatedAt)
 		})
 	}

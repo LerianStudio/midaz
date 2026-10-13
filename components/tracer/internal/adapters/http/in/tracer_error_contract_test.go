@@ -49,7 +49,7 @@ func TestTracerErrorContract(t *testing.T) {
 		// --- generic input / path / query (400) ---
 		{
 			name:           "invalid path parameter -> 0065 / 400",
-			err:            pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "id"),
+			err:            pkg.ValidateBusinessError(constant.ErrInvalidPathParameter, constant.EntityRule, "rule_id"),
 			expectedStatus: 400,
 			expectedCode:   "0065",
 			expectedTitle:  "Invalid Path Parameter",

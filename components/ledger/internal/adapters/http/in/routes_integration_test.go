@@ -196,12 +196,12 @@ var moneyWriteRoutes = []string{
 var crmCompositionRoutes = []string{
 	// CRM holders (5)
 	"POST:" + crmV2Org + "/holders",
-	"GET:" + crmV2Org + "/holders/:id",
-	"PATCH:" + crmV2Org + "/holders/:id",
-	"DELETE:" + crmV2Org + "/holders/:id",
+	"GET:" + crmV2Org + "/holders/:holder_id",
+	"PATCH:" + crmV2Org + "/holders/:holder_id",
+	"DELETE:" + crmV2Org + "/holders/:holder_id",
 	"GET:" + crmV2Org + "/holders",
 	// CRM holder-accounts (1, conditional on hah)
-	"GET:" + crmV2Org + "/holders/:id/accounts",
+	"GET:" + crmV2Org + "/holders/:holder_id/accounts",
 	// CRM instruments (6)
 	"GET:" + crmV2Org + "/instruments",
 	"POST:" + crmV2Org + "/holders/:holder_id/instruments",
@@ -215,7 +215,7 @@ var crmCompositionRoutes = []string{
 	// CRM audit (1, conditional on auditHandler)
 	"GET:" + crmV2Org + "/protection/audit",
 	// Composition (1)
-	"POST:" + crmV2OrgLedger + "/holders/:id/accounts",
+	"POST:" + crmV2OrgLedger + "/holders/:holder_id/accounts",
 }
 
 // metadataIndexRoutes is the settings surface the metadata-index registrar mounts. The path

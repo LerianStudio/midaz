@@ -22,10 +22,10 @@ GET  /v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_i
 POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/transactions/json
 
 POST /v1/organizations/{organization_id}/holders
-GET  /v1/organizations/{organization_id}/holders/{id}
+GET  /v1/organizations/{organization_id}/holders/{holder_id}
 POST /v1/organizations/{organization_id}/holders/{holder_id}/instruments
 
-POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts
+POST /v1/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts
 
 POST /v1/organizations/{organization_id}/packages
 POST /v1/organizations/{organization_id}/estimates
@@ -55,13 +55,13 @@ not match and Fiber returns `404`. The former "missing scoping header" error cla
   a validated UUID rather than a raw header string.
 - **`X-Ledger-Id` was removed entirely.** It is no longer a live contract on any CRM or composition
   route. The single route that legitimately needs a ledger — composition account-open — now carries
-  `:ledger_id` in its path (`/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{id}/accounts`),
+  `:ledger_id` in its path (`/v2/organizations/{organization_id}/ledgers/{ledger_id}/holders/{holder_id}/accounts`),
   because it creates a real ledger account.
 - **`ledger_id` keeps two non-scoping roles.** It remains a **create-body field** on instrument
   creation, and an **optional list filter** (`?ledger_id=`) on `GET .../instruments` and on
-  `GET .../holders/{id}/accounts`. In neither role is it a scoping input for pure-CRM routes.
+  `GET .../holders/{holder_id}/accounts`. In neither role is it a scoping input for pure-CRM routes.
 
-  `GET /v2/organizations/{organization_id}/holders/{id}/accounts` is org-scoped by its path, and
+  `GET /v2/organizations/{organization_id}/holders/{holder_id}/accounts` is org-scoped by its path, and
   holder ownership is org-global, so the listing spans **every ledger of the organization**;
   `?ledger_id=` narrows it to one. A malformed value is `0082` / 400, not a 404: it is a
   query-parameter format error, not a missing ledger. Because the read touches the onboarding
@@ -107,14 +107,14 @@ The same twelve fee and billing operations are **also** served ledger-scoped on 
 on whichever ledger of the organization owns it, `/v2` reaches only what the named ledger owns.
 
 ```
-/v1/organizations/{organization_id}/packages[/{id}]           organization-scoped
+/v1/organizations/{organization_id}/packages[/{package_id}]           organization-scoped
 /v1/organizations/{organization_id}/estimates
-/v1/organizations/{organization_id}/billing-packages[/{id}]
+/v1/organizations/{organization_id}/billing-packages[/{billing_package_id}]
 /v1/organizations/{organization_id}/billing/calculate
 
-/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages[/{id}]          ledger-scoped
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/packages[/{package_id}]          ledger-scoped
 /v2/organizations/{organization_id}/ledgers/{ledger_id}/estimates
-/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages[/{id}]
+/v2/organizations/{organization_id}/ledgers/{ledger_id}/billing-packages[/{billing_package_id}]
 /v2/organizations/{organization_id}/ledgers/{ledger_id}/billing/calculate
 ```
 
@@ -129,6 +129,7 @@ On the ledger-scoped surface the path is the sole authority on which ledger a re
   so the response model can keep `ledgerId` while the request does not. The path is the sole ledger
   input — a body that still sends `ledgerId` is rejected as an unknown field (`400`). The former
   body-versus-path mismatch guard and its `0234` code are retired.
+- **`0236` (duplicate fee key) is retired.** Fee keys are stored verbatim, so two never collide.
 - **`?ledgerId=` is refused on the two listings** (`400`, `0235`) — the only ledger-scoped
   operations that read a query at all. It can only restate the path or contradict it, and its empty
   value means "every ledger of the organization" — the one scope a ledger-scoped listing must not
@@ -197,6 +198,22 @@ The reserve request carries the fee-inclusive `amount` and `asset`, the transact
   whose action is `revert`), omitted otherwise. The tracer skips its CEL rules for a revert and
   still reserves its limits: limits measure gross activity, and a rule that could refuse a revert
   would leave an applied movement impossible to correct.
+- `transactionType` — the `scheme` the `/v2` create body declared, normalized (trimmed,
+  upper-cased, `^[A-Z0-9_-]{1,50}$`) and free-form: `CARD`, `WIRE`, `PIX`, `CRYPTO` are
+  examples, not a closed set (for a card payment the value is `CARD`, never the card brand),
+  omitted when the body declared none. A `/v2` revert sends the ORIGINAL transaction's scheme: the reversal is
+  measured against the same limits as the movement it undoes. The ledger calls the field `scheme`
+  on the body, the row and the response; the tracer calls it `transactionType`, and
+  `reserveTransaction` is the only point that translates one into the other. With an empty
+  value the tracer matches only limits and rules whose scope names no `transactionType`; with
+  `PIX` it also matches scopes naming `PIX`. `subType` is never sent, and confirm and release
+  address the transaction by id and carry no type. A `/v1` body cannot declare it (see below).
+
+Upgrade order: deploy the tracer first — its migrations `000028`–`000032` and image — then the
+ledger. A ledger that sends a scheme outside `CARD`/`WIRE`/`PIX`/`CRYPTO` to a tracer that still
+enforces the closed set is refused as invalid (`0532`, whatever `failPosture`). During the tracer
+rollout, pods of the previous build may fail reads of rows written with a free-form scheme until
+every pod runs the new build.
 
 The asset follows the ledger's asset code grammar exactly: uppercase Unicode letters, at most 100
 characters. An asset the ledger accepts is never refused by the tracer for its shape.
@@ -336,6 +353,13 @@ body naming `skip` is rejected by the decoder as an unknown field: **HTTP 400**
 (`ErrUnexpectedFieldsInTheRequest`), the same answer any other unknown field gets — not the
 422 an unpermitted skip earns on `/v2`.
 
+`scheme` is the other `/v2`-only create field: the transaction's free-form payment scheme. The
+value is trimmed and upper-cased, and must then match `^[A-Z0-9_-]{1,50}$` (anything else is
+**HTTP 400**); `CARD`, `WIRE`, `PIX`, `CRYPTO` are examples, not a closed set. It is persisted
+normalized on the row, returned as `scheme` on `/v2` responses (omitted when absent), withheld on `/v1` responses,
+carried as `scheme` on the `transaction.*` streaming payload, and forwarded to the tracer as the
+reserve's `transactionType`. A `/v1` body naming `scheme` gets the same unknown-field 400.
+
 The consequence is durable, not just transport-level: `transaction.fees_skipped` and
 `transaction.tracer_skipped` can only be `true` on a row created through `/v2`. On a `/v1`
 row they are always `false`, and they stay distinguishable from `fees_route_eligible` /
@@ -379,6 +403,48 @@ created by another kind of request with the same serialized reversal, such as a 
 The atomic batch and the cross-ledger request keep their own fingerprint rules; see
 [Atomic transaction batch](atomic-transaction-batch.md) and
 [Cross-ledger transactions](cross-ledger-transactions.md).
+
+### Account delete cascades to CRM and fees on both contracts
+
+An account `DELETE` is the same use case (`DeleteAccountByID`) on `/v1` and `/v2`, and no version
+policy is threaded into it. The effects on the CRM and on fees are referential integrity, like the
+`0012` guard that refuses an account with funds, so both contracts apply them alike.
+
+**Order.** The account is found, its balances are deleted (with the `0012`, `0527`, and `0528`
+guards), the live CRM instrument linked to the account is soft-deleted, the account alias is
+detached from the fee and billing packages of the ledger, and only then is the account row deleted
+and `account.deleted` emitted. The detach removes a fee whose `creditAccount` is the alias, pulls
+the alias from `waivedAccounts` and `accountTarget.aliases`, clears a billing leg equal to it, and
+disables a package that cannot charge anymore; the endpoint description lists the exact rules.
+
+**Fail-closed with idempotent steps.** A technical failure in any step answers with an error before
+the row is deleted, so the account stays in place and the client repeats the `DELETE`. Every step
+converges on a repeat: an instrument already soft-deleted keeps its `deletedAt`, and a package
+already cleaned of the alias is not written again. A failure after the instruments were cascaded
+leaves them soft-deleted while the account still exists, until the retry completes.
+
+**Cache.** The per-(organization, ledger) fee package cache is invalidated after the package writes,
+also when a later package fails, so a warmed cache does not keep serving the deleted alias. A
+transaction already in flight that loaded the package before the invalidation may still try to
+credit the alias once and answer `0019`; the engine refuses it before any movement.
+
+**Events.** `instrument.deleted`, `fee_packages.updated`, and `fee_billing_packages.updated` are emitted
+by the CRM and fees use cases inside the cascade, so they precede `account.deleted`. No field on the
+package records why it changed; the `updated` event and the delete log are the trail.
+
+**Tenant isolation.** The CRM and fees stores are resolved per call from the tenant context of the
+request, each through its own tenant manager, the same way the holder reader on account create is.
+
+Accepted residuals:
+
+- The concurrency window between the holder-delete check and the holder delete is unchanged.
+- An instrument whose create verified the account before the row was deleted and was written after
+  the cascade read its live instruments is not cascaded; once the row is gone, an instrument create
+  refuses the account.
+- References that were already dangling before this behavior existed are not backfilled.
+- Billing packages have no PATCH for an alias, so a billing package disabled by a cleared leg must
+  be recreated.
+- Lookups match the stored alias and IDs exactly.
 
 ## The holder seam is `/v2`-only
 
@@ -446,9 +512,23 @@ shape carries no holder field, so both contracts publish one schema and differ o
 operation IDs they publish.
 
 The **CRM holder surface itself** (`/v2/organizations/{organization_id}/holders...`) and the
-holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{id}/accounts`) are
+holder-account **composition** route (`POST /v2/.../ledgers/{ledger_id}/holders/{holder_id}/accounts`) are
 served on `/v2` only and are unaffected: composition exists to link a holder, so it contracts the
 seam in full.
+
+Composition accepts `X-Idempotency` and `X-TTL` and answers `X-Idempotency-Replayed`, like the
+holder and instrument creates, but claims a slot **only** when `X-Idempotency` is sent: without it
+nothing is cached, and identical calls open distinct accounts. With it, a rejected account create
+(a business error) releases the slot, so a retry with the same key runs the composition again. A
+technical failure keeps the slot until its TTL, because the account may already be persisted (a
+metadata write failure, or a default-balance failure whose compensation did not land), so a retry
+with the same key answers the in-flight conflict. Once the account is
+persisted the answered `201` is stored and replayed as answered, the partial one included (account
+persisted, `instrument` null, `instrumentError` set): the replay opens no account and does not retry
+the instrument. A partial is repaired through `POST /v2/organizations/{organization_id}/holders/{holder_id}/instruments`
+with the returned `accountId`. The release is a plain delete, as on the transaction routes, with no
+compare-and-delete: a low `X-TTL` can expire a slot while its request is still in flight, and the
+release of that request, if it fails, can delete the response another request stored in the meantime.
 
 Two account-adjacent write paths are **outside** the seam on both contracts, and stay that way. The
 implicit **external account** that asset creation opens is built and persisted directly through
@@ -468,8 +548,8 @@ Two path scopes serve the same routes:
 
 | Scope | Paths | Contracts | `ledgerId` on create |
 | --- | --- | --- | --- |
-| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{id}]` | `/v2` only | absent — the route has no ledger |
-| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
+| Organization | `/organizations/{organization_id}/{operation,transaction}-routes[/{operation_route_id\|transaction_route_id}]` | `/v2` only | absent — the route has no ledger |
+| Ledger | `/organizations/{organization_id}/ledgers/{ledger_id}/{operation,transaction}-routes[/{operation_route_id\|transaction_route_id}]` | `/v1` and `/v2` | the path ledger, recorded as provenance |
 
 On the ledger paths the ledger is **provenance, not a filter**: list, get, patch and delete reach
 every route of the organization, whichever ledger it was created under and including routes created
@@ -490,6 +570,82 @@ older per-ledger key on every route write, so older pods reload fresh rules. An 
 by an older pod clears only the per-ledger key and leaves the newer pods' entry stale. Hold route updates
 and deletes until the rollout completes, or delete the two-segment `accounting_routes` keys once
 afterwards.
+
+## Optional operation routes: registered on `/v2`, honored on both contracts
+
+A transaction route link is required or optional. A transaction may leave an optional route unused
+(a fee route when the fee does not apply), and a leg that uses one is validated like any other.
+Validation reads the link from the route cache, so it holds for `/v1` and `/v2` transactions alike;
+the flag is only **registered** through `/v2`:
+
+| Surface | `/v1` | `/v2` |
+| --- | --- | --- |
+| Create / update body | `operationRoutes` only; `optionalOperationRoutes` is an unknown field (`0053`) | `operationRoutes` (required) and `optionalOperationRoutes` (optional) |
+| Response | `operationRoutes` lists every link, optional ones included | `operationRoutes` lists the required links, `optionalOperationRoutes` the optional ones |
+| PATCH with `operationRoutes` | the full link set: a kept link keeps its optionality, a new one is required, an omitted one is removed | replaces the required links only |
+
+A `/v2` PATCH applies each list as a JSON merge patch of its own:
+
+| Body | Effect |
+| --- | --- |
+| neither list | links and optionality unchanged |
+| `operationRoutes: [...]` | replaces the required links; optional links stay |
+| `optionalOperationRoutes: [...]` | replaces the optional links; required links stay |
+| `optionalOperationRoutes: []` | removes the optional links |
+| `null` for either list | no effect, like `metadata: null` on `/v2` |
+
+The resulting links are validated as a create: a route in both lists is `0541`, fewer than two links
+`0104`, no required source or destination `0153`/`0154`, an optional `crossLedger` route `0256`. To
+move a route between the lists, send both.
+
+**Rollout:** the flag is a column of `operation_transaction_route` (`optional`, default `false`) and a
+field of the route cache entry. A pod older than this change reads every link as required, and when
+it rewrites a cache entry (a route update, an operation-route update, a cache miss) it writes the
+entry without the flag, so the route is strict again until a newer pod rewrites it. Do not mark links
+optional until every pod runs a version that knows the flag. If a link was marked during the rollout,
+delete that transaction route's `accounting_routes:{organization:route}` key once every older pod has
+stopped: the next read reloads the entry, flag included, from the database.
+
+Rolling back the schema refuses while any active link is optional (the down migration raises before
+dropping the column), because every link would become required and the transactions that leave
+those links unused would be refused. Make the links required, or remove them, before rolling back.
+
+## Metadata on a PATCH: `null` is a `/v2` no-op
+
+Every PATCH whose body carries `metadata` applies it as an RFC 7396 merge patch: organization,
+ledger, portfolio, segment, account, account type, asset, transaction, operation, operation route,
+transaction route, holder and instrument. The contracts differ on one body only, an explicit
+`"metadata": null`:
+
+| Body | `/v1` | `/v2` |
+| --- | --- | --- |
+| no `metadata` key, or `"metadata": {}` | stored metadata left as it is | stored metadata left as it is |
+| `"metadata": {"k": "v"}` | `k` added or replaced, every other key kept | same |
+| `"metadata": {"k": null}` | `k` deleted, every other key kept | same |
+| `"metadata": null` | every key the client wrote deleted; the ledger's reserved fee keys on a transaction or operation stay | stored metadata left as it is |
+
+The other patched fields apply in every row. `/v2` clears metadata one key at a time, so a client
+whose serializer writes an unset map as `null` cannot erase it by accident; `/v1` keeps the reading
+it shipped with. Fee packages, billing packages and balances carry no `metadata` on their PATCH, and
+the asset rate is a `/v1` `PUT`.
+
+Deleting an entity hides its metadata on both contracts. The `DELETE` keeps answering `204`, a read
+by id answers `404`, and a metadata-filtered listing no longer returns the entity, whichever mount
+served the delete. The stored keys are kept, never exposed again, and cannot be revived: a PATCH on
+a deleted entity is refused by the entity lookup before any metadata is touched.
+
+A metadata-filtered listing (`?metadata.<key>=<value>`) answers for the organization and ledger in
+its path and for nothing else: an entity of another ledger or organization that carries the same key
+and value is never returned and does not change the answer. When nothing in that scope matches, the
+listing answers `200` with an empty page on both contracts, the same answer as any other filter on
+the route — `items: []` with the requested `limit` and `page` on an offset listing, and no
+`next_cursor` on a cursor listing. The metadata-filtered offset listings (organizations, ledgers,
+portfolios, accounts, assets, segments) are ordered by entity id in `sort_order` — on accounts too,
+whose unfiltered listing orders by `created_at` then id — and paged with `limit` and `page` over the
+matching live entities of the path's organization and ledger, combined with any other filter of the
+route (a `start_date`/`end_date` range, an entity column such as `status`, and on accounts the
+`portfolio_id`/`segment_id` of the path). The cursor listing of account types pages as the
+unfiltered listing does.
 
 ## Summary
 

@@ -74,7 +74,7 @@ type ListFeeDebtsResponse struct {
 type FeeDebtIDV2Request struct {
 	FeeV2Path
 
-	DebtID string `path:"debt_id" doc:"Fee debt ID"`
+	DebtID string `path:"fee_debt_id" doc:"Fee debt ID"`
 }
 
 // GetFeeDebtResponse carries the debt with 200 OK.

@@ -90,18 +90,40 @@ type Repository interface {
 	// FindByID returns one active transaction route of the organization with its active
 	// operation routes, whatever ledger it was created under.
 	FindByID(ctx context.Context, organizationID, id uuid.UUID) (*mmodel.TransactionRoute, error)
-	// Update applies title/description changes and the operation-route link diff atomically.
+	// Update applies title/description changes and the operation-route link changes atomically.
 	// It returns services.ErrDatabaseItemNotFound when no active route matches.
-	Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error)
+	Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, links LinkChanges) (*mmodel.TransactionRoute, error)
 	// Delete soft-deletes an active transaction route and the given operation-route links atomically.
 	// It returns services.ErrDatabaseItemNotFound when no active route matches.
 	Delete(ctx context.Context, organizationID, id uuid.UUID, toRemove []uuid.UUID) error
 	// FindAll returns active transaction routes of the organization using cursor pagination and
 	// date filtering. A non-nil ledgerID keeps only the routes created under that ledger.
 	FindAll(ctx context.Context, organizationID uuid.UUID, ledgerID *uuid.UUID, filter http.Pagination) ([]*mmodel.TransactionRoute, libHTTP.CursorPagination, error)
-	// FindOperationRouteIDsByTransactionRouteIDs maps each transaction route ID to its active linked
-	// operation route IDs. It returns an empty map when nothing is linked or the input is empty.
-	FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error)
+	// FindOperationRouteLinksByTransactionRouteIDs maps each transaction route ID to its active
+	// operation-route links. It returns an empty map when nothing is linked or the input is empty.
+	FindOperationRouteLinksByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]OperationRouteLink, error)
+}
+
+// OperationRouteLink is an active link between a transaction route and an operation route.
+// An optional link may be left unused by a transaction; every other link is required.
+type OperationRouteLink struct {
+	OperationRouteID uuid.UUID
+	Optional         bool
+}
+
+// LinkChanges is the operation-route link diff an Update applies.
+type LinkChanges struct {
+	// Add links new operation routes, each with its optionality.
+	Add []OperationRouteLink
+	// Remove soft-deletes the links to these operation routes.
+	Remove []uuid.UUID
+	// Retag changes the optionality of links the update keeps, without recreating them.
+	Retag []OperationRouteLink
+}
+
+// IsEmpty reports whether the changes touch no link.
+func (c LinkChanges) IsEmpty() bool {
+	return len(c.Add) == 0 && len(c.Remove) == 0 && len(c.Retag) == 0
 }
 
 // TransactionRoutePostgreSQLRepository is a PostgreSQL implementation of the TransactionRouteRepository.
@@ -221,30 +243,24 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 		_, spanRelations := tracer.Start(ctx, "postgres.create.operation_relations")
 		defer spanRelations.End()
 
+		links := make([]OperationRouteLink, 0, len(transactionRoute.OperationRoutes))
 		for _, operationRoute := range transactionRoute.OperationRoutes {
-			relationID := uuid.Must(libCommons.GenerateUUIDv7())
+			links = append(links, OperationRouteLink{OperationRouteID: operationRoute.ID, Optional: transactionRoute.IsOptional(operationRoute.ID)})
+		}
 
-			_, err := tx.ExecContext(
-				ctx, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
-				relationID,
-				operationRoute.ID,
-				record.ID,
-				record.CreatedAt,
-			)
-			if err != nil {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) {
-					err := services.ValidatePGError(pgErr, "operation_transaction_route")
+		if err = insertOperationRouteLinks(ctx, tx, record.ID, record.CreatedAt, links); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) {
+				err := services.ValidatePGError(pgErr, "operation_transaction_route")
 
-					libOpentelemetry.HandleSpanBusinessErrorEvent(spanRelations, "Failed to insert operation route relation", err)
-
-					return nil, err
-				}
-
-				libOpentelemetry.HandleSpanError(spanRelations, "Failed to insert operation route relation", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(spanRelations, "Failed to insert operation route relation", err)
 
 				return nil, err
 			}
+
+			libOpentelemetry.HandleSpanError(spanRelations, "Failed to insert operation route relation", err)
+
+			return nil, err
 		}
 	}
 
@@ -261,6 +277,7 @@ func (r *TransactionRoutePostgreSQLRepository) Create(ctx context.Context, organ
 	// the returned entity as it sent in.
 	entity := inserted.ToEntity()
 	entity.OperationRoutes = transactionRoute.OperationRoutes
+	entity.OptionalOperationRouteIDs = transactionRoute.OptionalOperationRouteIDs
 
 	return entity, nil
 }
@@ -289,7 +306,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 
 	mainQuery := squirrel.Select(
 		"tr.id", "tr.organization_id", "tr.ledger_id", "tr.title", "tr.description", "tr.created_at", "tr.updated_at", "tr.deleted_at",
-		"otr.id", "otr.operation_route_id", "otr.transaction_route_id", "otr.created_at", "otr.deleted_at",
+		"otr.id", "otr.operation_route_id", "otr.transaction_route_id", "otr.created_at", "otr.deleted_at", "otr.optional",
 		"or_data.id", "or_data.organization_id", "or_data.ledger_id", "or_data.title", "or_data.description", "or_data.operation_type",
 		"or_data.account_rule_type", "or_data.account_rule_valid_if", "or_data.accounting_entries", "or_data.created_at", "or_data.updated_at", "or_data.deleted_at", "or_data.code",
 	).
@@ -323,6 +340,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			tr                                                                        TransactionRoutePostgreSQLModel
 			relationID, relationOperationRouteID, relationTransactionRouteID          uuid.NullUUID
 			relationCreatedAt, relationDeletedAt                                      sql.NullTime
+			relationOptional                                                          sql.NullBool
 			operationRouteID, operationRouteOrganizationID, operationRouteLedgerID    uuid.NullUUID
 			operationRouteTitle, operationRouteDescription, operationRouteType        sql.NullString
 			accountRuleType, accountRuleValidIf                                       sql.NullString
@@ -347,6 +365,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			&relationTransactionRouteID,
 			&relationCreatedAt,
 			&relationDeletedAt,
+			&relationOptional,
 			// Operation route fields
 			&operationRouteID,
 			&operationRouteOrganizationID,
@@ -401,6 +420,10 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 			operationRoute := opRoute.ToEntity()
 			transactionRoute.OperationRoutes = append(transactionRoute.OperationRoutes, *operationRoute)
 			operationRoutesMap[opRoute.ID] = true
+
+			if relationOptional.Bool {
+				transactionRoute.OptionalOperationRouteIDs = append(transactionRoute.OptionalOperationRouteIDs, opRoute.ID)
+			}
 		}
 	}
 
@@ -423,7 +446,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindByID(ctx context.Context, org
 	return transactionRoute, nil
 }
 
-func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, toAdd, toRemove []uuid.UUID) (*mmodel.TransactionRoute, error) {
+func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organizationID, id uuid.UUID, transactionRoute *mmodel.TransactionRoute, links LinkChanges) (*mmodel.TransactionRoute, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_route")
@@ -503,8 +526,8 @@ func (r *TransactionRoutePostgreSQLRepository) Update(ctx context.Context, organ
 		return nil, err
 	}
 
-	if len(toAdd) > 0 || len(toRemove) > 0 {
-		err = r.updateOperationRouteRelationships(ctx, tx, id, toAdd, toRemove)
+	if !links.IsEmpty() {
+		err = r.updateOperationRouteRelationships(ctx, tx, id, links)
 		if err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to update operation route relationships", err)
 			return nil, err
@@ -582,7 +605,7 @@ func (r *TransactionRoutePostgreSQLRepository) Delete(ctx context.Context, organ
 		return err
 	}
 
-	err = r.updateOperationRouteRelationships(ctx, tx, id, nil, toRemove)
+	err = r.updateOperationRouteRelationships(ctx, tx, id, LinkChanges{Remove: toRemove})
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to update operation route relationships", err)
 
@@ -710,13 +733,13 @@ func (r *TransactionRoutePostgreSQLRepository) FindAll(ctx context.Context, orga
 	return transactionRoutes, cur, nil
 }
 
-func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteIDsByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]uuid.UUID, error) {
+func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteLinksByTransactionRouteIDs(ctx context.Context, transactionRouteIDs []uuid.UUID) (map[uuid.UUID][]OperationRouteLink, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_operation_route_ids_by_transaction_route_ids")
+	ctx, span := tracer.Start(ctx, "postgres.find_operation_route_links_by_transaction_route_ids")
 	defer span.End()
 
-	result := make(map[uuid.UUID][]uuid.UUID)
+	result := make(map[uuid.UUID][]OperationRouteLink)
 
 	if len(transactionRouteIDs) == 0 {
 		return result, nil
@@ -729,7 +752,7 @@ func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteIDsByTransactio
 		return nil, err
 	}
 
-	query := squirrel.Select("otr.transaction_route_id", "otr.operation_route_id").
+	query := squirrel.Select("otr.transaction_route_id", "otr.operation_route_id", "otr.optional").
 		From("operation_transaction_route otr").
 		Join("operation_route orr ON otr.operation_route_id = orr.id AND orr.deleted_at IS NULL").
 		Where(squirrel.Eq{"otr.transaction_route_id": transactionRouteIDs}).
@@ -752,15 +775,18 @@ func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteIDsByTransactio
 	defer rows.Close()
 
 	for rows.Next() {
-		var trID, orID uuid.UUID
+		var (
+			trID uuid.UUID
+			link OperationRouteLink
+		)
 
-		if err := rows.Scan(&trID, &orID); err != nil {
+		if err := rows.Scan(&trID, &link.OperationRouteID, &link.Optional); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan junction row", err)
 
 			return nil, err
 		}
 
-		result[trID] = append(result[trID], orID)
+		result[trID] = append(result[trID], link)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -772,72 +798,90 @@ func (r *TransactionRoutePostgreSQLRepository) FindOperationRouteIDsByTransactio
 	return result, nil
 }
 
-// updateOperationRouteRelationships handles the logic of updating operation route relationships within an existing transaction.
-// It receives only operation route IDs for inserts and soft-deletes.
-func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships(ctx context.Context, tx interface {
+// linkExecutor is the part of a SQL transaction the link writers use.
+type linkExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
-	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
-}, transactionRouteID uuid.UUID, toAdd, toRemove []uuid.UUID,
-) error {
+}
+
+// updateOperationRouteRelationships applies link changes inside an existing transaction:
+// soft-deletes removed links, retags kept ones in place and inserts added ones.
+func (r *TransactionRoutePostgreSQLRepository) updateOperationRouteRelationships(ctx context.Context, tx linkExecutor, transactionRouteID uuid.UUID, links LinkChanges) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctxSpan, span := tracer.Start(ctx, "postgres.update_operation_route_relationships")
 	defer span.End()
 
-	// Soft delete relationships that should be removed
-	if len(toRemove) > 0 {
-		ctxDelete, spanDelete := tracer.Start(ctxSpan, "postgres.soft_delete_relationships")
-		defer spanDelete.End()
+	for _, operationRouteID := range links.Remove {
+		deleteSQL, deleteArgs, err := squirrel.Update("operation_transaction_route").
+			Set("deleted_at", squirrel.Expr("NOW()")).
+			Where(squirrel.Eq{"transaction_route_id": transactionRouteID, "operation_route_id": operationRouteID, "deleted_at": nil}).
+			PlaceholderFormat(squirrel.Dollar).
+			ToSql()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to build soft delete relationship query", err)
 
-		for _, operationRouteID := range toRemove {
-			deleteQuery := `UPDATE operation_transaction_route
-							SET deleted_at = NOW()
-							WHERE transaction_route_id = $1
-							AND operation_route_id = $2
-							AND deleted_at IS NULL`
+			return err
+		}
 
-			_, err := tx.ExecContext(ctxDelete, deleteQuery, transactionRouteID, operationRouteID)
-			if err != nil {
-				libOpentelemetry.HandleSpanError(spanDelete, "Failed to soft delete operation route relationship", err)
+		if _, err := tx.ExecContext(ctxSpan, deleteSQL, deleteArgs...); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to soft delete operation route relationship", err)
 
-				return err
-			}
+			return err
 		}
 	}
 
-	// Create new relationships
-	if len(toAdd) > 0 {
-		ctxCreate, spanCreate := tracer.Start(ctxSpan, "postgres.create_relationships")
-		defer spanCreate.End()
+	for _, link := range links.Retag {
+		retagSQL, retagArgs, err := squirrel.Update("operation_transaction_route").
+			Set("optional", link.Optional).
+			Where(squirrel.Eq{"transaction_route_id": transactionRouteID, "operation_route_id": link.OperationRouteID, "deleted_at": nil}).
+			PlaceholderFormat(squirrel.Dollar).
+			ToSql()
+		if err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to build retag relationship query", err)
 
-		for _, operationRouteID := range toAdd {
-			relationID := uuid.Must(libCommons.GenerateUUIDv7())
-			now := time.Now()
-
-			_, err := tx.ExecContext(
-				ctxCreate, `INSERT INTO operation_transaction_route (id, operation_route_id, transaction_route_id, created_at) VALUES ($1, $2, $3, $4)`,
-				relationID,
-				operationRouteID,
-				transactionRouteID,
-				now,
-			)
-			if err != nil {
-				var pgErr *pgconn.PgError
-				if errors.As(err, &pgErr) {
-					err := services.ValidatePGError(pgErr, "operation_transaction_route")
-
-					libOpentelemetry.HandleSpanBusinessErrorEvent(spanCreate, "Failed to create operation route relationship", err)
-
-					return err
-				}
-
-				libOpentelemetry.HandleSpanError(spanCreate, "Failed to create operation route relationship", err)
-
-				return err
-			}
+			return err
 		}
 
-		spanCreate.End()
+		if _, err := tx.ExecContext(ctxSpan, retagSQL, retagArgs...); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to retag operation route relationship", err)
+
+			return err
+		}
+	}
+
+	if err := insertOperationRouteLinks(ctxSpan, tx, transactionRouteID, time.Now(), links.Add); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			err := services.ValidatePGError(pgErr, "operation_transaction_route")
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to create operation route relationship", err)
+
+			return err
+		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to create operation route relationship", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// insertOperationRouteLinks inserts one active link row per entry, with its optionality.
+func insertOperationRouteLinks(ctx context.Context, tx linkExecutor, transactionRouteID uuid.UUID, createdAt time.Time, links []OperationRouteLink) error {
+	for _, link := range links {
+		insertSQL, insertArgs, err := squirrel.Insert("operation_transaction_route").
+			Columns("id", "operation_route_id", "transaction_route_id", "created_at", "optional").
+			Values(uuid.Must(libCommons.GenerateUUIDv7()), link.OperationRouteID, transactionRouteID, createdAt, link.Optional).
+			PlaceholderFormat(squirrel.Dollar).
+			ToSql()
+		if err != nil {
+			return err
+		}
+
+		if _, err := tx.ExecContext(ctx, insertSQL, insertArgs...); err != nil {
+			return err
+		}
 	}
 
 	return nil

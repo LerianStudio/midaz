@@ -102,6 +102,7 @@ func TestTransactionCreate_RejectsInternalBalance(t *testing.T) {
 		constant.CREATED,
 		"CREATED",
 		time.Now(),
+		nil,
 		[]*mmodel.Balance{internalBalance},
 	)
 

@@ -267,6 +267,7 @@ Every public use-case entrypoint (commands + flagship queries) emits two metric 
 | `create_instrument` | `(services.UseCase).CreateInstrument` |
 | `update_instrument` | `(services.UseCase).UpdateInstrumentByID` |
 | `delete_instrument` | `(services.UseCase).DeleteInstrumentByID` |
+| `delete_instruments_by_account` | `(services.UseCase).DeleteInstrumentsByAccount` |
 | `delete_related_party` | `(services.UseCase).DeleteRelatedPartyByID` |
 | `get_holder` | `(services.UseCase).GetHolderByID` |
 | `list_holders` | `(services.UseCase).GetAllHolders` |

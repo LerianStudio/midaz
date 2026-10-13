@@ -22,6 +22,7 @@ func TestIntegration_EngineWriteBehindPublishesIndexedEvidence(t *testing.T) {
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	input, limits := richAdapterExecution(t)
+	ctx = admitEngineSeeds(t, ctx, inspector, input.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 
@@ -75,6 +76,7 @@ func TestIntegration_EngineWriteBehindAdvancesOnlyFromIndexedPredecessor(t *test
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	first, limits := richAdapterExecution(t)
+	ctx = admitEngineSeeds(t, ctx, inspector, first.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(ctx, first)
@@ -112,6 +114,7 @@ func TestIntegration_EngineWriteBehindAdvancesFromCompletedEvidence(t *testing.T
 	ctx := context.Background()
 	inspector, _, _ := newAdapterValkey(t)
 	first, limits := richAdapterExecution(t)
+	ctx = admitEngineSeeds(t, ctx, inspector, first.Execution)
 	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: inspector}, limits)
 	require.NoError(t, err)
 	_, err = adapter.Execute(ctx, first)

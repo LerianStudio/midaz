@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,8 +17,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
@@ -51,10 +54,17 @@ func newDeleteTransactionRouteStreamingTestUseCase(t *testing.T, ctrl *gomock.Co
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
+		Return(nil).AnyTimes()
+
 	return &UseCase{
-		TransactionRouteRepo: mockTransactionRouteRepo,
-		TransactionRedisRepo: mockRedisRepo,
-		Streaming:            emitter,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		TransactionRedisRepo:    mockRedisRepo,
+		Streaming:               emitter,
 	}
 }
 
@@ -135,4 +145,29 @@ func TestDeleteTransactionRouteByID_NilStreamingDoesNotPanic(t *testing.T) {
 
 	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New())
 	require.NoError(t, err)
+}
+
+// TestDeleteTransactionRouteByID_MetadataSoftDeleteFailureStillEmits verifies that a
+// metadata soft delete failing on every attempt neither fails the request nor
+// suppresses the deleted event.
+func TestDeleteTransactionRouteByID_MetadataSoftDeleteFailureStillEmits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newDeleteTransactionRouteStreamingTestUseCase(t, ctrl, mockEmitter, uuid.New())
+
+	failingMetadataRepo := txMongo.NewMockRepository(ctrl)
+	failingMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
+		Return(errors.New("mongo unavailable")).
+		Times(fastMetadataDeleteRetryPolicy().Attempts)
+
+	uc.TransactionMetadataRepo = failingMetadataRepo
+
+	err := uc.DeleteTransactionRouteByID(context.Background(), uuid.New(), uuid.New())
+	require.NoError(t, err, "a metadata soft delete failure must not fail the delete")
+
+	require.Len(t, mockEmitter.Events(), 1)
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "transaction_route", "deleted")
 }

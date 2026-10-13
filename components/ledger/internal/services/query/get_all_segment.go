@@ -28,7 +28,7 @@ func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID 
 	ctx, span := tracer.Start(ctx, "query.get_all_segments")
 	defer span.End()
 
-	segments, err := uc.SegmentRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
+	segments, err := uc.SegmentRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
 		logger.Log(ctx, libLog.LevelError, "Error getting segments on repo", libLog.Err(err))
 

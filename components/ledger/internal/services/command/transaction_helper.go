@@ -46,12 +46,12 @@ func getAliasWithoutKey(array []string) []string {
 
 // filterCompanionAliases removes alias-key entries that target the system-
 // managed overdraft companion balance (key == "overdraft"). These companions
-// are added to `validate.Sources` / `validate.Destinations` by the enrichment
-// engine so ValidateBalancesRules sees consistent counts, but they MUST NOT
-// appear in the user-facing `tran.Source` / `tran.Destination` lists —
-// otherwise the response would show duplicate aliases (the bare alias is
-// identical to the default balance's bare alias) and leak the existence of
-// a system-managed ledger into the client API contract.
+// are added to `validate.Sources` / `validate.Destinations` by the overdraft
+// enrichment, but they MUST NOT appear in the user-facing `tran.Source` /
+// `tran.Destination` lists — otherwise the response would show duplicate
+// aliases (the bare alias is identical to the default balance's bare alias)
+// and leak the existence of a system-managed ledger into the client API
+// contract.
 func filterCompanionAliases(aliases []string) []string {
 	if len(aliases) == 0 {
 		return aliases

@@ -1237,7 +1237,9 @@ func TestCreateRule_2_1_24_RejectsScopeWithInvalidUUIDFormat(t *testing.T) {
 	}
 }
 
-// TestCreateRule_2_1_25_RejectsScopeWithInvalidTransactionTypeEnum verifies transactionType enum validation in scopes.
+// TestCreateRule_2_1_25_RejectsScopeWithInvalidTransactionTypeEnum verifies a scope transactionType must be a valid
+// scheme: any 1 to 50 characters of A-Z, 0-9, _ or - after trimming and upper-casing is accepted, anything else is
+// refused.
 func TestCreateRule_2_1_25_RejectsScopeWithInvalidTransactionTypeEnum(t *testing.T) {
 	baseURL := testutil.GetBaseURL()
 	apiKey := testutil.GetAPIKey()
@@ -1251,9 +1253,11 @@ func TestCreateRule_2_1_25_RejectsScopeWithInvalidTransactionTypeEnum(t *testing
 		{"valid_WIRE", "WIRE", http.StatusCreated},
 		{"valid_PIX", "PIX", http.StatusCreated},
 		{"valid_CRYPTO", "CRYPTO", http.StatusCreated},
-		{"invalid_lowercase", "card", http.StatusBadRequest},
-		{"invalid_CASH", "CASH", http.StatusBadRequest},
-		{"invalid_random", "invalid", http.StatusBadRequest},
+		{"valid_lowercase_normalized", "card", http.StatusCreated},
+		{"valid_free_form_BOLETO", "BOLETO", http.StatusCreated},
+		{"invalid_inner_space", "PIX TRANSFER", http.StatusBadRequest},
+		{"invalid_symbol", "PIX!", http.StatusBadRequest},
+		{"invalid_too_long", strings.Repeat("A", 51), http.StatusBadRequest},
 	}
 
 	for _, tc := range testCases {
@@ -1294,7 +1298,7 @@ func TestCreateRule_2_1_25_RejectsScopeWithInvalidTransactionTypeEnum(t *testing
 				})
 			} else {
 				errResp := testutil.ParseErrorResponse(t, respBody)
-				assert.Equal(t, "0358", errResp.Code, "Error code should be 0358 for invalid transactionType enum")
+				assert.Equal(t, "0358", errResp.Code, "Error code should be 0358 for an invalid scheme")
 				assert.Equal(t, "Rule Invalid Scope", errResp.Title)
 				// Human-readable text lives in the RFC 9457 `detail`.
 				assert.Equal(t, "Scope must have at least one field set.", errResp.Detail)

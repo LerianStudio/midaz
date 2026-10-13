@@ -5,6 +5,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,9 +26,14 @@ type TransactionValidation struct {
 	// format: uuid
 	RequestID uuid.UUID `json:"requestId" swaggertype:"string" format:"uuid" example:"00000000-0000-0000-0000-000000000000"`
 
-	// Type of the transaction that was validated
-	// example: CARD
-	TransactionType TransactionType `json:"transactionType" swaggertype:"string" enums:"CARD,WIRE,PIX,CRYPTO" example:"CARD"`
+	// Deprecated name of scheme; always serialized with the same value.
+	// example: PIX
+	TransactionType TransactionType `json:"transactionType" swaggertype:"string" maxLength:"50" example:"PIX"`
+
+	// Payment scheme of the transaction that was validated. MarshalJSON always
+	// writes it from TransactionType, so the two never diverge on the wire.
+	// example: PIX
+	Scheme TransactionType `json:"scheme" swaggertype:"string" maxLength:"50" example:"PIX"`
 
 	// SubType is stored in its lowercase canonical form; matching is case-insensitive.
 	// example: purchase
@@ -108,6 +114,17 @@ func NewTransactionValidation(id uuid.UUID, decision Decision, createdAt time.Ti
 		LimitUsageDetails: []LimitUsageDetail{},
 		CreatedAt:         createdAt,
 	}, nil
+}
+
+// MarshalJSON writes scheme from TransactionType, so records read back from
+// storage (which keeps only the transaction type) serialize both names.
+func (tv TransactionValidation) MarshalJSON() ([]byte, error) {
+	type wire TransactionValidation
+
+	out := wire(tv)
+	out.Scheme = out.TransactionType
+
+	return json.Marshal(out)
 }
 
 // ToValidationResponse converts the TransactionValidation entity to a ValidationResponse DTO.

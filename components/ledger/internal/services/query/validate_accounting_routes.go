@@ -277,13 +277,18 @@ func overdraftRubricConfigured(cache mmodel.TransactionRouteCache, routeID, dire
 // routes used matches the expected count from the route cache, and that every
 // bidirectional route shared between from and to sides has both a debit and a
 // credit counterpart.
+//
+// Optional links of the action's template are left out of both sides of the
+// count: a transaction may leave them unused, and a leg that uses one is still
+// held to the template by validateAccountRules. With no optional link the count
+// is the plain template count.
 func validateRouteCountAndCounterparts(validate *mtransaction.Responses, routes actionRoutesResult, operations []mmodel.BalanceOperation) error {
-	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
-	uniqueToCount := uniqueValues(validate.OperationRoutesTo)
+	uniqueFromCount := routes.uniqueRequiredValues(validate.OperationRoutesFrom)
+	uniqueToCount := routes.uniqueRequiredValues(validate.OperationRoutesTo)
 
-	sourceCount := len(routes.source)
-	destinationCount := len(routes.destination)
-	bidirectionalCount := len(routes.bidirectional)
+	sourceCount := requiredRouteCount(routes.source)
+	destinationCount := requiredRouteCount(routes.destination)
+	bidirectionalCount := requiredRouteCount(routes.bidirectional)
 
 	// Identify bidirectional routes that appear on both from and to sides.
 	// These are counted once in uniqueFrom and once in uniqueTo, so we must
@@ -305,7 +310,7 @@ func validateRouteCountAndCounterparts(validate *mtransaction.Responses, routes 
 	}
 
 	totalCacheRoutes := sourceCount + destinationCount + bidirectionalCount
-	totalUsedRoutes := uniqueFromCount + uniqueToCount - len(sharedBidirectionalRoutes)
+	totalUsedRoutes := uniqueFromCount + uniqueToCount - routes.requiredCount(sharedBidirectionalRoutes)
 
 	if len(validate.FeeDebtLegs) == 0 && (totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceCount || uniqueToCount < destinationCount) {
 		return pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, constant.EntityTransactionRoute, uniqueFromCount, uniqueToCount, sourceCount, destinationCount, bidirectionalCount)
@@ -389,6 +394,59 @@ type actionRoutesResult struct {
 	destination   map[string]mmodel.OperationRouteCache
 	bidirectional map[string]mmodel.OperationRouteCache
 	isSourceOnly  bool
+}
+
+// isOptional reports whether routeID is an optional link of the action's
+// template. A route outside the template is not optional.
+func (r actionRoutesResult) isOptional(routeID string) bool {
+	for _, routes := range []map[string]mmodel.OperationRouteCache{r.source, r.destination, r.bidirectional} {
+		if route, ok := routes[routeID]; ok && route.Optional {
+			return true
+		}
+	}
+
+	return false
+}
+
+// uniqueRequiredValues counts the distinct route IDs in m that are not optional
+// links of the action's template.
+func (r actionRoutesResult) uniqueRequiredValues(m map[string]string) int {
+	seen := make(map[string]struct{}, len(m))
+
+	for _, routeID := range m {
+		if !r.isOptional(routeID) {
+			seen[routeID] = struct{}{}
+		}
+	}
+
+	return len(seen)
+}
+
+// requiredCount counts the route IDs of the set that are not optional links of
+// the action's template.
+func (r actionRoutesResult) requiredCount(routeIDs map[string]bool) int {
+	count := 0
+
+	for routeID := range routeIDs {
+		if !r.isOptional(routeID) {
+			count++
+		}
+	}
+
+	return count
+}
+
+// requiredRouteCount counts the required links among routes.
+func requiredRouteCount(routes map[string]mmodel.OperationRouteCache) int {
+	count := 0
+
+	for _, route := range routes {
+		if !route.Optional {
+			count++
+		}
+	}
+
+	return count
 }
 
 // resolveActionRoutes looks up the route maps for the given action in the
@@ -564,24 +622,6 @@ func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.Acc
 	}
 
 	return nil
-}
-
-// uniqueValues counts the number of unique values in a map
-func uniqueValues(m map[string]string) int {
-	if len(m) == 0 {
-		return 0
-	}
-
-	if len(m) == 1 {
-		return 1
-	}
-
-	seen := make(map[string]struct{}, len(m))
-	for _, value := range m {
-		seen[value] = struct{}{}
-	}
-
-	return len(seen)
 }
 
 // validateDirectionRouteMatch validates that an operation's direction is compatible with the route's operation type.

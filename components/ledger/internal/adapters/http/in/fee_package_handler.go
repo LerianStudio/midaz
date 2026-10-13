@@ -71,7 +71,7 @@ type UpdatePackageResponse struct {
 // Huma emit a bodiless 204.
 type DeletePackageResponse struct{}
 
-// --- POST /ledgers/{ledger_id}/packages -----------------------------------------
+// --- POST /ledgers/{ledger_id}/packages --------------------------------------
 
 // CreatePackageV2Request is the ledger-scoped create envelope. RawBody keeps the
 // body out of Huma's validator (see file header).
@@ -101,7 +101,7 @@ func (handler *PackageHandler) CreatePackageV2(ctx context.Context, in *CreatePa
 	return &CreatePackageResponse{Status: http.StatusCreated, Body: packOut}, nil
 }
 
-// --- GET /ledgers/{ledger_id}/packages (list) -----------------------------------
+// --- GET /ledgers/{ledger_id}/packages (list) --------------------------------
 
 // ListPackagesV2Request advertises the ledger-scoped list query params in the spec
 // (doc-only, no validation tags — the fee core is the sole validator) and captures the
@@ -147,7 +147,7 @@ func (handler *PackageHandler) GetAllPackagesV2(ctx context.Context, in *ListPac
 	return &ListPackagesResponse{Status: http.StatusOK, Body: pagination}, nil
 }
 
-// --- GET/DELETE /ledgers/{ledger_id}/packages/{id} -------------------------------
+// --- GET/DELETE /ledgers/{ledger_id}/packages/{package_id} -------------------
 
 // PackageIDV2Request is the ledger-scoped by-id envelope, shared by the read and the
 // delete. The id path param carries no format tag (ParseUUIDPathParameters is the sole
@@ -155,7 +155,7 @@ func (handler *PackageHandler) GetAllPackagesV2(ctx context.Context, in *ListPac
 type PackageIDV2Request struct {
 	FeeV2Path
 
-	ID string `path:"id" doc:"Package ID (UUID)"`
+	ID string `path:"package_id" doc:"Package ID (UUID)"`
 }
 
 // GetPackageByIDV2 delegates to the shared getPackageByID core with the path
@@ -166,7 +166,7 @@ func (handler *PackageHandler) GetPackageByIDV2(ctx context.Context, in *Package
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "package_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -187,7 +187,7 @@ func (handler *PackageHandler) DeletePackageByIDV2(ctx context.Context, in *Pack
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "package_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}
@@ -199,13 +199,13 @@ func (handler *PackageHandler) DeletePackageByIDV2(ctx context.Context, in *Pack
 	return &DeletePackageResponse{}, nil
 }
 
-// --- PATCH /ledgers/{ledger_id}/packages/{id} ------------------------------------
+// --- PATCH /ledgers/{ledger_id}/packages/{package_id} ------------------------
 
 // UpdatePackageV2Request is the ledger-scoped update envelope (RawBody, see Create).
 type UpdatePackageV2Request struct {
 	FeeV2Path
 
-	ID      string `path:"id" doc:"Package ID (UUID)"`
+	ID      string `path:"package_id" doc:"Package ID (UUID)"`
 	RawBody []byte `contentType:"application/json"`
 }
 
@@ -218,7 +218,7 @@ func (handler *PackageHandler) UpdatePackageByIDV2(ctx context.Context, in *Upda
 		return nil, pkgHTTP.HumaProblem(err)
 	}
 
-	id, err := parsePathUUID(in.ID, "id")
+	id, err := parsePathUUID(in.ID, "package_id")
 	if err != nil {
 		return nil, pkgHTTP.HumaProblem(err)
 	}

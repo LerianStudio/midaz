@@ -19,7 +19,7 @@ import (
 var LimitUpdatedDefinition = Definition{
 	ResourceType:  "limit",
 	EventType:     "updated",
-	SchemaVersion: "1.1.0",
+	SchemaVersion: "1.2.0",
 }
 
 // LimitUpdatedPayload is the wire payload for limit.updated. It carries the

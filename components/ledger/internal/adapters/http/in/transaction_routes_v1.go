@@ -136,9 +136,10 @@ func RegisterTransactionRoutes(api huma.API, h *TransactionHandler) {
 		Method:           http.MethodPatch,
 		Path:             idPath,
 		Summary:          "Update a Transaction",
+		Description:      patchMetadataDocV1,
 		Tags:             []string{tag},
 		Security:         secTransactionBearer,
-		SkipValidateBody: true, // body validated imperatively — plain decode, not merge-patch.
+		SkipValidateBody: true, // body validated imperatively — RFC 7396 merge-patch core.
 	}, h.UpdateTransaction)
 	attachTypedRequestBody[transaction.UpdateTransactionInput](api, "updateTransaction")
 

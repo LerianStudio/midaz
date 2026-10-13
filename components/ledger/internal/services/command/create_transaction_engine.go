@@ -116,7 +116,7 @@ func (uc *UseCase) executeCreateEngine(
 			firstSourceAccount(run.validate.Sources, engineState.pool.ExplicitBalances),
 			run.input.Metadata,
 			run.transactionDate, reservationTTLForStatus(run.status), reservationPurposeForAction(run.action),
-			run.honoredTracerSkip)
+			run.honoredTracerSkip, run.input.Scheme)
 		if reservation.Kind == reservationReject {
 			uc.rollbackCreateClaim(ctx, run)
 			uc.releaseReservations(ctx, span, logger, reservation.Handle)
@@ -384,6 +384,7 @@ func confirmedPrecommitEngineFailure(request accounting.Execution, err error) bo
 			accounting.FailureOverdraftLimitExceeded,
 			accounting.FailureOverdraftNotEligible,
 			accounting.FailureOverdraftCompanionMissing,
+			accounting.FailureOverdraftRepayRouteDenied,
 			accounting.FailureBalanceDeleted,
 			accounting.FailureAccountBlocked,
 			accounting.FailureOnHoldUnderflow,

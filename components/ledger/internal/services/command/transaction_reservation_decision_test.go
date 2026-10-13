@@ -46,7 +46,7 @@ func TestReserveTransaction_MarksRevert(t *testing.T) {
 			uc.reserveTransaction(tracerCtx, sp, logger,
 				mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
 				uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp,
-				reservationTTLDefault, tc.purpose, false)
+				reservationTTLDefault, tc.purpose, false, "")
 
 			assert.Equal(t, tc.want, capturing.lastReq.Revert)
 		})
@@ -79,7 +79,7 @@ func TestReserveTransaction_Review(t *testing.T) {
 
 		out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{},
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false, "")
 
 		require.Equal(t, reservationReject, out.Kind)
 
@@ -104,7 +104,7 @@ func TestReserveTransaction_Review(t *testing.T) {
 
 		out := uc.reserveTransaction(tracerCtx, sp, logger,
 			mmodel.TracerSettings{Mode: mmodel.TracerModeAdvisory, FailPosture: mmodel.TracerFailPostureClosed},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false, "")
 
 		assert.Equal(t, reservationProceed, out.Kind, "advisory observes a review but never blocks")
 		assert.Empty(t, out.Handle.ReservationIDs)
@@ -119,7 +119,7 @@ func TestReserveTransaction_Review(t *testing.T) {
 
 		out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{},
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false, "")
 
 		require.Equal(t, reservationReject, out.Kind)
 
@@ -138,7 +138,7 @@ func TestReserveTransaction_Review(t *testing.T) {
 
 		out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{},
 			mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
-			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+			uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false, "")
 
 		require.Equal(t, reservationProceed, out.Kind)
 
@@ -187,7 +187,7 @@ func TestReserveTransaction_TracerRejected(t *testing.T) {
 			uc := &UseCase{TracerReserver: reserver}
 
 			out := uc.reserveTransaction(ctx, span, &libLog.NopLogger{}, tc.settings,
-				uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+				uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false, "")
 
 			require.Equal(t, tc.wantKind, out.Kind)
 			assert.Empty(t, out.Handle.ReservationIDs)

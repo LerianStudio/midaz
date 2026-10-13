@@ -6,14 +6,11 @@ package billing_package
 
 import (
 	"context"
-	"strings"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
 
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	mmongoDB "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/fees"
 )
@@ -35,35 +32,21 @@ type Repository interface {
 	SoftDelete(ctx context.Context, id, organizationID, ledgerID string) error
 	FindMatchingPackages(ctx context.Context, orgID, ledgerID, transactionRouteID string) ([]*model.BillingPackage, error)
 	FindActiveByType(ctx context.Context, orgID, ledgerID string, billingType string) ([]*model.BillingPackage, error)
+	// FindNotDeletedByLedger returns every non-deleted billing package of the ledger,
+	// enabled or not, without pagination. It is ledger-scoped only: AnyLedger
+	// matches no package.
+	FindNotDeletedByLedger(ctx context.Context, organizationID, ledgerID string) ([]*model.BillingPackage, error)
 }
 
 // BillingPackageMongoDBRepository is a MongoDB-specific implementation of the Repository.
 type BillingPackageMongoDBRepository struct {
 	connection *mmongoDB.MongoConnection
-	Database   string
-}
-
-// getDatabase resolves the MongoDB database for the current request.
-// Multi-tenant: returns tenant-specific database from context.
-// Single-tenant: falls back to the static connection.
-func (r *BillingPackageMongoDBRepository) getDatabase(ctx context.Context) (*mongo.Database, error) {
-	if db := tmcore.GetMBContext(ctx); db != nil {
-		return db, nil
-	}
-
-	client, err := r.connection.GetDB(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return client.Database(strings.ToLower(r.Database)), nil
 }
 
 // NewBillingPackageMongoDBRepository returns a new instance of BillingPackageMongoDBRepository using the given MongoDB connection.
 func NewBillingPackageMongoDBRepository(mc *mmongoDB.MongoConnection, logger libLog.Logger) (*BillingPackageMongoDBRepository, error) {
 	r := &BillingPackageMongoDBRepository{
 		connection: mc,
-		Database:   mc.Database,
 	}
 
 	ctx := context.Background()
@@ -79,14 +62,4 @@ func NewBillingPackageMongoDBRepository(mc *mmongoDB.MongoConnection, logger lib
 	}
 
 	return r, nil
-}
-
-// NewBillingPackageMongoDBRepositoryFromConnection creates a BillingPackageMongoDBRepository
-// directly from an already-connected MongoConnection, without calling GetDB or EnsureIndexes.
-// This is intended for integration tests where the caller manages connection and index setup.
-func NewBillingPackageMongoDBRepositoryFromConnection(mc *mmongoDB.MongoConnection) *BillingPackageMongoDBRepository {
-	return &BillingPackageMongoDBRepository{
-		connection: mc,
-		Database:   mc.Database,
-	}
 }

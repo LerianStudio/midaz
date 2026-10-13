@@ -1045,7 +1045,7 @@ func TestValidateTransactionValidation(t *testing.T) {
 			name: "invalid transaction type",
 			tv: func() *model.TransactionValidation {
 				v := validTV()
-				v.TransactionType = model.TransactionType("INVALID")
+				v.TransactionType = model.TransactionType("BAD VALUE!")
 				return v
 			}(),
 			wantError: true,

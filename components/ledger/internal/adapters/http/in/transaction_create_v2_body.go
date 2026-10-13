@@ -14,6 +14,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // decodeCreateTransactionV2Body runs the singular direct-v2 strict decode and
@@ -80,7 +81,7 @@ func normalizeCreateCrossLedgerTransactionV2Body(in CreateTransactionV2Request, 
 	return normalizedCrossLedgerTransactionV2Body{
 		transaction: mtransaction.Transaction{
 			Description: in.Description, Code: in.Code, Pending: pending, Metadata: in.Metadata,
-			RouteID: cloneStringPtr(in.RouteID), Skip: cloneTransactionSkip(in.Skip),
+			RouteID: cloneStringPtr(in.RouteID), Skip: cloneTransactionSkip(in.Skip), Scheme: normalizedScheme(in.Scheme),
 			Send: mtransaction.Send{
 				Asset: in.Asset, Value: value, Source: mtransaction.Source{From: from}, Distribute: mtransaction.Distribute{To: to},
 			},
@@ -183,7 +184,8 @@ func normalizeCreateTransactionV2Body(in CreateTransactionV2Request, pending boo
 				Source:     mtransaction.Source{From: from},
 				Distribute: mtransaction.Distribute{To: to},
 			},
-			Skip: cloneTransactionSkip(in.Skip),
+			Skip:   cloneTransactionSkip(in.Skip),
+			Scheme: normalizedScheme(in.Scheme),
 		},
 		scope: scope,
 	}, nil
@@ -382,4 +384,12 @@ func cloneTransactionSkip(s *mtransaction.TransactionSkip) *mtransaction.Transac
 	clone := *s
 
 	return &clone
+}
+
+// normalizedScheme returns the canonical spelling of a scheme the validate tag already
+// accepted, so the ok flag carries no information here.
+func normalizedScheme(raw string) string {
+	value, _ := scheme.Normalize(raw)
+
+	return value
 }

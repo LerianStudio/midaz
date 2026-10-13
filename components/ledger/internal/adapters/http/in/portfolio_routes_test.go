@@ -30,9 +30,9 @@ var portfolioV2Ops = []struct {
 }{
 	{action: "create", method: http.MethodPost, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", v1OperationID: "createPortfolio"},
 	{action: "list", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios", v1OperationID: "listPortfolios"},
-	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", v1OperationID: "getPortfolioByID"},
-	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", v1OperationID: "updatePortfolio"},
-	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{id}", v1OperationID: "deletePortfolio"},
+	{action: "getByID", method: http.MethodGet, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}", v1OperationID: "getPortfolioByID"},
+	{action: "update", method: http.MethodPatch, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}", v1OperationID: "updatePortfolio"},
+	{action: "delete", method: http.MethodDelete, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/{portfolio_id}", v1OperationID: "deletePortfolio"},
 	{action: "count", method: http.MethodHead, opPath: "/organizations/{organization_id}/ledgers/{ledger_id}/portfolios/metrics/count", v1OperationID: "countPortfolios"},
 }
 

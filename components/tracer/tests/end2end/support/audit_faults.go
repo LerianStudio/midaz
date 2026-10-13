@@ -198,7 +198,7 @@ func CountAuditEventsDirect(db *sql.DB, resourceID, eventType string) (int, erro
 	return count, nil
 }
 
-// ActivateRuleRawE performs POST /v1/rules/{id}/activate and returns the raw
+// ActivateRuleRawE performs POST /v1/rules/{rule_id}/activate and returns the raw
 // HTTP status + body without treating non-2xx as an error. Use this for
 // negative-path tests that need to assert on 5xx responses (fault injection).
 func ActivateRuleRawE(ruleID string) (int, []byte, error) {
@@ -210,7 +210,7 @@ func ActivateRuleRawE(ruleID string) (int, []byte, error) {
 	return resp.StatusCode, body, nil
 }
 
-// ActivateLimitRawE performs POST /v1/limits/{id}/activate and returns the
+// ActivateLimitRawE performs POST /v1/limits/{limit_id}/activate and returns the
 // raw HTTP status + body without treating non-2xx as an error.
 func ActivateLimitRawE(limitID string) (int, []byte, error) {
 	resp, body, err := doRequestE(http.MethodPost, GetBaseURL()+"/v1/limits/"+limitID+"/activate", nil, authHeaders())

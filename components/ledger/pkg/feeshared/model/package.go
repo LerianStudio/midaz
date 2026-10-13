@@ -5,6 +5,11 @@
 package model
 
 import (
+	"maps"
+	"regexp"
+	"slices"
+	"strings"
+
 	"github.com/LerianStudio/lib-commons/v7/commons/safe"
 	feeconstant "github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/constant"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -22,6 +27,12 @@ const (
 	Percentage     = "percentage"
 )
 
+// feeKeyRule is the grammar a fee key must match to add a fee to a package. Keys are
+// stored and returned verbatim, so two distinct keys always name two distinct fees.
+const feeKeyRule = `^[a-z][a-zA-Z0-9]*$`
+
+var feeKeyPattern = regexp.MustCompile(feeKeyRule)
+
 // Fee is a struct designed to encapsulate request create payload data.
 type Fee struct {
 	FeeLabel         string            `json:"feeLabel" validate:"required" example:"Taxa Administrativa"`
@@ -33,6 +44,31 @@ type Fee struct {
 	RouteFrom        *string           `json:"routeFrom,omitempty" example:"taxa_débito"`
 	RouteTo          *string           `json:"routeTo,omitempty" example:"taxa_crédito"`
 	Deferrable       *bool             `json:"deferrable,omitempty" example:"false" doc:"Whether the share of this fee the payer cannot fund becomes a fee debt, settled by the payer's next credits, instead of refusing the transaction. It applies only to /v2 direct transactions; /v1 and /v2 hold/commit still refuse. Only a fee whose isDeductibleFrom is false can be deferrable. Defaults to false."`
+}
+
+// ValidateFeeKey refuses a key outside feeKeyRule, naming the field fees.<key>.
+func ValidateFeeKey(key string) error {
+	if feeKeyPattern.MatchString(key) {
+		return nil
+	}
+
+	return pkg.ValidateBadRequestFieldsError(nil, pkg.FieldValidations{
+		"fees." + key: "fee key must match " + feeKeyRule + ": a lowercase ASCII letter followed by ASCII letters and digits only",
+	}, "", nil)
+}
+
+// ValidateAddedFeeKey refuses a key that adds a fee beside the stored ones. A case variant
+// of a stored key the patch does not remove is that fee misspelled, not a second fee.
+func ValidateAddedFeeKey(key string, stored, patch map[string]Fee) error {
+	for _, storedKey := range slices.Sorted(maps.Keys(stored)) {
+		if p, named := patch[storedKey]; (!named || !p.removesTheFee()) && strings.EqualFold(key, storedKey) {
+			return pkg.ValidateBadRequestFieldsError(nil, pkg.FieldValidations{
+				"fees." + key: "fee key " + key + " conflicts with stored key " + storedKey + "; use the stored key",
+			}, "", nil)
+		}
+	}
+
+	return ValidateFeeKey(key)
 }
 
 func (f *Fee) GetIsDeductibleFrom() bool {

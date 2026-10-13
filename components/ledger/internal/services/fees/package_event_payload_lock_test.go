@@ -91,10 +91,10 @@ func TestUpdatePackageByID_OrgScope_EventCarriesStoredLedger(t *testing.T) {
 			MaxAmount: decimal.NewFromInt(1000),
 			Fees:      map[string]model.Fee{},
 			LedgerID:  storedLedger,
-		}, nil)
+		}, nil).Times(2)
 
 	mockPackRepo.EXPECT().
-		Update(gomock.Any(), gomock.Eq(packID), gomock.Eq(orgID), gomock.Eq(uuid.Nil), gomock.Any()).
+		Update(gomock.Any(), gomock.Eq(packID), gomock.Eq(orgID), gomock.Eq(uuid.Nil), gomock.Any(), gomock.Any()).
 		Return(&pack.Package{
 			ID:        packID,
 			LedgerID:  storedLedger,

@@ -25,16 +25,20 @@ const (
 // positional index) from a debit the caller submitted against an overdraft-keyed
 // balance (which carries its own).
 func debitLegFixture(alias, balanceKey, indexPrefix, amount string) mtransaction.AccountBlockExceptionLeg {
-	aliasKey := alias + "#" + balanceKey
-
 	return mtransaction.AccountBlockExceptionLeg{
 		Alias:       alias,
 		BalanceKey:  balanceKey,
-		EntryKey:    indexPrefix + aliasKey,
+		EntryKey:    indexPrefix + alias + "#" + balanceKey,
 		Direction:   constant.DirectionDebit,
 		Amount:      amount,
-		InternalKey: "balance:{transactions}:org:ledger:" + aliasKey,
+		InternalKey: internalKeyFixture(alias, balanceKey),
 	}
+}
+
+// internalKeyFixture is the unprefixed balance internal key debitLegFixture
+// assigns to a leg, so a test can name the exact bypass list it expects.
+func internalKeyFixture(alias, balanceKey string) string {
+	return "balance:{transactions}:org:ledger:" + alias + "#" + balanceKey
 }
 
 func creditLegFixture(alias, balanceKey, indexPrefix, amount string) mtransaction.AccountBlockExceptionLeg {
@@ -71,7 +75,7 @@ func TestResolveAccountBlockExceptionBinding_BindsThePrimaryDebit(t *testing.T) 
 	assert.Equal(t, grantAliasFixture, binding.Alias)
 	assert.Equal(t, "150.5", binding.Amount,
 		"the authorized amount must be the primary leg's, not the grant's copy")
-	assert.Equal(t, []string{"balance:{transactions}:org:ledger:" + grantAliasFixture + "#default"},
+	assert.Equal(t, []string{internalKeyFixture(grantAliasFixture, constant.DefaultBalanceKey)},
 		binding.InternalKeys())
 }
 
@@ -107,12 +111,11 @@ func TestResolveAccountBlockExceptionBinding_CoversDerivedOverdraftCompanions(t 
 	assert.Equal(t, "1000", binding.Amount,
 		"the authorized amount stays the primary's full debit, never the companion's portion")
 
-	assert.True(t, binding.Authorizes(grantAliasFixture, constant.DefaultBalanceKey),
-		"the primary balance must be covered")
-	assert.True(t, binding.Authorizes(grantAliasFixture, constant.OverdraftBalanceKey),
-		"the derived companion must be covered, or the block guard rejects on it")
-	assert.Len(t, binding.InternalKeys(), 2,
-		"the script's bypass list must name both balances of the one logical debit")
+	assert.Equal(t, []string{
+		internalKeyFixture(grantAliasFixture, constant.DefaultBalanceKey),
+		internalKeyFixture(grantAliasFixture, constant.OverdraftBalanceKey),
+	}, binding.InternalKeys(),
+		"the script's bypass list must name the primary and its derived companion, or the block guard rejects on the companion")
 }
 
 // TestResolveAccountBlockExceptionBinding_RefusesAnAmbiguousBind proves the
@@ -170,15 +173,16 @@ func TestResolveAccountBlockExceptionBinding_RefusesAnAmbiguousBind(t *testing.T
 	}
 }
 
-// TestAccountBlockExceptionBinding_AuthorizesByFullBalanceIdentity is the
-// regression for the over-broad relief: the binding must be scoped to the exact
-// balances it bound, never to the alias at large.
+// TestAccountBlockExceptionBinding_CoversOnlyTheBoundBalances is the regression
+// for the over-broad relief: the binding must be scoped to the exact balances it
+// bound, never to the alias at large.
 //
-// Two balances of one account are two independent permission surfaces — their
-// sending and receiving flags are set separately and the atomic script does not
-// re-check them — so a grant minted for one segment's debit must not release an
-// unrelated segment's restriction inside the same transaction.
-func TestAccountBlockExceptionBinding_AuthorizesByFullBalanceIdentity(t *testing.T) {
+// Two balances of one account are two independent permission surfaces, so a
+// grant minted for one segment's debit must not release an unrelated segment's
+// restriction inside the same transaction. The batch below touches a sibling
+// balance of the granted account and a balance of a co-funding account; the
+// script's bypass list must name neither.
+func TestAccountBlockExceptionBinding_CoversOnlyTheBoundBalances(t *testing.T) {
 	t.Parallel()
 
 	grant := &mtransaction.AccountBlockExceptionGrant{
@@ -188,31 +192,56 @@ func TestAccountBlockExceptionBinding_AuthorizesByFullBalanceIdentity(t *testing
 	binding, err := mtransaction.ResolveAccountBlockExceptionBinding(grant,
 		[]mtransaction.AccountBlockExceptionLeg{
 			debitLegFixture(grantAliasFixture, constant.DefaultBalanceKey, "0#", "100"),
+			creditLegFixture(grantAliasFixture, "asset-freeze", "1#", "100"),
+			debitLegFixture(otherAliasFixture, constant.DefaultBalanceKey, "2#", "50"),
 		})
 	require.NoError(t, err)
 
-	assert.True(t, binding.Authorizes(grantAliasFixture, constant.DefaultBalanceKey),
-		"the bound balance is authorized")
-	assert.False(t, binding.Authorizes(grantAliasFixture, "asset-freeze"),
-		"a SIBLING balance of the same account must not be authorized")
-	assert.False(t, binding.Authorizes(grantAliasFixture, constant.OverdraftBalanceKey),
-		"an overdraft companion the batch never derived must not be authorized")
-	assert.False(t, binding.Authorizes(otherAliasFixture, constant.DefaultBalanceKey),
-		"another account must not be authorized")
-
-	assert.True(t, binding.Authorizes(grantAliasFixture, ""),
-		"an empty balance key reads as the default key, as everywhere else in the package")
+	assert.Equal(t, []string{internalKeyFixture(grantAliasFixture, constant.DefaultBalanceKey)},
+		binding.InternalKeys(),
+		"only the bound balance may be bypassed: not a sibling balance of the same account, not another account")
 }
 
-// TestAccountBlockExceptionBinding_NilAuthorizesNothing covers the no-grant path:
-// callers rely on the nil receiver so no barrier needs its own nil guard.
-func TestAccountBlockExceptionBinding_NilAuthorizesNothing(t *testing.T) {
+// TestAccountBlockExceptionBinding_MatchesTheGrantedSourceInAMultiSourceBatch
+// covers a MULTI-SOURCE transaction: the value the grant is checked against is
+// the amount debited from the GRANTED source, not the transaction total.
+//
+// Binding to the total would make every single-source grant unusable in a split
+// transaction and would let a grant minted for the total release a debit it
+// never authorized.
+func TestAccountBlockExceptionBinding_MatchesTheGrantedSourceInAMultiSourceBatch(t *testing.T) {
+	t.Parallel()
+
+	// The grant's own minted amount is deliberately unlike every leg and unlike
+	// the total, so echoing it back would surface as 999.
+	grant := &mtransaction.AccountBlockExceptionGrant{
+		ID: uuid.New(), Alias: grantAliasFixture, Amount: "999",
+	}
+
+	// Two sources fund one transaction: 60 out of the granted account, 40 out of
+	// another. The transaction total is 100 and matches neither leg.
+	binding, err := mtransaction.ResolveAccountBlockExceptionBinding(grant,
+		[]mtransaction.AccountBlockExceptionLeg{
+			debitLegFixture(grantAliasFixture, constant.DefaultBalanceKey, "0#", "60"),
+			debitLegFixture(otherAliasFixture, constant.DefaultBalanceKey, "1#", "40"),
+		})
+	require.NoError(t, err)
+	require.NotNil(t, binding)
+
+	assert.Equal(t, "60", binding.Amount,
+		"the value the script compares must be the debited value of the granted source")
+	assert.Equal(t, []string{internalKeyFixture(grantAliasFixture, constant.DefaultBalanceKey)},
+		binding.InternalKeys(),
+		"the co-funding source keeps every barrier it had")
+}
+
+// TestAccountBlockExceptionBinding_NilCoversNothing covers the no-grant path:
+// callers rely on the nil receiver, so the no-grant path needs no guard of its own.
+func TestAccountBlockExceptionBinding_NilCoversNothing(t *testing.T) {
 	t.Parallel()
 
 	var absent *mtransaction.AccountBlockExceptionBinding
 
-	assert.False(t, absent.Authorizes(grantAliasFixture, constant.DefaultBalanceKey))
-	assert.False(t, absent.Authorizes("", ""))
 	assert.Nil(t, absent.InternalKeys(), "the no-grant path must allocate nothing")
 }
 

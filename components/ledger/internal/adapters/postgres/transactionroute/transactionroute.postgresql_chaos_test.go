@@ -4,7 +4,7 @@
 // Use of this source code is governed by the Elastic License 2.0
 // that can be found in the LICENSE file.
 
-// Chaos tests for FindOperationRouteIDsByTransactionRouteIDs and getDB
+// Chaos tests for FindOperationRouteLinksByTransactionRouteIDs and getDB
 // in the transactionroute PostgreSQL repository.
 //
 // These tests exercise fault-tolerance of the repository when the underlying
@@ -133,7 +133,7 @@ func (infra *chaosNetworkTransactionRouteInfra) createTransactionRouteWithLinks(
 // =============================================================================
 
 // TestIntegration_Chaos_TransactionRoute_ConnectionLoss verifies that
-// FindOperationRouteIDsByTransactionRouteIDs and FindByID return errors
+// FindOperationRouteLinksByTransactionRouteIDs and FindByID return errors
 // (not panics) when the PostgreSQL connection is fully dropped via Toxiproxy.
 //
 // This tests the scenario where the enrichment junction query is executed
@@ -141,7 +141,7 @@ func (infra *chaosNetworkTransactionRouteInfra) createTransactionRouteWithLinks(
 // not crash.
 //
 // 5-Phase structure:
-//  1. Normal   -- FindOperationRouteIDsByTransactionRouteIDs succeeds through the proxy
+//  1. Normal   -- FindOperationRouteLinksByTransactionRouteIDs succeeds through the proxy
 //  2. Inject   -- Toxiproxy proxy is disabled (full connection loss)
 //  3. Verify   -- Repository operations return error, no panic
 //  4. Restore  -- Toxiproxy proxy is re-enabled
@@ -161,13 +161,13 @@ func TestIntegration_Chaos_TransactionRoute_ConnectionLoss(t *testing.T) {
 
 	// --- Phase 1: Normal ---
 	// Verify repository operations work through the proxy before any fault.
-	t.Log("Phase 1 (Normal): verifying FindOperationRouteIDsByTransactionRouteIDs succeeds through proxy")
+	t.Log("Phase 1 (Normal): verifying FindOperationRouteLinksByTransactionRouteIDs succeeds through proxy")
 
 	trID1, expectedOpRouteIDs := infra.createTransactionRouteWithLinks(t, "Chaos ConnLoss TR1", 2)
 	trID2, _ := infra.createTransactionRouteWithLinks(t, "Chaos ConnLoss TR2", 1)
 
-	result, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2})
-	require.NoError(t, err, "Phase 1: FindOperationRouteIDsByTransactionRouteIDs should succeed before fault injection")
+	result, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2})
+	require.NoError(t, err, "Phase 1: FindOperationRouteLinksByTransactionRouteIDs should succeed before fault injection")
 	require.Len(t, result[trID1], 2, "Phase 1: trID1 should have 2 linked operation routes")
 	require.Len(t, result[trID2], 1, "Phase 1: trID2 should have 1 linked operation route")
 
@@ -189,23 +189,23 @@ func TestIntegration_Chaos_TransactionRoute_ConnectionLoss(t *testing.T) {
 	// All repository operations must return errors, not panic.
 	t.Log("Phase 3 (Verify): repository operations must return error, not panic")
 
-	// 3a. FindOperationRouteIDsByTransactionRouteIDs must fail gracefully.
+	// 3a. FindOperationRouteLinksByTransactionRouteIDs must fail gracefully.
 	var junctionErr error
 
 	require.NotPanics(t, func() {
 		junctionCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
-		_, junctionErr = infra.repo.FindOperationRouteIDsByTransactionRouteIDs(junctionCtx, []uuid.UUID{trID1, trID2})
-	}, "Phase 3: FindOperationRouteIDsByTransactionRouteIDs must not panic on connection loss")
+		_, junctionErr = infra.repo.FindOperationRouteLinksByTransactionRouteIDs(junctionCtx, []uuid.UUID{trID1, trID2})
+	}, "Phase 3: FindOperationRouteLinksByTransactionRouteIDs must not panic on connection loss")
 
 	// The operation may succeed if the connection pool still has cached connections,
 	// or it may fail. Both outcomes are acceptable during the partition window.
 	// The key invariant is: no panic.
 	if junctionErr != nil {
-		t.Logf("Phase 3: FindOperationRouteIDsByTransactionRouteIDs returned expected error: %v", junctionErr)
+		t.Logf("Phase 3: FindOperationRouteLinksByTransactionRouteIDs returned expected error: %v", junctionErr)
 	} else {
-		t.Log("Phase 3: FindOperationRouteIDsByTransactionRouteIDs succeeded (pool had cached connections)")
+		t.Log("Phase 3: FindOperationRouteLinksByTransactionRouteIDs succeeded (pool had cached connections)")
 	}
 
 	// 3b. FindByID must fail gracefully.
@@ -262,19 +262,19 @@ func TestIntegration_Chaos_TransactionRoute_ConnectionLoss(t *testing.T) {
 	t.Log("Phase 5 (Recovery): verifying operations succeed after proxy restoration")
 
 	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID1})
+		_, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID1})
 		return err
-	}, 30*time.Second, "Phase 5: FindOperationRouteIDsByTransactionRouteIDs should recover after proxy restoration")
+	}, 30*time.Second, "Phase 5: FindOperationRouteLinksByTransactionRouteIDs should recover after proxy restoration")
 
-	recoveredResult, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2})
-	require.NoError(t, err, "Phase 5: FindOperationRouteIDsByTransactionRouteIDs must succeed after recovery")
+	recoveredResult, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID1, trID2})
+	require.NoError(t, err, "Phase 5: FindOperationRouteLinksByTransactionRouteIDs must succeed after recovery")
 	assert.Len(t, recoveredResult[trID1], 2, "Phase 5: trID1 should still have 2 linked operation routes after recovery")
 	assert.Len(t, recoveredResult[trID2], 1, "Phase 5: trID2 should still have 1 linked operation route after recovery")
 
 	// Verify data integrity: same operation route IDs as before
 	recoveredIDs := make(map[uuid.UUID]bool)
 	for _, id := range recoveredResult[trID1] {
-		recoveredIDs[id] = true
+		recoveredIDs[id.OperationRouteID] = true
 	}
 
 	for _, expectedID := range expectedOpRouteIDs {
@@ -290,7 +290,7 @@ func TestIntegration_Chaos_TransactionRoute_ConnectionLoss(t *testing.T) {
 // =============================================================================
 
 // TestIntegration_Chaos_TransactionRoute_HighLatency verifies that
-// FindOperationRouteIDsByTransactionRouteIDs handles slow DB responses
+// FindOperationRouteLinksByTransactionRouteIDs handles slow DB responses
 // correctly. Specifically, context timeout must propagate through getDB
 // so callers can abort slow queries without hanging indefinitely.
 //
@@ -315,12 +315,12 @@ func TestIntegration_Chaos_TransactionRoute_HighLatency(t *testing.T) {
 
 	// --- Phase 1: Normal ---
 	// Verify operations work with normal latency.
-	t.Log("Phase 1 (Normal): verifying FindOperationRouteIDsByTransactionRouteIDs succeeds with normal latency")
+	t.Log("Phase 1 (Normal): verifying FindOperationRouteLinksByTransactionRouteIDs succeeds with normal latency")
 
 	trID, _ := infra.createTransactionRouteWithLinks(t, "Chaos HighLatency TR", 2)
 
 	start := time.Now()
-	result, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID})
+	result, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID})
 	baselineLatency := time.Since(start)
 
 	require.NoError(t, err, "Phase 1: junction query should succeed with normal latency")
@@ -345,8 +345,8 @@ func TestIntegration_Chaos_TransactionRoute_HighLatency(t *testing.T) {
 		shortCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
-		_, timeoutErr = infra.repo.FindOperationRouteIDsByTransactionRouteIDs(shortCtx, []uuid.UUID{trID})
-	}, "Phase 3: FindOperationRouteIDsByTransactionRouteIDs must not panic under high latency")
+		_, timeoutErr = infra.repo.FindOperationRouteLinksByTransactionRouteIDs(shortCtx, []uuid.UUID{trID})
+	}, "Phase 3: FindOperationRouteLinksByTransactionRouteIDs must not panic under high latency")
 
 	require.Error(t, timeoutErr, "Phase 3: junction query must return error when context deadline is exceeded")
 	t.Logf("Phase 3: received expected timeout error: %v", timeoutErr)
@@ -359,7 +359,7 @@ func TestIntegration_Chaos_TransactionRoute_HighLatency(t *testing.T) {
 	longCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	slowResult, slowErr := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(longCtx, []uuid.UUID{trID})
+	slowResult, slowErr := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(longCtx, []uuid.UUID{trID})
 	slowElapsed := time.Since(start)
 
 	if slowErr == nil {
@@ -386,13 +386,13 @@ func TestIntegration_Chaos_TransactionRoute_HighLatency(t *testing.T) {
 		recoveryCtx, recoveryCancel := context.WithTimeout(ctx, 5*time.Second)
 		defer recoveryCancel()
 
-		_, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(recoveryCtx, []uuid.UUID{trID})
+		_, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(recoveryCtx, []uuid.UUID{trID})
 		return err
 	}, 30*time.Second, "Phase 5: junction query should recover to normal latency after toxic removal")
 
 	start = time.Now()
 
-	recovered, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID})
+	recovered, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID})
 	recoveryLatency := time.Since(start)
 
 	require.NoError(t, err, "Phase 5: junction query must succeed after latency is removed")
@@ -411,7 +411,7 @@ func TestIntegration_Chaos_TransactionRoute_HighLatency(t *testing.T) {
 // scenario, if the tenant DB path fails, getDB should attempt the static
 // connection. In this chaos test, since both paths go through the same proxy,
 // we verify that:
-//   - FindOperationRouteIDsByTransactionRouteIDs fails gracefully during partition (no panic)
+//   - FindOperationRouteLinksByTransactionRouteIDs fails gracefully during partition (no panic)
 //   - Data is recovered after partition heals
 //   - The getDB fallback logic (tenant -> static) does not mask errors silently
 //
@@ -449,12 +449,12 @@ func TestIntegration_Chaos_TransactionRoute_NetworkPartition(t *testing.T) {
 	trID, expectedOpRouteIDs := infra.createTransactionRouteWithLinks(t, "Chaos Partition TR", 2)
 
 	// 1a. Static path (no tenant in context).
-	staticResult, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID})
+	staticResult, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID})
 	require.NoError(t, err, "Phase 1: static junction query should succeed")
 	assert.Len(t, staticResult[trID], 2, "Phase 1: static path should return 2 operation route IDs")
 
 	// 1b. Tenant path (tenant DB injected into context).
-	tenantResult, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(tenantCtx, []uuid.UUID{trID})
+	tenantResult, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(tenantCtx, []uuid.UUID{trID})
 	require.NoError(t, err, "Phase 1: tenant junction query should succeed")
 	assert.Len(t, tenantResult[trID], 2, "Phase 1: tenant path should return 2 operation route IDs")
 
@@ -480,7 +480,7 @@ func TestIntegration_Chaos_TransactionRoute_NetworkPartition(t *testing.T) {
 		partitionCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
 
-		_, staticPartitionErr = infra.repo.FindOperationRouteIDsByTransactionRouteIDs(partitionCtx, []uuid.UUID{trID})
+		_, staticPartitionErr = infra.repo.FindOperationRouteLinksByTransactionRouteIDs(partitionCtx, []uuid.UUID{trID})
 	}, "Phase 3: static junction query must not panic during partition")
 
 	if staticPartitionErr != nil {
@@ -496,7 +496,7 @@ func TestIntegration_Chaos_TransactionRoute_NetworkPartition(t *testing.T) {
 		partitionTenantCtx, cancel := context.WithTimeout(tenantCtx, 3*time.Second)
 		defer cancel()
 
-		_, tenantPartitionErr = infra.repo.FindOperationRouteIDsByTransactionRouteIDs(partitionTenantCtx, []uuid.UUID{trID})
+		_, tenantPartitionErr = infra.repo.FindOperationRouteLinksByTransactionRouteIDs(partitionTenantCtx, []uuid.UUID{trID})
 	}, "Phase 3: tenant junction query must not panic during partition")
 
 	if tenantPartitionErr != nil {
@@ -534,24 +534,24 @@ func TestIntegration_Chaos_TransactionRoute_NetworkPartition(t *testing.T) {
 
 	// 5a. Static path recovery.
 	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID})
+		_, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID})
 		return err
 	}, 30*time.Second, "Phase 5: static junction query should recover after partition heals")
 
 	// 5b. Tenant path recovery.
 	chaos.AssertRecoveryWithin(t, func() error {
-		_, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(tenantCtx, []uuid.UUID{trID})
+		_, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(tenantCtx, []uuid.UUID{trID})
 		return err
 	}, 30*time.Second, "Phase 5: tenant junction query should recover after partition heals")
 
 	// 5c. Data integrity verification.
-	recoveredResult, err := infra.repo.FindOperationRouteIDsByTransactionRouteIDs(ctx, []uuid.UUID{trID})
+	recoveredResult, err := infra.repo.FindOperationRouteLinksByTransactionRouteIDs(ctx, []uuid.UUID{trID})
 	require.NoError(t, err, "Phase 5: junction query must succeed after partition recovery")
 	require.Len(t, recoveredResult[trID], 2, "Phase 5: should still have 2 operation route IDs after recovery")
 
 	recoveredIDs := make(map[uuid.UUID]bool)
 	for _, id := range recoveredResult[trID] {
-		recoveredIDs[id] = true
+		recoveredIDs[id.OperationRouteID] = true
 	}
 
 	for _, expectedID := range expectedOpRouteIDs {

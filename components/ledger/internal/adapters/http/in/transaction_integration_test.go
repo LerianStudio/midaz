@@ -130,22 +130,13 @@ func setupTestInfra(t *testing.T) *testInfra {
 
 	infra := &testInfra{}
 
-	// Start containers
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainer(t)
 
-	// Create PostgreSQL connection following lib-commons pattern
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
-	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
-
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
-
-	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
-
-	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, infra.pgContainer.DSN, infra.pgContainer.DSN)
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 
 	// Create repositories
 	transactionRepo := transaction.NewTransactionPostgreSQLRepository(infra.pgConn, false)
@@ -161,7 +152,7 @@ func setupTestInfra(t *testing.T) *testInfra {
 	require.NoError(t, err, "failed to create Redis repository")
 	engine, err := redisengine.NewAdapter(redisConn)
 	require.NoError(t, err, "failed to create accounting engine")
-	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: "test_db", DB: infra.mongoContainer.Client}, nil)
+	feeDebts, err := fee_debt.NewRepository(&feesmongo.MongoConnection{Database: infra.mongoContainer.DBName, DB: infra.mongoContainer.Client}, nil)
 	require.NoError(t, err, "failed to create fee debt repository")
 
 	// Store repositories for test assertions
@@ -693,10 +684,10 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 
 	infra := &testAsyncInfra{}
 
-	// Start containers
-	infra.pgContainer = postgrestestutil.SetupContainer(t)
-	infra.mongoContainer = mongotestutil.SetupContainer(t)
-	infra.redisContainer = redistestutil.SetupContainer(t)
+	// A per-test broker: terminating it stops the consumer before the Valkey flush and the Postgres drop.
+	infra.pgContainer = postgrestestutil.SetupMigratedContainer(t, "transaction")
+	infra.mongoContainer = mongotestutil.SetupReusableContainer(t)
+	infra.redisContainer = redistestutil.SetupReusableContainer(t)
 	infra.rabbitmqContainer = rabbitmqtestutil.SetupContainer(t)
 
 	// Register cleanup for consumer connection
@@ -736,17 +727,9 @@ func setupAsyncTestInfra(t *testing.T) *testAsyncInfra {
 	rabbitmqtestutil.SetupExchange(t, infra.rabbitmqContainer.Channel, "test.transaction.exchange", "direct")
 	rabbitmqtestutil.SetupQueue(t, infra.rabbitmqContainer.Channel, "test.transaction.queue", "test.transaction.exchange", "test.transaction.key")
 
-	// Create PostgreSQL connection following lib-commons pattern
-	migrationsPath := postgrestestutil.FindMigrationsPath(t, "transaction")
-	connStr := postgrestestutil.BuildConnectionString(infra.pgContainer.Host, infra.pgContainer.Port, infra.pgContainer.Config)
-
-	infra.pgConn = postgrestestutil.CreatePostgresClient(t, connStr, connStr, infra.pgContainer.Config.DBName, migrationsPath)
-
-	// Create MongoDB connection
-	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, "test_db")
-
-	// Create Redis connection
-	redisConn := redistestutil.CreateConnection(t, infra.redisContainer.Addr)
+	infra.pgConn = postgrestestutil.ConnectPostgresClient(t.Context(), t, infra.pgContainer.DSN, infra.pgContainer.DSN)
+	mongoConn := mongotestutil.CreateConnection(t, infra.mongoContainer.URI, infra.mongoContainer.DBName)
+	redisConn := redistestutil.CreateConnectionWithDB(t, infra.redisContainer.Addr, infra.redisContainer.DB)
 	logger := &libLog.GoLogger{Level: libLog.LevelInfo}
 
 	// Create repositories
@@ -934,7 +917,7 @@ func waitForOperations(t *testing.T, db *sql.DB, transactionID uuid.UUID, expect
 // 3. ValidateSendSourceAndDistribute calculates source/destination totals
 // 4. GetBalances retrieves balances (Redis cache -> PostgreSQL fallback)
 // 5. BuildOperations creates Operation objects with DEBIT/CREDIT types
-// 6. WriteTransaction -> WriteTransactionAsync (since RABBITMQ_TRANSACTION_ASYNC=true)
+// 6. The transaction takes the async write-behind path (RABBITMQ_TRANSACTION_ASYNC=true)
 // 7. Message is sent to RabbitMQ queue
 // 8. Returns HTTP 201 with transaction in CREATED status (immediate response)
 // 9. Consumer processes the message and updates status to APPROVED

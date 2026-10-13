@@ -45,7 +45,7 @@ func FuzzValidateOperationRouteTypes_OperationTypes(f *testing.F) {
 		}
 
 		// Must not panic; must return nil or error
-		err := validateOperationRouteTypes(opRoutes)
+		err := validateOperationRouteTypes(opRoutes, nil)
 
 		hasSource := opType1 == "source" || opType1 == "bidirectional" || opType2 == "source" || opType2 == "bidirectional"
 		hasDest := opType1 == "destination" || opType1 == "bidirectional" || opType2 == "destination" || opType2 == "bidirectional"
@@ -82,7 +82,7 @@ func FuzzValidateOperationRouteTypes_EmptyInputs(f *testing.F) {
 		}
 
 		// Must not panic
-		result := validateOperationRouteTypes(opRoutes)
+		result := validateOperationRouteTypes(opRoutes, nil)
 
 		// Empty inputs should return an error (no source/destination)
 		if !hasRoutes {
