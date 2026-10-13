@@ -14,7 +14,6 @@ the repository root. Keep all `AGENTS.md` content in English.
 ## Read First
 
 - [Engine architecture](../../../docs/architecture/engine.md): accounting boundary, receipts, protection, and rollout.
-- [Recovery inventory](../../../docs/runbooks/transaction-recovery-inventory.md): record families, quarantine, and reprocessing.
 - [Batch contract](../../../docs/api/atomic-transaction-batch.md): identity, order, limits, and replay.
 - [Telemetry](../../../docs/standards/telemetry.md) and [error handling](../../../docs/standards/error-handling.md): binding standards.
 - [Performance report](../../../docs/performance/engine-report.md): measurements and evidence limitations.
