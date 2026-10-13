@@ -65,11 +65,17 @@ func annotationLegBalances() []*mmodel.Balance {
 // createAnnotation runs an annotation create through the use case of the given
 // route version.
 func createAnnotation(uc *UseCase, version string, organizationID, ledgerID uuid.UUID) error {
+	return createAnnotationWithContext(context.Background(), uc, version, organizationID, ledgerID)
+}
+
+// createAnnotationWithContext runs an annotation create under the given request
+// context through the use case of the given route version.
+func createAnnotationWithContext(ctx context.Context, uc *UseCase, version string, organizationID, ledgerID uuid.UUID) error {
 	input := skippingTransaction()
 	input.Skip = nil
 
 	if version == "v1" {
-		_, _, err := uc.CreateTransactionV1(context.Background(), CreateTransactionV1Input{
+		_, _, err := uc.CreateTransactionV1(ctx, CreateTransactionV1Input{
 			OrganizationID: organizationID, LedgerID: ledgerID, Transaction: input,
 			TransactionStatus: constant.NOTED, IdempotencyTTL: time.Minute,
 		})
@@ -77,7 +83,7 @@ func createAnnotation(uc *UseCase, version string, organizationID, ledgerID uuid
 		return err
 	}
 
-	_, _, err := uc.CreateTransactionV2(context.Background(), CreateTransactionV2Input{
+	_, _, err := uc.CreateTransactionV2(ctx, CreateTransactionV2Input{
 		OrganizationID: organizationID, LedgerID: ledgerID, Transaction: input,
 		TransactionStatus: constant.NOTED, IdempotencyTTL: time.Minute,
 	})
@@ -228,6 +234,66 @@ func TestCreateAnnotationReleasesItsClaimAndEntryWhenTheBackupWriteFails(t *test
 				Times(1)
 
 			err := createAnnotation(uc, version, uuid.New(), uuid.New())
+
+			var backupErr pkg.InternalServerError
+
+			require.ErrorAs(t, err, &backupErr)
+			assert.Equal(t, constant.ErrTransactionBackupCacheFailed.Error(), backupErr.Code)
+		})
+	}
+}
+
+// TestCreateAnnotationCompensatesAFailedBackupWriteAfterTheRequestExpires proves the
+// compensation of a failed backup-queue write does not inherit the request's
+// cancellation: when the request context ends during the write, the claim release
+// and the entry removal still run under a live, bounded context.
+func TestCreateAnnotationCompensatesAFailedBackupWriteAfterTheRequestExpires(t *testing.T) {
+	for _, version := range []string{"v1", "v2"} {
+		t.Run(version, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			redisRepo := txRedis.NewMockRedisRepository(ctrl)
+			reader := &annotationBalanceReader{versionReader: &versionReader{}, balances: annotationLegBalances()}
+			uc := &UseCase{
+				TransactionRedisRepo:        redisRepo,
+				TransactionReader:           reader,
+				TransactionRepo:             transaction.NewMockRepository(ctrl),
+				AppliedTransactionCompleter: &createAppliedTransactionCompleter{},
+			}
+
+			requestCtx, expireRequest := context.WithCancel(context.Background())
+			defer expireRequest()
+
+			requireLiveBoundedContext := func(ctx context.Context) {
+				require.NoError(t, ctx.Err(), "the compensation must not inherit the request's cancellation")
+
+				_, bounded := ctx.Deadline()
+				assert.True(t, bounded, "the compensation must run under a deadline")
+			}
+
+			redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+			redisRepo.EXPECT().AddMessageToQueue(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(context.Context, string, []byte) error {
+					expireRequest()
+
+					return context.Canceled
+				}).
+				Times(1)
+			redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, _ string) error {
+					requireLiveBoundedContext(ctx)
+
+					return nil
+				}).
+				Times(1)
+			redisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, _ string) error {
+					requireLiveBoundedContext(ctx)
+
+					return nil
+				}).
+				Times(1)
+
+			err := createAnnotationWithContext(requestCtx, uc, version, uuid.New(), uuid.New())
 
 			var backupErr pkg.InternalServerError
 

@@ -221,6 +221,10 @@ func (uc *UseCase) stageBalances(ctx context.Context, span trace.Span, logger li
 	return ctx, nil
 }
 
+// annotationBackupCleanupTimeout bounds the compensation of a failed backup-queue
+// write, which runs detached so a cancelled or timed-out request still removes it.
+const annotationBackupCleanupTimeout = 5 * time.Second
+
 // finalizeCreatedTransaction persists the nonmonetary NOTED path. It turns the
 // immutable balance snapshots into annotation operations without changing live
 // balances, then writes the transaction and completes its idempotency/audit work.
@@ -299,9 +303,13 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 
 		// A write that failed ambiguously may still have stored the entry, and the
 		// replay would then persist an annotation the client was told failed. The
-		// removal is best-effort, like the write it compensates.
-		uc.rollbackCreateClaim(ctx, run)
-		uc.RemoveTransactionFromRedisQueue(ctx, logger, run.organizationID, run.ledgerID, run.transactionID.String())
+		// removal is best-effort, like the write it compensates, and runs detached
+		// from the request: the request deadline is often what failed the write.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), annotationBackupCleanupTimeout)
+		defer cancel()
+
+		uc.rollbackCreateClaim(cleanupCtx, run)
+		uc.RemoveTransactionFromRedisQueue(cleanupCtx, logger, run.organizationID, run.ledgerID, run.transactionID.String())
 
 		return nil, pkg.ValidateBusinessError(err, constant.EntityTransaction)
 	}
