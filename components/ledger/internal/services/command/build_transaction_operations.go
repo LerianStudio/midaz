@@ -468,8 +468,11 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 // Returns the smaller of the requested amount and the observed movement,
 // so a balance that somehow moves MORE than the requested amount (a bug
 // that should not exist) never retroactively inflates the Operation
-// amount — we keep the request as the upper bound and surface the anomaly
-// via the balance vs. operation divergence in downstream reconciliation.
+// amount — we keep the request as the upper bound. The clip changes only
+// the row's amount: its before/after states come from the same engine
+// movement as the balance, so the balance and its trail still agree. The
+// anomaly is visible only as a gap between the row's amount and the
+// difference of its before/after balances.
 func effectiveOperationAmount(
 	amt mtransaction.Amount,
 	beforeAvailable, afterAvailable, beforeOnHold, afterOnHold decimal.Decimal,
