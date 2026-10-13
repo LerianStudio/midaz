@@ -2,7 +2,7 @@ name: PR Validation
 
 on:
   pull_request:
-    branches: [develop, release-candidate, main]
+    branches: [maintenance/v3.8.x]
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   validate:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.46.2
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-pr-validation.yml@v1.81.1
     with:
       enforce_source_branches: true
       allowed_source_branches: 'hotfix/*|release-candidate'

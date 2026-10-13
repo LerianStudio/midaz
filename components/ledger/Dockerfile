@@ -1,9 +1,18 @@
-FROM --platform=$BUILDPLATFORM golang:1.26.6-alpine AS builder
+# syntax=docker/dockerfile:1
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS builder
 
 WORKDIR /ledger-app
 
 COPY go.mod go.sum ./
-RUN go mod download
+ENV GOPRIVATE=github.com/LerianStudio/*
+RUN apk add --no-cache git
+RUN --mount=type=secret,id=github_token \
+    if [ -f /run/secrets/github_token ]; then \
+      export GIT_CONFIG_COUNT=1 \
+        GIT_CONFIG_KEY_0="url.https://x-access-token:$(cat /run/secrets/github_token)@github.com/.insteadOf" \
+        GIT_CONFIG_VALUE_0="https://github.com/"; \
+    fi && \
+    go mod download
 
 COPY . .
 

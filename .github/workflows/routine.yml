@@ -6,7 +6,7 @@ on:
   pull_request:
     types: [closed]
   push:
-    branches: [main]
+    branches: [maintenance/v3.8.x]
     paths:
       - .github/labels.yml
   workflow_dispatch:
@@ -35,7 +35,7 @@ permissions:
 
 jobs:
   routine:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.46.2
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/routine.yml@v1.81.1
     with:
       routine: ${{ inputs.routine || 'all' }}
       dry_run: ${{ inputs.dry_run || false }}

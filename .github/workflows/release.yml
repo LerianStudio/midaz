@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    branches: [develop, release-candidate, main]
+    branches: [maintenance/v3.8.x]
     tags: ['**']
 
 permissions:
@@ -14,9 +14,9 @@ permissions:
 
 jobs:
   pipeline:
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.46.4
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/go-release.yml@v1.81.1
     with:
-      enable_changelog: ${{ github.ref == 'refs/heads/main' }}
+      enable_changelog: true
       release_single_app: true
       app_name_prefix: "midaz"
       filter_paths: |
@@ -27,14 +27,17 @@ jobs:
         go.sum
         pkg/
         Makefile
-      enable_gitops_artifacts: true
-      enable_ungoliant_release_diff: true
+      enable_gitops_artifacts: false
+      enable_ungoliant_release_diff: false
       ungoliant_env_type: chaos
       ungoliant_tenancy: st
       enable_helm_dispatch: true
       helm_chart: "midaz"
       helm_values_key_mappings: '{"midaz-crm": "crm", "midaz-ledger": "ledger"}'
       gitops_yaml_key_mappings: '{"midaz-crm.tag": ".crm.image.tag", "midaz-ledger.tag": ".ledger.image.tag"}'
-      enable_apidog_e2e: true
+      enable_apidog_e2e: false
       s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false}]'
+      enable_gitops_update: false
+      helm_detect_env_changes: false
+      enable_e2e_tests: false
     secrets: inherit
