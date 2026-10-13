@@ -98,6 +98,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 			uc := &command.UseCase{
 				TransactionRedisRepo:        redisRepository,
 				TransactionReader:           reader,
+				TransactionRepo:             pendingLifecycleRows{reader: reader},
 				Engine:                      executor,
 				AppliedTransactionCompleter: &pendingLifecycleFinalizer{outcomes: []string{constant.PENDING, test.terminalStatus}},
 				TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{

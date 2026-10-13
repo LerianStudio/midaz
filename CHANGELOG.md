@@ -1,5 +1,19 @@
 # Midaz Changelog
 
+## [4.2.2](https://github.com/LerianStudio/midaz/releases/tag/v4.2.2)
+
+Fixes:
+- Refuse a pending transition if the primary row is already closed. (@ClaraTersi)
+
+Improvements:
+- Bump `golangci-lint` to `v2.14.0` to support `go1.27.2` export data. (@ClaraTersi)
+- Update Go toolchain to `1.27.2`. (@ClaraTersi)
+- Upgrade `golang.org/x/net` to `v0.60.0`. (@ClaraTersi)
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v4.2.1...v4.2.2)
+
+---
+
 ## [4.2.1](https://github.com/LerianStudio/midaz/releases/tag/v4.2.1)
 
 Fixes:
