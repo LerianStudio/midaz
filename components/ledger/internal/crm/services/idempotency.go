@@ -156,7 +156,6 @@ func (uc *UseCase) CreateOrCheckCRMIdempotency(ctx context.Context, organization
 
 	businessErr := pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckCRMIdempotency", token)
 	recordSpanError(span, "Idempotency key already in use", businessErr)
-	logger.Log(ctx, libLog.LevelWarn, "Idempotency key already in use", libLog.Err(businessErr))
 
 	return &CRMIdempotencyResult{}, businessErr
 }
