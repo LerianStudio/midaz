@@ -302,6 +302,7 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
 			Engine: executor, AppliedTransactionCompleter: fixture.finalizer,
+			TransactionRepo: pendingLifecycleRows{reader: reader},
 			TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
 				client:     client,
 				executions: func() []command.EngineExecution { return executor.executions },
