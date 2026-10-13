@@ -340,10 +340,24 @@ func TestIntegrationEngineWriteBehindHTTPCommitsAndCancelsBeforeProjection(t *te
 				infra.requireBalance(t, ctx, aliases.source, 1000, 0)
 			}
 
+			// The successful transition keeps its pending lock until the TTL, so
+			// an immediate repeat meets the lock.
+			for _, action := range []string{"commit", "cancel"} {
+				repeated := infra.postTransition(t, app, testCase.version, transactionID, action)
+				require.Equalf(t, http.StatusConflict, repeated.status, "a %s after the %s must be refused: %s", action, testCase.action, repeated.body)
+				assert.Equalf(t, constant.ErrPendingTransactionLocked.Error(), repeated.decoded["code"],
+					"a %s within the lock TTL must meet the retained lock: %s", action, repeated.body)
+			}
+
+			// Once the lock is gone, the terminal status refuses the repeat
+			// and no second movement happens.
+			lockKey, err := tmvalkey.GetKeyContext(ctx, utils.PendingTransactionLockKey(infra.organization, infra.ledger, transactionID.String()))
+			require.NoError(t, err)
+			require.Positive(t, infra.redis.TTL(ctx, lockKey).Val(), "the retained lock must still expire")
+			require.NoError(t, infra.redis.Del(ctx, lockKey).Err())
+
 			repeated := infra.postTransition(t, app, testCase.version, transactionID, testCase.action)
-			require.NotEqualf(t, http.StatusCreated, repeated.status, "a second %s must be refused: %s", testCase.action, repeated.body)
-			// The first transition released its pending lock, so the terminal
-			// status refuses the repeat and no second movement happens.
+			require.Equalf(t, http.StatusConflict, repeated.status, "a second %s must be refused: %s", testCase.action, repeated.body)
 			assert.Equal(t, constant.ErrCommitTransactionNotPending.Error(), repeated.decoded["code"])
 
 			for range 2 {

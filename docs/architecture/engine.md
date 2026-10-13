@@ -1202,6 +1202,70 @@ cancellation remains exempt without reading a grant. HOLD rejects a presented
 identifier with 0509 at the transport. NOTED remains on its nonmonetary path and
 does not consume a grant; rejecting that combination is tracked separately.
 
+### Pending and revert lifecycle beside 4.0.x pods
+
+A 4.0.x pod commits, cancels, and reverts without the engine guard. It applies
+the movement with its own script and records the new status on the primary row
+only, so the engine index and guard of a hold created by a current pod still read
+`PENDING` afterwards. The current release cannot observe that transition in the
+engine state, so two protections cover singular `/v1` and `/v2` commit and cancel
+from the windows it can observe on its own:
+
+- **Primary row of a durable hold.** When the engine index names a durable
+  execution whose view is still `PENDING`, commit and cancel read the primary
+  row before the guard is seeded or balances are loaded. A row that no longer
+  reads `PENDING` answers `0099`; a missing row fails closed as an invalid
+  completion record (a technical 500). The row is not consulted while the
+  hold's execution is still pending projection, because it may not exist yet.
+  The same check applies to each member of a cross-ledger group transition.
+- **Pending lock after success.** A successful commit or cancel keeps the
+  per-transaction pending lock for its 300 s TTL. A 4.0.x pod takes the same
+  key, so its opposite transition on that hold answers `0486` during that time.
+  A failed or indeterminate transition releases the lock at once, so its retry
+  is answered from the transaction state. A repeat after a success answers
+  `0486` until the TTL elapses and `0099` afterwards.
+
+Keep 4.0.x and the current release side by side for less than the 300 s lock
+TTL, or replace the pods without overlap (a `Recreate` rollout). A prolonged
+mixed fleet is not supported, and a rollback follows the drain requirements of
+the sequence below. In single-tenant mode, a 4.0.x consumer cannot read the
+write-behind envelope of the current release and sends it to the dead-letter
+queue; that transaction reaches the primary only through the current release's
+recovery cycle, which can run after the mixed fleet is gone.
+
+A commit, cancel, or revert sent to a current pod for a transaction that a 4.0.x
+pod created and has not yet projected answers `0007`; a cancel of a row
+projected without its operations fails as an invalid completion record. The
+current release prepares a transition only from the engine index or the primary,
+never from the 4.0.x write-behind entry. The caller retries once the projection
+lands.
+
+These protections leave the following unguarded:
+
+- A 4.0.x transition that follows a current commit or cancel that failed, was
+  indeterminate, or answered after the lock TTL.
+- A 4.0.x transition after the lock TTL on a hold whose current commit or
+  cancel is not yet projected to the primary: the row still reads `PENDING`.
+- A 4.0.x transition applied before the hold's execution became durable.
+- A 4.0.x commit or cancel whose primary status write failed: the row reads
+  `PENDING` until its write-behind lands.
+- A 4.0.x pod can still commit or cancel one member of a cross-ledger group on
+  its own. A later group transition on a current pod refuses that member
+  (`0099`) instead of applying it a second time, so the group no longer accepts
+  commit or cancel: its other members keep their funds on hold until an
+  operator resolves the group.
+- Revert. Both releases key a revert's idempotency slot on the hash of the
+  reversal payload, in the same slot format, and each replays the other's slot.
+  The hash matches when the origin was created by a 4.0.x pod (the current
+  release then reads it from the primary, as 4.0.x does) and carries no
+  object-shaped `feeExemption` metadata, or when the origin has one leg on each
+  side, no leg metadata, and no declared scheme. Otherwise, a
+  second revert on the other release is refused only once the first reversal is
+  projected to the primary (`0087`); the guard's revert marker is not read by
+  4.0.x. A reversal of the current release whose envelope a 4.0.x consumer
+  dead-lettered is projected only by the recovery cycle, so in single-tenant
+  mode the window can stay open for the whole mixed fleet.
+
 ### Cache writer compatibility
 
 The shared readers accept legacy, dual, and schema-version-2 new-only balance
