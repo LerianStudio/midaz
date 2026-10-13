@@ -50,9 +50,18 @@ are authorized to read.
   `cross_ledger_bridge`. When every account on that side is exempt under the
   package, the package's reason is recorded instead. Single-ledger transactions
   are unaffected: there an `@external` leg is an ordinary account and may pay.
-- One idempotency key protects the full request. An identical replay returns the
-  original group and sets `X-Idempotency-Replayed: true`; changing any leg while
-  reusing the key conflicts with `0084`.
+- One idempotency key protects the full request. With `X-Idempotency`, the
+  request is identified canonically: insignificant whitespace and object-property
+  order are ignored, while array order and number literals are kept. A retry that
+  re-serializes the same request returns the original group and sets
+  `X-Idempotency-Replayed: true`; reusing the key with different legs over the
+  same ledgers conflicts with `0084`. The action (direct or hold) is part of the
+  identity, so the same body sent to the other action never replays the group.
+- Without `X-Idempotency`, the request is identified by its exact bytes. Only a
+  byte-identical retry replays; a re-serialized body is a new request.
+- A keyed group recorded by an earlier release, which identified keyed requests
+  by their exact bytes, still replays a byte-identical retry. A re-serialized
+  retry of such a group returns `0084` until its record expires.
 - Cross-tenant requests are not possible: tenant scope still comes from the
   authenticated connection.
 

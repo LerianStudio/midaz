@@ -10,12 +10,15 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	libMongo "github.com/LerianStudio/lib-commons/v7/commons/mongo"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -116,7 +119,7 @@ func TestIntegration_MetadataRepository_FindList_FiltersByMetadata(t *testing.T)
 	}
 }
 
-func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T) {
+func TestIntegration_MetadataRepository_FindList_IgnoresPaging(t *testing.T) {
 	// Arrange
 	container := mongotestutil.SetupReusableContainer(t)
 
@@ -124,7 +127,6 @@ func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T
 	ctx := context.Background()
 	collection := "account"
 
-	// Insert 5 accounts with same group
 	fixtures := make([]mongotestutil.MetadataFixture, 5)
 	for i := 0; i < 5; i++ {
 		fixtures[i] = mongotestutil.MetadataFixture{
@@ -137,38 +139,25 @@ func TestIntegration_MetadataRepository_FindList_SupportsPagination(t *testing.T
 
 	metadataFilter := bson.M{"metadata.group": "paginated"}
 
-	// Act - Get first page (limit 2)
+	// Act - a filter carrying paging still yields every match
 	filter := http.QueryHeader{
 		Metadata:    &metadataFilter,
 		UseMetadata: true,
 		Limit:       2,
-		Page:        1,
+		Page:        2,
 	}
-	page1, err := repo.FindList(ctx, collection, filter)
-	require.NoError(t, err)
-
-	// Act - Get second page
-	filter.Page = 2
-	page2, err := repo.FindList(ctx, collection, filter)
-	require.NoError(t, err)
-
-	// Act - Get third page
-	filter.Page = 3
-	page3, err := repo.FindList(ctx, collection, filter)
-	require.NoError(t, err)
+	results, err := repo.FindList(ctx, collection, filter)
 
 	// Assert
-	assert.Len(t, page1, 2, "page 1 should have 2 items")
-	assert.Len(t, page2, 2, "page 2 should have 2 items")
-	assert.Len(t, page3, 1, "page 3 should have 1 item")
+	require.NoError(t, err)
 
-	// Verify no duplicates across pages
-	allIDs := make(map[string]bool)
-	for _, r := range append(append(page1, page2...), page3...) {
-		assert.False(t, allIDs[r.EntityID], "should not have duplicate entity IDs across pages")
-		allIDs[r.EntityID] = true
+	ids := make([]string, 0, len(results))
+	for _, r := range results {
+		ids = append(ids, r.EntityID)
 	}
-	assert.Len(t, allIDs, 5, "should have 5 unique entity IDs total")
+
+	assert.ElementsMatch(t, []string{"acc-page-0", "acc-page-1", "acc-page-2", "acc-page-3", "acc-page-4"}, ids,
+		"FindList should return the full matching set regardless of Limit and Page")
 }
 
 func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testing.T) {
@@ -200,6 +189,164 @@ func TestIntegration_MetadataRepository_FindList_ReturnsEmptyForNoMatch(t *testi
 	// Assert
 	require.NoError(t, err, "FindList should not error on empty result")
 	assert.Empty(t, results, "should return empty slice for no matches")
+}
+
+// ============================================================================
+// FindEntityIDs Tests
+// ============================================================================
+
+// insertSortedEntityFixtures inserts n live documents with UUIDv7 entity IDs and the given group,
+// returning their entity IDs in ascending order.
+func insertSortedEntityFixtures(t *testing.T, db *mongo.Database, collection, group string, n int) []string {
+	t.Helper()
+
+	ids := make([]string, n)
+	fixtures := make([]mongotestutil.MetadataFixture, n)
+
+	for i := range n {
+		id, err := uuid.NewV7()
+		require.NoError(t, err)
+
+		ids[i] = id.String()
+		fixtures[i] = mongotestutil.MetadataFixture{
+			EntityID:   ids[i],
+			EntityName: "Account",
+			Data:       map[string]any{"group": group},
+		}
+	}
+
+	mongotestutil.InsertManyMetadata(t, db, collection, fixtures)
+
+	sort.Strings(ids)
+
+	return ids
+}
+
+func groupFilter(group, sortOrder string) http.QueryHeader {
+	metadataFilter := bson.M{"metadata.group": group}
+
+	return http.QueryHeader{Metadata: &metadataFilter, SortOrder: sortOrder}
+}
+
+func TestIntegration_MetadataRepository_FindEntityIDs_OrdersAscending(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	want := insertSortedEntityFixtures(t, container.Database, collection, "cash", 10)
+
+	got, err := repo.FindEntityIDs(ctx, collection, groupFilter("cash", "asc"), "", 100)
+
+	require.NoError(t, err)
+	assert.Equal(t, want, got, "entity IDs should come in ascending entity_id order")
+}
+
+func TestIntegration_MetadataRepository_FindEntityIDs_OrdersDescending(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	want := insertSortedEntityFixtures(t, container.Database, collection, "cash", 10)
+	slices.Reverse(want)
+
+	got, err := repo.FindEntityIDs(ctx, collection, groupFilter("cash", "DESC"), "", 100)
+
+	require.NoError(t, err)
+	assert.Equal(t, want, got, "a desc sort order should be honored case-insensitively")
+}
+
+func TestIntegration_MetadataRepository_FindEntityIDs_KeysetWalkCoversEveryMatch(t *testing.T) {
+	const batch = 7
+
+	for _, sortOrder := range []string{"asc", "desc"} {
+		t.Run(sortOrder, func(t *testing.T) {
+			container := mongotestutil.SetupReusableContainer(t)
+			repo := createRepository(t, container)
+			ctx := context.Background()
+			collection := "account"
+
+			want := insertSortedEntityFixtures(t, container.Database, collection, "walk", 30)
+			if sortOrder == "desc" {
+				slices.Reverse(want)
+			}
+
+			var (
+				walked  []string
+				after   string
+				batches int
+			)
+
+			for {
+				ids, err := repo.FindEntityIDs(ctx, collection, groupFilter("walk", sortOrder), after, batch)
+				require.NoError(t, err)
+				require.LessOrEqual(t, len(ids), batch, "a batch must respect the limit")
+
+				if len(ids) == 0 {
+					break
+				}
+
+				walked = append(walked, ids...)
+				after = ids[len(ids)-1]
+				batches++
+
+				require.LessOrEqual(t, batches, 10, "the walk must terminate")
+			}
+
+			assert.Equal(t, 5, batches, "30 documents in batches of 7 take 5 non-empty batches")
+			assert.Equal(t, want, walked, "the batches should be disjoint and together equal the full sorted set")
+		})
+	}
+}
+
+func TestIntegration_MetadataRepository_FindEntityIDs_ExcludesDeletedAndNonMatching(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	live := insertSortedEntityFixtures(t, container.Database, collection, "cash", 4)
+	insertSortedEntityFixtures(t, container.Database, collection, "ops", 3)
+	deleted := insertSortedEntityFixtures(t, container.Database, collection, "cash", 2)
+
+	for _, id := range deleted {
+		require.NoError(t, repo.Delete(ctx, collection, id))
+	}
+
+	got, err := repo.FindEntityIDs(ctx, collection, groupFilter("cash", ""), "", 100)
+
+	require.NoError(t, err)
+	assert.Equal(t, live, got, "only live documents matching the filter should be returned")
+}
+
+func TestIntegration_MetadataRepository_FindEntityIDs_RespectsLimit(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	all := insertSortedEntityFixtures(t, container.Database, collection, "cash", 8)
+
+	got, err := repo.FindEntityIDs(ctx, collection, groupFilter("cash", "asc"), "", 3)
+
+	require.NoError(t, err)
+	assert.Equal(t, all[:3], got, "the first batch should hold the first limit IDs")
+}
+
+func TestIntegration_MetadataRepository_FindEntityIDs_ReturnsEmptyForNoMatch(t *testing.T) {
+	container := mongotestutil.SetupReusableContainer(t)
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "account"
+
+	insertSortedEntityFixtures(t, container.Database, collection, "cash", 3)
+
+	got, err := repo.FindEntityIDs(ctx, collection, groupFilter("nonexistent", "asc"), "", 10)
+
+	require.NoError(t, err)
+	require.NotNil(t, got, "the result should never be nil")
+	assert.Empty(t, got)
 }
 
 // ============================================================================

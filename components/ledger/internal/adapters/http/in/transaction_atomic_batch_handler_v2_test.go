@@ -219,6 +219,7 @@ func (repository *atomicBatchHandlerClaimRepository) ClaimAtomicTransactionBatch
 	organizationID, ledgerID uuid.UUID,
 	effectiveKey string,
 	claim txRedis.AtomicTransactionBatchIdempotencyRecord,
+	_ string,
 ) (*txRedis.AtomicTransactionBatchClaimResult, error) {
 	return repository.claim(ctx, organizationID, ledgerID, effectiveKey, claim)
 }

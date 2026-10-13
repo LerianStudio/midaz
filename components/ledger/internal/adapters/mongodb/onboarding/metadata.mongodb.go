@@ -21,6 +21,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -36,7 +37,14 @@ import (
 type Repository interface {
 	Create(ctx context.Context, collection string, metadata *Metadata) error
 	CreateBulk(ctx context.Context, collection string, metadataList []*Metadata) (*repository.MongoDBBulkInsertResult, error)
+	// FindList returns every live metadata document of the collection that matches filter.Metadata,
+	// in no defined order and without paging. The result is never nil.
 	FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error)
+	// FindEntityIDs returns up to limit entity IDs of the live metadata documents of the collection
+	// that match filter.Metadata, ordered by entity_id (descending when filter.SortOrder is "desc",
+	// ascending otherwise) and strictly after `after` in that order; an empty after starts from the
+	// first. The result is never nil.
+	FindEntityIDs(ctx context.Context, collection string, filter http.QueryHeader, after string, limit int) ([]string, error)
 	FindByEntity(ctx context.Context, collection, id string) (*Metadata, error)
 	FindByEntityIDs(ctx context.Context, collection string, entityIDs []string) ([]*Metadata, error)
 	Update(ctx context.Context, collection, id string, metadata map[string]any) error
@@ -164,27 +172,9 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 
 	coll := db.Collection(strings.ToLower(collection))
 
-	opts := options.Find()
-
-	if filter.UseMetadata {
-		limit := int64(filter.Limit)
-		skip := int64(filter.Page*filter.Limit - filter.Limit)
-		opts = options.Find().SetLimit(limit).SetSkip(skip)
-	}
-
-	mongoFilter := bson.M{}
-
-	if filter.Metadata != nil {
-		for key, value := range *filter.Metadata {
-			mongoFilter[key] = value
-		}
-	}
-
-	mongoFilter["deleted_at"] = nil
-
 	_, spanFind := tracer.Start(ctx, "mongodb.find_list.find")
 
-	cur, err := coll.Find(ctx, mongoFilter, opts)
+	cur, err := coll.Find(ctx, buildMetadataFilter(filter))
 	if err != nil {
 		libOpentelemetry.HandleSpanError(spanFind, "Failed to find metadata", err)
 
@@ -224,6 +214,106 @@ func (mmr *MetadataMongoDBRepository) FindList(ctx context.Context, collection s
 	}
 
 	return metadata, nil
+}
+
+// FindEntityIDs implements Repository.FindEntityIDs.
+func (mmr *MetadataMongoDBRepository) FindEntityIDs(ctx context.Context, collection string, filter http.QueryHeader, after string, limit int) ([]string, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	_, span := tracer.Start(ctx, "mongodb.find_entity_ids")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int("app.request.limit", limit),
+		attribute.String("app.request.sort_order", filter.SortOrder),
+	)
+
+	db, err := mmr.getDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
+
+		return nil, err
+	}
+
+	coll := db.Collection(strings.ToLower(collection))
+
+	mongoFilter, opts := buildFindEntityIDsQuery(filter, after, limit)
+
+	cur, err := coll.Find(ctx, mongoFilter, opts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to find metadata entity ids", err)
+
+		return nil, err
+	}
+
+	ids := make([]string, 0, max(limit, 0))
+
+	for cur.Next(ctx) {
+		var record struct {
+			EntityID string `bson:"entity_id"`
+		}
+
+		if err := cur.Decode(&record); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to decode metadata entity id", err)
+
+			return nil, errors.Join(err, cur.Close(ctx))
+		}
+
+		ids = append(ids, record.EntityID)
+	}
+
+	if err := cur.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate metadata entity ids", err)
+
+		return nil, errors.Join(err, cur.Close(ctx))
+	}
+
+	if err := cur.Close(ctx); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to close cursor", err)
+
+		return nil, err
+	}
+
+	span.SetAttributes(attribute.Int("db.rows_returned", len(ids)))
+
+	return ids, nil
+}
+
+// buildMetadataFilter copies the caller's metadata condition and restricts it to live documents.
+func buildMetadataFilter(filter http.QueryHeader) bson.M {
+	mongoFilter := bson.M{}
+
+	if filter.Metadata != nil {
+		for key, value := range *filter.Metadata {
+			mongoFilter[key] = value
+		}
+	}
+
+	mongoFilter["deleted_at"] = nil
+
+	return mongoFilter
+}
+
+// buildFindEntityIDsQuery assembles the FindEntityIDs keyset query: the metadata filter bounded to
+// entity IDs strictly after `after` in the walk's order, sorted on entity_id and projected onto it.
+func buildFindEntityIDsQuery(filter http.QueryHeader, after string, limit int) (bson.M, *options.FindOptionsBuilder) {
+	mongoFilter := buildMetadataFilter(filter)
+
+	direction, bound := 1, "$gt"
+	if strings.ToLower(filter.SortOrder) == "desc" {
+		direction, bound = -1, "$lt"
+	}
+
+	if after != "" {
+		mongoFilter["entity_id"] = bson.M{bound: after}
+	}
+
+	opts := options.Find().
+		SetSort(bson.D{{Key: "entity_id", Value: direction}}).
+		SetProjection(bson.D{{Key: "_id", Value: 0}, {Key: "entity_id", Value: 1}}).
+		SetLimit(int64(limit))
+
+	return mongoFilter, opts
 }
 
 // FindByEntity retrieves a metadata from the mongodb using the provided entity_id.

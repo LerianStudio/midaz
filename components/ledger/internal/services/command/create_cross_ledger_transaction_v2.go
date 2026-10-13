@@ -38,8 +38,12 @@ type CreateCrossLedgerTransactionV2Input struct {
 	Transaction             mtransaction.Transaction
 	Scopes                  CrossLedgerTransactionScopes
 	AccountBlockExceptionID *uuid.UUID
-	CanonicalRequest        []byte
-	RequestFingerprint      string
+	// CanonicalRequest is the action-discriminated raw request. Its digest
+	// names the idempotency record of a request without a key.
+	CanonicalRequest []byte
+	// KeyedRequestFingerprint identifies the request when it carries an
+	// idempotency key; see CreateAtomicTransactionBatchV2Input.
+	KeyedRequestFingerprint string
 	IdempotencyKey          string
 	IdempotencyTTL          time.Duration
 }
@@ -132,12 +136,12 @@ func buildCrossLedgerAtomicBatchInput(
 	}
 
 	return CreateAtomicTransactionBatchV2Input{
-		Transactions:       items,
-		GroupID:            &groupID,
-		CrossLedgerGroup:   true,
-		CanonicalRequest:   append([]byte(nil), in.CanonicalRequest...),
-		RequestFingerprint: in.RequestFingerprint,
-		IdempotencyKey:     in.IdempotencyKey,
-		IdempotencyTTL:     in.IdempotencyTTL,
+		Transactions:            items,
+		GroupID:                 &groupID,
+		CrossLedgerGroup:        true,
+		CanonicalRequest:        append([]byte(nil), in.CanonicalRequest...),
+		KeyedRequestFingerprint: in.KeyedRequestFingerprint,
+		IdempotencyKey:          in.IdempotencyKey,
+		IdempotencyTTL:          in.IdempotencyTTL,
 	}
 }
