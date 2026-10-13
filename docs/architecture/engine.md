@@ -1037,6 +1037,19 @@ Malformed legacy records enter quarantine only when their canonical physical
 field matches the authenticated tenant scope. Untrusted fields remain untouched.
 Invalid version-2 records are retained rather than passed to legacy processing.
 
+A legacy record that carries its operations replays them as recorded, and the
+write path deduplicates them by ID. A record without operations rebuilds them
+from its balance snapshots, which mints new IDs, so the rebuilt operations are
+stored in the record by compare-and-set against the exact value read, replacing
+only its `operations` key, before anything reaches PostgreSQL. Every later replay
+of that record then takes the materialized path with the same IDs. A record
+removed or rewritten since it was read, or a Redis failure, writes nothing and
+counts no attempt.
+
+The physical field of a legacy record is already tenant-scoped in multi-tenant
+operation, so record replacement uses it exactly as read and namespaces only the
+hash.
+
 The engine recovery consumer reads only `engine:{transactions}:recover` and
 accepts only a strictly validated version-two envelope;
 unversioned, malformed, and unsupported records remain there and never enter the

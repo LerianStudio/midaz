@@ -538,6 +538,21 @@ func (mr *MockRedisRepositoryMockRecorder) RemoveMessageFromQueue(ctx, key any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveMessageFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).RemoveMessageFromQueue), ctx, key)
 }
 
+// ReplaceMessageInQueueIfValue mocks base method.
+func (m *MockRedisRepository) ReplaceMessageInQueueIfValue(ctx context.Context, field, expected, replacement string) (BackupRecordReplacement, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplaceMessageInQueueIfValue", ctx, field, expected, replacement)
+	ret0, _ := ret[0].(BackupRecordReplacement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReplaceMessageInQueueIfValue indicates an expected call of ReplaceMessageInQueueIfValue.
+func (mr *MockRedisRepositoryMockRecorder) ReplaceMessageInQueueIfValue(ctx, field, expected, replacement any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplaceMessageInQueueIfValue", reflect.TypeOf((*MockRedisRepository)(nil).ReplaceMessageInQueueIfValue), ctx, field, expected, replacement)
+}
+
 // ScanAccountAdminOwnerships mocks base method.
 func (m *MockRedisRepository) ScanAccountAdminOwnerships(ctx context.Context, cursor uint64, count int64) (AccountProtectionScanPage, error) {
 	m.ctrl.T.Helper()

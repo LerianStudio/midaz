@@ -677,6 +677,17 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			return
 		}
 
+		// The rebuilt IDs are stored in the record before the write, so every
+		// later replay of this record takes the materialized branch above and
+		// rewrites the same operations. The record now stored is the payload a
+		// quarantine in this cycle must preserve.
+		stored, ok := r.storeRebuiltOperations(msgCtxWithSpan, msgSpan, logger, key, rawPayload, m, operations)
+		if !ok {
+			return
+		}
+
+		rawPayload = stored
+
 		// Mark the recomputed after-balances so the possible overdraft audit
 		// divergence is observable rather than silent.
 		msgSpan.SetAttributes(attribute.Bool("app.replay.recomputed_balances_after", true))
