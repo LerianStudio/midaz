@@ -381,7 +381,8 @@ func TestIntegration_CreatePendingV2ThenTransitionWithRealAdapter(t *testing.T) 
 				func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 			)
 			redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-			redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+			// The transition succeeds, so it keeps its pending lock until the TTL.
+			redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 			realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
@@ -538,7 +539,9 @@ func TestIntegration_CreatePendingV2FencesConcurrentCommitAndCancel(t *testing.T
 		func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 	)
 	redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), time.Duration(300)).Return(true, nil).Times(2)
-	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
+	// Only the transition that loses inside the engine releases its lock; the
+	// winner keeps its own until the TTL.
+	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
@@ -743,7 +746,9 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 			return true, nil
 		},
 	).Times(3)
-	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(3)
+	// The first commit succeeds and keeps its lock; the two refused retries
+	// release theirs.
+	redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(2)
 
 	realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 	require.NoError(t, err)
@@ -828,8 +833,8 @@ func TestIntegration_PendingTransitionGuardFencesRetriesAfterGoLockExpiry(t *tes
 		{ref: "@target#default", available: "50", onHold: "0", version: 4},
 	})
 
-	// A successful SetNX is the command-visible state once the Go lock is gone,
-	// whether released or expired. Both later commands reacquire it, but neither
+	// A successful SetNX is the command-visible state after the Go lock the
+	// first commit kept has expired. Both later commands reacquire it, but neither
 	// may cross the durable PENDING -> APPROVED engine guard a second time.
 	transitioned, err = uc.CommitTransactionV2(ctx, transitionInput)
 	requirePendingLifecycleLockConflict(t, err)
