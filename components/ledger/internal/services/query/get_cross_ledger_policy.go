@@ -8,11 +8,11 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -29,7 +29,7 @@ type LedgerRef struct {
 // distinct ledger reference. A ledger must explicitly enable the feature before
 // a later transaction flow may use it.
 func (uc *UseCase) GetCrossLedgerPolicy(ctx context.Context, ledgerRefs []LedgerRef) (map[LedgerRef]mmodel.CrossLedgerSettings, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_cross_ledger_policy")
 	defer span.End()
@@ -50,8 +50,8 @@ func (uc *UseCase) GetCrossLedgerPolicy(ctx context.Context, ledgerRefs []Ledger
 
 		settings, err := uc.GetParsedLedgerSettings(ctx, ledgerRef.OrganizationID, ledgerRef.LedgerID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings for cross-ledger policy", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings for cross-ledger policy", libLog.String("ledgerId", ledgerRef.LedgerID.String()), libLog.Err(err))
+			// logged once by GetLedgerSettings; record on this span only
+			spanattr.HandleSpanByErrorClass(span, "Failed to get ledger settings for cross-ledger policy", err)
 
 			return nil, err
 		}
@@ -59,7 +59,6 @@ func (uc *UseCase) GetCrossLedgerPolicy(ctx context.Context, ledgerRefs []Ledger
 		if !settings.CrossLedger.Enabled {
 			err := pkg.ValidateBusinessError(constant.ErrCrossLedgerNotEnabled, constant.EntityLedger, ledgerRef.LedgerID.String())
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Ledger is not enabled for cross-ledger transactions", err)
-			logger.Log(ctx, libLog.LevelWarn, "Ledger is not enabled for cross-ledger transactions", libLog.String("ledgerId", ledgerRef.LedgerID.String()), libLog.Err(err))
 
 			return nil, err
 		}
