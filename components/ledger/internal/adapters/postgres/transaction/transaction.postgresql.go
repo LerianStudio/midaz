@@ -1115,6 +1115,15 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 }
 
 // Update a Transaction entity into Postgresql and returns the Transaction updated.
+//
+// The body is nulled only by an update that carries a TERMINAL status
+// (APPROVED or CANCELED). Nulling the body is the terminal transition's doing —
+// a settled transaction replays nothing — so any other update, whether a field
+// patch that names no status or one that names a non-terminal status, must
+// leave the body alone. Without that condition a description or metadata patch
+// on a PENDING transaction destroys the body its commit replays, and the commit
+// then answers 201 without moving balances or writing operations while the
+// transaction stays PENDING and its funds stay held.
 func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1137,7 +1146,8 @@ func (r *TransactionPostgreSQLRepository) Update(ctx context.Context, organizati
 
 	var args []any
 
-	if transaction.Body.IsEmpty() {
+	terminal := transaction.Status.Code == constant.APPROVED || transaction.Status.Code == constant.CANCELED
+	if terminal && transaction.Body.IsEmpty() {
 		updates = append(updates, "body = $"+strconv.Itoa(len(args)+1))
 		args = append(args, nil)
 	}

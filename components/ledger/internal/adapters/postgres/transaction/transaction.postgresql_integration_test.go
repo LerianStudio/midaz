@@ -16,6 +16,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v5/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v5/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v5/commons/tenant-manager/core"
+	"github.com/LerianStudio/midaz/v3/pkg/constant"
+	"github.com/LerianStudio/midaz/v3/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v3/pkg/net/http"
 	"github.com/LerianStudio/midaz/v3/tests/utils/chaos"
 	pgtestutil "github.com/LerianStudio/midaz/v3/tests/utils/postgres"
@@ -1108,6 +1110,93 @@ func TestIntegration_Transaction_Update_Status(t *testing.T) {
 	assert.Equal(t, "Completed successfully", *found.Status.Description)
 
 	t.Log("Integration test passed: status update verified")
+}
+
+// TestIntegration_Transaction_Update_PatchKeepsPendingBody is the regression
+// guard for the field patch: Update nulls the body only when it carries a
+// terminal status, so a description patch or a non-terminal status update on a
+// PENDING transaction leaves the body its commit replays intact, and the
+// terminal status update still drops it.
+func TestIntegration_Transaction_Update_PatchKeepsPendingBody(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+
+	ctx := context.Background()
+
+	leg := func(alias string) mtransaction.FromTo {
+		return mtransaction.FromTo{
+			AccountAlias: alias,
+			Amount:       &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(500)},
+		}
+	}
+
+	pending := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Pending transaction",
+		Status:         Status{Code: constant.PENDING},
+		Amount:         decimalPtr(500),
+		AssetCode:      "USD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+		Body: mtransaction.Transaction{
+			Pending: true,
+			Send: mtransaction.Send{
+				Asset:      "USD",
+				Value:      decimal.NewFromInt(500),
+				Source:     mtransaction.Source{From: []mtransaction.FromTo{leg("@source")}},
+				Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{leg("@destination")}},
+			},
+		},
+	}
+
+	created, err := infra.repo.Create(ctx, pending)
+	require.NoError(t, err)
+
+	id := parseID(t, created.ID)
+
+	found, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, id)
+	require.NoError(t, err)
+	require.False(t, found.Body.IsEmpty(), "the PENDING transaction must be stored with its body")
+
+	patched, err := infra.repo.Update(ctx, infra.orgID, infra.ledgerID, id, &Transaction{Description: "Patched while pending"})
+	require.NoError(t, err)
+	assert.Equal(t, "Patched while pending", patched.Description)
+
+	found, err = infra.repo.Find(ctx, infra.orgID, infra.ledgerID, id)
+	require.NoError(t, err)
+	assert.Equal(t, constant.PENDING, found.Status.Code, "a field patch must not move the status")
+	assert.Equal(t, "Patched while pending", found.Description)
+	assert.True(t, found.Body.Pending, "a field patch must keep the pending flag the commit reads")
+	assert.Equal(t, "500", found.Body.Send.Value.String(), "a field patch must keep the body the commit replays")
+	require.Len(t, found.Body.Send.Source.From, 1)
+	assert.Equal(t, "@source", found.Body.Send.Source.From[0].AccountAlias)
+	require.Len(t, found.Body.Send.Distribute.To, 1)
+	assert.Equal(t, "@destination", found.Body.Send.Distribute.To[0].AccountAlias)
+
+	stillPending := constant.PENDING
+	_, err = infra.repo.Update(ctx, infra.orgID, infra.ledgerID, id,
+		&Transaction{Status: Status{Code: constant.PENDING, Description: &stillPending}})
+	require.NoError(t, err)
+
+	found, err = infra.repo.Find(ctx, infra.orgID, infra.ledgerID, id)
+	require.NoError(t, err)
+	assert.Equal(t, constant.PENDING, found.Status.Code)
+	assert.True(t, found.Body.Pending, "a non-terminal status update must keep the body the commit replays")
+	assert.Equal(t, "500", found.Body.Send.Value.String())
+
+	approved := constant.APPROVED
+	_, err = infra.repo.Update(ctx, infra.orgID, infra.ledgerID, id,
+		&Transaction{Status: Status{Code: constant.APPROVED, Description: &approved}})
+	require.NoError(t, err)
+
+	found, err = infra.repo.Find(ctx, infra.orgID, infra.ledgerID, id)
+	require.NoError(t, err)
+	assert.Equal(t, constant.APPROVED, found.Status.Code)
+	assert.True(t, found.Body.IsEmpty(), "the terminal status update still drops the body")
+	assert.Equal(t, "Patched while pending", found.Description, "the status update must not blank the description")
 }
 
 // =============================================================================
