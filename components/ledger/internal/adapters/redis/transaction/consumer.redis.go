@@ -217,6 +217,14 @@ type RedisRepository interface {
 	ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error)
 	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	// CompareAndDeleteBackupRecord atomically removes one backup queue record
+	// only while it still holds expected, byte for byte. field is the physical
+	// field exactly as the backup hash returned it, already tenant-scoped in
+	// multi-tenant mode, so only the hash name is namespaced. It returns
+	// RecoveryAckDeleted, or RecoveryAckMissing / RecoveryAckReplaced when the
+	// record was removed or rewritten since it was read, leaving it untouched.
+	// The record's attempt counter is not touched.
+	CompareAndDeleteBackupRecord(ctx context.Context, field, expected string) (int64, error)
 	// ReplaceMessageInQueueIfValue atomically replaces one backup queue record
 	// only while it still holds expected, byte for byte. field is the physical
 	// field exactly as the backup hash returned it, already tenant-scoped in
@@ -1860,6 +1868,49 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	logger.Log(ctx, libLog.LevelDebug, "Message removed from Redis queue", libLog.String("key", key))
 
 	return nil
+}
+
+// CompareAndDeleteBackupRecord removes one legacy backup record only while it
+// still holds expected. It reuses the recovery compare-and-delete script without
+// its attempt clearing: the legacy attempt counter is keyed differently and is
+// cleared by ClearBackupAttempt. The field is used exactly as read.
+func (rr *RedisConsumerRepository) CompareAndDeleteBackupRecord(ctx context.Context, field, expected string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return RecoveryAckMissing, err
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.compare_delete_backup_record")
+	defer span.End()
+
+	// An empty expected value is legitimate: an unparseable empty record is
+	// quarantined like any other and must leave the hash afterwards.
+	if field == "" {
+		return RecoveryAckMissing, fmt.Errorf("invalid backup record removal identity")
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, TransactionBackupAttemptsQueue})
+	if err != nil {
+		return RecoveryAckMissing, fmt.Errorf("resolve backup queue keys: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return RecoveryAckMissing, fmt.Errorf("get backup record removal client: %w", err)
+	}
+
+	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expected, "", "0").Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to remove backup record", err)
+		return RecoveryAckMissing, fmt.Errorf("compare and delete backup record: %w", err)
+	}
+
+	if result != RecoveryAckMissing && result != RecoveryAckDeleted && result != RecoveryAckReplaced {
+		return RecoveryAckMissing, fmt.Errorf("invalid backup record removal result")
+	}
+
+	return result, nil
 }
 
 // ReplaceMessageInQueueIfValue replaces one legacy backup record only while it

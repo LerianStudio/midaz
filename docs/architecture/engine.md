@@ -1057,8 +1057,10 @@ removed or rewritten since it was read, or a Redis failure, writes nothing and
 counts no attempt.
 
 The physical field of a legacy record is already tenant-scoped in multi-tenant
-operation, so record replacement uses it exactly as read and namespaces only the
-hash.
+operation, so record replacement and quarantine removal use it exactly as read
+and namespace only the hash. After a durable quarantine insert, the record is
+removed only while it still holds the quarantined payload; a record rewritten in
+between stays for its own replay.
 
 The engine recovery consumer reads only `engine:{transactions}:recover` and
 accepts only a strictly validated version-two envelope;

@@ -164,7 +164,7 @@ func TestProcessMessageWritesNothingWhenPersistedOperationsCannotBeRead(t *testi
 // a rebuilt record whose source leg is persisted with another amount, the shape
 // of an amount clipped by overdraft. The record must not be stored or written;
 // at the threshold it reaches quarantine under its own reason with the payload
-// exactly as read, and leaves the backup queue.
+// exactly as read, and only that payload is removed from the backup queue.
 func TestProcessMessageQuarantinesARebuildThatDiffersFromThePersistedLegs(t *testing.T) {
 	t.Parallel()
 
@@ -189,7 +189,7 @@ func TestProcessMessageQuarantinesARebuildThatDiffersFromThePersistedLegs(t *tes
 
 				return nil
 			}),
-		replay.redis.EXPECT().RemoveMessageFromQueue(gomock.Any(), replay.key).Return(nil),
+		replay.redis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), replay.key, replay.raw).Return(redisTransaction.RecoveryAckDeleted, nil),
 		replay.redis.EXPECT().ClearBackupAttempt(gomock.Any(), replay.key).Return(nil),
 	)
 

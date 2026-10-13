@@ -79,11 +79,62 @@ func TestQuarantine_ReachesThreshold_QuarantinesThenDeletes(t *testing.T) {
 
 				return nil
 			}),
-		mockRedis.EXPECT().RemoveMessageFromQueue(gomock.Any(), key).Return(nil),
+		mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, string(payload)).Return(redisTransaction.RecoveryAckDeleted, nil),
 		mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
 	)
 
 	consumer.quarantinePoisonRecord(ctx, noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "nil_validate")
+}
+
+// TestQuarantine_RecordChangedBeforeRemoval_LeavesTheCurrentRecord quarantines a
+// record that was rewritten or removed after it was read. The removal asks only
+// for the quarantined payload, and the counter of the quarantined attempts is
+// still cleared; that the rewritten record survives the removal is proven
+// against Valkey by TestIntegrationCompareAndDeleteBackupRecord.
+func TestQuarantine_RecordChangedBeforeRemoval_LeavesTheCurrentRecord(t *testing.T) {
+	t.Parallel()
+
+	for name, outcome := range map[string]int64{
+		"record rewritten": redisTransaction.RecoveryAckReplaced,
+		"record removed":   redisTransaction.RecoveryAckMissing,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
+
+			key := "tenant:t-1:transaction:{transactions}:" + uuid.NewString() + ":" + uuid.NewString() + ":" + uuid.NewString()
+			payload := []byte(`{"raw":"poison"}`)
+
+			gomock.InOrder(
+				mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(QuarantineThreshold), nil),
+				mockQuarantine.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil),
+				mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, string(payload)).Return(outcome, nil),
+				mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
+			)
+
+			consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "nil_validate")
+		})
+	}
+}
+
+// TestQuarantine_RemovalFailure_KeepsAttempts leaves the attempt counter in
+// place when the removal itself fails, so the next cycle retries it.
+func TestQuarantine_RemovalFailure_KeepsAttempts(t *testing.T) {
+	t.Parallel()
+
+	consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
+
+	key := "transaction:{transactions}:org:ledger:tx"
+	payload := []byte(`{"raw":"poison"}`)
+
+	gomock.InOrder(
+		mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(QuarantineThreshold), nil),
+		mockQuarantine.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil),
+		mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, string(payload)).Return(redisTransaction.RecoveryAckMissing, errors.New("redis down")),
+	)
+
+	consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "nil_validate")
 }
 
 // TestQuarantine_InsertFailure_RecordNotDeleted is case (b): when the durable
@@ -106,7 +157,7 @@ func TestQuarantine_InsertFailure_RecordNotDeleted(t *testing.T) {
 		Insert(gomock.Any(), gomock.Any()).
 		Return(errors.New("postgres down"))
 
-	// THE INVARIANT: no RemoveMessageFromQueue and no ClearBackupAttempt when
+	// THE INVARIANT: no record removal and no ClearBackupAttempt when
 	// the persist failed. gomock fails the test if either is called because no
 	// expectation is registered for them.
 
@@ -128,7 +179,7 @@ func TestQuarantine_BelowThreshold_NoQuarantineNoDelete(t *testing.T) {
 		IncrementBackupAttempt(gomock.Any(), key).
 		Return(int64(QuarantineThreshold-1), nil)
 
-	// No Insert, no RemoveMessageFromQueue, no ClearBackupAttempt expected.
+	// No Insert, no record removal, no ClearBackupAttempt expected.
 
 	consumer.quarantinePoisonRecord(ctx, noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), []byte(`{}`), "unmarshal_failure")
 }
@@ -252,7 +303,7 @@ func TestProcessMessageQuarantinesARebuildWithoutOperations(t *testing.T) {
 
 						return nil
 					}),
-				mockRedis.EXPECT().RemoveMessageFromQueue(gomock.Any(), key).Return(nil),
+				mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, rawPayload).Return(redisTransaction.RecoveryAckDeleted, nil),
 				mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
 			)
 

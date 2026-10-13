@@ -822,9 +822,11 @@ func balanceRedisToBalance(balance mmodel.BalanceRedis, organizationID, ledgerID
 //  3. At/above the threshold: Insert into the durable quarantine table FIRST.
 //     - On Insert failure: leave BOTH the record and the attempts counter in
 //     place so the next cycle retries — never delete on a failed persist.
-//     - On Insert success: remove the record (HDel) then the attempts counter
-//     (HDel). Order is load-bearing: the durable copy must exist before the
-//     Redis copy is deleted.
+//     - On Insert success: remove the record only while it still holds the
+//     quarantined payload (compare-and-delete on the field as read), then
+//     clear the attempts counter. Order is load-bearing: the durable copy must
+//     exist before the Redis copy is deleted. A record removed or rewritten
+//     since it was read is left for its own replay.
 //
 // The payload (raw financial copy) is never logged or attached to a span (T9).
 func (r *RedisQueueConsumer) quarantinePoisonRecord(
@@ -888,8 +890,11 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 	}
 
 	// Persistence confirmed. Now (and only now) remove the Redis copy, then the
-	// attempts counter.
-	if err := r.queue.RemoveMessageFromQueue(ctx, key); err != nil {
+	// attempts counter. key is the field exactly as read, already tenant-scoped
+	// in multi-tenant mode, so the removal must not scope it again; and it
+	// removes only the payload just quarantined, never a record rewritten since.
+	removal, err := r.queue.CompareAndDeleteBackupRecord(ctx, key, string(payload))
+	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to remove quarantined record from backup queue", err)
 		logger.Log(ctx, libLog.LevelError, "Quarantined record persisted but failed to remove from backup queue",
 			libLog.String("redis_key", key), libLog.Err(err))
@@ -900,6 +905,17 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 	r.clearBackupAttempt(ctx, logger, key)
 
 	r.emitQuarantineMetric(ctx, logger)
+
+	if removal != txRedis.RecoveryAckDeleted {
+		libOpentelemetry.HandleSpanEvent(span, "Quarantined backup record changed before removal")
+		logger.Log(ctx, libLog.LevelError, "Poison backup record quarantined; the backup queue record was removed or rewritten after it was read and is left in place",
+			libLog.String("redis_key", key),
+			libLog.String("failure_reason", failureReason),
+			libLog.Int("attempts", int(attempts)),
+			libLog.Bool("record_missing", removal == txRedis.RecoveryAckMissing))
+
+		return
+	}
 
 	logger.Log(ctx, libLog.LevelError, "Poison backup record quarantined and removed from backup queue",
 		libLog.String("redis_key", key),

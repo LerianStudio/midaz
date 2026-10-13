@@ -118,6 +118,21 @@ func (mr *MockRedisRepositoryMockRecorder) ClearBackupAttempt(ctx, key any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearBackupAttempt", reflect.TypeOf((*MockRedisRepository)(nil).ClearBackupAttempt), ctx, key)
 }
 
+// CompareAndDeleteBackupRecord mocks base method.
+func (m *MockRedisRepository) CompareAndDeleteBackupRecord(ctx context.Context, field, expected string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompareAndDeleteBackupRecord", ctx, field, expected)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CompareAndDeleteBackupRecord indicates an expected call of CompareAndDeleteBackupRecord.
+func (mr *MockRedisRepositoryMockRecorder) CompareAndDeleteBackupRecord(ctx, field, expected any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompareAndDeleteBackupRecord", reflect.TypeOf((*MockRedisRepository)(nil).CompareAndDeleteBackupRecord), ctx, field, expected)
+}
+
 // CreateAccountBlockExceptions mocks base method.
 func (m *MockRedisRepository) CreateAccountBlockExceptions(ctx context.Context, organizationID, ledgerID uuid.UUID, exceptions []AccountBlockException) error {
 	m.ctrl.T.Helper()
