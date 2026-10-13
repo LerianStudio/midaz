@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/signal"
@@ -870,7 +871,7 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		TransactionID:  transactionID,
-		RedisKey:       key,
+		RedisKey:       legacyQuarantineKey(key, payload),
 		Payload:        payload,
 		FailureReason:  failureReason,
 		Attempts:       int(attempts),
@@ -921,6 +922,15 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 		libLog.String("redis_key", key),
 		libLog.String("failure_reason", failureReason),
 		libLog.Int("attempts", int(attempts)))
+}
+
+// legacyQuarantineKey is the quarantine redis_key of one legacy backup payload.
+// A field holds one record per transaction, but a later lifecycle stage or a
+// rewrite can replace it with a different payload; the digest gives every
+// distinct payload its own durable row, while the same payload quarantined
+// again stays one row.
+func legacyQuarantineKey(field string, payload []byte) string {
+	return fmt.Sprintf("legacy_backup:%s:%x", field, sha256.Sum256(payload))
 }
 
 // clearBackupAttempt removes the per-record attempts counter, logging at Warn on

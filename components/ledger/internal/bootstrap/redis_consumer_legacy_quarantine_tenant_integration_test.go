@@ -71,8 +71,8 @@ func TestIntegrationLegacyBackupReplayQuarantineRemovesTheTenantRecord(t *testin
 
 	var quarantined int
 	require.NoError(t, infra.db.QueryRow(
-		`SELECT COUNT(*) FROM transaction_backup_quarantine WHERE redis_key = $1 AND transaction_id = $2 AND failure_reason = 'nil_validate'`,
-		field, transactionID,
+		`SELECT COUNT(*) FROM transaction_backup_quarantine WHERE redis_key LIKE $1 AND transaction_id = $2 AND failure_reason = 'nil_validate'`,
+		"legacy_backup:"+field+":%", transactionID,
 	).Scan(&quarantined))
 	require.Equal(t, 1, quarantined, "the record must be durably quarantined")
 

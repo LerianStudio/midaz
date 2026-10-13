@@ -237,6 +237,50 @@ func TestIntegrationLegacyBackupReplayStoresRebuiltOperationsInTheTenantField(t 
 	assert.Zero(t, infra.duplicatedLegCount(t, transactionID))
 }
 
+// TestIntegrationLegacyBackupReplayQuarantinesTheRewrittenRecordWhenTheWriteCanNeverSucceed
+// replays a legacy entry without materialized operations whose own content
+// PostgreSQL refuses (a NUL byte in the description), one attempt short of the
+// quarantine threshold. The cycle stores the rebuilt operations in the entry
+// before the write, so the quarantine must hold that rewritten entry and remove
+// it; quarantining the payload read at the start of the cycle would leave the
+// rewritten entry behind.
+func TestIntegrationLegacyBackupReplayQuarantinesTheRewrittenRecordWhenTheWriteCanNeverSucceed(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires PostgreSQL, MongoDB, Valkey, and RabbitMQ")
+	}
+
+	infra := setupRebuiltReplayIntegration(t)
+	ctx := context.Background()
+	field, transactionID := infra.leaveRebuildableLegacyEntry(t, ctx, rebuiltReplayCases[1])
+	infra.rewriteLegacyBackupEntry(t, ctx, func(entry *mmodel.TransactionRedisQueue) {
+		entry.TransactionInput.Description = "transfer\x00"
+	})
+
+	attempts, err := tmvalkey.GetKeyContext(ctx, txRedis.TransactionBackupAttemptsQueue)
+	require.NoError(t, err)
+	require.NoError(t, infra.redis.HSet(ctx, attempts, field, QuarantineThreshold-1).Err())
+
+	NewRedisQueueConsumer(&libLog.GoLogger{}, infra.command, infra.query).
+		WithQuarantineRepository(infra.quarantine).
+		newLegacyBackupConsumer().
+		Consume(ctx)
+
+	var payload []byte
+	require.NoError(t, infra.db.QueryRow(
+		`SELECT payload FROM transaction_backup_quarantine WHERE transaction_id = $1`, transactionID,
+	).Scan(&payload))
+
+	var quarantined mmodel.TransactionRedisQueue
+	require.NoError(t, json.Unmarshal(payload, &quarantined))
+	assert.Len(t, quarantined.Operations, 2, "the quarantine must hold the entry rewritten with its rebuilt operations")
+
+	reason, counted := infra.requireSingleQuarantineRow(t, transactionID, field, string(payload))
+	assert.Equal(t, "deterministic_write_failure", reason)
+	assert.Equal(t, QuarantineThreshold, counted)
+	assert.False(t, infra.redis.HExists(ctx, infra.legacyBackupQueueKey(t, ctx), field).Val(), "the quarantined entry must leave the backup hash")
+	assert.Zero(t, infra.operationCount(t, transactionID))
+}
+
 // TestIntegrationLegacyBackupReplayOfMaterializedEntryIsIdempotent replays a
 // legacy entry that already carries its operations twice: the second replay
 // writes nothing new.

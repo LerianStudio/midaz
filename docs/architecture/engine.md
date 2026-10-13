@@ -1062,6 +1062,13 @@ and namespace only the hash. After a durable quarantine insert, the record is
 removed only while it still holds the quarantined payload; a record rewritten in
 between stays for its own replay.
 
+A field holds one record per transaction, but a later lifecycle stage or a
+rewrite can replace it with a different payload. The legacy quarantine key
+therefore combines the field with the SHA-256 digest of the payload, as engine
+recovery does: every distinct payload gets its own row, and the same payload
+quarantined again stays one row. A key that already holds a different payload
+is refused rather than treated as stored, so that record stays in Redis.
+
 The engine recovery consumer reads only `engine:{transactions}:recover` and
 accepts only a strictly validated version-two envelope;
 unversioned, malformed, and unsupported records remain there and never enter the

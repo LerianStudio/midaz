@@ -6,6 +6,8 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 
@@ -72,7 +74,9 @@ func TestQuarantine_ReachesThreshold_QuarantinesThenDeletes(t *testing.T) {
 		mockQuarantine.EXPECT().
 			Insert(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, rec *transactionquarantine.QuarantineRecord) error {
-				assert.Equal(t, key, rec.RedisKey, "quarantine record must carry the redis key")
+				digest := sha256.Sum256(payload)
+				assert.Equal(t, "legacy_backup:"+key+":"+hex.EncodeToString(digest[:]), rec.RedisKey,
+					"quarantine record must carry the field and the payload digest")
 				assert.Equal(t, payload, rec.Payload, "quarantine record must carry the raw payload")
 				assert.Equal(t, "nil_validate", rec.FailureReason)
 				assert.Equal(t, QuarantineThreshold, rec.Attempts)
@@ -143,25 +147,38 @@ func TestQuarantine_RemovalFailure_KeepsAttempts(t *testing.T) {
 func TestQuarantine_InsertFailure_RecordNotDeleted(t *testing.T) {
 	t.Parallel()
 
-	consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "quarantine database unavailable", err: errors.New("postgres down")},
+		// A key already holding a different payload stored nothing of this
+		// one, so it must not count as persisted.
+		{name: "quarantine key holds a different payload", err: transactionquarantine.ErrQuarantinePayloadConflict},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctx := context.Background()
-	key := "transaction:{transactions}:org:ledger:tx"
-	payload := []byte(`{"raw":"poison"}`)
+			consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
 
-	mockRedis.EXPECT().
-		IncrementBackupAttempt(gomock.Any(), key).
-		Return(int64(QuarantineThreshold), nil)
+			key := "transaction:{transactions}:org:ledger:tx"
+			payload := []byte(`{"raw":"poison"}`)
 
-	mockQuarantine.EXPECT().
-		Insert(gomock.Any(), gomock.Any()).
-		Return(errors.New("postgres down"))
+			mockRedis.EXPECT().
+				IncrementBackupAttempt(gomock.Any(), key).
+				Return(int64(QuarantineThreshold), nil)
 
-	// THE INVARIANT: no record removal and no ClearBackupAttempt when
-	// the persist failed. gomock fails the test if either is called because no
-	// expectation is registered for them.
+			mockQuarantine.EXPECT().
+				Insert(gomock.Any(), gomock.Any()).
+				Return(tc.err)
 
-	consumer.quarantinePoisonRecord(ctx, noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "ledger_settings_fetch_failure")
+			// THE INVARIANT: no record removal and no ClearBackupAttempt when
+			// the persist failed. gomock fails the test if either is called
+			// because no expectation is registered for them.
+
+			consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "ledger_settings_fetch_failure")
+		})
+	}
 }
 
 // TestQuarantine_BelowThreshold_NoQuarantineNoDelete verifies that below the

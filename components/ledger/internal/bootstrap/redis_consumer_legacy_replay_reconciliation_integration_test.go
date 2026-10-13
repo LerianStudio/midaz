@@ -206,11 +206,9 @@ func TestIntegrationLegacyBackupReplayQuarantinesARecordWhoseLegsDifferFromThePe
 
 	replay.Consume(ctx)
 
-	var reason string
-	require.NoError(t, infra.db.QueryRow(
-		`SELECT failure_reason FROM transaction_backup_quarantine WHERE redis_key = $1 AND transaction_id = $2`, field, transactionID,
-	).Scan(&reason))
+	reason, quarantinedAttempts := infra.requireSingleQuarantineRow(t, transactionID, field, raw)
 	assert.Equal(t, "persisted_operations_mismatch", reason)
+	assert.Equal(t, QuarantineThreshold, quarantinedAttempts)
 
 	messages, err := readRecoveryMessages(ctx, infra.redisRepo, txRedis.RecoveryQueueSourceLegacyBackup)
 	require.NoError(t, err)
