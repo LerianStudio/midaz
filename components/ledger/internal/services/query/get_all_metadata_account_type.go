@@ -10,7 +10,6 @@ import (
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -30,8 +29,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 	// cursor cannot address a metadata-store page.
 	metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccountType, filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get metadata on repo", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting account type metadata on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -69,8 +67,7 @@ func (uc *UseCase) GetAllMetadataAccountType(ctx context.Context, organizationID
 
 	accountTypes, cur, err := uc.AccountTypeRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get account types on repo", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting account types on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get account types on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

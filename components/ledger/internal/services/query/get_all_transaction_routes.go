@@ -15,12 +15,11 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // GetAllTransactionRoutes lists the organization's transaction routes with their metadata and operation routes.
@@ -33,21 +32,11 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID u
 
 	transactionRoutes, cur, err := uc.TransactionRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting transaction routes on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, constant.EntityTransactionRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting transaction routes on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, constant.EntityTransactionRoute)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting transaction routes on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get transaction routes on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -63,8 +52,6 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID u
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransactionRoute)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction route", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting metadata on mongodb transaction route", libLog.Err(err))
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
@@ -82,9 +69,8 @@ func (uc *UseCase) GetAllTransactionRoutes(ctx context.Context, organizationID u
 		}
 
 		if err := uc.enrichTransactionRoutesWithOperationRoutes(ctx, transactionRoutes); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to enrich transaction routes with operation routes", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to enrich transaction routes with operation routes", libLog.Err(err))
+			// logged once by enrichTransactionRoutesWithOperationRoutes; record on this span only
+			spanattr.HandleSpanByErrorClass(span, "Failed to enrich transaction routes with operation routes", err)
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

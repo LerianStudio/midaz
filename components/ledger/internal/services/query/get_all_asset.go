@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
@@ -29,19 +28,11 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 
 	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting assets on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)
-
-			logger.Log(ctx, libLog.LevelWarn, "No assets found")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get assets on repo", err)
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get assets on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get assets on repo", err)
 
 		return nil, err
 	}

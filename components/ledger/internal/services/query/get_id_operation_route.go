@@ -9,15 +9,12 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // GetOperationRouteByID returns an active operation route of the organization with its metadata,
@@ -30,19 +27,11 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, id
 
 	operationRoute, err := uc.OperationRouteRepo.FindByID(ctx, organizationID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting operation route on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation route on repo by id", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting operation route on repo by id", libLog.Err(err))
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrOperationRouteNotFound, constant.EntityOperationRoute)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation route on repo by id", err)
+		recordQueryError(ctx, span, logger, "Failed to get operation route on repo by id", err)
 
 		return nil, err
 	}
@@ -50,9 +39,7 @@ func (uc *UseCase) GetOperationRouteByID(ctx context.Context, organizationID, id
 	if operationRoute != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityOperationRoute, operationRoute.ID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation route", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb operation route", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb operation route", err)
 
 			return nil, err
 		}

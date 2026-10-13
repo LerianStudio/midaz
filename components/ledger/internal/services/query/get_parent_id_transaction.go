@@ -8,16 +8,13 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	// GetParentByTransactionID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetParentByTransactionID gets data in the repository.
 func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*transaction.Transaction, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -26,9 +23,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 
 	tran, err := uc.TransactionRepo.FindByParentID(ctx, organizationID, ledgerID, parentID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get parent transaction on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting parent transaction", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get parent transaction on repo by id", err)
 
 		return nil, err
 	}
@@ -36,9 +31,7 @@ func (uc *UseCase) GetParentByTransactionID(ctx context.Context, organizationID,
 	if tran != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, tran.ID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb account", err)
 
 			return nil, err
 		}

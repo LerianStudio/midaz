@@ -29,9 +29,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransaction, filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get transaction metadata on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting transaction metadata on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get transaction metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -52,9 +50,7 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get transactions on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting transactions on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get transactions on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

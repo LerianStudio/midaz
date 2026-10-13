@@ -16,11 +16,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	// GetAccountTypeByID get an Account Type from the repository by given id.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAccountTypeByID get an Account Type from the repository by given id.
 func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.AccountType, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -29,19 +27,11 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 
 	accountType, err := uc.AccountTypeRepo.FindByID(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting account type on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account type on repo by id", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No account type found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account type on repo by id", err)
+		recordQueryError(ctx, span, logger, "Failed to get account type on repo by id", err)
 
 		return nil, err
 	}
@@ -52,8 +42,6 @@ func (uc *UseCase) GetAccountTypeByID(ctx context.Context, organizationID, ledge
 			err := pkg.ValidateBusinessError(constant.ErrAccountTypeNotFound, constant.EntityAccountType)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account type", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 			return nil, err
 		}

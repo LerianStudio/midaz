@@ -10,7 +10,6 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
@@ -38,19 +37,11 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 
 	accounts, err := uc.AccountRepo.FindAll(ctx, organizationID, ledgerID, portfolioID, segmentID, filter, holderPolicy)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)
-
-			logger.Log(ctx, libLog.LevelWarn, "No accounts found")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get accounts on repo", err)
-
-			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get accounts on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get accounts on repo", err)
 
 		return nil, err
 	}

@@ -67,9 +67,8 @@ func listMetadataWindow[T any](ctx context.Context, span trace.Span, logger libL
 
 		ids, err := uc.OnboardingMetadataRepo.FindEntityIDs(ctx, window.collection, filter, after, batchSize)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get metadata entity ids on repo", err)
-			logger.Log(ctx, libLog.LevelError, "Error getting metadata entity ids on repo",
-				libLog.String("entity_name", window.collection), libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata entity ids on repo", err,
+				libLog.String("entity_name", window.collection))
 
 			return nil, err
 		}
@@ -86,9 +85,8 @@ func listMetadataWindow[T any](ctx context.Context, span trace.Span, logger libL
 		if len(batch) > 0 {
 			rows, err := window.readBatch(ctx, filter, batch)
 			if err != nil {
-				libOpentelemetry.HandleSpanError(span, "Failed to get entities on repo", err)
-				logger.Log(ctx, libLog.LevelError, "Error getting entities on repo",
-					libLog.String("entity_name", window.collection), libLog.Err(err))
+				recordQueryError(ctx, span, logger, "Failed to get entities on repo", err,
+					libLog.String("entity_name", window.collection))
 
 				return nil, err
 			}

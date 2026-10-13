@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
@@ -29,19 +28,11 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 
 	op, cur, err := uc.OperationRepo.FindAll(ctx, organizationID, ledgerID, transactionID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting all operations on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get all operations on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting all operations on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get all operations on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get all operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -60,8 +51,6 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting metadata on mongodb operation", libLog.Err(err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

@@ -18,8 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // GetAllMetadataOperationRoutes lists the organization's operation routes matching the metadata filter.
@@ -36,8 +34,6 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo by metadata", err)
 
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operation routes on repo by metadata", libLog.Err(err))
-
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -49,19 +45,11 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	allOperationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting operation routes on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting operation routes on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get operation routes on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
