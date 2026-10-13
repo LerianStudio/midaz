@@ -677,6 +677,33 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			return
 		}
 
+		// Operations are deduplicated only by ID, and a rebuild mints new ones:
+		// legs an earlier writer already persisted must take their persisted IDs,
+		// and a rebuild that cannot be told apart from them writes nothing.
+		reconciled, err := r.Command.ReconcileReplayedOperations(msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to reconcile replayed operations", err)
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to read persisted operations of replayed transaction; record left in backup queue",
+				libLog.String("key", key), libLog.Err(err))
+
+			return
+		}
+
+		msgSpan.SetAttributes(attribute.Int("app.replay.adopted_operations", reconciled.Adopted))
+
+		if reconciled.Verdict != command.ReplayReconciliationResolved {
+			libOpentelemetry.HandleSpanEvent(msgSpan, "Replayed operations do not match the persisted ones")
+			logger.Log(msgCtxWithSpan, libLog.LevelWarn, "Replayed operations do not match the persisted ones; routing to quarantine flow",
+				libLog.String("key", key), libLog.String("mismatch_reason", string(reconciled.MismatchReason)),
+				libLog.Int("rebuilt_operations", len(operations)))
+
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "persisted_operations_mismatch")
+
+			return
+		}
+
+		operations = reconciled.Operations
+
 		// The rebuilt IDs are stored in the record before the write, so every
 		// later replay of this record takes the materialized branch above and
 		// rewrites the same operations. The record now stored is the payload a

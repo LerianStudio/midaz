@@ -126,6 +126,9 @@ func TestProcessMessageWritesNothingWhenRebuiltOperationsCannotBeStored(t *testi
 			mockRedis := replay.redis
 			consumer, message, key, raw := replay.consumer, replay.message, replay.key, replay.raw
 
+			replay.operations.EXPECT().
+				ListByTransactionPrimary(gomock.Any(), message.OrganizationID, message.LedgerID, message.TransactionID).
+				Return(nil, nil)
 			mockRedis.EXPECT().
 				ReplaceMessageInQueueIfValue(gomock.Any(), key, raw, gomock.Any()).
 				DoAndReturn(func(_ context.Context, _, _, replacement string) (redisTransaction.BackupRecordReplacement, error) {
@@ -139,6 +142,58 @@ func TestProcessMessageWritesNothingWhenRebuiltOperationsCannotBeStored(t *testi
 			consumer.processMessage(context.Background(), key, raw, message)
 		})
 	}
+}
+
+// TestProcessMessageWritesNothingWhenPersistedOperationsCannotBeRead replays a
+// rebuilt record while the primary read of the transaction's persisted
+// operations fails. Whether a leg is persisted is unknown, so nothing is stored
+// in the record, written, or counted toward quarantine: no Redis, transaction
+// or quarantine call is expected.
+func TestProcessMessageWritesNothingWhenPersistedOperationsCannotBeRead(t *testing.T) {
+	t.Parallel()
+
+	replay := newRebuildReplay(t)
+	replay.operations.EXPECT().
+		ListByTransactionPrimary(gomock.Any(), replay.message.OrganizationID, replay.message.LedgerID, replay.message.TransactionID).
+		Return(nil, errors.New("primary unavailable"))
+
+	replay.consumer.processMessage(context.Background(), replay.key, replay.raw, replay.message)
+}
+
+// TestProcessMessageQuarantinesARebuildThatDiffersFromThePersistedLegs replays
+// a rebuilt record whose source leg is persisted with another amount, the shape
+// of an amount clipped by overdraft. The record must not be stored or written;
+// at the threshold it reaches quarantine under its own reason with the payload
+// exactly as read, and leaves the backup queue.
+func TestProcessMessageQuarantinesARebuildThatDiffersFromThePersistedLegs(t *testing.T) {
+	t.Parallel()
+
+	replay := newRebuildReplay(t)
+	source := replay.message.Balances[0]
+	clipped := decimal.NewFromInt(50)
+	version := source.Version
+
+	replay.operations.EXPECT().
+		ListByTransactionPrimary(gomock.Any(), replay.message.OrganizationID, replay.message.LedgerID, replay.message.TransactionID).
+		Return([]*operation.Operation{{
+			ID: uuid.NewString(), TransactionID: replay.message.TransactionID.String(), BalanceID: source.ID, BalanceKey: source.Key,
+			Type: constant.DEBIT, Amount: operation.Amount{Value: &clipped}, Balance: operation.Balance{Version: &version},
+		}}, nil)
+
+	gomock.InOrder(
+		replay.redis.EXPECT().IncrementBackupAttempt(gomock.Any(), replay.key).Return(int64(QuarantineThreshold), nil),
+		replay.quarantine.EXPECT().Insert(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, record *transactionquarantine.QuarantineRecord) error {
+				assert.Equal(t, "persisted_operations_mismatch", record.FailureReason)
+				assert.Equal(t, []byte(replay.raw), record.Payload, "the quarantine keeps the record as read")
+
+				return nil
+			}),
+		replay.redis.EXPECT().RemoveMessageFromQueue(gomock.Any(), replay.key).Return(nil),
+		replay.redis.EXPECT().ClearBackupAttempt(gomock.Any(), replay.key).Return(nil),
+	)
+
+	replay.consumer.processMessage(context.Background(), replay.key, replay.raw, replay.message)
 }
 
 // rebuildReplay wires a consumer whose ledger settings, Redis queue, operation

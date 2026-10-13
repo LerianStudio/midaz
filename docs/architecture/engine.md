@@ -1039,7 +1039,17 @@ Invalid version-2 records are retained rather than passed to legacy processing.
 
 A legacy record that carries its operations replays them as recorded, and the
 write path deduplicates them by ID. A record without operations rebuilds them
-from its balance snapshots, which mints new IDs, so the rebuilt operations are
+from its balance snapshots, which mints new IDs, so the rebuilt legs are first
+reconciled with the operations already persisted for the same transaction, read
+from the primary. Legs are compared only by exact key: transaction, balance,
+balance key, operation type, starting version, and decimal amount, with
+multiplicity. A rebuilt leg with a persisted exact match takes the persisted ID;
+a rebuilt leg with no persisted leg on its key is written. Any ambiguity (a
+different count for one key, a persisted leg left unpaired on the balance and
+starting version of a rebuilt leg, or a rebuilt leg without type, version, or
+amount) writes nothing and counts toward quarantine as
+`persisted_operations_mismatch`. A failed primary read leaves the record for the
+next cycle without counting an attempt. After reconciliation, the final IDs are
 stored in the record by compare-and-set against the exact value read, replacing
 only its `operations` key, before anything reaches PostgreSQL. Every later replay
 of that record then takes the materialized path with the same IDs. A record
