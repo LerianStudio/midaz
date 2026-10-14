@@ -28,6 +28,7 @@ type Service struct {
 	RedisQueueConsumer       *RedisQueueConsumer
 	EngineRecoveryCleanup    *EngineRecoveryCleanupRunner
 	BalanceSyncWorker        *BalanceSyncWorker
+	BalanceReconciler        *BalanceReconcilerRunner
 	LegacyBalanceSyncDrainer *LegacyBalanceSyncDrainer
 	EventListener            *tmevent.TenantEventListener
 	CircuitBreakerManager    *CircuitBreakerManager
@@ -147,6 +148,11 @@ func (s *Service) launcherApps() []launcherApp {
 	// Balance sync worker (optional, started when configured)
 	if s.BalanceSyncWorker != nil {
 		apps = append(apps, launcherApp{"Balance Sync Worker", s.BalanceSyncWorker})
+	}
+
+	// Balance reconciler (optional, started when enabled)
+	if s.BalanceReconciler != nil {
+		apps = append(apps, launcherApp{"Balance Reconciler", s.BalanceReconciler})
 	}
 
 	// Legacy balance sync drainer — drains pre-v3.6.2 ZSET entries

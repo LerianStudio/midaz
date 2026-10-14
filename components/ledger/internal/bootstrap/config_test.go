@@ -741,3 +741,118 @@ func TestIDPConfig_DeclarationEnabled_FromEnv(t *testing.T) {
 		})
 	}
 }
+
+// balanceReconcilerEnvKeys lists every env var read by the balance reconciler knobs.
+var balanceReconcilerEnvKeys = []string{
+	"BALANCE_RECONCILER_ENABLED",
+	"BALANCE_RECONCILER_INTERVAL_MS",
+	"BALANCE_RECONCILER_GRACE_MS",
+	"BALANCE_RECONCILER_PAGE_SIZE",
+	"BALANCE_RECONCILER_PASS_BUDGET_MS",
+}
+
+// unsetBalanceReconcilerEnv removes the reconciler env vars for the duration of
+// the test, restoring any value the process inherited.
+func unsetBalanceReconcilerEnv(t *testing.T) {
+	t.Helper()
+
+	for _, key := range balanceReconcilerEnvKeys {
+		// t.Setenv registers the restore of the inherited value; the unset
+		// then makes the key truly absent for this test.
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
+// TestConfig_BalanceReconciler_Defaults verifies the reconciler knobs resolve
+// through SetConfigFromEnvVars + applyConfigDefaults: absent or empty env falls
+// back to the defaults, explicit values are kept, and only an explicit "false"
+// disables the runner.
+func TestConfig_BalanceReconciler_Defaults(t *testing.T) {
+	// Note: t.Parallel() omitted because sub-tests use t.Setenv.
+
+	type want struct {
+		enabled      bool
+		intervalMs   int
+		graceMs      int
+		pageSize     int
+		passBudgetMs int
+	}
+
+	defaults := want{
+		enabled:      true,
+		intervalMs:   900000,
+		graceMs:      5400000,
+		pageSize:     500,
+		passBudgetMs: 60000,
+	}
+
+	tests := []struct {
+		name string
+		env  map[string]string
+		want want
+	}{
+		{name: "unset_uses_defaults", env: nil, want: defaults},
+		{
+			name: "empty_uses_defaults",
+			env: map[string]string{
+				"BALANCE_RECONCILER_ENABLED":        "",
+				"BALANCE_RECONCILER_INTERVAL_MS":    "",
+				"BALANCE_RECONCILER_GRACE_MS":       "",
+				"BALANCE_RECONCILER_PAGE_SIZE":      "",
+				"BALANCE_RECONCILER_PASS_BUDGET_MS": "",
+			},
+			want: defaults,
+		},
+		{
+			name: "explicit_values_are_read",
+			env: map[string]string{
+				"BALANCE_RECONCILER_ENABLED":        "true",
+				"BALANCE_RECONCILER_INTERVAL_MS":    "60000",
+				"BALANCE_RECONCILER_GRACE_MS":       "120000",
+				"BALANCE_RECONCILER_PAGE_SIZE":      "100",
+				"BALANCE_RECONCILER_PASS_BUDGET_MS": "30000",
+			},
+			want: want{
+				enabled:      true,
+				intervalMs:   60000,
+				graceMs:      120000,
+				pageSize:     100,
+				passBudgetMs: 30000,
+			},
+		},
+		{
+			name: "explicit_false_disables",
+			env:  map[string]string{"BALANCE_RECONCILER_ENABLED": "false"},
+			want: want{
+				enabled:      false,
+				intervalMs:   defaults.intervalMs,
+				graceMs:      defaults.graceMs,
+				pageSize:     defaults.pageSize,
+				passBudgetMs: defaults.passBudgetMs,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Note: t.Parallel() omitted because t.Setenv is incompatible with parallel sub-tests.
+			unsetBalanceReconcilerEnv(t)
+
+			for key, value := range tt.env {
+				t.Setenv(key, value)
+			}
+
+			cfg := &Config{}
+			require.NoError(t, libCommons.SetConfigFromEnvVars(cfg))
+
+			applyConfigDefaults(cfg)
+
+			assert.Equal(t, tt.want.enabled, cfg.BalanceReconcilerEnabled, "BalanceReconcilerEnabled")
+			assert.Equal(t, tt.want.intervalMs, cfg.BalanceReconcilerIntervalMs, "BalanceReconcilerIntervalMs")
+			assert.Equal(t, tt.want.graceMs, cfg.BalanceReconcilerGraceMs, "BalanceReconcilerGraceMs")
+			assert.Equal(t, tt.want.pageSize, cfg.BalanceReconcilerPageSize, "BalanceReconcilerPageSize")
+			assert.Equal(t, tt.want.passBudgetMs, cfg.BalanceReconcilerPassBudgetMs, "BalanceReconcilerPassBudgetMs")
+		})
+	}
+}

@@ -1267,11 +1267,12 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 // newest created_at would then elect an intermediate version as the mark — which reads as
 // "the row is only slightly behind" and rebuilds the seed short, permanently.
 //
-// Cost of that choice, accepted deliberately: idx_operation_account_balance_pit_recorded orders by
-// recording time, so the balance's entries under the (organization, ledger, account, balance)
-// prefix are scanned and sorted for a top-1 instead of being read in index order. The query
-// runs only on a cache miss; a second index dedicated to the version-first HWM path is outside
-// this change's point-in-time scope.
+// The version-first order is served by idx_operation_balance_version (migration 000046):
+// keyed by (balance_id, balance_version_after DESC) and partial on the same deleted_at and
+// balance_affected filters, so each balance's mark can be read in index order. Whether the
+// planner uses it or falls back to idx_operation_account_balance_pit_recorded, which orders by
+// recording time and needs a scan and sort of the balance's entries, depends on its statistics;
+// the query runs only on a cache miss, so either plan is acceptable.
 func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (hwm map[string]*Operation, err error) {
 	if len(refs) == 0 {
 		return map[string]*Operation{}, nil

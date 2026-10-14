@@ -186,6 +186,71 @@ var (
 		Description: "Total cache-miss balance seeds rebuilt from the operation trail because the balance row was stale.",
 	}
 
+	// BalanceReconcilerDivergences is how many balances the last reconciler pass
+	// found diverging from the head of their operation trail, by tenant_id (empty
+	// in single-tenant) and direction (balance_ahead|trail_ahead|value_mismatch).
+	// Gauge, rewritten at the end of every completed pass. The annotation unit
+	// keeps the exported name as is. Monetary values never appear in labels.
+	BalanceReconcilerDivergences = metrics.Metric{
+		Name:        "balance_reconciler_divergences",
+		Unit:        "{balance}",
+		Description: "Number of balances diverging from their operation trail in the last reconciler pass, by direction.",
+	}
+
+	// BalanceReconcilerDeferred is how many balances the last reconciler pass
+	// skipped because they were updated inside the grace window, by tenant_id
+	// (empty in single-tenant). Gauge, rewritten at the end of every completed pass.
+	BalanceReconcilerDeferred = metrics.Metric{
+		Name:        "balance_reconciler_deferred",
+		Unit:        "{balance}",
+		Description: "Number of balances deferred by the last reconciler pass because they changed inside the grace window.",
+	}
+
+	// BalanceReconcilerUnverifiable is how many balances the last reconciler pass
+	// could not compare because their trail head predates the operation version
+	// columns, by tenant_id (empty in single-tenant). Gauge, rewritten at the end
+	// of every completed pass. Informational: kept outside the divergence gauge
+	// and outside alerting.
+	BalanceReconcilerUnverifiable = metrics.Metric{
+		Name:        "balance_reconciler_unverifiable",
+		Unit:        "{balance}",
+		Description: "Number of balances the last reconciler pass could not compare because their trail head predates operation version columns.",
+	}
+
+	// BalanceReconcilerLastScanTimestamp records the unix timestamp of the last
+	// reconciler pass that ran to completion, by tenant_id (empty in
+	// single-tenant). Alert on `time() - metric` to catch a reconciler that
+	// silently stopped running.
+	//
+	// The declared name carries NO unit suffix: the OTLP-to-Prometheus translation
+	// appends one from Unit, so this reaches Mimir as
+	// `balance_reconciler_last_scan_timestamp_seconds`.
+	BalanceReconcilerLastScanTimestamp = metrics.Metric{
+		Name:        "balance_reconciler_last_scan_timestamp",
+		Unit:        "s",
+		Description: "Unix timestamp of the last completed balance reconciler pass.",
+	}
+
+	// BalanceReconcilerLastScanDuration is the wall time of the last completed
+	// reconciler pass, by tenant_id (empty in single-tenant).
+	//
+	// The declared name carries NO unit suffix: the OTLP-to-Prometheus translation
+	// appends one from Unit, so this reaches Mimir as
+	// `balance_reconciler_last_scan_duration_milliseconds`.
+	BalanceReconcilerLastScanDuration = metrics.Metric{
+		Name:        "balance_reconciler_last_scan_duration",
+		Unit:        "ms",
+		Description: "Duration in milliseconds of the last completed balance reconciler pass.",
+	}
+
+	// BalanceReconcilerPassFailures counts reconciler passes that did not complete,
+	// by tenant_id (empty in single-tenant) and reason (pg_resolve|query|lock|panic).
+	BalanceReconcilerPassFailures = metrics.Metric{
+		Name:        "balance_reconciler_pass_failures_total",
+		Unit:        "1",
+		Description: "Total balance reconciler passes that failed, by reason.",
+	}
+
 	// Redis backup-queue (poison record) observability metrics.
 
 	// EngineRecoveryCleanupDue is how many durable engine executions are past
