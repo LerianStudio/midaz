@@ -183,6 +183,44 @@ func TestIntegrationEngineConfigKeyDecidesOverTheBlobCopy(t *testing.T) {
 		require.ErrorContains(t, err, `"code":"insufficient_funds"`, "version 10 is newer than version 9")
 	})
 
+	t.Run("an older key loses to a newer request", func(t *testing.T) {
+		f := newOverdraftConfigFixture(t, container.Client)
+		// Go read version 4 from the primary after the key it found was replaced;
+		// the key still holds version 3, which allows the overdraft.
+		f.input.Execution.Balances[0].ConfigVersion = 4
+		stale := f.input.Execution.Balances[0]
+		f.input.Execution.Balances[0].AllowOverdraft = false
+		f.writeBalanceConfig(t, 0, snapshotBalanceConfig(stale, 3))
+		before := f.capture(t)
+
+		_, err := f.run(t)
+		require.ErrorContains(t, err, `"code":"insufficient_funds"`, "version 4 of the request decides over version 3 of the key")
+		require.Equal(t, before, f.capture(t))
+	})
+
+	t.Run("an older key loses to a newer blob copy, which an approval keeps", func(t *testing.T) {
+		f := newOverdraftConfigFixture(t, container.Client)
+		// A PATCH confirmed version 5 in the blob; the key and the request still
+		// hold version 4, which allows the overdraft.
+		f.input.Execution.Balances[0].ConfigVersion = 4
+		f.writeBalanceConfig(t, 0, snapshotBalanceConfig(f.input.Execution.Balances[0], 4))
+		copied := f.input.Execution.Balances[0]
+		copied.AllowOverdraft, copied.ConfigVersion = false, 5
+		f.seed(t, 0, copied)
+		before := f.capture(t)
+
+		_, err := f.run(t)
+		require.ErrorContains(t, err, `"code":"insufficient_funds"`, "version 5 of the blob copy decides over version 4 of the key")
+		require.Equal(t, before, f.capture(t))
+
+		f.rotateExecution()
+		f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(4)
+
+		_, err = f.run(t)
+		require.NoError(t, err)
+		requireBlobConfiguration(t, f.blobFields(t, 0), false, "5", "")
+	})
+
 	t.Run("an equal version prefers the request over the blob copy", func(t *testing.T) {
 		f := newOverdraftConfigFixture(t, container.Client)
 		// The blob's version-0 copy still allows the overdraft; the request read
@@ -444,6 +482,79 @@ func TestIntegrationEngineAccountConfigKeyBlocksEveryBalanceOfTheAccount(t *test
 		fields := f.blobFields(t, 1)
 		require.Equal(t, "1", string(fields["Blocked"]), "the companion blob carries the account's decided flag")
 		require.Equal(t, `"1"`, string(fields[balancecache.BlobAccountConfigVersionField]))
+	})
+}
+
+// TestIntegrationEngineAccountDecidesWithItsNewestConfiguration pins the account
+// decision to the newest version among the account key, the request and the copies
+// in every blob of the account: a live key does not win by being present, and no
+// blob's copy wins by coming first in the pool.
+func TestIntegrationEngineAccountDecidesWithItsNewestConfiguration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+
+	blockedFixture := func(t *testing.T) *integrationFixture {
+		t.Helper()
+
+		f := newOverdraftConfigFixture(t, container.Client)
+		f.input.Execution.Transactions[0].RejectBlockedBalances = true
+
+		return f
+	}
+
+	refusedAsBlocked := func(t *testing.T, f *integrationFixture) {
+		t.Helper()
+
+		before := f.capture(t)
+
+		_, err := f.run(t)
+		require.ErrorContains(t, err, `"code":"account_blocked"`)
+		require.Equal(t, before, f.capture(t))
+	}
+
+	t.Run("an older account key loses to a newer request", func(t *testing.T) {
+		f := blockedFixture(t)
+		accountID := f.input.Execution.Balances[0].AccountID
+		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: false})
+		for index := range f.input.Execution.Balances {
+			f.input.Execution.Balances[index].Blocked = true
+			f.input.Execution.Balances[index].AccountConfigVersion = 2
+		}
+
+		refusedAsBlocked(t, f)
+	})
+
+	t.Run("an older account key loses to a newer blob copy", func(t *testing.T) {
+		f := blockedFixture(t)
+		accountID := f.input.Execution.Balances[0].AccountID
+		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: false})
+		for index := range f.input.Execution.Balances {
+			f.input.Execution.Balances[index].AccountConfigVersion = 1
+		}
+
+		copied := f.input.Execution.Balances[0]
+		copied.Blocked, copied.AccountConfigVersion = true, 2
+		f.seed(t, 0, copied)
+
+		refusedAsBlocked(t, f)
+	})
+
+	t.Run("the newest copy among the account's blobs decides, wherever it is in the pool", func(t *testing.T) {
+		f := blockedFixture(t)
+		// No account key. The first blob of the account holds version 1, not
+		// blocked; the second, the companion, holds version 2, blocked.
+		first := f.input.Execution.Balances[0]
+		first.AccountConfigVersion = 1
+		f.seed(t, 0, first)
+
+		second := f.input.Execution.Balances[1]
+		second.Blocked, second.AccountConfigVersion = true, 2
+		f.seed(t, 1, second)
+
+		refusedAsBlocked(t, f)
 	})
 }
 
