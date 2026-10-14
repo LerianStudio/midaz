@@ -114,13 +114,20 @@ func (i *reseedTestInfra) execBalance(t *testing.T, statement string, args ...an
 // cannot have come from the blob.
 func (i *reseedTestInfra) cacheBlob(t *testing.T, accountID, balanceID uuid.UUID, alias, key string, version int64) {
 	t.Helper()
+	i.cacheBlobWithCopyVersion(t, accountID, balanceID, alias, key, version, 0)
+}
+
+// cacheBlobWithCopyVersion is cacheBlob with the balance configuration copy at
+// copyVersion.
+func (i *reseedTestInfra) cacheBlobWithCopyVersion(t *testing.T, accountID, balanceID uuid.UUID, alias, key string, version, copyVersion int64) {
+	t.Helper()
 
 	snapshot := accounting.BalanceSnapshot{
 		BalanceRef: alias + "#" + key, ID: balanceID, AccountID: accountID,
 		AccountType: "deposit", AssetCode: "USD", Alias: alias, Key: key,
 		Direction: "credit", BalanceScope: mmodel.BalanceScopeTransactional,
 		Available: decimal.NewFromInt(100), Version: version,
-		AllowSending: true, AllowReceiving: true,
+		AllowSending: true, AllowReceiving: true, ConfigVersion: copyVersion,
 	}
 
 	encoded, err := balancecache.Encode(snapshot, balancecache.FormatDual)
@@ -633,7 +640,10 @@ func TestIntegration_EngineConfig_ColdBalanceDecidesWithARowNewerThanTheLiveKey(
 
 		writeKeys(t, ctx, ref, accountID, true, false)
 		changeRows(t, accountID, balanceID)
-		infra.cacheBlob(t, accountID, balanceID, alias, constant.DefaultBalanceKey, 1)
+		// The blob's copy is newer than the key: it is left to the engine's decision
+		// and never taken for a row the load read.
+		infra.cacheBlobWithCopyVersion(t, accountID, balanceID, alias, constant.DefaultBalanceKey, 1, 1)
+		before := infra.readKeys(t, ctx, []string{ref}, []uuid.UUID{accountID})
 
 		balances, accounts := spy(t)
 
@@ -644,6 +654,7 @@ func TestIntegration_EngineConfig_ColdBalanceDecidesWithARowNewerThanTheLiveKey(
 		assert.Equal(t, int64(0), got.ConfigVersion, "a live key decides a cached balance")
 		assert.True(t, got.AllowSending)
 		assert.False(t, got.Blocked)
+		assert.Equal(t, before, infra.readKeys(t, ctx, []string{ref}, []uuid.UUID{accountID}), "a cached balance never rewrites its keys")
 
 		// The uncached overdraft companion is still looked up by alias, as before; no
 		// configuration row is read.
