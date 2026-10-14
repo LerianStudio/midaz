@@ -577,12 +577,14 @@ func TestUpdateBalance_Success(t *testing.T) {
 // TestUpdateBalance_ConfigurationWriteFailure_Internal500 pins the status a
 // PATCH answers when PostgreSQL committed but the configuration could not be
 // written where transactions read it: the same technical error the allow-flags
-// cache failure always answered, so the client retries.
+// cache failure always answered, so the client retries. An empty PATCH writes
+// the row's configuration too, so it fails the same way.
 func TestUpdateBalance_ConfigurationWriteFailure_Internal500(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	for name, payload := range map[string]map[string]any{
 		"allow flags": {"allowSending": false},
 		"settings":    {"settings": map[string]any{"allowOverdraft": false}},
+		"empty":       {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)

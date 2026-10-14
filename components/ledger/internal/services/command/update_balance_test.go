@@ -346,9 +346,12 @@ func TestUpdateBalance_ConfigurationWrite_FailsClosed(t *testing.T) {
 	errRedis := errors.New("redis connection refused")
 	allowSending := false
 
+	// An empty PATCH still writes the row's configuration and confirms its copy, so
+	// a cache failure fails it too; a client that sends one may retry it safely.
 	payloads := map[string]mmodel.UpdateBalance{
 		"allow flags": {AllowSending: &allowSending},
 		"settings":    {Settings: &mmodel.BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: strPtr("10")}},
+		"empty":       {},
 	}
 
 	// counted is the outcome the blob copy counter records, empty when no copy ran.
