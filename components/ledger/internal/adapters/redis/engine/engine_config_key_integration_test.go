@@ -840,6 +840,10 @@ func TestIntegrationEngineConfigKeySwitchUnderConcurrentWriters(t *testing.T) {
 		}()
 	}
 
+	// The writers are bounded; a failed assertion still waits for them, so none
+	// keeps writing the shared Valkey while later tests run.
+	t.Cleanup(waitGroup.Wait)
+
 	select {
 	case <-switchNow:
 	case <-time.After(time.Minute):

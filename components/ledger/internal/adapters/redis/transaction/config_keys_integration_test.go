@@ -666,6 +666,33 @@ func TestIntegration_ConfigCopy_DeletedBalanceIsRefused(t *testing.T) {
 	assert.Equal(t, blob, storedBlob(t, infra, scope.blobKey()))
 }
 
+// A blob the copy cannot read takes no copy: the copy fails, which fails the PATCH
+// as a technical error, and the unreadable bytes stay exactly as they were.
+func TestIntegration_ConfigCopy_UnreadableBlobFailsAndIsLeftIntact(t *testing.T) {
+	infra := setupRedisIntegrationInfra(t)
+
+	for name, unreadable := range map[string]string{
+		"not JSON":          "not-json",
+		"truncated JSON":    `{"ID":"` + uuid.NewString() + `","Available":"10"`,
+		"not a JSON object": `["balance"]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			scope := newConfigKeyScope()
+
+			require.NoError(t, infra.redisContainer.Client.Set(t.Context(), scope.blobKey(), unreadable, time.Hour).Err())
+
+			_, err := infra.repo.CopyBalanceConfigToBlob(t.Context(), scope.orgID, scope.ledgerID, scope.ref, balanceConfigAt(uuid.New(), 2, true))
+			require.Error(t, err)
+			assert.Equal(t, unreadable, storedBlob(t, infra, scope.blobKey()))
+
+			_, err = infra.repo.CopyAccountConfigToBlobs(t.Context(), scope.orgID, scope.ledgerID, []string{scope.ref},
+				accounting.AccountConfig{AccountID: uuid.New(), Version: 2, Blocked: true})
+			require.Error(t, err)
+			assert.Equal(t, unreadable, storedBlob(t, infra, scope.blobKey()))
+		})
+	}
+}
+
 // The account copy reads every blob of the account in one MGET and writes only the
 // ones holding an older copy; a transaction on one of them between the MGET and its
 // write is kept, exactly as for a single balance.

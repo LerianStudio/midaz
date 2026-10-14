@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -35,6 +36,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -692,7 +694,19 @@ func TestIntegration_ConfigKeyPatch_ConcurrentPatchesLeaveTheNewestWholeCopy(t *
 
 			reached, release := make(chan struct{}), make(chan struct{})
 
-			var held atomic.Bool
+			var (
+				held        atomic.Bool
+				releaseOnce sync.Once
+				patches     sync.WaitGroup
+			)
+
+			releaseHeld := func() { releaseOnce.Do(func() { close(release) }) }
+			// A failed assertion must not leave the held PATCH blocked on the shared
+			// stores: release it and wait for it before the harness goes away.
+			t.Cleanup(func() {
+				releaseHeld()
+				patches.Wait()
+			})
 
 			h.hook.intervene(func(_ context.Context, c patchCommand) error {
 				if c.tag == "held" && held.CompareAndSwap(false, true) {
@@ -705,7 +719,13 @@ func TestIntegration_ConfigKeyPatch_ConcurrentPatchesLeaveTheNewestWholeCopy(t *
 
 			heldResult := make(chan error, 1)
 
-			go func() { heldResult <- h.patch(taggedRequest(t.Context(), "held"), seed, order[0]) }()
+			patches.Add(1)
+
+			go func() {
+				defer patches.Done()
+
+				heldResult <- h.patch(taggedRequest(t.Context(), "held"), seed, order[0])
+			}()
 
 			select {
 			case <-reached:
@@ -714,7 +734,7 @@ func TestIntegration_ConfigKeyPatch_ConcurrentPatchesLeaveTheNewestWholeCopy(t *
 			}
 
 			require.NoError(t, h.patch(t.Context(), seed, order[1]))
-			close(release)
+			releaseHeld()
 			require.NoError(t, <-heldResult)
 
 			row := h.row(t, seed.id)
@@ -766,6 +786,15 @@ func TestIntegration_ConfigKeyPatch_RepeatedValueOnAHotBalanceOnlyReads(t *testi
 	engine := sync.WaitGroup{}
 	engine.Add(1)
 
+	var stopOnce sync.Once
+
+	stopEngine := func() {
+		stopOnce.Do(func() { close(stop) })
+		engine.Wait()
+	}
+	// A failed assertion must not leave the stand-in rewriting the shared blob.
+	t.Cleanup(stopEngine)
+
 	// Stands in for the engine: every approved transaction rewrites the blob with
 	// new money and the configuration copy it already holds.
 	go func() {
@@ -794,8 +823,7 @@ func TestIntegration_ConfigKeyPatch_RepeatedValueOnAHotBalanceOnlyReads(t *testi
 		require.NoError(t, h.patch(taggedRequest(t.Context(), "repeat"), seed, update))
 	}
 
-	close(stop)
-	engine.Wait()
+	stopEngine()
 
 	assert.Equal(t, version, h.row(t, seed.id).ConfigVersion, "the same value never raises the version")
 	assert.Zero(t, h.hook.count(func(c patchCommand) bool { return c.tag == "repeat" && isScriptOn(c, h.blobKey(seed.ref())) }),
@@ -1007,6 +1035,12 @@ func TestIntegration_ConfigKeyPatch_DeletionMarkerRefusesTheCopy(t *testing.T) {
 	err := h.patch(t.Context(), seed, mmodel.UpdateBalance{AllowSending: boolPointer(false)})
 	require.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "0019"), "the copy is refused by the deletion marker: %v", err)
+	assert.False(t, pkg.IsBusinessError(err), "the refused copy is a technical error, not the business code that shares 0019")
+
+	problem, ok := pkgHTTP.ProblemDetail(err)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, problem.Status, "the client is told to retry")
+	assert.Equal(t, constant.ErrInternalServer.Error(), problem.Code)
 	assert.Equal(t, blob, h.blob(t, seed.ref()))
 }
 
