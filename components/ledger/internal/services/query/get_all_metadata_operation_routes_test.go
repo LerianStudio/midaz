@@ -161,6 +161,32 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 	})
 
+	t.Run("metadata_matches_no_page_row_returns_empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{
+			OperationRouteRepo:      mockOperationRouteRepo,
+			TransactionMetadataRepo: mockMetadataRepo,
+		}
+
+		mockMetadataRepo.EXPECT().
+			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
+			Return([]*mongodb.Metadata{{EntityID: operationRouteID1.String(), Data: map[string]any{"key": "value"}}}, nil)
+
+		mockOperationRouteRepo.EXPECT().
+			FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+			Return([]*mmodel.OperationRoute{{ID: operationRouteID2}}, expectedCursor, nil)
+
+		result, _, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result, "an empty page must serialize as [], not null")
+		assert.Len(t, result, 0)
+	})
+
 	t.Run("operation_route_repo_error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

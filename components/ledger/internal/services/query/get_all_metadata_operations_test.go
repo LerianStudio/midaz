@@ -239,6 +239,47 @@ func TestGetAllMetadataOperationsMetadataEmpty(t *testing.T) {
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
 }
 
+// TestGetAllMetadataOperationsMetadataMatchesNoPageRow pins the empty page when the
+// metadata store matches IDs that the operation page does not carry.
+func TestGetAllMetadataOperationsMetadataMatchesNoPageRow(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	filter := http.QueryHeader{
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityOperation, filter).
+		Return([]*mongodb.Metadata{{EntityID: uuid.New().String(), Data: map[string]any{"key": "value"}}}, nil)
+
+	mockOperationRepo.EXPECT().
+		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), filter.ToCursorPagination()).
+		Return([]*operation.Operation{{ID: uuid.New().String()}}, libHTTP.CursorPagination{}, nil)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
+	}
+
+	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result, "an empty page must serialize as [], not null")
+	assert.Len(t, result, 0)
+}
+
 // TestGetAllMetadataOperationsOperationNotFound tests error handling when operations are not found
 func TestGetAllMetadataOperationsOperationNotFound(t *testing.T) {
 	ctrl := gomock.NewController(t)

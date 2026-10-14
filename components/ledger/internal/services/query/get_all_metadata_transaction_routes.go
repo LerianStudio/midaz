@@ -58,7 +58,7 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	var filteredTransactionRoutes []*mmodel.TransactionRoute
+	filteredTransactionRoutes := make([]*mmodel.TransactionRoute, 0, len(allTransactionRoutes))
 
 	for _, transactionRoute := range allTransactionRoutes {
 		if data, ok := metadataMap[transactionRoute.ID.String()]; ok {

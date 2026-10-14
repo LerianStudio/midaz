@@ -57,7 +57,7 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	var filteredOperationRoutes []*mmodel.OperationRoute
+	filteredOperationRoutes := make([]*mmodel.OperationRoute, 0, len(allOperationRoutes))
 
 	for _, operationRoute := range allOperationRoutes {
 		if data, ok := metadataMap[operationRoute.ID.String()]; ok {

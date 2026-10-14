@@ -65,7 +65,7 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	var operations []*operation.Operation
+	operations := make([]*operation.Operation, 0, len(oper))
 
 	for _, o := range oper {
 		if data, ok := metadataMap[o.ID]; ok {
