@@ -37,8 +37,8 @@ func RecordingContext() (context.Context, *tracetest.SpanRecorder) {
 }
 
 // FindSpan returns the first ended span whose name matches, failing the test if absent.
-func FindSpan(t testing.TB, recorder *tracetest.SpanRecorder, name string) sdktrace.ReadOnlySpan {
-	t.Helper()
+func FindSpan(tb testing.TB, recorder *tracetest.SpanRecorder, name string) sdktrace.ReadOnlySpan {
+	tb.Helper()
 
 	for _, s := range recorder.Ended() {
 		if s.Name() == name {
@@ -46,7 +46,7 @@ func FindSpan(t testing.TB, recorder *tracetest.SpanRecorder, name string) sdktr
 		}
 	}
 
-	t.Fatalf("span %q was not recorded; recorded spans: %v", name, SpanNames(recorder))
+	tb.Fatalf("span %q was not recorded; recorded spans: %v", name, SpanNames(recorder))
 
 	return nil
 }
@@ -77,12 +77,12 @@ func CountSpans(recorder *tracetest.SpanRecorder, name string) int {
 
 // AssertNoSpan fails the test when any of the given span names was recorded. It documents
 // that a step was folded into its parent span instead of opening a span of its own.
-func AssertNoSpan(t testing.TB, recorder *tracetest.SpanRecorder, names ...string) {
-	t.Helper()
+func AssertNoSpan(tb testing.TB, recorder *tracetest.SpanRecorder, names ...string) {
+	tb.Helper()
 
 	for _, name := range names {
 		if HasSpan(recorder, name) {
-			t.Errorf("span %q must not be recorded; recorded spans: %v", name, SpanNames(recorder))
+			tb.Errorf("span %q must not be recorded; recorded spans: %v", name, SpanNames(recorder))
 		}
 	}
 }
@@ -117,7 +117,7 @@ func FindEvent(s sdktrace.ReadOnlySpan, eventName string) (sdktrace.Event, bool)
 func EventText(e sdktrace.Event) string {
 	parts := make([]string, 0, len(e.Attributes))
 	for _, a := range e.Attributes {
-		parts = append(parts, a.Value.Emit())
+		parts = append(parts, a.Value.String())
 	}
 
 	return strings.Join(parts, " ")
