@@ -229,11 +229,13 @@ func (r *AccountTypePostgreSQLRepository) FindByID(ctx context.Context, organiza
 		&record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to scan account type record", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan account type record", services.ErrDatabaseItemNotFound)
+
 			return nil, services.ErrDatabaseItemNotFound
 		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to scan account type record", err)
 
 		return nil, err
 	}
@@ -290,11 +292,13 @@ func (r *AccountTypePostgreSQLRepository) FindByKey(ctx context.Context, organiz
 		&record.DeletedAt,
 	)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to scan account type record", err)
-
 		if errors.Is(err, sql.ErrNoRows) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to scan account type record", services.ErrDatabaseItemNotFound)
+
 			return nil, services.ErrDatabaseItemNotFound
 		}
+
+		libOpentelemetry.HandleSpanError(span, "Failed to scan account type record", err)
 
 		return nil, err
 	}
