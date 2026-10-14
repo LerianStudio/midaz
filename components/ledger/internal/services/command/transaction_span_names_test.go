@@ -34,9 +34,11 @@ var transactionSpanNames = []struct {
 	{"commit_transaction.go", "CancelTransactionV2", []string{"command.cancel_transaction_v2"}},
 	{"commit_transaction.go", "transitionPendingV1", []string{"command.transition_pending_transaction"}},
 	{"commit_transaction.go", "transitionPendingV2", []string{"command.transition_pending_transaction"}},
-	{"build_transaction_operations.go", "BuildOperations", []string{"command.build_transaction_operations"}},
-	{"build_transaction_operations.go", "buildDoubleEntryPendingOps", []string{"command.build_double_entry_pending_ops"}},
-	{"build_transaction_operations.go", "buildDoubleEntryCanceledOps", []string{"command.build_double_entry_canceled_ops"}},
+	// Building operations is a step without I/O: these functions annotate the caller's
+	// span and must open none of their own.
+	{"build_transaction_operations.go", "BuildOperations", nil},
+	{"build_transaction_operations.go", "buildDoubleEntryPendingOps", nil},
+	{"build_transaction_operations.go", "buildDoubleEntryCanceledOps", nil},
 }
 
 // spanNamesIn returns, in source order, the literal string passed as the span-name

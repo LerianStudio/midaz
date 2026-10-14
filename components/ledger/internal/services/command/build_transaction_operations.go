@@ -15,8 +15,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -45,13 +45,14 @@ func (uc *UseCase) BuildOperations(
 
 	var preBalances []*mmodel.Balance
 
-	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.build_transaction_operations")
-	defer span.End()
-
+	// Building operations is a step without I/O, so it opens no span of its own: it
+	// annotates the caller's span (the transaction command, or the replay consumer's
+	// message span). Errors it returns are recorded there by the caller; a failed
+	// metric is only logged, so it never marks a successful transaction as an error.
 	if routeValidationEnabled {
-		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
 
 	// Index Lua's authoritative post-mutation balances by `alias#key` so we
@@ -85,8 +86,6 @@ func (uc *UseCase) BuildOperations(
 
 				txBal, tErr := blc.ToTransactionBalance()
 				if tErr != nil {
-					libOpentelemetry.HandleSpanError(span, "Corrupted balance for validation", tErr)
-
 					logger.Log(ctx, libLog.LevelWarn, "Corrupted balance OverdraftLimit", libLog.Err(tErr))
 
 					return nil, nil, tErr
@@ -94,8 +93,6 @@ func (uc *UseCase) BuildOperations(
 
 				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, txBal)
 				if err != nil {
-					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
-
 					logger.Log(ctx, libLog.LevelWarn, "Failed to validate balance", libLog.Err(err))
 
 					return nil, nil, err
@@ -177,7 +174,7 @@ func (uc *UseCase) BuildOperations(
 							attribute.String("organization_id", tran.OrganizationID),
 							attribute.String("ledger_id", tran.LedgerID),
 						); err != nil {
-							libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+							logger.Log(ctx, libLog.LevelWarn, "Failed to record transaction processed metric", libLog.Err(err))
 						}
 					}
 
@@ -223,7 +220,7 @@ func (uc *UseCase) BuildOperations(
 					attribute.String("organization_id", tran.OrganizationID),
 					attribute.String("ledger_id", tran.LedgerID),
 				); err != nil {
-					libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+					logger.Log(ctx, libLog.LevelWarn, "Failed to record transaction processed metric", libLog.Err(err))
 				}
 			}
 		}
@@ -606,7 +603,7 @@ func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
 // Op2: ONHOLD (credit direction) - increases OnHold only
 // This ensures proper double-entry where each operation affects a single balance field.
 func (uc *UseCase) buildDoubleEntryPendingOps(
-	ctx context.Context,
+	_ context.Context,
 	blc *mmodel.Balance,
 	ft mtransaction.FromTo,
 	amt mtransaction.Amount,
@@ -616,11 +613,6 @@ func (uc *UseCase) buildDoubleEntryPendingOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "command.build_double_entry_pending_ops")
-	defer span.End()
-
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
 		description = transactionInput.Description
@@ -753,7 +745,7 @@ func (uc *UseCase) buildDoubleEntryPendingOps(
 // Op2: CREDIT (credit direction) - increases Available only
 // This ensures proper double-entry where each operation affects a single balance field.
 func (uc *UseCase) buildDoubleEntryCanceledOps(
-	ctx context.Context,
+	_ context.Context,
 	blc *mmodel.Balance,
 	ft mtransaction.FromTo,
 	amt mtransaction.Amount,
@@ -763,11 +755,6 @@ func (uc *UseCase) buildDoubleEntryCanceledOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "command.build_double_entry_canceled_ops")
-	defer span.End()
-
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
 		description = transactionInput.Description
