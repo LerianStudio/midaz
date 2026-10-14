@@ -12,6 +12,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/organization"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -31,11 +32,14 @@ func TestGetAllOrganizations(t *testing.T) {
 		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 
+	errMetadata := errors.New("metadata retrieval error")
+
 	tests := []struct {
 		name           string
 		filter         http.QueryHeader
 		mockSetup      func(filter http.QueryHeader)
 		expectErr      bool
+		technicalErr   error
 		expectedResult []*mmodel.Organization
 	}{
 		{
@@ -77,7 +81,7 @@ func TestGetAllOrganizations(t *testing.T) {
 			expectedResult: nil,
 		},
 		{
-			name: "Error - Failed to retrieve metadata",
+			name: "Error - metadata failure is returned as a technical error",
 			filter: http.QueryHeader{
 				Limit: 10,
 				Page:  1,
@@ -91,9 +95,10 @@ func TestGetAllOrganizations(t *testing.T) {
 					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("metadata retrieval error"))
+					Return(nil, errMetadata)
 			},
 			expectErr:      true,
+			technicalErr:   errMetadata,
 			expectedResult: nil,
 		},
 	}
@@ -108,6 +113,13 @@ func TestGetAllOrganizations(t *testing.T) {
 			if tt.expectErr {
 				assert.Error(t, err)
 				assert.Nil(t, result)
+
+				if tt.technicalErr != nil {
+					assert.ErrorIs(t, err, tt.technicalErr)
+
+					var nf pkg.EntityNotFoundError
+					assert.False(t, errors.As(err, &nf))
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)

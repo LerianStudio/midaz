@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -48,9 +47,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 
 	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntityAsset, assetIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get asset metadata on repo", err)
 
 		return nil, err
 	}

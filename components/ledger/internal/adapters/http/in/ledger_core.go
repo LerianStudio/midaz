@@ -124,7 +124,7 @@ func (handler *LedgerHandler) getAllLedgers(ctx context.Context, organizationID 
 
 		ledgers, err := handler.Query.GetAllMetadataLedgers(ctx, organizationID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all ledgers by metadata", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all ledgers by metadata", err)
 
 			return http.Pagination{}, err
 		}

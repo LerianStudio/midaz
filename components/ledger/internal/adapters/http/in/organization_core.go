@@ -153,7 +153,7 @@ func (handler *OrganizationHandler) getAllOrganizations(ctx context.Context, que
 
 		organizations, err := handler.Query.GetAllMetadataOrganizations(ctx, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations by metadata", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all organizations by metadata", err)
 
 			return http.Pagination{}, err
 		}
@@ -167,7 +167,7 @@ func (handler *OrganizationHandler) getAllOrganizations(ctx context.Context, que
 
 	organizations, err := handler.Query.GetAllOrganizations(ctx, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all organizations", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all organizations", err)
 
 		return http.Pagination{}, err
 	}

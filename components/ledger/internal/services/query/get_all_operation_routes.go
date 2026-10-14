@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -48,9 +47,7 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID uui
 
 		metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperationRoute, metadataFilter)
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOperationRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation route", err)
+			recordQueryError(ctx, span, logger, "Failed to get operation route metadata on repo", err)
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

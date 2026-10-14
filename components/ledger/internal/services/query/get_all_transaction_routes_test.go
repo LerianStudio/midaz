@@ -244,7 +244,7 @@ func TestGetAllTransactionRoutesRepositoryError(t *testing.T) {
 	assert.Equal(t, expectedError, err)
 }
 
-// TestGetAllTransactionRoutesMetadataError tests metadata repository error handling
+// TestGetAllTransactionRoutesMetadataError tests that a metadata repository failure is returned as a technical error
 func TestGetAllTransactionRoutesMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -293,12 +293,13 @@ func TestGetAllTransactionRoutesMetadataError(t *testing.T) {
 
 	result, cursor, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, expectedMetadataError)
+
+	var nf pkg.EntityNotFoundError
+	assert.False(t, errors.As(err, &nf))
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-
-	var entityNotFoundError pkg.EntityNotFoundError
-	assert.True(t, errors.As(err, &entityNotFoundError))
-	assert.Equal(t, "0007", entityNotFoundError.Code)
 }
 
 // TestGetAllTransactionRoutesNilTransactionRoutes tests when transaction routes are nil

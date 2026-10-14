@@ -121,6 +121,8 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 	})
 
 	t.Run("metadata_repo_error", func(t *testing.T) {
+		repoErr := errors.New("metadata repository error")
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -133,19 +135,20 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
-			Return(nil, errors.New("metadata repository error"))
+			Return(nil, repoErr)
 
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, repoErr)
+
+		var nf pkg.EntityNotFoundError
+		assert.False(t, errors.As(err, &nf))
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-
-		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
-		assert.Equal(t, "0106", entityNotFoundError.Code)
 	})
 
-	t.Run("metadata_returns_nil", func(t *testing.T) {
+	t.Run("metadata_returns_empty", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -158,16 +161,15 @@ func TestGetAllMetadataTransactionRoutes(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
-			Return(nil, nil)
+			Return([]*mongodb.Metadata{}, nil)
 
+		// No expectation on the PostgreSQL repository: gomock fails the test if it is called.
 		result, cursor, err := uc.GetAllMetadataTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
 
-		assert.Nil(t, result)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-
-		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
-		assert.Equal(t, "0106", entityNotFoundError.Code)
 	})
 
 	t.Run("transaction_route_repo_error", func(t *testing.T) {

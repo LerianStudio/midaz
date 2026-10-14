@@ -152,7 +152,7 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 	if headerParams.Metadata != nil {
 		transactionRoutes, cur, err := handler.Query.GetAllMetadataTransactionRoutes(ctx, organizationID, nil, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all transaction routes by metadata", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all transaction routes by metadata", err)
 
 			return http.Pagination{}, err
 		}
@@ -169,7 +169,7 @@ func (handler *TransactionRouteHandler) getAllTransactionRoutes(ctx context.Cont
 
 	transactionRoutes, cur, err := handler.Query.GetAllTransactionRoutes(ctx, organizationID, nil, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all transaction routes", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all transaction routes", err)
 
 		return http.Pagination{}, err
 	}

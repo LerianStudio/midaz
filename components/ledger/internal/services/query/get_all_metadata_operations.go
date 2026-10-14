@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -30,12 +29,16 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 	filter.ApplyDefaultDateRange()
 
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperation, filter)
-	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo by metadata", err)
+	if err != nil {
+		recordQueryError(ctx, span, logger, "Failed to get operation metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if len(metadata) == 0 {
+		span.AddEvent("No metadata matched the filter")
+
+		return []*operation.Operation{}, libHTTP.CursorPagination{}, nil
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
