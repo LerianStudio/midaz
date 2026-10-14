@@ -362,56 +362,73 @@ func seededLoad(balances ...*mmodel.Balance) engineSeeds {
 }
 
 // A balance seeded from rows newer than its live keys decides with the rows, writes
-// them to the keys, and reports the older keys; the rows are not a divergent copy.
+// them to the keys, and reports the older keys; the rows are not a divergent copy. A
+// key write that fails leaves the rows deciding: falling back to the older key would
+// seed the blob with the configuration the rows replaced.
 func TestResolveEngineConfiguration_SeededRowsNewerThanTheKeysDecide(t *testing.T) {
 	t.Parallel()
 
-	f := newConfigResolutionFixture(t)
-	reader := sdkmetric.NewManualReader()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	for name, writeErr := range map[string]error{
+		"keys written":                         nil,
+		"cache unavailable":                    errors.New("connection refused"),
+		"other content under the same version": redis.ErrConfigVersionConflict,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	factory, err := metrics.NewMetricsFactory(provider.Meter("config-seeded-rows-test"), nil)
-	require.NoError(t, err)
+			f := newConfigResolutionFixture(t)
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 
-	f.uc.MetricsFactory = factory
+			factory, err := metrics.NewMetricsFactory(provider.Meter("config-seeded-rows-test"), nil)
+			require.NoError(t, err)
 
-	// The keys hold the primary fixture (balance v4 sending off, account v2
-	// blocked); the seeded rows moved past them: sending on at v5, unblocked at v3.
-	keyBalance, keyAccount := f.primaryConfigs(t)
-	f.loaded.ConfigVersion, f.loaded.AccountConfigVersion, f.loaded.Blocked = 5, 3, false
+			f.uc.MetricsFactory = factory
 
-	rowBalance, err := balancecache.BalanceConfigFromBalance(f.loaded)
-	require.NoError(t, err)
+			// The keys hold the primary fixture (balance v4 sending off, account v2
+			// blocked); the seeded rows moved past them: sending on at v5, unblocked at v3.
+			keyBalance, keyAccount := f.primaryConfigs(t)
+			f.loaded.ConfigVersion, f.loaded.AccountConfigVersion, f.loaded.Blocked = 5, 3, false
 
-	rowAccount := accounting.AccountConfig{AccountID: f.accountID, Version: 3, Blocked: false}
+			rowBalance, err := balancecache.BalanceConfigFromBalance(f.loaded)
+			require.NoError(t, err)
 
-	f.redis.EXPECT().ReadConfigKeys(gomock.Any(), f.orgID, f.ledgerID, []string{f.ref}, []uuid.UUID{f.accountID}).
-		Return(redis.ConfigKeyValues{
-			Balances: map[string]accounting.BalanceConfig{f.ref: keyBalance},
-			Accounts: map[uuid.UUID]accounting.AccountConfig{f.accountID: keyAccount},
-		}, nil)
-	f.redis.EXPECT().WriteBalanceConfig(gomock.Any(), f.orgID, f.ledgerID, f.ref, rowBalance).
-		Return(rowBalance, redis.ConfigWritten, nil)
-	f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, rowAccount).
-		Return(rowAccount, redis.ConfigWritten, nil)
+			rowAccount := accounting.AccountConfig{AccountID: f.accountID, Version: 3, Blocked: false}
 
-	logs := &recordingLogger{}
-	ctx := libObservability.ContextWithLogger(t.Context(), logs)
+			storedBalance, storedAccount := rowBalance, rowAccount
+			if writeErr != nil {
+				storedBalance, storedAccount = accounting.BalanceConfig{}, accounting.AccountConfig{}
+			}
 
-	require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, seededLoad(f.loaded)))
+			f.redis.EXPECT().ReadConfigKeys(gomock.Any(), f.orgID, f.ledgerID, []string{f.ref}, []uuid.UUID{f.accountID}).
+				Return(redis.ConfigKeyValues{
+					Balances: map[string]accounting.BalanceConfig{f.ref: keyBalance},
+					Accounts: map[uuid.UUID]accounting.AccountConfig{f.accountID: keyAccount},
+				}, nil)
+			f.redis.EXPECT().WriteBalanceConfig(gomock.Any(), f.orgID, f.ledgerID, f.ref, rowBalance).
+				Return(storedBalance, redis.ConfigWritten, writeErr)
+			f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, rowAccount).
+				Return(storedAccount, redis.ConfigWritten, writeErr)
 
-	assert.Equal(t, int64(5), f.loaded.ConfigVersion)
-	assert.True(t, f.loaded.AllowSending)
-	assert.Nil(t, f.loaded.Settings, "the row's default settings, not the key's overdraft")
-	assert.False(t, f.loaded.Blocked)
-	assert.Equal(t, int64(3), f.loaded.AccountConfigVersion)
+			logs := &recordingLogger{}
+			ctx := libObservability.ContextWithLogger(t.Context(), logs)
 
-	assert.Empty(t, counterByLabel(t, reader, utils.ConfigCopyDivergent.Name, "family"), "a newer row is not a divergent copy")
+			require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, seededLoad(f.loaded)))
 
-	older := logs.entriesWith("Configuration key is older than the row the balance was seeded from, deciding with the row")
-	require.Len(t, older, 2, "one report per family")
-	assert.ElementsMatch(t, []any{configFamilyBalance, configFamilyAccount}, []any{older[0].fields["family"], older[1].fields["family"]})
+			assert.Equal(t, int64(5), f.loaded.ConfigVersion)
+			assert.True(t, f.loaded.AllowSending)
+			assert.Nil(t, f.loaded.Settings, "the row's default settings, not the key's overdraft")
+			assert.False(t, f.loaded.Blocked)
+			assert.Equal(t, int64(3), f.loaded.AccountConfigVersion)
+
+			assert.Empty(t, counterByLabel(t, reader, utils.ConfigCopyDivergent.Name, "family"), "a newer row is not a divergent copy")
+
+			older := logs.entriesWith("Configuration key is older than the row the balance was seeded from, deciding with the row")
+			require.Len(t, older, 2, "one report per family")
+			assert.ElementsMatch(t, []any{configFamilyBalance, configFamilyAccount}, []any{older[0].fields["family"], older[1].fields["family"]})
+		})
+	}
 }
 
 // An account the seed's blocked hydration read is not read again when its key is
