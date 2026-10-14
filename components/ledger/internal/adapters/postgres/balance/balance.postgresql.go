@@ -32,6 +32,7 @@ import (
 
 	pgoperation "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/readseam"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -59,6 +60,7 @@ var balanceColumnList = []string{
 	"direction",
 	"overdraft_used",
 	"settings",
+	"config_version",
 }
 
 // Repository provides an interface for operations related to balance template entities.
@@ -76,8 +78,14 @@ type Repository interface {
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAliases(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error)
 	ListByAliasesWithKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
+	// ListByAliasesWithKeysOnPrimary is ListByAliasesWithKeys always served by the
+	// primary in a read-only transaction, independent of the read-routing setting.
+	ListByAliasesWithKeysOnPrimary(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error)
 	BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error
-	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error)
+	// Update writes the configuration columns and returns the row as written, with
+	// the config_version the trigger assigned. enabledOverdraft is true only for the
+	// statement that turned settings.allowOverdraft from false to true.
+	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (updated *mmodel.Balance, enabledOverdraft bool, err error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	DeleteAllByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) error
 	UpdateMany(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []mmodel.BalanceRedis) (int64, error)
@@ -270,6 +278,7 @@ func (r *BalancePostgreSQLRepository) Create(ctx context.Context, balance *mmode
 		&created.Direction,
 		&created.OverdraftUsed,
 		&created.Settings,
+		&created.ConfigVersion,
 	); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute insert query", err)
 		return nil, err
@@ -341,6 +350,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountIDs(ctx context.Context, orga
 			&balance.Direction,
 			&balance.OverdraftUsed,
 			&balance.Settings,
+			&balance.ConfigVersion,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -426,6 +436,7 @@ func (r *BalancePostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 			&balance.Direction,
 			&balance.OverdraftUsed,
 			&balance.Settings,
+			&balance.ConfigVersion,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			return nil, err
@@ -528,6 +539,7 @@ func (r *BalancePostgreSQLRepository) ListAll(ctx context.Context, organizationI
 			&balance.Direction,
 			&balance.OverdraftUsed,
 			&balance.Settings,
+			&balance.ConfigVersion,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -648,6 +660,7 @@ func (r *BalancePostgreSQLRepository) ListAllByAccountID(ctx context.Context, or
 			&balance.Direction,
 			&balance.OverdraftUsed,
 			&balance.Settings,
+			&balance.ConfigVersion,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -744,6 +757,7 @@ func (r *BalancePostgreSQLRepository) ListByAliases(ctx context.Context, organiz
 			&balance.Direction,
 			&balance.OverdraftUsed,
 			&balance.Settings,
+			&balance.ConfigVersion,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -780,6 +794,46 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 	}
 	defer releaseRead(span, release)
 
+	return r.listByAliasesWithKeys(ctx, span, db, organizationID, ledgerID, aliasesWithKeys)
+}
+
+// ListByAliasesWithKeysOnPrimary is ListByAliasesWithKeys read from the PRIMARY
+// inside a read-only transaction, whatever the read-routing setting and the
+// request's read intent. It serves reads whose result is copied into a cache
+// keyed by version: a lagging replica would hand back an older configuration
+// that the cache then keeps, so a replica is not an acceptable source.
+func (r *BalancePostgreSQLRepository) ListByAliasesWithKeysOnPrimary(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_balances_by_aliases_with_keys_on_primary")
+	defer span.End()
+
+	if len(aliasesWithKeys) == 0 {
+		return []*mmodel.Balance{}, nil
+	}
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+		return nil, err
+	}
+
+	// Both the intent and the routing switch are forced here, so the seam always
+	// opens a read-only transaction, which dbresolver pins to the primary. A failure
+	// to open it fails the read; there is no replica fallback.
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	reader, release, _, err := readseam.AcquireReadFrom(readCtx, db, true)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acquire the primary read", err)
+		return nil, err
+	}
+	defer releaseRead(span, release)
+
+	return r.listByAliasesWithKeys(readCtx, span, reader, organizationID, ledgerID, aliasesWithKeys)
+}
+
+func (r *BalancePostgreSQLRepository) listByAliasesWithKeys(ctx context.Context, span trace.Span, db repository.DBReader, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
 	orConditions := make(squirrel.Or, 0, len(aliasesWithKeys))
 
 	for _, aliasWithKey := range aliasesWithKeys {
@@ -844,6 +898,7 @@ func (r *BalancePostgreSQLRepository) ListByAliasesWithKeys(ctx context.Context,
 			&balance.Direction,
 			&balance.OverdraftUsed,
 			&balance.Settings,
+			&balance.ConfigVersion,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			return nil, err
@@ -1015,6 +1070,7 @@ func (r *BalancePostgreSQLRepository) Find(ctx context.Context, organizationID, 
 		&balance.Direction,
 		&balance.OverdraftUsed,
 		&balance.Settings,
+		&balance.ConfigVersion,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
@@ -1079,6 +1135,7 @@ func (r *BalancePostgreSQLRepository) FindByAccountIDAndKey(ctx context.Context,
 		&balance.Direction,
 		&balance.OverdraftUsed,
 		&balance.Settings,
+		&balance.ConfigVersion,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
@@ -1266,8 +1323,9 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 }
 
 // Update updates the allow_sending, allow_receiving, and settings fields of a
-// Balance in the database. Returns the updated balance to avoid a second query
-// and potential replication lag issues.
+// Balance in the database and returns the row as written, including the
+// config_version the database trigger assigned, so the caller never relies on a
+// second read that a replica could serve stale.
 //
 // The settings JSONB column is written when update.Settings != nil. Marshaling
 // uses the same path as FromEntity (json.Marshal of *mmodel.BalanceSettings).
@@ -1275,10 +1333,17 @@ func (r *BalancePostgreSQLRepository) DeleteAllByIDs(ctx context.Context, organi
 // enforcing overdraft transition invariants before calling Update — the
 // repository trusts the inbound value.
 //
+// enabledOverdraft reports whether THIS statement turned settings.allowOverdraft
+// from false (or absent) to true. The previous settings are read and locked in
+// the same statement (SELECT ... FOR UPDATE in the FROM clause), so of several
+// concurrent updates that enable overdraft exactly one sees the false side: a
+// waiter re-reads the row after the holder commits. Comparing with a separate
+// earlier read, or with the final version, cannot give that guarantee.
+//
 // Uses squirrel + RETURNING with conditional .Set() per field so callers can
 // PATCH any subset of {allow_sending, allow_receiving, settings} without the
 // repo emitting placeholder strings for fields the request omits.
-func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
+func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (updated *mmodel.Balance, enabledOverdraft bool, err error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_balance")
@@ -1287,10 +1352,15 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 	db, err := r.getDB(ctx)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-		return nil, err
+		return nil, false, err
 	}
 
-	qb := squirrel.Update(r.tableName)
+	previous := squirrel.Select("id", "settings").
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
+		Suffix("FOR UPDATE")
+
+	qb := squirrel.Update(r.tableName + " AS " + updatedBalanceAlias)
 
 	if balance.AllowSending != nil {
 		qb = qb.Set("allow_sending", *balance.AllowSending)
@@ -1308,24 +1378,34 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		settingsJSON, marshalErr := json.Marshal(balance.Settings)
 		if marshalErr != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to marshal balance settings", marshalErr)
-			return nil, marshalErr
+			return nil, false, marshalErr
 		}
 
 		qb = qb.Set("settings", squirrel.Expr("?::jsonb", settingsJSON))
 	}
 
+	returning := make([]string, 0, len(balanceColumnList)+1)
+	for _, column := range balanceColumnList {
+		returning = append(returning, updatedBalanceAlias+"."+column)
+	}
+
+	returning = append(returning, previousBalanceAlias+".settings")
+
 	qb = qb.Set("updated_at", time.Now()).
-		Where(squirrel.Eq{"organization_id": organizationID, "ledger_id": ledgerID, "id": id, "deleted_at": nil}).
-		Suffix("RETURNING " + strings.Join(balanceColumnList, ", ")).
+		FromSelect(previous, previousBalanceAlias).
+		Where(updatedBalanceAlias + ".id = " + previousBalanceAlias + ".id").
+		Suffix("RETURNING " + strings.Join(returning, ", ")).
 		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := qb.ToSql()
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build update query", err)
-		return nil, err
+		return nil, false, err
 	}
 
 	record := &BalancePostgreSQLModel{}
+
+	var previousSettings []byte
 
 	row := db.QueryRowContext(ctx, query, args...)
 	if err = row.Scan(
@@ -1348,21 +1428,46 @@ func (r *BalancePostgreSQLRepository) Update(ctx context.Context, organizationID
 		&record.Direction,
 		&record.OverdraftUsed,
 		&record.Settings,
+		&record.ConfigVersion,
+		&previousSettings,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err = pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance not found", err)
 
-			return nil, err
+			return nil, false, err
 		}
 
 		libOpentelemetry.HandleSpanError(span, "Failed to update balance", err)
 
-		return nil, err
+		return nil, false, err
 	}
 
-	return record.ToEntity(), nil
+	written := record.ToEntity()
+
+	return written, !overdraftAllowed(previousSettings) && written.Settings != nil && written.Settings.AllowOverdraft, nil
+}
+
+const (
+	updatedBalanceAlias  = "updated"
+	previousBalanceAlias = "previous"
+)
+
+// overdraftAllowed reads allowOverdraft from a stored settings document. An
+// absent or unreadable document is a balance without overdraft, the same reading
+// ToEntity gives a legacy row.
+func overdraftAllowed(settings []byte) bool {
+	if len(settings) == 0 {
+		return false
+	}
+
+	var decoded mmodel.BalanceSettings
+	if err := json.Unmarshal(settings, &decoded); err != nil {
+		return false
+	}
+
+	return decoded.AllowOverdraft
 }
 
 // UpdateMany persists multiple balances to the database in a single UPDATE statement.
@@ -1624,6 +1729,7 @@ func (r *BalancePostgreSQLRepository) ListByAccountID(ctx context.Context, organ
 			&balance.Direction,
 			&balance.OverdraftUsed,
 			&balance.Settings,
+			&balance.ConfigVersion,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 			return nil, err

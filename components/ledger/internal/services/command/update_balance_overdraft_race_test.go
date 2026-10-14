@@ -113,7 +113,7 @@ func TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess(t *testing
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, balanceID, update).
-		Return(&expected, nil).
+		Return(&expected, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()

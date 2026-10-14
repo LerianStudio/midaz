@@ -72,7 +72,7 @@ func newUpdateBalanceStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller,
 		AnyTimes()
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(fixture.updated, nil).
+		Return(fixture.updated, false, nil).
 		AnyTimes()
 
 	// The cache overlay path is best-effort and reads/writes regardless
@@ -192,7 +192,7 @@ func TestUpdateBalance_EmitsTwoEventsOnOverdraftTransition(t *testing.T) {
 	mockBalanceRepo.EXPECT().Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(current, nil).AnyTimes()
 	mockBalanceRepo.EXPECT().FindByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), constant.OverdraftBalanceKey).Return(nil, pkg.EntityNotFoundError{EntityType: constant.EntityBalance}).Times(1)
 	mockBalanceRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(companion, nil).Times(1)
-	mockBalanceRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&updated, nil).AnyTimes()
+	mockBalanceRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(&updated, false, nil).AnyTimes()
 
 	mockRedis := txRedis.NewMockRedisRepository(ctrl)
 	mockRedis.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
@@ -256,7 +256,7 @@ func TestUpdateBalance_AllowFlagsPropagationFailureDoesNotEmit(t *testing.T) {
 		Times(1)
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(fixture.updated, nil).
+		Return(fixture.updated, false, nil).
 		Times(1)
 
 	mockRedis := txRedis.NewMockRedisRepository(ctrl)
@@ -298,7 +298,7 @@ func TestUpdateBalance_AllowFlagsPropagationRunsBeforeEmission(t *testing.T) {
 		Times(1)
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(fixture.updated, nil).
+		Return(fixture.updated, false, nil).
 		Times(1)
 
 	var eventsAtPropagation int

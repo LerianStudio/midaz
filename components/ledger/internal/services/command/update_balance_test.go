@@ -62,7 +62,7 @@ func TestUpdateBalance(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
+		Return(expectedBalance, false, nil).
 		Times(1)
 
 	// Redis returns empty (no cached value)
@@ -135,7 +135,7 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(nil, errors.New(errMSG))
+		Return(nil, false, errors.New(errMSG))
 	// Redis is NOT called when Update fails
 
 	uc := UseCase{
@@ -202,7 +202,7 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(repoBalance, nil).
+		Return(repoBalance, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().
@@ -314,7 +314,7 @@ func TestUpdateBalance_CacheSettingsUpdate_UsesCompositeAliasKey(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
+		Return(expectedBalance, false, nil).
 		Times(1)
 
 	// The Get overlay still uses the same prefixed key; keep it tolerant.
@@ -406,7 +406,7 @@ func TestUpdateBalance_CacheSettingsUpdate_FailureIsBestEffort(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
+		Return(expectedBalance, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().
@@ -475,7 +475,7 @@ func TestUpdateBalance_CacheAllowFlagsUpdate_ForwardsBothFlags(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
+		Return(expectedBalance, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().
@@ -538,7 +538,7 @@ func TestUpdateBalance_CacheAllowFlagsUpdate_FailureFailsRequest(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
+		Return(expectedBalance, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().

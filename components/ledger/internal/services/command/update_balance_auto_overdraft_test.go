@@ -70,7 +70,7 @@ func TestUpdateBalance_EnableOverdraft_AutoCreatesOverdraftBalance(t *testing.T)
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, balanceID, update).
-		Return(&updated, nil).
+		Return(&updated, false, nil).
 		Times(1)
 
 	// No existing overdraft balance yet. The repository signals "not
@@ -188,7 +188,7 @@ func TestUpdateBalance_EnableOverdraft_Idempotent(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, balanceID, update).
-		Return(&updated, nil).
+		Return(&updated, false, nil).
 		Times(1)
 
 	// Overdraft balance already exists — the use case MUST detect it.

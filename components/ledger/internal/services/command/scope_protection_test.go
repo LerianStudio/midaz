@@ -280,7 +280,7 @@ func TestBalanceUpdate_AllowsNormalBalance(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).
-		Return(normalBalance, nil).
+		Return(normalBalance, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().

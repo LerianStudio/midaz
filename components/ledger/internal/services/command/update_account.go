@@ -92,9 +92,8 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 		}
 	}
 
-	// AccountRepo.Update returns an input-derived record with bogus
-	// identity fields; mirror the SQL merge in-memory instead.
-	// Follow-up: fix the repo to RETURNING * so this dance is unneeded.
+	// The event is built from the pre-update read merged with the patch, so it
+	// keeps the holder fields that AccountRepo.Update's projection leaves out.
 	uc.emitAccountUpdatedEvent(ctx, span, logger, mergePatchAccount(accFound, account, accountUpdated.UpdatedAt))
 
 	metadataUpdated, err := uc.UpdateOnboardingMetadata(ctx, constant.EntityAccount, id.String(), uai.Metadata)

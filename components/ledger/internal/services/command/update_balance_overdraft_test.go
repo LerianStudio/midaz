@@ -82,7 +82,7 @@ func TestUpdateBalance_WithSettings(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, balanceID, update).
-		Return(&expected, nil).Times(1)
+		Return(&expected, false, nil).Times(1)
 
 	mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
 	// Cache settings are rewritten in-place after a settings update to make
@@ -236,7 +236,7 @@ func TestUpdateBalance_CanDisableOverdraftWithUsage(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, balanceID, update).
-		Return(&expected, nil).
+		Return(&expected, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().

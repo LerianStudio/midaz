@@ -271,6 +271,21 @@ func (mr *MockRepositoryMockRecorder) ListByAliasesWithKeys(ctx, organizationID,
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliasesWithKeys", reflect.TypeOf((*MockRepository)(nil).ListByAliasesWithKeys), ctx, organizationID, ledgerID, aliasesWithKeys)
 }
 
+// ListByAliasesWithKeysOnPrimary mocks base method.
+func (m *MockRepository) ListByAliasesWithKeysOnPrimary(ctx context.Context, organizationID, ledgerID uuid.UUID, aliasesWithKeys []string) ([]*mmodel.Balance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByAliasesWithKeysOnPrimary", ctx, organizationID, ledgerID, aliasesWithKeys)
+	ret0, _ := ret[0].([]*mmodel.Balance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByAliasesWithKeysOnPrimary indicates an expected call of ListByAliasesWithKeysOnPrimary.
+func (mr *MockRepositoryMockRecorder) ListByAliasesWithKeysOnPrimary(ctx, organizationID, ledgerID, aliasesWithKeys any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByAliasesWithKeysOnPrimary", reflect.TypeOf((*MockRepository)(nil).ListByAliasesWithKeysOnPrimary), ctx, organizationID, ledgerID, aliasesWithKeys)
+}
+
 // ListByIDs mocks base method.
 func (m *MockRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Balance, error) {
 	m.ctrl.T.Helper()
@@ -287,12 +302,13 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, i
 }
 
 // Update mocks base method.
-func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, error) {
+func (m *MockRepository) Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, balance mmodel.UpdateBalance) (*mmodel.Balance, bool, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", ctx, organizationID, ledgerID, id, balance)
 	ret0, _ := ret[0].(*mmodel.Balance)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 // Update indicates an expected call of Update.

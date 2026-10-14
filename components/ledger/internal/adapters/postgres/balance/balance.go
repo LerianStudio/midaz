@@ -35,6 +35,7 @@ type BalancePostgreSQLModel struct {
 	Direction      string          `db:"direction"`
 	OverdraftUsed  decimal.Decimal `db:"overdraft_used"`
 	Settings       []byte          `db:"settings"`
+	ConfigVersion  int64           `db:"config_version"`
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      sql.NullTime
@@ -57,6 +58,7 @@ func (b *BalancePostgreSQLModel) FromEntity(balance *mmodel.Balance) {
 		AllowReceiving: balance.AllowReceiving,
 		Direction:      balance.Direction,
 		OverdraftUsed:  balance.OverdraftUsed,
+		ConfigVersion:  balance.ConfigVersion,
 		CreatedAt:      balance.CreatedAt,
 		UpdatedAt:      balance.UpdatedAt,
 	}
@@ -104,6 +106,7 @@ func (b *BalancePostgreSQLModel) ToEntity() *mmodel.Balance {
 		AllowReceiving: b.AllowReceiving,
 		Direction:      b.Direction,
 		OverdraftUsed:  b.OverdraftUsed,
+		ConfigVersion:  b.ConfigVersion,
 		CreatedAt:      b.CreatedAt,
 		UpdatedAt:      b.UpdatedAt,
 	}

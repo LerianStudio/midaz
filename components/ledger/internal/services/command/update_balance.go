@@ -207,7 +207,7 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		companion = c
 	}
 
-	balance, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
+	balance, _, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to update balance on repo", err)
 

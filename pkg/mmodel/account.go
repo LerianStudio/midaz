@@ -241,6 +241,12 @@ type Account struct {
 	// Used internally to enable RFC 7396 JSON Merge Patch semantics.
 	// Hidden from JSON serialization.
 	NullFields []string `json:"-"`
+
+	// ConfigVersion is the account row's configuration version (account.config_version):
+	// it rises by one, in commit order, on every change of Blocked, and orders copies of
+	// this account's blocked flag. Only the configuration reads and the update populate
+	// it; other reads leave it zero. Hidden from JSON: it is not part of the API contract.
+	ConfigVersion int64 `json:"-"`
 }
 
 // IDtoUUID converts the account's string ID to a UUID object

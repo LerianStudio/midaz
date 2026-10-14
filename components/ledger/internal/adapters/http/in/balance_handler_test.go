@@ -539,7 +539,7 @@ func TestUpdateBalance_Success(t *testing.T) {
 		AssetCode:      "USD",
 		AllowSending:   false,
 		AllowReceiving: true,
-	}, nil).Times(1)
+	}, false, nil).Times(1)
 	redisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
 
 	// An allow-flags PATCH propagates the new flags to the cached balance blob

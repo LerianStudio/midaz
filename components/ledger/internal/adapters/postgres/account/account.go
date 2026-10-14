@@ -37,6 +37,7 @@ type AccountPostgreSQLModel struct {
 	UpdatedAt          time.Time
 	DeletedAt          sql.NullTime
 	ClosedAt           sql.NullTime
+	ConfigVersion      int64
 	Metadata           map[string]any
 }
 
@@ -63,6 +64,7 @@ func (t *AccountPostgreSQLModel) ToEntity() *mmodel.Account {
 		Type:               t.Type,
 		Blocked:            &t.Blocked,
 		HolderCheckSkipped: t.HolderCheckSkipped,
+		ConfigVersion:      t.ConfigVersion,
 		CreatedAt:          t.CreatedAt,
 		UpdatedAt:          t.UpdatedAt,
 		DeletedAt:          nil,

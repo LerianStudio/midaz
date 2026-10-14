@@ -89,6 +89,14 @@ type Balance struct {
 	// resource is the public surface for the blocked flag.
 	Blocked bool `json:"-"`
 
+	// ConfigVersion is the balance row's configuration version (balance.config_version):
+	// it rises by one, in commit order, on every change of Settings, AllowSending or
+	// AllowReceiving, and orders copies of the configuration of this one balance. It is
+	// excluded from JSON because this struct is also serialized into formats that the
+	// previous release decodes strictly (the completion plan's operation balance), where
+	// an unknown field would be refused; it is not part of the API contract either.
+	ConfigVersion int64 `json:"-"`
+
 	// Direction is the accounting direction of the balance. One of
 	// "credit" or "debit". Empty string denotes legacy rows predating the
 	// overdraft feature and is treated as "credit" by the engine.
