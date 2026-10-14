@@ -73,13 +73,21 @@ type integrationFixture struct {
 func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrationFixture {
 	t.Helper()
 
+	return newIntegrationFixtureWithPrefix(t, client, "test:"+strings.ReplaceAll(t.Name(), "/", ":")+":")
+}
+
+// newIntegrationFixtureWithPrefix places every key of the fixture under prefix. A
+// tenant prefix ("tenant:<id>:") puts the keys where the Go cache writers of that
+// tenant address them.
+func newIntegrationFixtureWithPrefix(t *testing.T, client redis.UniversalClient, prefix string) *integrationFixture {
+	t.Helper()
+
 	input, limits, resolved := validWireExecution()
 	input.Execution.Balances[0].Available = decimal.NewFromInt(100)
 	input.Execution.Balances[0].Version = 0
 	input.Execution.Balances[0].AllowOverdraft = true
 	input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
 	input.CompletionPlans[0].Payload = json.RawMessage(`{"action":"direct","opaque":true,"version":9007199254740993}`)
-	prefix := "test:" + strings.ReplaceAll(t.Name(), "/", ":") + ":"
 	replace := func(key string) string { return strings.Replace(key, "tenant:fixture:", prefix, 1) }
 	resolved.Schedule, resolved.Recovery = replace(resolved.Schedule), replace(resolved.Recovery)
 	resolved.Receipts, resolved.Guards, resolved.Protection = replace(resolved.Receipts), replace(resolved.Guards), replace(resolved.Protection)

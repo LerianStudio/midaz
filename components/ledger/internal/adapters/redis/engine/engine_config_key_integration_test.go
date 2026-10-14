@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -973,6 +974,156 @@ func TestIntegrationEngineCopyConfirmsAConfigurationPatch(t *testing.T) {
 	balanceVersion, _, err := balancecache.BlobConfigVersions(raw)
 	require.NoError(t, err)
 	require.Equal(t, int64(5), balanceVersion)
+}
+
+// TestIntegrationEngineDecidesWithTheCopyAPatchWroteIntoItsBlob closes the loop
+// between the configuration PATCH and the engine. The PATCH writer copies a newer
+// configuration into a blob of each shape the copy supports, the blob produced by
+// an engine execution among them, and carries its money over unchanged; the engine
+// then reads that copy and decides with it, with no configuration key and a
+// request still at the older version.
+func TestIntegrationEngineDecidesWithTheCopyAPatchWroteIntoItsBlob(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+	repository, err := redistransaction.NewConsumerRedis(redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB))
+	require.NoError(t, err)
+
+	// tenantFixture places the overdraft fixture under its own tenant, where the
+	// PATCH writer of that tenant addresses the blobs.
+	tenantFixture := func(t *testing.T) (*integrationFixture, context.Context) {
+		t.Helper()
+
+		tenantID := "config-copy-" + uuid.NewString()
+		f := newIntegrationFixtureWithPrefix(t, container.Client, "tenant:"+tenantID+":")
+		f.input.Execution.Balances[0].Available = decimal.NewFromInt(10)
+		f.addCompanion("0")
+		f.seed(t, 1, f.input.Execution.Balances[1])
+
+		return f, tmcore.ContextWithTenantID(context.Background(), tenantID)
+	}
+
+	storeFields := func(t *testing.T, f *integrationFixture, fields map[string]json.RawMessage) {
+		t.Helper()
+
+		encoded, err := json.Marshal(fields)
+		require.NoError(t, err)
+		require.NoError(t, f.client.Set(context.Background(), f.resolved.Balances["@source#default"].Balance, encoded, time.Hour).Err())
+	}
+
+	shapes := []struct {
+		name  string
+		store func(t *testing.T, f *integrationFixture)
+	}{
+		{name: "a blob an engine execution wrote", store: func(t *testing.T, f *integrationFixture) {
+			f.seed(t, 0, f.input.Execution.Balances[0])
+			f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(4)
+
+			_, err := f.run(t)
+			require.NoError(t, err)
+		}},
+		{name: "a new-only blob", store: func(t *testing.T, f *integrationFixture) {
+			encoded, err := balancecache.Encode(f.input.Execution.Balances[0], balancecache.FormatNewOnly)
+			require.NoError(t, err)
+			require.NoError(t, f.client.Set(context.Background(), f.resolved.Balances["@source#default"].Balance, encoded, time.Hour).Err())
+		}},
+		{name: "a legacy blob with the uppercase fields only", store: func(t *testing.T, f *integrationFixture) {
+			primary := f.input.Execution.Balances[0]
+			storeFields(t, f, pureLegacyIndexedAliasBlob(t, primary, primary.Alias))
+		}},
+	}
+
+	moneyFields := []string{"Available", "available", "OnHold", "onHold", "OverdraftUsed", "overdraftUsed", "Version", "version"}
+	money := func(fields map[string]json.RawMessage) map[string]string {
+		kept := make(map[string]string, len(moneyFields))
+		for _, name := range moneyFields {
+			if raw, ok := fields[name]; ok {
+				kept[name] = string(raw)
+			}
+		}
+
+		return kept
+	}
+
+	for _, shape := range shapes {
+		t.Run("the balance configuration copied into "+shape.name, func(t *testing.T) {
+			f, ctx := tenantFixture(t)
+			shape.store(t, f)
+
+			primary := f.input.Execution.Balances[0]
+			patched := snapshotBalanceConfig(primary, 1)
+			patched.AllowOverdraft = false
+			before := money(f.blobFields(t, 0))
+			require.NotEmpty(t, before)
+
+			outcome, err := repository.CopyBalanceConfigToBlob(ctx, f.input.Execution.OrganizationID, f.input.Execution.LedgerID, primary.BalanceRef, patched)
+			require.NoError(t, err)
+			require.Equal(t, redistransaction.BlobCopyWritten, outcome)
+
+			fields := f.blobFields(t, 0)
+			require.Equal(t, before, money(fields), "the copy carries the money over unchanged")
+			requireCopiedOverdraft(t, fields, false, 1)
+
+			// The request still carries version 0 with the overdraft allowed, and
+			// there is no configuration key: only the copy turns the overdraft off.
+			f.rotateExecution()
+			f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
+			unchanged := f.capture(t)
+
+			_, err = f.run(t)
+			require.ErrorContains(t, err, `"code":"insufficient_funds"`, "the engine decides with the copy the PATCH wrote")
+			require.Equal(t, unchanged, f.capture(t))
+
+			f.rotateExecution()
+			f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(1)
+
+			raw, err := f.run(t)
+			require.NoError(t, err, "the engine reads the copied blob")
+			require.False(t, decodeIntegrationResult(t, raw).Final[0].AllowOverdraft)
+
+			requireCopiedOverdraft(t, f.blobFields(t, 0), false, 1)
+		})
+	}
+
+	t.Run("the account's blocked flag copied into blobs an engine execution wrote", func(t *testing.T) {
+		f, ctx := tenantFixture(t)
+		shapes[0].store(t, f)
+
+		primary := f.input.Execution.Balances[0]
+		refs := []string{primary.BalanceRef, f.input.Execution.Balances[1].BalanceRef}
+		outcomes, err := repository.CopyAccountConfigToBlobs(ctx, f.input.Execution.OrganizationID, f.input.Execution.LedgerID, refs,
+			accounting.AccountConfig{AccountID: primary.AccountID, Version: 1, Blocked: true})
+		require.NoError(t, err)
+
+		for _, ref := range refs {
+			require.Equal(t, redistransaction.BlobCopyWritten, outcomes[ref], ref)
+		}
+
+		f.rotateExecution()
+		f.input.Execution.Transactions[0].RejectBlockedBalances = true
+		unchanged := f.capture(t)
+
+		_, err = f.run(t)
+		require.ErrorContains(t, err, `"code":"account_blocked"`, "the engine decides with the copy the PATCH wrote")
+		require.Equal(t, unchanged, f.capture(t))
+	})
+}
+
+// requireCopiedOverdraft reads the blob's balance configuration copy the way every
+// reader does, whatever representations the blob carries, with its version.
+func requireCopiedOverdraft(t *testing.T, fields map[string]json.RawMessage, allowOverdraft bool, version int64) {
+	t.Helper()
+
+	raw := mustMarshal(t, fields)
+	blob, err := balancecache.DecodeForRead(raw)
+	require.NoError(t, err)
+	require.Equal(t, allowOverdraft, blob.AllowOverdraft)
+
+	copied, _, err := balancecache.BlobConfigVersions(raw)
+	require.NoError(t, err)
+	require.Equal(t, version, copied)
 }
 
 // afterBlobRead runs once, right after the first read of one blob.
