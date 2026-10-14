@@ -135,7 +135,7 @@ func TestResolveEngineConfiguration_FailedKeyWritesKeepThePrimaryRow(t *testing.
 			f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, gomock.Any()).
 				Return(accounting.AccountConfig{}, redis.ConfigWriteOutcome(0), writeErr)
 
-			require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil))
+			require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, engineSeeds{}))
 			assertCarriesPrimaryConfiguration(t, f.loaded)
 		})
 	}
@@ -156,7 +156,7 @@ func TestResolveEngineConfiguration_FailedKeyReadReloadsFromThePrimary(t *testin
 	f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, accountConfig).
 		Return(accountConfig, redis.ConfigWritten, nil)
 
-	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil))
+	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, engineSeeds{}))
 	assertCarriesPrimaryConfiguration(t, f.loaded)
 }
 
@@ -188,7 +188,7 @@ func TestResolveEngineConfiguration_FailedPrimaryReadFailsTheLoad(t *testing.T) 
 				Return(redis.ConfigKeyValues{}, nil)
 			expect(f, primaryErr)
 
-			err := f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil)
+			err := f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, engineSeeds{})
 			require.ErrorIs(t, err, primaryErr)
 		})
 	}
@@ -212,7 +212,7 @@ func TestResolveEngineConfiguration_RowsMissingOnThePrimaryWriteNothing(t *testi
 	f.accounts.EXPECT().ListAccountsByIDs(gomock.Any(), f.orgID, f.ledgerID, []uuid.UUID{f.accountID}).
 		Return(nil, nil)
 
-	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil))
+	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, engineSeeds{}))
 
 	assert.True(t, f.loaded.AllowSending, "another balance's row never configures this one")
 	assert.Zero(t, f.loaded.ConfigVersion)
@@ -319,14 +319,14 @@ func TestResolveEngineConfiguration_ReportsACopyDivergingUnderTheDecidedVersion(
 			logs := &recordingLogger{}
 			ctx := libObservability.ContextWithLogger(t.Context(), logs)
 
-			var seeded map[string]struct{}
+			seeds := engineSeeds{}
 			if tt.seeded {
-				seeded = map[string]struct{}{f.loaded.ID: {}, sibling.ID: {}}
+				seeds = seededLoad(f.loaded, sibling)
 			}
 
 			// No key write is expected: a row that does not outrank its key never
 			// replaces it.
-			require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded, sibling}, seeded))
+			require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded, sibling}, seeds))
 			assertCarriesPrimaryConfiguration(t, f.loaded)
 
 			divergent := counterByLabel(t, reader, utils.ConfigCopyDivergent.Name, "family")
@@ -345,6 +345,20 @@ func TestResolveEngineConfiguration_ReportsACopyDivergingUnderTheDecidedVersion(
 			assert.Equal(t, []string{f.accountID.String()}, entry.fields["account_ids"])
 		})
 	}
+}
+
+// seededLoad is what a load records for balances it seeded from their rows: the
+// balances, and the account row their blocked hydration read, as they carry it.
+func seededLoad(balances ...*mmodel.Balance) engineSeeds {
+	seeds := newEngineSeeds()
+
+	for _, b := range balances {
+		blocked := b.Blocked
+		seeds.balanceIDs[b.ID] = struct{}{}
+		seeds.accounts[uuid.MustParse(b.AccountID)] = &mmodel.Account{ID: b.AccountID, Blocked: &blocked, ConfigVersion: b.AccountConfigVersion}
+	}
+
+	return seeds
 }
 
 // A balance seeded from rows newer than its live keys decides with the rows, writes
@@ -385,7 +399,7 @@ func TestResolveEngineConfiguration_SeededRowsNewerThanTheKeysDecide(t *testing.
 	logs := &recordingLogger{}
 	ctx := libObservability.ContextWithLogger(t.Context(), logs)
 
-	require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, map[string]struct{}{f.loaded.ID: {}}))
+	require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, seededLoad(f.loaded)))
 
 	assert.Equal(t, int64(5), f.loaded.ConfigVersion)
 	assert.True(t, f.loaded.AllowSending)
@@ -398,6 +412,46 @@ func TestResolveEngineConfiguration_SeededRowsNewerThanTheKeysDecide(t *testing.
 	older := logs.entriesWith("Configuration key is older than the row the balance was seeded from, deciding with the row")
 	require.Len(t, older, 2, "one report per family")
 	assert.ElementsMatch(t, []any{configFamilyBalance, configFamilyAccount}, []any{older[0].fields["family"], older[1].fields["family"]})
+}
+
+// An account the seed's blocked hydration read is not read again when its key is
+// absent: that row is written to the key and decides. Only an account without a
+// seeded row is read from the primary.
+func TestResolveEngineConfiguration_SeededAccountRowFillsAnAbsentKey(t *testing.T) {
+	t.Parallel()
+
+	f := newConfigResolutionFixture(t)
+	balanceConfig, accountConfig := f.primaryConfigs(t)
+	f.loaded.Blocked, f.loaded.AccountConfigVersion = true, 2
+
+	// A cached balance of another account, whose key is absent too.
+	otherAccountID := uuid.New()
+	other := &mmodel.Balance{ID: uuid.New().String(), AccountID: otherAccountID.String(), Alias: "@other", Key: "default", AllowSending: true, AllowReceiving: true}
+	otherBalance, err := balancecache.BalanceConfigFromBalance(other)
+	require.NoError(t, err)
+
+	unblocked := false
+	otherAccount := &mmodel.Account{ID: otherAccountID.String(), Blocked: &unblocked, ConfigVersion: 7}
+	otherAccountConfig := accounting.AccountConfig{AccountID: otherAccountID, Version: 7}
+
+	f.redis.EXPECT().ReadConfigKeys(gomock.Any(), f.orgID, f.ledgerID, []string{f.ref, "@other#default"}, []uuid.UUID{f.accountID, otherAccountID}).
+		Return(redis.ConfigKeyValues{Balances: map[string]accounting.BalanceConfig{"@other#default": otherBalance}}, nil)
+	f.balances.EXPECT().ListByAliasesWithKeysOnPrimary(gomock.Any(), f.orgID, f.ledgerID, []string{f.ref}).
+		Return([]*mmodel.Balance{f.primary}, nil)
+	f.redis.EXPECT().WriteBalanceConfig(gomock.Any(), f.orgID, f.ledgerID, f.ref, balanceConfig).
+		Return(balanceConfig, redis.ConfigWritten, nil)
+	f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, accountConfig).
+		Return(accountConfig, redis.ConfigWritten, nil)
+	f.accounts.EXPECT().ListAccountsByIDs(gomock.Any(), f.orgID, f.ledgerID, []uuid.UUID{otherAccountID}).
+		Return([]*mmodel.Account{otherAccount}, nil)
+	f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, otherAccountConfig).
+		Return(otherAccountConfig, redis.ConfigWritten, nil)
+
+	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded, other}, seededLoad(f.loaded)))
+
+	assertCarriesPrimaryConfiguration(t, f.loaded)
+	assert.False(t, other.Blocked)
+	assert.Equal(t, int64(7), other.AccountConfigVersion)
 }
 
 // counterByLabel sums one counter's data points by the value of one label.

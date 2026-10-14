@@ -42,35 +42,56 @@ func (uc *UseCase) GetEngineBalances(
 	organizationID, ledgerID uuid.UUID,
 	explicitAliases []string,
 ) (explicitBalances, executionBalances []*mmodel.Balance, err error) {
-	// The balances seeded from their rows, by ID: their configuration was read
-	// from PostgreSQL in this load, unlike a cached balance's blob copy.
-	seeded := make(map[string]struct{})
+	// What this load reads from PostgreSQL on a cache miss: unlike a cached
+	// balance's blob copy, that configuration comes from the rows.
+	seeds := newEngineSeeds()
 
-	explicitBalances, executionBalances, err = loadEngineBalances(ctx, organizationID, ledgerID, explicitAliases, uc.seedRecordingLoader(seeded))
+	explicitBalances, executionBalances, err = loadEngineBalances(ctx, organizationID, ledgerID, explicitAliases, uc.seedRecordingLoader(seeds))
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// The explicit balances are members of the execution pool, so resolving the
 	// pool resolves them too.
-	if err := uc.resolveEngineConfiguration(ctx, organizationID, ledgerID, executionBalances, seeded); err != nil {
+	if err := uc.resolveEngineConfiguration(ctx, organizationID, ledgerID, executionBalances, seeds); err != nil {
 		return nil, nil, fmt.Errorf("resolve engine balance configuration: %w", err)
 	}
 
 	return explicitBalances, executionBalances, nil
 }
 
-// seedRecordingLoader is GetBalances recording in seeded the ID of every balance it
-// seeds from its row on a cache miss.
-func (uc *UseCase) seedRecordingLoader(seeded map[string]struct{}) balanceLoader {
+// engineSeeds records what an engine balance load read from PostgreSQL on a cache
+// miss: the balances it seeded from their rows, by ID, and the account rows the
+// blocked hydration read from the primary for them, by account ID.
+type engineSeeds struct {
+	balanceIDs map[string]struct{}
+	accounts   map[uuid.UUID]*mmodel.Account
+}
+
+func newEngineSeeds() engineSeeds {
+	return engineSeeds{balanceIDs: make(map[string]struct{}), accounts: make(map[uuid.UUID]*mmodel.Account)}
+}
+
+// seedRecordingLoader is GetBalances recording in seeds every balance it seeds from
+// its row on a cache miss and the account rows it read for them.
+func (uc *UseCase) seedRecordingLoader(seeds engineSeeds) balanceLoader {
 	return func(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
-		cached, fromRows, err := uc.getBalances(ctx, organizationID, ledgerID, aliases)
+		cached, fromRows, accounts, err := uc.getBalances(ctx, organizationID, ledgerID, aliases)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, b := range fromRows {
-			seeded[b.ID] = struct{}{}
+			seeds.balanceIDs[b.ID] = struct{}{}
+		}
+
+		for _, acc := range accounts {
+			accountID, err := uuid.Parse(acc.ID)
+			if err != nil {
+				return nil, fmt.Errorf("record seeded account: invalid account ID %q: %w", acc.ID, err)
+			}
+
+			seeds.accounts[accountID] = acc
 		}
 
 		return append(cached, fromRows...), nil
@@ -298,7 +319,7 @@ func sortBalancesByReference(balances []*mmodel.Balance) {
 // pattern: checks Redis first, falls back to PostgreSQL for cache misses.
 // This is a pure read -- it does not mutate balances or execute any Lua scripts.
 func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, error) {
-	cached, fromRows, err := uc.getBalances(ctx, organizationID, ledgerID, aliases)
+	cached, fromRows, _, err := uc.getBalances(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
 		return nil, err
 	}
@@ -307,8 +328,9 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 }
 
 // getBalances is GetBalances returning the balances found in the cache apart from
-// the ones seeded from their PostgreSQL rows on a cache miss, in that order.
-func (uc *UseCase) getBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, error) {
+// the ones seeded from their PostgreSQL rows on a cache miss, in that order, and the
+// account rows the blocked hydration of those seeds read from the primary.
+func (uc *UseCase) getBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []*mmodel.Balance, []*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_balances")
@@ -316,7 +338,10 @@ func (uc *UseCase) getBalances(ctx context.Context, organizationID, ledgerID uui
 
 	cached, uncachedAliases := uc.getBalancesFromCache(ctx, organizationID, ledgerID, aliases)
 
-	var fromRows []*mmodel.Balance
+	var (
+		fromRows []*mmodel.Balance
+		accounts []*mmodel.Account
+	)
 
 	if len(uncachedAliases) > 0 {
 		// The first read only turns aliases into account identifiers: an alias names
@@ -327,7 +352,7 @@ func (uc *UseCase) getBalances(ctx context.Context, organizationID, ledgerID uui
 		if err != nil {
 			recordQueryError(ctx, span, logger, "Failed to get balances from database", err)
 
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		// The seed admission covers the seed read, the blocked hydration and the
@@ -355,31 +380,32 @@ func (uc *UseCase) getBalances(ctx context.Context, organizationID, ledgerID uui
 
 		admission, err := uc.protectBalanceSeedAdmission(ctx, span, organizationID, ledgerID, resolved)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		hold(admission)
 
 		balancesDB, err := uc.readSeedsUnderAdmission(ctx, span, organizationID, ledgerID, uncachedAliases, admission, hold)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
-		if err := uc.hydrateAccountBlocked(ctx, organizationID, ledgerID, balancesDB); err != nil {
+		accounts, err = uc.hydrateAccountBlocked(ctx, organizationID, ledgerID, balancesDB)
+		if err != nil {
 			// logged once by hydrateAccountBlocked; record on this span only
 			spanattr.HandleSpanByErrorClass(span, "Failed to hydrate account blocked state", err)
 
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		if err := uc.rebuildStaleBalanceSeeds(ctx, span, organizationID, ledgerID, balancesDB); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 
 		fromRows = balancesDB
 	}
 
-	return cached, fromRows, nil
+	return cached, fromRows, accounts, nil
 }
 
 // rebuildStaleBalanceSeeds keeps a cache-miss seed from feeding the engine a balance
@@ -540,13 +566,14 @@ func (uc *UseCase) recordBalanceSeedRebuilt(ctx context.Context, organizationID,
 
 // hydrateAccountBlocked stamps database-loaded balances with their owning
 // account's blocked flag using ONE batched primary-key lookup over the
-// distinct account IDs. Only the cache-miss path reaches here: on a hit the
-// flag is already in the cached blob. Failing the lookup fails the read —
-// the block state must never be silently assumed open. A balance whose
-// account row is absent (e.g. soft-deleted) resolves to not blocked.
-func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+// distinct account IDs, and returns the account rows it read. Only the
+// cache-miss path reaches here: on a hit the flag is already in the cached
+// blob. Failing the lookup fails the read — the block state must never be
+// silently assumed open. A balance whose account row is absent (e.g.
+// soft-deleted) resolves to not blocked.
+func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) ([]*mmodel.Account, error) {
 	if len(balances) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
@@ -562,7 +589,7 @@ func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, le
 		if err != nil {
 			recordQueryError(ctx, span, logger, "Invalid account ID on balance", err, libLog.String("balance_id", b.ID))
 
-			return err
+			return nil, err
 		}
 
 		if _, ok := seen[accountID]; !ok {
@@ -576,7 +603,7 @@ func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, le
 	if err != nil {
 		recordQueryError(ctx, span, logger, "Failed to list accounts for blocked hydration", err)
 
-		return err
+		return nil, err
 	}
 
 	byAccount := make(map[string]*mmodel.Account, len(accounts))
@@ -595,7 +622,7 @@ func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, le
 		}
 	}
 
-	return nil
+	return accounts, nil
 }
 
 // getBalancesFromCache checks Redis for cached balances. Returns two slices:

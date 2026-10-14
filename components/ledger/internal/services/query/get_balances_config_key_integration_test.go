@@ -584,6 +584,27 @@ func TestIntegration_EngineConfig_ColdBalanceDecidesWithARowNewerThanTheLiveKey(
 		assert.Equal(t, accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: true}, keys.Accounts[accountID])
 	})
 
+	t.Run("an uncached balance without an account key reads its account once", func(t *testing.T) {
+		ctx := context.Background()
+		accountID, balanceID, alias := infra.seedBalance(t, "cfg-cold-no-account-key", decimal.NewFromInt(100), 0)
+		ref := alias + "#" + constant.DefaultBalanceKey
+
+		changeRows(t, accountID, balanceID)
+
+		_, accounts := spy(t)
+
+		_, execution, err := infra.uc.GetEngineBalances(ctx, infra.orgID, infra.ledgerID, []string{ref})
+		require.NoError(t, err)
+
+		got := engineBalanceByRef(t, execution, ref)
+		assert.True(t, got.Blocked)
+		assert.Equal(t, int64(1), got.AccountConfigVersion)
+		assert.Equal(t, int32(1), accounts.listByIDs.Load(), "the seed's account read fills the absent account key")
+
+		keys := infra.readKeys(t, ctx, []string{ref}, []uuid.UUID{accountID})
+		assert.Equal(t, accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: true}, keys.Accounts[accountID])
+	})
+
 	t.Run("an equal version keeps the key", func(t *testing.T) {
 		ctx := context.Background()
 		accountID, _, alias := infra.seedBalance(t, "cfg-cold-equal", decimal.NewFromInt(100), 0)

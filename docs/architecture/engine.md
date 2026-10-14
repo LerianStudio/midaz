@@ -755,9 +755,10 @@ cache miss: that load already read the balance row, through read routing (a
 replica where one serves reads), and its account row, from the primary. Where
 either row carries a newer version than its key, the row decides and the load
 writes it to the key under the same version rule; an equal version keeps the key.
-A row newer than its key was committed without the key, by a PATCH an earlier
-release served or by a PATCH whose key write failed before the client's retry.
-The load logs each such key at Warn. A cached balance reads no row, and its blob
+Where the account key is absent, the account row that load read is written to
+it, so the account is not read again. A row newer than its key was committed
+without the key, by a PATCH an earlier release served or by a PATCH whose key
+write failed before the client's retry. The load logs each such key at Warn. A cached balance reads no row, and its blob
 copy is left to the decision below.
 
 The request carries the configuration the balance load resolved: the snapshot

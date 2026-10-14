@@ -41,10 +41,12 @@ const (
 // written back under the version rule: a key a concurrent update already moved to
 // a newer version wins and is what the balance carries.
 //
-// A balance in seeded was loaded from its row on a cache miss, so this load already
+// A balance in seeds was loaded from its row on a cache miss, so this load already
 // holds its configuration and its account's blocked flag as PostgreSQL has them.
 // Where that row is newer than the live key, the row decides and is written to the
-// key under the same rule; on an equal version the key stays, as everywhere else. A
+// key under the same rule; on an equal version the key stays, as everywhere else.
+// Where the account key is absent, the account row the seed's blocked hydration
+// read from the primary is written to it, so the account is not read again. A
 // newer row means a change committed without its key: a PATCH served by a release
 // that writes no configuration key, or one whose key write failed before the
 // client's retry. Deciding with the older key there would seed a blob with the
@@ -64,7 +66,7 @@ const (
 // admission: no closing, balance creation or deletion removes a configuration
 // key or relies on its absence, and a key of a deleted balance is inert for any
 // other balance because it carries its balance's identity.
-func (uc *UseCase) resolveEngineConfiguration(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, seeded map[string]struct{}) error {
+func (uc *UseCase) resolveEngineConfiguration(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance, seeds engineSeeds) error {
 	if len(balances) == 0 {
 		return nil
 	}
@@ -74,7 +76,7 @@ func (uc *UseCase) resolveEngineConfiguration(ctx context.Context, organizationI
 	ctx, span := tracer.Start(ctx, "query.get_engine_balances.resolve_configuration")
 	defer span.End()
 
-	targets, accountIDs, err := engineConfigurationTargets(balances, seeded)
+	targets, accountIDs, err := engineConfigurationTargets(balances, seeds.balanceIDs)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Invalid balance identity in the engine pool", err)
 		logger.Log(ctx, libLog.LevelError, "Invalid balance identity in the engine pool", libLog.Err(err))
@@ -99,7 +101,15 @@ func (uc *UseCase) resolveEngineConfiguration(ctx context.Context, organizationI
 		return err
 	}
 
-	accountConfigs, err := uc.resolveAccountConfigs(ctx, span, organizationID, ledgerID, accountIDs, keys.Accounts, seededAccountRows(targets))
+	seededAccounts, err := seededAccountRows(seeds.accounts)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Invalid account configuration on the seeded row", err)
+		logger.Log(ctx, libLog.LevelError, "Invalid account configuration on the seeded row", libLog.Err(err))
+
+		return err
+	}
+
+	accountConfigs, err := uc.resolveAccountConfigs(ctx, span, organizationID, ledgerID, accountIDs, keys.Accounts, seededAccounts)
 	if err != nil {
 		return err
 	}
@@ -227,7 +237,7 @@ func (uc *UseCase) reportConfigCopyDivergence(ctx context.Context, span trace.Sp
 
 // configurationTarget is one balance of the pool with the identities its
 // configuration keys are looked up by. seeded marks a balance loaded from its row,
-// whose configuration fields hold that row and its account row.
+// whose configuration fields hold that row.
 type configurationTarget struct {
 	balance   *mmodel.Balance
 	ref       string
@@ -273,24 +283,22 @@ func engineConfigurationTargets(balances []*mmodel.Balance, seeded map[string]st
 	return targets, accountIDs, nil
 }
 
-// seededAccountRows returns the blocked flag and version each seeded balance's
-// account row had when the load read it. A seed whose account has no row carries
-// version 0, which never outranks a key.
-func seededAccountRows(targets []configurationTarget) map[uuid.UUID]accounting.AccountConfig {
-	rows := make(map[uuid.UUID]accounting.AccountConfig)
+// seededAccountRows returns the configuration of each account row the seeds'
+// blocked hydration read from the primary. An account without a row is not among
+// them; its key, when absent, is reloaded as for a cached balance.
+func seededAccountRows(accounts map[uuid.UUID]*mmodel.Account) (map[uuid.UUID]accounting.AccountConfig, error) {
+	rows := make(map[uuid.UUID]accounting.AccountConfig, len(accounts))
 
-	for _, target := range targets {
-		if !target.seeded {
-			continue
+	for accountID, acc := range accounts {
+		config, err := balancecache.AccountConfigFromAccount(acc)
+		if err != nil {
+			return nil, err
 		}
 
-		row := accounting.AccountConfig{AccountID: target.accountID, Version: target.balance.AccountConfigVersion, Blocked: target.balance.Blocked}
-		if current, ok := rows[target.accountID]; !ok || row.Version > current.Version {
-			rows[target.accountID] = row
-		}
+		rows[accountID] = config
 	}
 
-	return rows
+	return rows, nil
 }
 
 // resolveBalanceConfigs returns the configuration of each balance by balance ID. A
@@ -396,8 +404,9 @@ func (uc *UseCase) resolveBalanceConfigs(
 
 // resolveAccountConfigs returns the blocked configuration of each account by
 // account ID. An account the primary has no row for is left out. An account whose
-// row a seed read is newer than its live key decides with that row (see
-// resolveEngineConfiguration).
+// row a seed read is newer than its live key, or has no live key, decides with that
+// row and writes it to the key (see resolveEngineConfiguration); only the accounts
+// left without a key or a seeded row are read from the primary.
 func (uc *UseCase) resolveAccountConfigs(
 	ctx context.Context,
 	span trace.Span,
@@ -411,30 +420,36 @@ func (uc *UseCase) resolveAccountConfigs(
 	resolved := make(map[uuid.UUID]accounting.AccountConfig, len(accountIDs))
 	missing := make([]uuid.UUID, 0)
 	newerIDs := make([]string, 0)
+	reloaded := 0
 
 	for _, accountID := range accountIDs {
-		config, ok := keys[accountID]
-		if !ok {
-			missing = append(missing, accountID)
+		config, live := keys[accountID]
+		row, seeded := seededRows[accountID]
+
+		switch {
+		case live && (!seeded || row.Version <= config.Version):
+			resolved[accountID] = config
 
 			continue
-		}
-
-		row, seeded := seededRows[accountID]
-		if !seeded || row.Version <= config.Version {
-			resolved[accountID] = config
+		case live:
+			newerIDs = append(newerIDs, accountID.String())
+		case seeded:
+			reloaded++
+		default:
+			missing = append(missing, accountID)
 
 			continue
 		}
 
 		stored, _, err := uc.TransactionRedisRepo.WriteAccountConfig(ctx, organizationID, ledgerID, row)
 		resolved[accountID] = keptConfiguration(ctx, logger, configFamilyAccount, accountID.String(), row, stored, err)
-		newerIDs = append(newerIDs, accountID.String())
 	}
 
 	reportKeysOlderThanTheRows(ctx, span, configFamilyAccount, newerIDs)
 
 	if len(missing) == 0 {
+		uc.recordConfigReloaded(ctx, span, organizationID, ledgerID, configFamilyAccount, reloaded)
+
 		return resolved, nil
 	}
 
@@ -459,7 +474,7 @@ func (uc *UseCase) resolveAccountConfigs(
 		resolved[config.AccountID] = keptConfiguration(ctx, logger, configFamilyAccount, acc.ID, config, stored, err)
 	}
 
-	uc.recordConfigReloaded(ctx, span, organizationID, ledgerID, configFamilyAccount, len(accounts))
+	uc.recordConfigReloaded(ctx, span, organizationID, ledgerID, configFamilyAccount, reloaded+len(accounts))
 
 	return resolved, nil
 }
@@ -526,8 +541,9 @@ func applyBalanceConfig(b *mmodel.Balance, config accounting.BalanceConfig) {
 }
 
 // recordConfigReloaded counts configurations reloaded from the primary because their
-// key was absent, which is the database cost of the keys' fixed expiry. Best-effort:
-// a metric failure never affects the load.
+// key was absent, which is the database cost of the keys' fixed expiry; an account
+// row a seed's blocked hydration already read counts once, with no read of its own.
+// Best-effort: a metric failure never affects the load.
 func (uc *UseCase) recordConfigReloaded(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, family string, reloaded int) {
 	if reloaded == 0 {
 		return
