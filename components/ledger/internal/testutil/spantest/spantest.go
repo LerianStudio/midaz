@@ -62,6 +62,19 @@ func HasSpan(recorder *tracetest.SpanRecorder, name string) bool {
 	return false
 }
 
+// CountSpans returns how many ended spans carry the given name.
+func CountSpans(recorder *tracetest.SpanRecorder, name string) int {
+	count := 0
+
+	for _, s := range recorder.Ended() {
+		if s.Name() == name {
+			count++
+		}
+	}
+
+	return count
+}
+
 // AssertNoSpan fails the test when any of the given span names was recorded. It documents
 // that a step was folded into its parent span instead of opening a span of its own.
 func AssertNoSpan(t testing.TB, recorder *tracetest.SpanRecorder, names ...string) {
