@@ -50,8 +50,8 @@ package balancecache
 // versions existed starts at version 0 like its row); it never writes over a higher
 // version and never touches money, identity or the other family.
 //
-// Versions in shared types. accounting.BalanceSnapshot carries ConfigVersion and
-// AccountConfigVersion, and mmodel.Balance and mmodel.Account carry ConfigVersion,
+// Versions in shared types. accounting.BalanceSnapshot and mmodel.Balance carry
+// ConfigVersion and AccountConfigVersion, and mmodel.Account carries ConfigVersion,
 // all tagged json:"-": those types are serialized into completion plans, completion
 // records, write-behind messages and API responses that the previous release decodes
 // with unknown fields refused. Versions travel only in the engine request, in these

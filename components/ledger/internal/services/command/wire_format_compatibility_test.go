@@ -36,6 +36,7 @@ func TestWireFormats_EncodeExactlyAsTheRollbackRelease(t *testing.T) {
 	// Every configuration version these types carry is set, so a version that
 	// leaked into JSON would change the bytes.
 	formats.balance.ConfigVersion = 11
+	formats.balance.AccountConfigVersion = 15
 	formats.account.ConfigVersion = 12
 	formats.snapshot.ConfigVersion = 13
 	formats.snapshot.AccountConfigVersion = 14
@@ -44,6 +45,7 @@ func TestWireFormats_EncodeExactlyAsTheRollbackRelease(t *testing.T) {
 	formats.record.Result.Final[0].ConfigVersion = 13
 	formats.record.Result.Final[0].AccountConfigVersion = 14
 	formats.plan.OperationSpecs[0].Balance.ConfigVersion = 11
+	formats.plan.OperationSpecs[0].Balance.AccountConfigVersion = 15
 
 	encodings, err := formats.encodings()
 	require.NoError(t, err)

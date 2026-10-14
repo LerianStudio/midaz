@@ -97,6 +97,12 @@ type Balance struct {
 	// an unknown field would be refused; it is not part of the API contract either.
 	ConfigVersion int64 `json:"-"`
 
+	// AccountConfigVersion is the owning account's configuration version
+	// (account.config_version) of the Blocked value this balance carries. It orders
+	// copies of that one account's Blocked flag, is never compared with ConfigVersion,
+	// and stays out of JSON for the same reason as ConfigVersion.
+	AccountConfigVersion int64 `json:"-"`
+
 	// Direction is the accounting direction of the balance. One of
 	// "credit" or "debit". Empty string denotes legacy rows predating the
 	// overdraft feature and is treated as "credit" by the engine.

@@ -37,6 +37,7 @@ func TestConfigVersion_NeverChangesTheJSONEncoding(t *testing.T) {
 	}
 	versionedBalance := balance
 	versionedBalance.ConfigVersion = 42
+	versionedBalance.AccountConfigVersion = 42
 
 	account := Account{ID: "00000000-0000-0000-0000-000000000002", Name: "a", Blocked: &blocked, CreatedAt: created}
 	versionedAccount := account

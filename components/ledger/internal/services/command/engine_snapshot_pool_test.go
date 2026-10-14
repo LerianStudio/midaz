@@ -150,6 +150,9 @@ func TestLoadEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
 	explicit.AllowSending = false
 	explicit.AllowReceiving = true
 	explicit.Direction = constant.DirectionDebit
+	explicit.Blocked = true
+	explicit.ConfigVersion = 7
+	explicit.AccountConfigVersion = 3
 	explicit.Settings = &mmodel.BalanceSettings{
 		BalanceScope:          mmodel.BalanceScopeTransactional,
 		AllowOverdraft:        true,
@@ -188,8 +191,11 @@ func TestLoadEngineSnapshotPoolMapsTheCompleteSnapshot(t *testing.T) {
 		Version:               42,
 		AllowSending:          false,
 		AllowReceiving:        true,
+		Blocked:               true,
 		AllowOverdraft:        true,
 		OverdraftLimitEnabled: true,
+		ConfigVersion:         7,
+		AccountConfigVersion:  3,
 	}, pool.Snapshots[0])
 }
 
@@ -451,15 +457,26 @@ func TestBuildEngineSnapshotPoolRejectsDivergentExplicitState(t *testing.T) {
 	organizationID := uuid.MustParse("f36006c5-02db-4ba4-8f97-a219c0dd2809")
 	ledgerID := uuid.MustParse("ea89b681-33f2-4244-9637-a23f71398957")
 	accountID := uuid.MustParse("8d81e2a5-95fc-4d3a-829c-1b096d2d79e5")
-	explicit := snapshotPoolBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey)
-	pooled := *explicit
-	pooled.Available = decimal.NewFromInt(99)
 
-	_, err := BuildEngineSnapshotPool(t.Context(), organizationID, ledgerID,
-		[]string{"@alice#default"}, []*mmodel.Balance{explicit}, []*mmodel.Balance{&pooled})
+	for name, diverge := range map[string]func(*mmodel.Balance){
+		"money":                         func(b *mmodel.Balance) { b.Available = decimal.NewFromInt(99) },
+		"balance configuration version": func(b *mmodel.Balance) { b.ConfigVersion++ },
+		"account configuration version": func(b *mmodel.Balance) { b.AccountConfigVersion++ },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "diverges from complete pool")
+			explicit := snapshotPoolBalance(organizationID, ledgerID, accountID, "@alice", constant.DefaultBalanceKey)
+			pooled := *explicit
+			diverge(&pooled)
+
+			_, err := BuildEngineSnapshotPool(t.Context(), organizationID, ledgerID,
+				[]string{"@alice#default"}, []*mmodel.Balance{explicit}, []*mmodel.Balance{&pooled})
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "diverges from complete pool")
+		})
+	}
 }
 
 type snapshotPoolContextKey struct{}
