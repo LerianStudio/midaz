@@ -438,7 +438,7 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 
 		chunkResult, err := r.insertTransactionChunk(ctx, db, transactions[i:end])
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to insert transaction chunk", err)
+			// Already recorded on this span by insertTransactionChunk, with the failing step.
 			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
 			return result, err
 		}
@@ -468,10 +468,12 @@ type chunkInsertResult struct {
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
 // Returns the count of inserted rows and their IDs for downstream filtering.
 func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (*chunkInsertResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.insert_transaction_chunk")
-	defer span.End()
+	// One chunk is one INSERT the driver already traces, so it opens no span of its
+	// own: every failure is recorded, with the step that failed, on the enclosing
+	// create_bulk_* span, and the caller does not record it again.
+	span := trace.SpanFromContext(ctx)
 
 	logger.Log(ctx, libLog.LevelDebug, "Inserting chunk of transactions", libLog.Int("count", len(transactions)))
 
