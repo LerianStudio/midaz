@@ -51,7 +51,9 @@ func TestAccountClosingWireDeclaresOneProtectionTripletPerAccount(t *testing.T) 
 
 	accounts := protectedAccounts(input.Execution)
 	require.Len(t, accounts, 2, "three balances of two accounts declare two accounts")
-	require.Len(t, prepared.Keys, 7+3*len(input.Execution.Balances)+3*len(accounts))
+	configBase := 7 + 3*len(input.Execution.Balances) + 3*len(accounts)
+	require.Len(t, prepared.Keys, configBase+len(input.Execution.Balances)+len(accounts),
+		"the configuration block closes the inventory: one key per balance, then one per account")
 
 	var wire wireRequest
 	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
@@ -66,6 +68,8 @@ func TestAccountClosingWireDeclaresOneProtectionTripletPerAccount(t *testing.T) 
 		require.Equal(t, resolved.Accounts[accounts[i]].Closing, prepared.Keys[base])
 		require.Equal(t, resolved.Accounts[accounts[i]].Closed, prepared.Keys[base+1])
 		require.Equal(t, resolved.Accounts[accounts[i]].Ownership, prepared.Keys[base+2])
+		require.Equal(t, configBase+len(input.Execution.Balances)+i+1, account.ConfigKeyIndex)
+		require.Equal(t, resolved.Accounts[accounts[i]].Config, prepared.Keys[account.ConfigKeyIndex-1])
 		require.Contains(t, account.AdmissionToken, testAdmissionToken)
 	}
 

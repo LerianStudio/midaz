@@ -123,33 +123,53 @@ end
 -- loadBalancePool resolves the authoritative live accounting state. Redis values
 -- supersede request seeds after identity validation; seeds are used only for cache
 -- misses. Deletion markers and overdraft companion balances are captured together.
+--
+-- Live money and version always come from the blob. The configuration does not:
+-- each balance, and each account, decides with the newest configuration among its
+-- configuration key, the request and the copy in the blob (see
+-- decideAccountConfigurations). The configuration keys are only read here, never
+-- written or renewed: a key that expired since Go read it leaves the request's
+-- configuration in force for this execution alone. The decided versions stay in
+-- item.configVersions, outside item.current, so the result keeps its shape.
 local function loadBalancePool(request)
     local pool, companions = {}, {}
     local normalization = array()
-    for i, balance in ipairs(request.balances) do
-        local keyIndex, markerIndex, legacyMarkerIndex = 5 + 3 * i, 6 + 3 * i, 7 + 3 * i
+    for _, balance in ipairs(request.balances) do
+        local keyIndex, markerIndex, legacyMarkerIndex = balance.keyIndex, balance.deleteKeyIndex, balance.legacyDeleteKeyIndex
+        local configKey = KEYS[balance.configKeyIndex]
         expectRedisType(KEYS[keyIndex], "string")
         expectRedisType(KEYS[markerIndex], "string")
         expectRedisType(KEYS[legacyMarkerIndex], "string")
+        expectRedisType(configKey, "string")
         local raw = redis.call("GET", KEYS[keyIndex])
-        local blob, current
+        local blob, current, limitRepair, blobCopy, accountCopy
         if raw then
             blob = decodeJSON(raw)
-            local repair
-            current, repair = decodeBalance(blob, balance.snapshot, balance.balanceRef)
-            if repair then normalization[#normalization + 1] = KEYS[keyIndex] end
+            current, limitRepair = decodeBalance(blob, balance.snapshot, balance.balanceRef)
+            blobCopy = balanceConfiguration(current, blobConfigVersion(blob, balanceConfigVersionField))
+            accountCopy = { version = blobConfigVersion(blob, accountConfigVersionField), blocked = current.blocked }
         else
             -- A cache miss is seeded only in working memory. The balance is not
             -- published until the complete execution reaches the commit phase.
             current = clone(balance.snapshot)
             current.balanceRef = balance.balanceRef
         end
+        local configuration = newestConfiguration(
+            decodeBalanceConfigKey(redis.call("GET", configKey), balance.snapshot.id),
+            balanceConfiguration(balance.snapshot, balance.balanceConfigVersion),
+            blobCopy
+        )
+        applyBalanceConfiguration(current, configuration)
+        -- A noncanonical limit needs repair only when the blob's own copy decides;
+        -- a limit from the key or the request is already canonical.
+        if limitRepair and configuration == blobCopy then normalization[#normalization + 1] = KEYS[keyIndex] end
         current.organizationId = balance.organizationId
         current.ledgerId = balance.ledgerId
         current.balanceRef = balance.balanceRef
         local item = {
             current = current, blob = blob, keyIndex = keyIndex, seeded = not raw,
-            deleted = redis.call("EXISTS", KEYS[markerIndex], KEYS[legacyMarkerIndex]) > 0
+            deleted = redis.call("EXISTS", KEYS[markerIndex], KEYS[legacyMarkerIndex]) > 0,
+            accountCopy = accountCopy, configVersions = { balance = configuration.version }
         }
         pool[scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)] = item
         -- Index the single internal overdraft companion for later draw or repay
@@ -165,6 +185,39 @@ local function loadBalancePool(request)
     if #normalization > 0 then error({ kind = "normalization", keys = normalization }, 0) end
 
     return pool, companions
+end
+
+-- decideAccountConfigurations applies the account configuration, the blocked
+-- flag, to every balance of each account of the pool. An account decides once,
+-- with the newest configuration among its account configuration key, the
+-- request, and the copies in the blobs of its balances; every balance of the
+-- account, its overdraft companion included, then carries the same flag.
+local function decideAccountConfigurations(request, pool)
+    local copies = {}
+    for _, balance in ipairs(request.balances) do
+        local item = pool[scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)]
+        if item.accountCopy then
+            local accountCopies = copies[item.current.accountId] or {}
+            accountCopies[#accountCopies + 1] = item.accountCopy
+            copies[item.current.accountId] = accountCopies
+        end
+    end
+    local decisions = {}
+    for _, account in ipairs(request.accounts) do
+        local configKey = KEYS[account.configKeyIndex]
+        expectRedisType(configKey, "string")
+        local configuration = newestConfiguration(
+            decodeAccountConfigKey(redis.call("GET", configKey), account.accountId),
+            { version = account.configVersion, blocked = account.blocked }
+        )
+        for _, copy in ipairs(copies[account.accountId] or {}) do configuration = newestConfiguration(configuration, copy) end
+        decisions[account.accountId] = configuration
+    end
+    for _, item in pairs(pool) do
+        local configuration = decisions[item.current.accountId]
+        item.current.blocked = configuration.blocked
+        item.configVersions.account = configuration.version
+    end
 end
 
 -- loadSeedAdmission answers whether the account's administrative ownership key
@@ -524,26 +577,14 @@ end
 -- without that proof stays out of the cache, and the execution, which never used
 -- it, is not refused because of it.
 --
--- `blocked` is an account-level flag. A seed carries it as the account row held it
--- when the load read it, but an account PATCH rewrites it only on the balances
--- already cached, so a block or unblock that lands between the load and this
--- execution reaches the cached primary and misses the companion seed. A published
--- companion therefore takes the flag from a balance of its account that this
--- execution writes and read from Redis. The PATCH rewrites all of an account's
--- cached balances in one atomic step, so the first one is as current as any. When
--- every written balance of the account was itself seeded, they all come from the
--- same load as the companion, and the companion keeps its seed's flag.
---
--- A refreshed companion keeps its cached value, flag included: it was read from
--- Redis, so the PATCH has kept its flag current, and only its expiry is written.
+-- A published companion carries the account's blocked flag the execution
+-- decided with (decideAccountConfigurations), like every other balance of its
+-- account. A refreshed companion keeps its cached value: only its expiry is
+-- written.
 local function selectCompanionCacheWrites(touched, companions, protection)
-    local written, selected, liveBlocked = {}, {}, {}
+    local written, selected = {}, {}
     local published, refreshed = {}, {}
-    for _, item in ipairs(touched) do
-        written[item] = true
-        local accountRef = scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.accountId)
-        if not item.seeded and liveBlocked[accountRef] == nil then liveBlocked[accountRef] = item.current.blocked end
-    end
+    for _, item in ipairs(touched) do written[item] = true end
     for _, item in ipairs(touched) do
         local accountRef = scopedBalanceRef(item.current.organizationId, item.current.ledgerId, item.current.accountId)
         local companion = companions[accountRef]
@@ -554,7 +595,6 @@ local function selectCompanionCacheWrites(touched, companions, protection)
                 if not companion.seeded then
                     refreshed[#refreshed + 1] = companion
                 elseif admissionConfirmed(state) then
-                    if liveBlocked[accountRef] ~= nil then companion.current.blocked = liveBlocked[accountRef] end
                     published[#published + 1] = companion
                 end
             end
@@ -753,6 +793,7 @@ local function execute(request, maximumPrepared)
     validateAccountClosingMarkers(request, protection)
 
     local pool, companions = loadBalancePool(request)
+    decideAccountConfigurations(request, pool)
     validateAccountClosingAvailability(request, pool, protection)
     local exemptions, grantKeys = validateAccountBlockExceptions(request, pool, companions)
     validateLiveBalanceAvailability(request, pool, exemptions)

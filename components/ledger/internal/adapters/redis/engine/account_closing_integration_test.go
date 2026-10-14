@@ -323,8 +323,9 @@ func TestIntegrationAccountClosingIsNotBypassedByABlockException(t *testing.T) {
 	f.input.Execution.Transactions[0].RejectBlockedBalances = true
 
 	blocked := f.input.Execution.Balances[0]
-	blocked.Blocked = true
 	f.seed(t, 0, blocked)
+	blocked.Blocked = true
+	f.liveConfiguration(t, 0, blocked, 1)
 
 	grantKey := f.addGrant(t, "@source", "30")
 	protection := sourceAccountProtection(t, f)

@@ -10,8 +10,8 @@ atomic execution.
 | `decimal.lua` | Exact decimal comparison, addition, and subtraction without converting monetary values to Lua numbers. |
 | `json.lua` | Exact JSON parsing and deterministic serialization, including preservation of large numeric tokens. |
 | `protocol.lua` | Shared protocol primitives and validation of text, UUIDs, integers, references, and money. |
-| `balance_cache.lua` | Compatibility decoding, validation, and encoding of live balance-cache records. |
-| `request.lua` | Redis key-type checks and validation of the protocol-v3 execution request, including per-balance and per-transaction scope. |
+| `balance_cache.lua` | Compatibility decoding, validation, and encoding of live balance-cache records, and the configuration decision: configuration-key decoding, version comparison, and the configuration copy in the blob. |
+| `request.lua` | Redis key-type checks and validation of the protocol-v4 execution request, including per-balance and per-transaction scope and the explicit key indexes of every balance and account. |
 | `receipt.lua` | Validation and replay of engine execution receipts; this closes the lost-response window independently of HTTP idempotency. |
 | `posting_algebra.lua` | Monetary meaning of each supported posting type. |
 | `fee_debt.lua` | Fee-debt lists: loading, deferral, settlement, cancellation, reopening and refund, in memory only. |
@@ -41,8 +41,18 @@ The entrypoint tells one ordered story:
    revert whose origin already carries the `<originId>:reverted` guard field
    (`transaction_already_reverted`), then prepares protection coordinators in memory.
 3. `loadBalancePool` reads live cache values. A valid Redis value is
-   authoritative; a request snapshot is only an in-memory seed for a cache miss.
-   Noncanonical legacy limits request a separate precommit repair.
+   authoritative for money and version; a request snapshot is only an in-memory
+   seed for a cache miss. Each balance decides its configuration with the newest
+   of its configuration key, the request, and the copy in its blob; on an equal
+   version the key wins over the request and the request over the blob. A key of
+   another balance, or an unreadable one, is absent. The keys are only read:
+   never written, recreated, or renewed. A noncanonical limit requests a separate
+   precommit repair only when the blob's own copy decides.
+   `decideAccountConfigurations` then decides each account's `blocked` flag the
+   same way, from its account configuration key, the request, and the copies in
+   the blobs of its balances, and applies it to every balance of the account.
+   The decided versions stay in `item.configVersions`, outside `item.current`,
+   so the result and the recovery evidence keep their shape.
 4. `loadAccountProtection` reads the closing controls of every account of the
    pool, and `validateAccountClosingAvailability` refuses every requirement and
    posting whose account is closing or closed, and every used balance this
@@ -80,15 +90,13 @@ The entrypoint tells one ordered story:
    admission, the account is neither closing nor closed, and neither deletion
    marker is set. Without that proof the companion stays uncached and the
    execution is not refused. A published companion keeps its seed's amounts and
-   version but takes the account-level `blocked` flag from a balance of its
-   account that the execution writes and read from Redis: an account PATCH
-   rewrites that flag only on cached balances, so the seed may carry a block
-   state the account no longer has. When every written balance of the account
-   was seeded too, the companion keeps its seed's flag. A refreshed companion
-   keeps its cached value, flag included.
+   version and carries the `blocked` flag decided for its account. A refreshed
+   companion keeps its cached value, flag included.
 9. `prepareExecutionWrites` serializes the response, including the execution's
-   single `appliedAtUnixMicro` value, changed balance blobs, published companion
-   blobs, versioned write-behind evidence, transaction-state index entries,
+   single `appliedAtUnixMicro` value, changed balance blobs and published
+   companion blobs (each with the configuration it decided and its
+   `balanceConfigVersion` and `accountConfigVersion`, the compatibility copy for
+   releases that read the configuration from the blob), versioned write-behind evidence, transaction-state index entries,
    recovery records, receipt, guards, and protection data while enforcing the
    total prepared-byte ceiling. An execution without movements prepares none of
    them, so refusals and no-ops publish no companion.
@@ -144,6 +152,17 @@ recovery record, or public contract.
 
 For multi-scope executions, five keys per additional transaction scope follow
 the account block: receipt, guard, protection, transaction index, and evidence.
+The fee-debt lists follow them (see the fee-debt protocol below).
+
+The configuration block closes `KEYS`: one balance configuration key per
+balance, in balance order, then one account configuration key per account, in
+the order of the account block. Each balance declares `configKeyIndex` and
+`balanceConfigVersion`, and each account declares `configKeyIndex`, `blocked`,
+and `configVersion`. Lua verifies every index against its position and every
+name against the key it derives from: the balance blob with the `balance:`
+namespace replaced by `balance-config:`, and the account-closing marker with
+`account-closing:` replaced by `account-config:`. Consumers use the declared
+indexes, never a position computed from the pool.
 They are ordered by organization and ledger ID. The receipt key for an
 additional scope is available to validate a dependency on an earlier execution
 whose primary scope was that ledger; the new execution still writes one receipt
@@ -230,9 +249,10 @@ Top level, omitted when empty:
 - It is the union of every transaction's `feeDebtRefs`, once per
   `(organizationId, ledgerId, balanceRef)`, in first-appearance order over the
   transactions and then their refs.
-- Its keys are the LAST block of `KEYS`, one per entry in the same order, so
-  `#KEYS = 7 + 3*balances + grants + 3*accounts + 5*extraScopes + #feeDebts`
-  and no existing index moves. `keyIndex` is the 1-based `KEYS` index, as for
+- Its keys follow the scope keys, one per entry in the same order, and only the
+  configuration block follows them, so
+  `#KEYS = 7 + 3*balances + grants + 3*accounts + 5*extraScopes + #feeDebts + balances + accounts`
+  and no earlier index moves. `keyIndex` is the 1-based `KEYS` index, as for
   balances. Each key ends with the unprefixed `FeeDebtInternalKey` of its entry.
 - Collect, refund and deferral debtors are always postings. A reopen debtor is
   in `balances` as a touch, with no movement, because a revert can fold its
