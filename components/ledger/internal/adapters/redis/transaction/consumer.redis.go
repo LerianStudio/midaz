@@ -1576,11 +1576,13 @@ func newBalanceApplyMarkerMissingAliasesError(transactionID string, missingAlias
 		constant.ErrBalanceApplyMarkerMissingAliases, transactionID, missingAliases)
 }
 
+// SetBytes writes value under the tenant-namespaced key. It is a thin wrapper over one
+// Redis command the driver already traces, so it opens no span of its own: failures are
+// recorded as technical errors on the caller's span.
 func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, value []byte, ttl time.Duration) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.set_bytes")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
@@ -1611,11 +1613,14 @@ func (rr *RedisConsumerRepository) SetBytes(ctx context.Context, key string, val
 	return nil
 }
 
+// GetBytes reads the bytes under the tenant-namespaced key. It is a thin wrapper over one
+// Redis command the driver already traces, so it opens no span of its own: failures are
+// recorded as technical errors on the caller's span. A missing key returns redis.Nil
+// unchanged for the caller to treat as a cache miss, and is not recorded as an error.
 func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]byte, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.get_bytes")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	key, err := tenantKeyFromContextOrError(ctx, key)
 	if err != nil {
@@ -1644,10 +1649,10 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 // AddMessageToQueue add message to redis queue
 func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key string, msg []byte) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.add_message_to_queue")
-	defer span.End()
+	// A thin wrapper over one Redis hash command the driver already traces: no span
+	// of its own; the caller's span covers it.
 
 	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
 	if err != nil {
@@ -1679,10 +1684,10 @@ func (rr *RedisConsumerRepository) AddMessageToQueue(ctx context.Context, key st
 
 // ReadMessageFromQueue read an especific message from redis queue
 func (rr *RedisConsumerRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.read_message_from_queue")
-	defer span.End()
+	// A thin wrapper over one Redis hash command the driver already traces: no span
+	// of its own; the caller's span covers it.
 
 	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
 	if err != nil {
@@ -1762,11 +1767,8 @@ func (rr *RedisConsumerRepository) ReadRecoveryMessage(ctx context.Context, sour
 		return "", err
 	}
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.read_recovery_message")
-	defer span.End()
-
+	// A thin wrapper over one Redis HGET the driver already traces: no span of its
+	// own; a read failure is recorded as a technical error on the caller's span.
 	queueKey, err := recoveryQueueKey(source)
 	if err != nil {
 		return "", err
@@ -1792,7 +1794,7 @@ func (rr *RedisConsumerRepository) ReadRecoveryMessage(ctx context.Context, sour
 	}
 
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read recovery message", err)
+		libOpentelemetry.HandleSpanError(trace.SpanFromContext(ctx), "Failed to read recovery message", err)
 		return "", fmt.Errorf("read recovery message: %w", err)
 	}
 
@@ -1801,10 +1803,10 @@ func (rr *RedisConsumerRepository) ReadRecoveryMessage(ctx context.Context, sour
 
 // RemoveMessageFromQueue remove message from redis queue
 func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, key string) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "redis.remove_message_from_queue")
-	defer span.End()
+	// A thin wrapper over one Redis hash command the driver already traces: no span
+	// of its own; the caller's span covers it.
 
 	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
 	if err != nil {
