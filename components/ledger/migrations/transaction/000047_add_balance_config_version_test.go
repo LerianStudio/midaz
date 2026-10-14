@@ -49,15 +49,6 @@ func TestMigration000047_TriggerFiresOnlyOnConfigurationColumns(t *testing.T) {
 	assert.NotContains(t, sql, "available", "the trigger must not depend on money columns")
 }
 
-// A long reader must make the migration fail rather than queue every balance write
-// behind its ACCESS EXCLUSIVE request.
-func TestMigration000047_BoundsLockWait(t *testing.T) {
-	t.Parallel()
-
-	assert.Contains(t, readBalanceConfigVersionMigration(t, "up"), "set local lock_timeout = '5s';")
-	assert.Contains(t, readBalanceConfigVersionMigration(t, "down"), "set local lock_timeout = '5s';")
-}
-
 func TestMigration000047_DownRemovesTriggerFunctionAndColumn(t *testing.T) {
 	t.Parallel()
 

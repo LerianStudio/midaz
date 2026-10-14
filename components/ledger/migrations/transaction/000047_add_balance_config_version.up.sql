@@ -13,10 +13,6 @@
 -- release names its columns explicitly in every SELECT and INSERT on balance, so it
 -- keeps working against this schema; its configuration UPDATEs still raise the
 -- version, which is what the current release relies on.
---
--- The lock timeout keeps the ALTER from queueing every balance write behind a long
--- reader: it fails instead, and the whole file rolls back as one unit.
-SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE balance ADD COLUMN IF NOT EXISTS config_version BIGINT NOT NULL DEFAULT 0;
 

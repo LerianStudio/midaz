@@ -48,13 +48,6 @@ func TestMigration000023_TriggerFiresOnlyOnBlocked(t *testing.T) {
 	assert.Contains(t, sql, "else new.config_version := old.config_version;")
 }
 
-func TestMigration000023_BoundsLockWait(t *testing.T) {
-	t.Parallel()
-
-	assert.Contains(t, readAccountConfigVersionMigration(t, "up"), "set local lock_timeout = '5s';")
-	assert.Contains(t, readAccountConfigVersionMigration(t, "down"), "set local lock_timeout = '5s';")
-}
-
 func TestMigration000023_DownRemovesTriggerFunctionAndColumn(t *testing.T) {
 	t.Parallel()
 

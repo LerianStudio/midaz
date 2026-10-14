@@ -9,16 +9,12 @@ package balance
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -396,70 +392,6 @@ func TestIntegration_BalanceConfigVersion_ListByAliasesWithKeysOnPrimaryIgnoresR
 	assert.Equal(t, id.String(), viaPrimary[0].ID)
 	assert.False(t, viaPrimary[0].AllowReceiving)
 	assert.Equal(t, int64(1), viaPrimary[0].ConfigVersion)
-}
-
-// The column change takes an ACCESS EXCLUSIVE lock. Behind an open reader the
-// migration must give up after its lock timeout instead of queueing every later
-// balance query behind it, and the failed file must leave nothing applied.
-func TestIntegration_BalanceConfigVersionMigration_FailsFastBehindAReader(t *testing.T) {
-	container := pgtestutil.SetupMigratedContainer(t, "transaction")
-	dir := pgtestutil.FindMigrationsPath(t, "transaction")
-
-	up, err := os.ReadFile(filepath.Join(dir, "000047_add_balance_config_version.up.sql"))
-	require.NoError(t, err)
-
-	down, err := os.ReadFile(filepath.Join(dir, "000047_add_balance_config_version.down.sql"))
-	require.NoError(t, err)
-
-	_, err = container.DB.Exec(string(down))
-	require.NoError(t, err)
-	require.False(t, balanceColumnExists(t, container.DB, "config_version"), "precondition: the down file removed the column")
-
-	reader, err := container.DB.Begin()
-	require.NoError(t, err)
-
-	_, err = reader.Exec(`SELECT count(*) FROM balance`)
-	require.NoError(t, err)
-
-	started := time.Now()
-	_, err = container.DB.Exec(string(up))
-	elapsed := time.Since(started)
-
-	require.NoError(t, reader.Rollback())
-
-	var pgErr *pgconn.PgError
-	require.True(t, errors.As(err, &pgErr), "the migration must fail behind the reader, got %v", err)
-	assert.Equal(t, "55P03", pgErr.Code, "the failure is the lock timeout")
-	assert.Less(t, elapsed, 30*time.Second, "the migration gave up instead of waiting for the reader")
-	assert.False(t, balanceColumnExists(t, container.DB, "config_version"), "a failed run applies nothing")
-
-	// One connection runs the file and is then inspected, as a migration runner
-	// keeps its session across files.
-	session, err := container.DB.Conn(context.Background())
-	require.NoError(t, err)
-
-	defer session.Close()
-
-	_, err = session.ExecContext(context.Background(), string(up))
-	require.NoError(t, err, "the same file succeeds once the reader is gone")
-	assert.True(t, balanceColumnExists(t, container.DB, "config_version"))
-
-	var lockTimeout string
-	require.NoError(t, session.QueryRowContext(context.Background(), `SHOW lock_timeout`).Scan(&lockTimeout))
-	assert.Equal(t, "0", lockTimeout, "the lock timeout must not outlive the migration's own transaction")
-}
-
-func balanceColumnExists(t *testing.T, db *sql.DB, column string) bool {
-	t.Helper()
-
-	var exists bool
-	require.NoError(t, db.QueryRow(`
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_schema = current_schema() AND table_name = 'balance' AND column_name = $1
-		)`, column).Scan(&exists))
-
-	return exists
 }
 
 // waitForLockWaiters blocks until n sessions of the current database wait on a

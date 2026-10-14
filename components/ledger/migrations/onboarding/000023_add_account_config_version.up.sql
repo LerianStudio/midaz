@@ -12,10 +12,6 @@
 -- metadata-only (no table rewrite) and every existing row reads 0. The previous
 -- release names its columns explicitly in every SELECT and INSERT on account, so it
 -- keeps working against this schema.
---
--- The lock timeout keeps the ALTER from queueing every account write behind a long
--- reader: it fails instead, and the whole file rolls back as one unit.
-SET LOCAL lock_timeout = '5s';
 
 ALTER TABLE account ADD COLUMN IF NOT EXISTS config_version BIGINT NOT NULL DEFAULT 0;
 
