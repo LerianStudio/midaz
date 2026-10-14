@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -34,7 +35,7 @@ const (
 
 // conflictKeyContext wires a span recorder and a capturing logger into the tracking context.
 func conflictKeyContext() (context.Context, *tracetest.SpanRecorder, *capturingLogger) {
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 	logger := &capturingLogger{}
 
 	return libObservability.ContextWithLogger(ctx, logger), recorder, logger
@@ -73,7 +74,7 @@ func TestCreateOrCheckTransactionIdempotency_KeyIsASpanAttribute(t *testing.T) {
 			_, err := uc.CreateOrCheckTransactionIdempotency(ctx, organizationID, ledgerID, tt.key, tt.hash, "fingerprint", ttl)
 			require.NoError(t, err)
 
-			span := findSpan(t, recorder, idempotencySpanName)
+			span := spantest.FindSpan(t, recorder, idempotencySpanName)
 
 			key, ok := spanAttribute(span, "app.request.idempotency_key")
 			require.True(t, ok, "span must carry the effective idempotency key")
@@ -130,12 +131,12 @@ func TestCreateOrCheckTransactionIdempotency_ConflictIsASpanEventWithoutALog(t *
 			require.ErrorAs(t, err, &conflict)
 			assert.Equal(t, constant.ErrIdempotencyKey.Error(), conflict.Code)
 
-			span := findSpan(t, recorder, idempotencySpanName)
+			span := spantest.FindSpan(t, recorder, idempotencySpanName)
 			assert.Equal(t, codes.Unset, span.Status().Code)
 
-			event, ok := findEvent(span, tt.wantEvent)
+			event, ok := spantest.FindEvent(span, tt.wantEvent)
 			require.True(t, ok, "conflict must be recorded as a business event")
-			assert.Contains(t, eventText(event), err.Error())
+			assert.Contains(t, spantest.EventText(event), err.Error())
 
 			keyAttr, ok := spanAttribute(span, "app.request.idempotency_key")
 			require.True(t, ok)
@@ -186,7 +187,7 @@ func TestCreateAdditionalBalance_KeyIsASpanAttribute(t *testing.T) {
 		_, err := uc.CreateAdditionalBalance(ctx, organizationID, ledgerID, accountID, &mmodel.CreateAdditionalBalance{Key: "Asset-Freeze"})
 		require.NoError(t, err)
 
-		span := findSpan(t, recorder, additionalBalanceSpanName)
+		span := spantest.FindSpan(t, recorder, additionalBalanceSpanName)
 
 		key, ok := spanAttribute(span, "app.request.balance_key")
 		require.True(t, ok, "span must carry the balance key")
@@ -213,16 +214,16 @@ func TestCreateAdditionalBalance_KeyIsASpanAttribute(t *testing.T) {
 		require.ErrorAs(t, err, &conflict)
 		assert.Equal(t, constant.ErrDuplicatedAliasKeyValue.Error(), conflict.Code)
 
-		span := findSpan(t, recorder, additionalBalanceSpanName)
+		span := spantest.FindSpan(t, recorder, additionalBalanceSpanName)
 		assert.Equal(t, codes.Unset, span.Status().Code)
 
 		key, ok := spanAttribute(span, "app.request.balance_key")
 		require.True(t, ok, "span must carry the balance key on conflict")
 		assert.Equal(t, "duplicate-key", key.AsString())
 
-		event, ok := findEvent(span, "Additional balance already exists")
+		event, ok := spantest.FindEvent(span, "Additional balance already exists")
 		require.True(t, ok, "conflict must be recorded as a business event")
-		assert.Contains(t, eventText(event), err.Error(), "the event must carry the business error")
+		assert.Contains(t, spantest.EventText(event), err.Error(), "the event must carry the business error")
 
 		assert.Empty(t, logger.atLevelOrMoreSevere(libLog.LevelWarn), "a conflict must not be logged at Warn or above")
 	})
