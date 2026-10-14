@@ -373,29 +373,44 @@ func TestIntegrationEngineKeepsTheBlobCopyOnAnEqualVersion(t *testing.T) {
 
 	container := redistestutil.SetupReusableContainer(t)
 
-	t.Run("an earlier release's overdraft change survives, and a newer version is still copied", func(t *testing.T) {
+	t.Run("an earlier release's configuration change survives, and a newer version is still copied", func(t *testing.T) {
 		f := newOverdraftConfigFixture(t, container.Client)
-		f.input.Execution.Balances[0].ConfigVersion = 1
-		primary := f.input.Execution.Balances[0]
-		f.writeBalanceConfig(t, 0, snapshotBalanceConfig(primary, 1))
-		// The earlier release turned the overdraft off in the blob and left the
-		// version label it does not know as it was.
-		changed := primary
-		changed.AllowOverdraft = false
-		f.seed(t, 0, changed)
+		f.input.Execution.Transactions[0].RejectBlockedBalances = true
+		for index := range f.input.Execution.Balances {
+			f.input.Execution.Balances[index].AccountConfigVersion = 1
+		}
+		primary := &f.input.Execution.Balances[0]
+		primary.AllowSending, primary.AllowReceiving, primary.AllowOverdraft = true, true, true
+		primary.OverdraftLimitEnabled, primary.OverdraftLimit, primary.BalanceScope = false, decimal.Zero, "transactional"
+		primary.ConfigVersion = 1
+		f.writeBalanceConfig(t, 0, snapshotBalanceConfig(*primary, 1))
+		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: primary.AccountID, Version: 1, Blocked: false})
+		// The earlier release changed every field of both families in the blobs and
+		// left the version fields it does not know as they were.
+		changed := *primary
+		changed.AllowSending, changed.AllowReceiving, changed.AllowOverdraft = false, false, false
+		changed.OverdraftLimitEnabled, changed.OverdraftLimit, changed.BalanceScope = true, decimal.NewFromInt(50), "internal"
+		changed.Blocked = true
+		f.seedWithCopyVersions(t, 0, changed)
+		companion := f.input.Execution.Balances[1]
+		companion.Blocked = true
+		f.seedWithCopyVersions(t, 1, companion)
+		before := blobConfigCopy(f.blobFields(t, 0))
 
 		raw, err := f.run(t)
-		require.NoError(t, err, "the key at the same version still allows the draw")
+		require.NoError(t, err, "the keys at the same versions allow the draw and do not block the account")
 
 		result := decodeIntegrationResult(t, raw)
 		require.Equal(t, "20", result.Final[0].OverdraftUsed)
+		require.False(t, result.Final[0].Blocked, "the result reports the configuration the execution decided with")
 		fields := f.blobFields(t, 0)
-		requireBlobConfiguration(t, fields, false, "1", "")
+		require.Equal(t, before, blobConfigCopy(fields), "the blob keeps every field and version of both copies")
 		require.Equal(t, strconv.Quote(result.Final[0].Available), string(fields["Available"]), "money moves as usual")
 		require.Equal(t, strconv.Quote(result.Final[0].OverdraftUsed), string(fields["OverdraftUsed"]))
 		require.Equal(t, result.Final[0].Version, string(fields["Version"]))
 
-		// Go reloaded the row at a newer version: the copy follows it.
+		// Go reloaded the balance row at a newer version: that family's copy follows
+		// it, and the account's copy, still at the key's version, stays.
 		f.rotateExecution()
 		f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(1)
 		f.input.Execution.Balances[0].ConfigVersion = 2
@@ -403,19 +418,30 @@ func TestIntegrationEngineKeepsTheBlobCopyOnAnEqualVersion(t *testing.T) {
 
 		_, err = f.run(t)
 		require.NoError(t, err)
-		requireBlobConfiguration(t, f.blobFields(t, 0), true, "2", "")
+		fields = f.blobFields(t, 0)
+		requireBlobConfiguration(t, fields, true, "2", "1")
+		copied, err := balancecache.Decode(mustMarshal(t, fields))
+		require.NoError(t, err)
+		want, got := snapshotBalanceConfig(f.input.Execution.Balances[0], 2), snapshotBalanceConfig(copied, 2)
+		require.True(t, want.Equal(got), "the newer version is copied whole: want %+v, got %+v", want, got)
+		require.Equal(t, "1", string(fields["Blocked"]), "the account's copy at the key's version stays")
 	})
 
 	t.Run("an earlier release's account block survives in every blob of the account", func(t *testing.T) {
 		f := newOverdraftConfigFixture(t, container.Client)
 		f.input.Execution.Transactions[0].RejectBlockedBalances = true
-		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: f.input.Execution.Balances[0].AccountID, Version: 0, Blocked: false})
-		// The earlier release blocked the account in both blobs; neither carries an
-		// account version, so the copies and the key are all at version 0.
+		for index := range f.input.Execution.Balances {
+			f.input.Execution.Balances[index].AccountConfigVersion = 1
+		}
+		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: f.input.Execution.Balances[0].AccountID, Version: 1, Blocked: false})
+		// The earlier release blocked the account in both blobs and left their account
+		// version, the key's, as it was.
+		before := make([]map[string]string, len(f.input.Execution.Balances))
 		for index := range f.input.Execution.Balances {
 			blocked := f.input.Execution.Balances[index]
 			blocked.Blocked = true
-			f.seed(t, index, blocked)
+			f.seedWithCopyVersions(t, index, blocked)
+			before[index] = blobConfigCopy(f.blobFields(t, index))
 		}
 
 		raw, err := f.run(t)
@@ -432,9 +458,8 @@ func TestIntegrationEngineKeepsTheBlobCopyOnAnEqualVersion(t *testing.T) {
 
 		for index, balance := range f.input.Execution.Balances {
 			fields := f.blobFields(t, index)
-			require.Equal(t, "1", string(fields["Blocked"]), "the blob keeps the block the earlier release wrote")
-			require.Equal(t, "true", string(fields["blocked"]))
-			require.NotContains(t, fields, balancecache.BlobAccountConfigVersionField)
+			require.Equal(t, before[index], blobConfigCopy(fields), "the blob keeps the block the earlier release wrote")
+			require.Equal(t, "1", string(fields["Blocked"]))
 			require.Equal(t, strconv.Quote(available[balance.BalanceRef]), string(fields["Available"]), "money moves as usual")
 		}
 	})
