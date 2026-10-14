@@ -545,7 +545,6 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
@@ -649,7 +648,6 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)
