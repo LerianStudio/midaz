@@ -164,6 +164,13 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 					Update(gomock.Any(), "AssetRate", existingID, gomock.Any()).
 					Return(nil).
 					Times(1)
+				// An existing rate updates its metadata document; it never stages a new one.
+				mockMetadataRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any(), gomock.Any()).
+					Times(0)
+				mockAssetRateRepo.EXPECT().
+					Create(gomock.Any(), gomock.Any()).
+					Times(0)
 
 				uc.AssetRateRepo = mockAssetRateRepo
 				uc.TransactionMetadataRepo = mockMetadataRepo
@@ -424,23 +431,31 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 					Return(nil, nil).
 					Times(1)
 
-				mockAssetRateRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
-						return ar, nil
-					}).
-					Times(1)
+				var stagedEntityID string
 
+				// The metadata document is staged with the use case's ID before the
+				// row is inserted under that same ID.
 				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-				mockMetadataRepo.EXPECT().
-					Create(gomock.Any(), "AssetRate", gomock.Any()).
-					DoAndReturn(func(ctx context.Context, entityName string, meta *mongodb.Metadata) error {
-						assert.Equal(t, "AssetRate", entityName)
-						assert.Equal(t, "forex", meta.Data["source"])
-						assert.Equal(t, "high", meta.Data["priority"])
-						return nil
-					}).
-					Times(1)
+				gomock.InOrder(
+					mockMetadataRepo.EXPECT().
+						Create(gomock.Any(), "AssetRate", gomock.Any()).
+						DoAndReturn(func(ctx context.Context, entityName string, meta *mongodb.Metadata) error {
+							assert.Equal(t, "AssetRate", entityName)
+							assert.Equal(t, "forex", meta.Data["source"])
+							assert.Equal(t, "high", meta.Data["priority"])
+							assert.NotEmpty(t, meta.EntityID)
+							stagedEntityID = meta.EntityID
+							return nil
+						}).
+						Times(1),
+					mockAssetRateRepo.EXPECT().
+						Create(gomock.Any(), gomock.Any()).
+						DoAndReturn(func(ctx context.Context, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
+							assert.Equal(t, stagedEntityID, ar.ID)
+							return ar, nil
+						}).
+						Times(1),
+				)
 
 				uc.AssetRateRepo = mockAssetRateRepo
 				uc.TransactionMetadataRepo = mockMetadataRepo
@@ -596,12 +611,10 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 					Return(nil, nil).
 					Times(1)
 
+				// A metadata failure aborts the create before the row is inserted.
 				mockAssetRateRepo.EXPECT().
 					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(ctx context.Context, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
-						return ar, nil
-					}).
-					Times(1)
+					Times(0)
 
 				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 				mockMetadataRepo.EXPECT().
@@ -617,6 +630,62 @@ func TestCreateOrUpdateAssetRate(t *testing.T) {
 				assert.Nil(t, result)
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), "mongodb connection error")
+			},
+		},
+		{
+			name: "create_repository_error_discards_staged_metadata",
+			input: &assetrate.CreateAssetRateInput{
+				From:     "CHF",
+				To:       "EUR",
+				Rate:     104,
+				Scale:    2,
+				TTL:      libPointers.Int(3600),
+				Metadata: map[string]any{"region": "europe"},
+			},
+			setupMocks: func(ctrl *gomock.Controller, uc *UseCase) {
+				mockAssetRateRepo := assetrate.NewMockRepository(ctrl)
+				mockAssetRateRepo.EXPECT().
+					FindByCurrencyPair(gomock.Any(), orgID, ledgerID, "CHF", "EUR").
+					Return(nil, nil).
+					Times(1)
+
+				var stagedEntityID string
+
+				// A failed insert purges the document staged under the same ID.
+				mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+				gomock.InOrder(
+					mockMetadataRepo.EXPECT().
+						Create(gomock.Any(), "AssetRate", gomock.Any()).
+						DoAndReturn(func(ctx context.Context, _ string, meta *mongodb.Metadata) error {
+							stagedEntityID = meta.EntityID
+							return nil
+						}).
+						Times(1),
+					mockAssetRateRepo.EXPECT().
+						Create(gomock.Any(), gomock.Any()).
+						DoAndReturn(func(ctx context.Context, ar *assetrate.AssetRate) (*assetrate.AssetRate, error) {
+							assert.Equal(t, stagedEntityID, ar.ID)
+							return nil, errors.New("create failed: duplicate key")
+						}).
+						Times(1),
+					mockMetadataRepo.EXPECT().
+						Purge(gomock.Any(), "AssetRate", gomock.Any()).
+						DoAndReturn(func(ctx context.Context, _, id string) error {
+							assert.NotEmpty(t, id)
+							assert.Equal(t, stagedEntityID, id)
+							return nil
+						}).
+						Times(1),
+				)
+
+				uc.AssetRateRepo = mockAssetRateRepo
+				uc.TransactionMetadataRepo = mockMetadataRepo
+			},
+			expectedError: true,
+			validateResult: func(t *testing.T, result *assetrate.AssetRate, err error) {
+				assert.Nil(t, result)
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "create failed")
 			},
 		},
 	}

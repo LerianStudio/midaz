@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -83,8 +82,16 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID uu
 	transactionRoute.OperationRoutes = operationRoutes
 	transactionRoute.OptionalOperationRouteIDs = optionalIDs
 
+	metadata, err := uc.CreateTransactionMetadata(ctx, constant.EntityTransactionRoute, transactionRoute.ID.String(), payload.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create transaction route metadata", err)
+
+		return nil, err
+	}
+
 	createdTransactionRoute, err := uc.TransactionRouteRepo.Create(ctx, organizationID, ledgerID, transactionRoute)
 	if err != nil {
+		uc.discardStagedTransactionMetadata(ctx, span, logger, constant.EntityTransactionRoute, transactionRoute.ID.String(), payload.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create transaction route", err)
 
 		return nil, err
@@ -98,23 +105,7 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID uu
 
 	uc.emitTransactionRouteCreatedEvent(ctx, span, logger, createdTransactionRoute)
 
-	if len(payload.Metadata) > 0 {
-		meta := mongodb.Metadata{
-			EntityID:   createdTransactionRoute.ID.String(),
-			EntityName: constant.EntityTransactionRoute,
-			Data:       payload.Metadata,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-
-		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityTransactionRoute, &meta); err != nil {
-			recordCommandError(ctx, span, logger, "Failed to create transaction route metadata", err)
-
-			return nil, err
-		}
-
-		createdTransactionRoute.Metadata = payload.Metadata
-	}
+	createdTransactionRoute.Metadata = metadata
 
 	return createdTransactionRoute, nil
 }
@@ -126,9 +117,9 @@ func (uc *UseCase) CreateTransactionRoute(ctx context.Context, organizationID uu
 // the persisted database mutation; this helper does not make broker delivery transactional.
 //
 // Anchor: invoked immediately after TransactionRouteRepo.Create
-// succeeds and before the metadata-write call in
-// CreateTransactionRoute, so a downstream Mongo failure cannot mask
-// the event.
+// succeeds. CreateTransactionRoute writes the metadata document before
+// the insert, so the event is emitted only for a route whose insert
+// committed, and a failed insert emits nothing.
 //
 // Caller invariant: tr.OperationRoutes must reflect the post-commit
 // link set (the use case hydrated this slice from FindByIDs and the

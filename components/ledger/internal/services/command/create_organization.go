@@ -54,9 +54,17 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		}
 	}
 
+	organizationID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to generate organization ID", err)
+
+		return nil, err
+	}
+
 	now := time.Now()
 
 	organization := &mmodel.Organization{
+		ID:                   organizationID.String(),
 		ParentOrganizationID: coi.ParentOrganizationID,
 		LegalName:            coi.LegalName,
 		DoingBusinessAs:      coi.DoingBusinessAs,
@@ -67,25 +75,24 @@ func (uc *UseCase) CreateOrganization(ctx context.Context, coi *mmodel.CreateOrg
 		UpdatedAt:            now,
 	}
 
+	// Metadata is staged before the insert: a metadata failure leaves nothing in PostgreSQL,
+	// and an insert failure discards the staged document.
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityOrganization, organization.ID, coi.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create organization metadata", err, libLog.String("organizationId", organization.ID))
+
+		return nil, err
+	}
+
 	org, err := uc.OrganizationRepo.Create(ctx, organization)
 	if err != nil {
+		uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntityOrganization, organization.ID, coi.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create organization on repository", err)
 
 		return nil, err
 	}
 
 	uc.emitOrganizationCreatedEvent(ctx, span, logger, org)
-
-	// NOTE: The organization is already persisted at this point. If metadata creation
-	// fails, the org exists in PostgreSQL without its metadata in MongoDB. This is a
-	// known consistency gap that affects all entity creates. A proper fix requires
-	// either a cross-store transaction or an async metadata creation with retries.
-	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityOrganization, org.ID, coi.Metadata)
-	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create organization metadata", err, libLog.String("organizationId", org.ID))
-
-		return nil, err
-	}
 
 	org.Metadata = metadata
 
