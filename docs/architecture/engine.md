@@ -772,7 +772,10 @@ other content under the version it writes, and it compares the configuration
 each balance was loaded with (the blob's copy, or the rows on a cache miss) with
 the one it resolved, logging at Warn and counting in
 `config_copy_divergent_total` (label `family`: `balance` or `account`) every
-copy with the same version and other content.
+copy with the same version and other content. A configuration PATCH counts the
+copies it confirmed or attempted in the blobs in `config_blob_copy_total`
+(labels `family` and `outcome`: `written`, `already_current`, `blob_absent`,
+`of_another_balance`, `conflict` or `failed`).
 
 A noncanonical overdraft limit in the blob requests the precommit repair only
 when the blob's own copy decides the configuration; a limit from the key or the

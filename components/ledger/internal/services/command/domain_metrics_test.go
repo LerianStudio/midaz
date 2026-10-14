@@ -20,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // newReaderFactory builds a real MetricsFactory backed by a manual reader so the
@@ -64,6 +65,37 @@ func collectDomainCounters(t *testing.T, reader *sdkmetric.ManualReader) map[str
 				res, _ := dp.Attributes.Value("result")
 				key := comp.AsString() + "/" + op.AsString() + "/" + res.AsString()
 				totals[key] = dp.Value
+			}
+		}
+	}
+
+	return totals
+}
+
+// collectBlobCopyCounters returns a map of "family/outcome" -> value for the
+// configuration blob copy counter.
+func collectBlobCopyCounters(t *testing.T, reader *sdkmetric.ManualReader) map[string]int64 {
+	t.Helper()
+
+	var rm metricdata.ResourceMetrics
+
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	totals := make(map[string]int64)
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != utils.ConfigBlobCopy.Name {
+				continue
+			}
+
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok, "data type must be Sum[int64], got %T", m.Data)
+
+			for _, dp := range sum.DataPoints {
+				family, _ := dp.Attributes.Value("family")
+				outcome, _ := dp.Attributes.Value("outcome")
+				totals[family.AsString()+"/"+outcome.AsString()] += dp.Value
 			}
 		}
 	}

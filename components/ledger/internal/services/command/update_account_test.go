@@ -384,6 +384,8 @@ func TestUpdateAccount_BlockedConfigurationWrite(t *testing.T) {
 		defer ctrl.Finish()
 
 		uc, mockAccountRepo, mockBalanceRepo, mockRedisRepo, mockMetadataRepo := newMocks(ctrl)
+		reader, factory := newReaderFactory(t)
+		uc.MetricsFactory = factory
 
 		expectFindAndUpdate(mockAccountRepo, boolPtr(true))
 		expectMetadata(mockMetadataRepo)
@@ -407,6 +409,7 @@ func TestUpdateAccount_BlockedConfigurationWrite(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Equal(t, accounting.AccountConfig{AccountID: accountID, Version: 2, Blocked: true}, *written)
+		assert.Equal(t, map[string]int64{"account/written": 2}, collectBlobCopyCounters(t, reader), "one outcome per blob")
 	})
 
 	t.Run("patch without blocked performs zero cache work", func(t *testing.T) {
@@ -427,22 +430,26 @@ func TestUpdateAccount_BlockedConfigurationWrite(t *testing.T) {
 
 	errRedis := errors.New("redis unavailable")
 
+	// counted is what the blob copy counter records, by family/outcome.
 	for _, tc := range []struct {
 		name     string
 		writeErr error
 		outcome  txRedis.BlobCopyOutcome
 		copyErr  error
 		wantErr  error
+		counted  map[string]int64
 	}{
-		{name: "account key write failure", writeErr: errRedis, wantErr: errRedis},
-		{name: "blob copy failure", copyErr: errRedis, wantErr: errRedis},
-		{name: "blob copy left unconfirmed", outcome: txRedis.BlobCopyConflict, wantErr: errConfigurationCopyNotConfirmed},
+		{name: "account key write failure", writeErr: errRedis, wantErr: errRedis, counted: map[string]int64{}},
+		{name: "blob copy failure", copyErr: errRedis, wantErr: errRedis, counted: map[string]int64{"account/failed": 1}},
+		{name: "blob copy left unconfirmed", outcome: txRedis.BlobCopyConflict, wantErr: errConfigurationCopyNotConfirmed, counted: map[string]int64{"account/conflict": 1}},
 	} {
 		t.Run(tc.name+" fails closed and returns the error", func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
 			uc, mockAccountRepo, mockBalanceRepo, mockRedisRepo, mockMetadataRepo := newMocks(ctrl)
+			reader, factory := newReaderFactory(t)
+			uc.MetricsFactory = factory
 
 			expectFindAndUpdate(mockAccountRepo, boolPtr(false))
 			expectMetadata(mockMetadataRepo)
@@ -457,9 +464,15 @@ func TestUpdateAccount_BlockedConfigurationWrite(t *testing.T) {
 					ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 					Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: "@acc", Key: "default"}}, nil).
 					Times(1)
+				// A failed copy reports no outcome for the blob it failed on.
+				outcomes := map[string]txRedis.BlobCopyOutcome{}
+				if tc.copyErr == nil {
+					outcomes["@acc#default"] = tc.outcome
+				}
+
 				mockRedisRepo.EXPECT().
 					CopyAccountConfigToBlobs(gomock.Any(), organizationID, ledgerID, []string{"@acc#default"}, gomock.Any()).
-					Return(map[string]txRedis.BlobCopyOutcome{"@acc#default": tc.outcome}, tc.copyErr).
+					Return(outcomes, tc.copyErr).
 					Times(1)
 			}
 
@@ -469,6 +482,7 @@ func TestUpdateAccount_BlockedConfigurationWrite(t *testing.T) {
 			assert.ErrorIs(t, err, tc.wantErr)
 			assert.False(t, pkg.IsBusinessError(err), "a cache failure is a technical error")
 			assert.Nil(t, result)
+			assert.Equal(t, tc.counted, collectBlobCopyCounters(t, reader))
 		})
 	}
 

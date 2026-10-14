@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -221,6 +222,16 @@ func (uc *UseCase) writeAccountConfiguration(ctx context.Context, span trace.Spa
 	}
 
 	outcomes, err := uc.TransactionRedisRepo.CopyAccountConfigToBlobs(ctx, organizationID, ledgerID, refs, config)
+
+	// The blobs handled before an error keep their outcomes; the error is one copy
+	// that failed.
+	failed := 0
+	if err != nil {
+		failed = 1
+	}
+
+	uc.recordConfigBlobCopies(ctx, logger, configCopyFamilyAccount, slices.Collect(maps.Values(outcomes)), failed)
+
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to copy the account configuration to the balance cache", err,
 			libLog.String("account_id", config.AccountID.String()))

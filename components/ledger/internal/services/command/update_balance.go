@@ -21,6 +21,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -271,12 +272,14 @@ func (uc *UseCase) writeBalanceConfiguration(ctx context.Context, span trace.Spa
 
 	outcome, err := uc.TransactionRedisRepo.CopyBalanceConfigToBlob(ctx, organizationID, ledgerID, ref, config)
 	if err != nil {
+		uc.recordConfigBlobCopies(ctx, logger, configCopyFamilyBalance, nil, 1)
 		recordCommandError(ctx, span, logger, "Failed to copy the balance configuration to the balance cache", err,
 			libLog.String("balance_ref", ref), libLog.Any("config_version", config.Version))
 
 		return err
 	}
 
+	uc.recordConfigBlobCopies(ctx, logger, configCopyFamilyBalance, []redis.BlobCopyOutcome{outcome}, 0)
 	span.SetAttributes(attribute.String("app.balance_config.blob_copy", outcome.String()))
 
 	if !outcome.Confirmed() {

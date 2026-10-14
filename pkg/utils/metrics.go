@@ -210,6 +210,17 @@ var (
 		Description: "Total balance and account configuration copies found with other content under the version the engine decides with.",
 	}
 
+	// ConfigBlobCopy counts the configuration copies a balance or account PATCH
+	// confirmed or attempted in the balance blobs, by family (balance|account) and
+	// outcome (written|already_current|blob_absent|of_another_balance|conflict|failed).
+	// conflict is a copy that kept losing its compare-and-set and failed the PATCH;
+	// failed is a Redis or blob error. Both answer the PATCH with a technical error.
+	ConfigBlobCopy = metrics.Metric{
+		Name:        "config_blob_copy_total",
+		Unit:        "1",
+		Description: "Total configuration copies a PATCH confirmed or attempted in the balance blobs, by outcome.",
+	}
+
 	// BalanceReconcilerDivergences is how many balances the last reconciler pass
 	// found diverging from the head of their operation trail, by tenant_id (empty
 	// in single-tenant) and direction (balance_ahead|trail_ahead|value_mismatch).

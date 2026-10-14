@@ -351,20 +351,22 @@ func TestUpdateBalance_ConfigurationWrite_FailsClosed(t *testing.T) {
 		"settings":    {Settings: &mmodel.BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: strPtr("10")}},
 	}
 
+	// counted is the outcome the blob copy counter records, empty when no copy ran.
 	cases := []struct {
 		name        string
 		writeErr    error
 		copyOutcome redis.BlobCopyOutcome
 		copyErr     error
 		wantErr     error
+		counted     string
 	}{
 		{name: "key write fails", writeErr: errRedis, wantErr: errRedis},
-		{name: "blob copy fails", copyErr: errRedis, wantErr: errRedis},
-		{name: "blob copy unconfirmed", copyOutcome: redis.BlobCopyConflict, wantErr: errConfigurationCopyNotConfirmed},
-		{name: "blob copy written", copyOutcome: redis.BlobCopyWritten},
-		{name: "blob already current", copyOutcome: redis.BlobCopyAlreadyCurrent},
-		{name: "blob absent", copyOutcome: redis.BlobCopyBlobAbsent},
-		{name: "blob of another balance", copyOutcome: redis.BlobCopyOfAnotherBalance},
+		{name: "blob copy fails", copyErr: errRedis, wantErr: errRedis, counted: "failed"},
+		{name: "blob copy unconfirmed", copyOutcome: redis.BlobCopyConflict, wantErr: errConfigurationCopyNotConfirmed, counted: "conflict"},
+		{name: "blob copy written", copyOutcome: redis.BlobCopyWritten, counted: "written"},
+		{name: "blob already current", copyOutcome: redis.BlobCopyAlreadyCurrent, counted: "already_current"},
+		{name: "blob absent", copyOutcome: redis.BlobCopyBlobAbsent, counted: "blob_absent"},
+		{name: "blob of another balance", copyOutcome: redis.BlobCopyOfAnotherBalance, counted: "of_another_balance"},
 	}
 
 	for payloadName, update := range payloads {
@@ -408,9 +410,17 @@ func TestUpdateBalance_ConfigurationWrite_FailsClosed(t *testing.T) {
 
 				mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).Times(overlayCalls)
 
-				uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo}
+				reader, factory := newReaderFactory(t)
+				uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo, MetricsFactory: factory}
 
 				result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, update)
+
+				wantCounts := map[string]int64{}
+				if tc.counted != "" {
+					wantCounts["balance/"+tc.counted] = 1
+				}
+
+				assert.Equal(t, wantCounts, collectBlobCopyCounters(t, reader))
 
 				if tc.wantErr == nil {
 					require.NoError(t, err)
