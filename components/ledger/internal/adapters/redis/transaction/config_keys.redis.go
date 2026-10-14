@@ -63,8 +63,8 @@ type BlobCopyOutcome int
 const (
 	// BlobCopyWritten means the copy and its version were written.
 	BlobCopyWritten BlobCopyOutcome = iota + 1
-	// BlobCopyAlreadyCurrent means the blob already held a copy of that version or
-	// a newer one; nothing was written.
+	// BlobCopyAlreadyCurrent means the blob already held a newer copy, or a copy of
+	// that version with the same content; nothing was written.
 	BlobCopyAlreadyCurrent
 	// BlobCopyBlobAbsent means there is no blob to copy into: the next load seeds it
 	// from PostgreSQL.
@@ -341,7 +341,8 @@ func (rr *RedisConsumerRepository) writeConfigKey(ctx context.Context, key strin
 
 // CopyBalanceConfigToBlob makes the balance blob (alias#key) hold a complete copy
 // of config, for releases that read the configuration from the blob. It writes
-// only when the blob's copy is older, through a compare-and-set on the exact bytes
+// only when the blob's copy is older, or of the same version with other content
+// (see balancecache.CopyBalanceConfig), through a compare-and-set on the exact bytes
 // it read: if anything changed the blob in between — a transaction moving money,
 // most of all — the write is refused and the blob is read again, so a newer money
 // state is never overwritten. Money bytes are carried over unchanged; see
@@ -373,9 +374,10 @@ func (rr *RedisConsumerRepository) CopyBalanceConfigToBlob(ctx context.Context, 
 
 // CopyAccountConfigToBlobs makes every blob of the account's balances (alias#key)
 // hold the account's blocked flag at config's version. The blobs are read in one
-// MGET and only the ones holding an older copy are written, each through the same
-// exact-bytes compare-and-set as CopyBalanceConfigToBlob. The first error stops
-// the copy; the outcomes of the blobs already handled are returned with it.
+// MGET and only the ones holding an older or a divergent copy are written, each
+// through the same exact-bytes compare-and-set as CopyBalanceConfigToBlob. The
+// first error stops the copy; the outcomes of the blobs already handled are
+// returned with it.
 func (rr *RedisConsumerRepository) CopyAccountConfigToBlobs(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string, config accounting.AccountConfig) (map[string]BlobCopyOutcome, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

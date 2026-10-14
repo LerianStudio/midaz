@@ -227,14 +227,88 @@ func TestCopyBalanceConfig_WritesTheWholeFamilyAndKeepsEveryOtherByte(t *testing
 	assert.Equal(t, mmodel.BalanceScopeInternal, snapshot.BalanceScope)
 }
 
+// An older configuration never replaces a newer copy, even when their contents
+// differ: the blob holds version 4 and the configuration is version 3.
 func TestCopyBalanceConfig_NeverMovesTheBlobBack(t *testing.T) {
 	t.Parallel()
 
-	for _, version := range []int64{3, 4} {
-		replacement, current, err := CopyBalanceConfig([]byte(dualBlobV4), copiedBalanceConfig(version))
-		require.NoError(t, err)
-		assert.True(t, current, "a blob holding version 4 is current for version %d", version)
-		assert.Nil(t, replacement)
+	replacement, current, err := CopyBalanceConfig([]byte(dualBlobV4), copiedBalanceConfig(3))
+	require.NoError(t, err)
+	assert.True(t, current, "a blob holding version 4 is current for version 3")
+	assert.Nil(t, replacement)
+}
+
+// dualBlobV4Config is the balance configuration dualBlobV4 holds at its copy version.
+func dualBlobV4Config() accounting.BalanceConfig {
+	return accounting.BalanceConfig{
+		BalanceID:      uuid.MustParse(configBalanceID),
+		Version:        4,
+		AllowSending:   true,
+		AllowReceiving: true,
+		OverdraftLimit: decimal.Zero,
+		BalanceScope:   mmodel.BalanceScopeTransactional,
+	}
+}
+
+// A copy of the same version that already reads as the configuration is a pure
+// read: a PATCH repeating the same value never writes the blob.
+func TestCopyBalanceConfig_SameVersionAndContentIsCurrent(t *testing.T) {
+	t.Parallel()
+
+	replacement, current, err := CopyBalanceConfig([]byte(dualBlobV4), dualBlobV4Config())
+	require.NoError(t, err)
+	assert.True(t, current)
+	assert.Nil(t, replacement)
+
+	limitWithOtherDigits := rawFields(t, []byte(dualBlobV4))
+	limitWithOtherDigits["OverdraftLimit"] = json.RawMessage(`"0.00"`)
+
+	_, current, err = CopyBalanceConfig(encodeRawObject(limitWithOtherDigits), dualBlobV4Config())
+	require.NoError(t, err)
+	assert.True(t, current, "a limit is compared by value, not by its digits")
+}
+
+// A blob whose copy carries the configuration's version but other content diverged
+// before versions existed (every row starts at version 0): the copy heals it, so a
+// release reading the blob obeys the committed configuration.
+func TestCopyBalanceConfig_SameVersionWithOtherContentIsHealed(t *testing.T) {
+	t.Parallel()
+
+	diverged := map[string]func(map[string]json.RawMessage){
+		"uppercase flag": func(f map[string]json.RawMessage) { f["AllowOverdraft"] = json.RawMessage(`1`) },
+		"lowercase flag": func(f map[string]json.RawMessage) { f["allowSending"] = json.RawMessage(`false`) },
+		"limit":          func(f map[string]json.RawMessage) { f["overdraftLimit"] = json.RawMessage(`"10"`) },
+		"scope":          func(f map[string]json.RawMessage) { f["BalanceScope"] = json.RawMessage(`"internal"`) },
+		"missing family field": func(f map[string]json.RawMessage) {
+			delete(f, "OverdraftLimitEnabled")
+			delete(f, "overdraftLimitEnabled")
+		},
+	}
+
+	for name, diverge := range diverged {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			fields := rawFields(t, []byte(dualBlobV4))
+			diverge(fields)
+			blob := encodeRawObject(fields)
+
+			replacement, current, err := CopyBalanceConfig(blob, dualBlobV4Config())
+			require.NoError(t, err)
+			require.False(t, current)
+
+			requireUntouched(t, blob, replacement, balanceFamily, BlobBalanceConfigVersionField)
+
+			healed := rawFields(t, replacement)
+			original := rawFields(t, []byte(dualBlobV4))
+
+			for _, field := range balanceFamily {
+				assert.Equal(t, string(original[field]), string(healed[field]), field)
+				assert.Equal(t, string(original[lowerName(field)]), string(healed[lowerName(field)]), lowerName(field))
+			}
+
+			assert.Equal(t, `"4"`, string(healed[BlobBalanceConfigVersionField]))
+		})
 	}
 }
 
@@ -325,10 +399,22 @@ func TestCopyAccountConfig_WritesBlockedAndKeepsEveryOtherByte(t *testing.T) {
 	assert.Equal(t, `"8"`, string(fields[BlobAccountConfigVersionField]))
 	assert.Equal(t, `"4"`, string(fields[BlobBalanceConfigVersionField]), "the balance family is not touched")
 
-	config.Version = 7
+	config.Version = 6
 	_, current, err = CopyAccountConfig([]byte(dualBlobV4), config)
 	require.NoError(t, err)
-	assert.True(t, current)
+	assert.True(t, current, "an older version never replaces the copy")
+
+	config.Version, config.Blocked = 7, true
+	_, current, err = CopyAccountConfig([]byte(dualBlobV4), config)
+	require.NoError(t, err)
+	assert.True(t, current, "the same version and content is a pure read")
+
+	config.Blocked = false
+	replacement, current, err = CopyAccountConfig([]byte(dualBlobV4), config)
+	require.NoError(t, err)
+	require.False(t, current, "the same version with other content is healed")
+	assert.Equal(t, `0`, string(rawFields(t, replacement)["Blocked"]))
+	assert.Equal(t, `"7"`, string(rawFields(t, replacement)[BlobAccountConfigVersionField]))
 
 	config.AccountID = uuid.MustParse("00000000-0000-0000-0000-0000000000f3")
 	config.Version = 9

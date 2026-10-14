@@ -9,6 +9,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -414,6 +415,77 @@ func TestIntegration_ConfigCopy_WritesFamilyAndVersionTogether(t *testing.T) {
 	} {
 		assert.Equal(t, want, string(after[name]), name)
 	}
+}
+
+// commandNamesHook records the name of every command the repository sends.
+type commandNamesHook struct {
+	mu    sync.Mutex
+	names []string
+}
+
+func (h *commandNamesHook) DialHook(next redisclient.DialHook) redisclient.DialHook { return next }
+
+func (h *commandNamesHook) ProcessHook(next redisclient.ProcessHook) redisclient.ProcessHook {
+	return func(ctx context.Context, cmd redisclient.Cmder) error {
+		h.mu.Lock()
+		h.names = append(h.names, cmd.Name())
+		h.mu.Unlock()
+
+		return next(ctx, cmd)
+	}
+}
+
+func (h *commandNamesHook) ProcessPipelineHook(next redisclient.ProcessPipelineHook) redisclient.ProcessPipelineHook {
+	return next
+}
+
+func (h *commandNamesHook) sent() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return append([]string(nil), h.names...)
+}
+
+// A PATCH repeating the configuration finds the copy of its version already
+// holding it: one read, no write, the blob and its expiry untouched.
+func TestIntegration_ConfigCopy_SameVersionAndContentOnlyReads(t *testing.T) {
+	infra := setupRedisIntegrationInfra(t)
+	scope := newConfigKeyScope()
+	balanceID := uuid.New()
+	blob := configCopyBlob(balanceID, uuid.New(), "50", 3, "4")
+
+	require.NoError(t, infra.redisContainer.Client.Set(t.Context(), scope.blobKey(), blob, 30*time.Minute).Err())
+
+	hook := &commandNamesHook{}
+	repo := newHookedConfigRepository(t, infra, hook)
+
+	outcome, err := repo.CopyBalanceConfigToBlob(t.Context(), scope.orgID, scope.ledgerID, scope.ref, balanceConfigAt(balanceID, 4, false))
+	require.NoError(t, err)
+	assert.Equal(t, BlobCopyAlreadyCurrent, outcome)
+	assert.Equal(t, []string{"get"}, hook.sent(), "the copy must only read the blob")
+	assert.Equal(t, blob, storedBlob(t, infra, scope.blobKey()))
+	assert.LessOrEqual(t, remainingTTL(t, infra, scope.blobKey()), 30*time.Minute, "the blob expiry must not be renewed")
+}
+
+// A blob that diverged under the same version (every row starts at version 0, so a
+// blob that diverged before versions existed carries the row's version) is healed.
+func TestIntegration_ConfigCopy_SameVersionWithOtherContentIsHealed(t *testing.T) {
+	infra := setupRedisIntegrationInfra(t)
+	scope := newConfigKeyScope()
+	balanceID := uuid.New()
+	diverged := configCopyBlob(balanceID, uuid.New(), "50", 3, "")
+
+	require.NoError(t, infra.redisContainer.Client.Set(t.Context(), scope.blobKey(), diverged, time.Hour).Err())
+
+	outcome, err := infra.repo.CopyBalanceConfigToBlob(t.Context(), scope.orgID, scope.ledgerID, scope.ref, balanceConfigAt(balanceID, 0, true))
+	require.NoError(t, err)
+	assert.Equal(t, BlobCopyWritten, outcome)
+
+	after := blobFields(t, storedBlob(t, infra, scope.blobKey()))
+	assert.Equal(t, `1`, string(after["AllowOverdraft"]))
+	assert.Equal(t, `true`, string(after["allowOverdraft"]))
+	assert.Equal(t, `"0"`, string(after["balanceConfigVersion"]))
+	assert.Equal(t, `50`, string(after["Available"]), "money keeps its exact bytes")
 }
 
 // Copies of two PATCHes can land out of order. The later one to arrive carries

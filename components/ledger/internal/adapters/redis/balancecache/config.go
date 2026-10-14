@@ -45,8 +45,10 @@ package balancecache
 // both configuration families plus their versions in two fields of its own,
 // BlobBalanceConfigVersionField and BlobAccountConfigVersionField (decimal strings;
 // absent reads as 0, which previous releases neither read nor drop). A copy replaces
-// one whole family and its version together, and only when the blob's version of that
-// family is lower; it never touches money, identity or the other family.
+// one whole family and its version together when the blob's version of that family
+// is lower, or equal while the family's content differs (a blob that diverged before
+// versions existed starts at version 0 like its row); it never writes over a higher
+// version and never touches money, identity or the other family.
 //
 // Versions in shared types. accounting.BalanceSnapshot carries ConfigVersion and
 // AccountConfigVersion, and mmodel.Balance and mmodel.Account carry ConfigVersion,
@@ -329,9 +331,10 @@ func parseConfigVersion(text string) (int64, error) {
 // CopyBalanceConfig returns the blob with the balance configuration family replaced
 // by config and BlobBalanceConfigVersionField set to config.Version.
 //
-// current is true, and nothing is returned to write, when the blob already holds a
-// copy of that version or a newer one: a copy never moves the blob back. The blob
-// must belong to config.BalanceID.
+// current is true, and nothing is returned to write, when the blob holds a newer
+// copy, or a copy of that version that already reads as config: a copy never moves
+// the blob back, and repeating a configuration never writes. A copy of that version
+// with other content is replaced. The blob must belong to config.BalanceID.
 //
 // Every other field passes through byte for byte: money (Available, OnHold,
 // OverdraftUsed, Version, in whatever legacy, dual or new-only representation it
@@ -362,7 +365,7 @@ func CopyBalanceConfig(raw []byte, config accounting.BalanceConfig) (replacement
 		return nil, false, err
 	}
 
-	if copied >= config.Version {
+	if copied > config.Version || copied == config.Version && blobHoldsBalanceConfig(fields, config) {
 		return nil, true, nil
 	}
 
@@ -415,7 +418,7 @@ func CopyAccountConfig(raw []byte, config accounting.AccountConfig) (replacement
 		return nil, false, err
 	}
 
-	if copied >= config.Version {
+	if copied > config.Version || copied == config.Version && blobFlagHolds(fields, "Blocked", config.Blocked) {
 		return nil, true, nil
 	}
 
@@ -423,6 +426,97 @@ func CopyAccountConfig(raw []byte, config accounting.AccountConfig) (replacement
 	fields[BlobAccountConfigVersionField] = configVersionJSON(config.Version)
 
 	return encodeRawObject(fields), false, nil
+}
+
+// blobHoldsBalanceConfig reports whether every representation the blob carries of
+// the balance configuration family already reads as config. A family field the blob
+// lacks does not hold it, so the copy writes it.
+func blobHoldsBalanceConfig(fields map[string]json.RawMessage, config accounting.BalanceConfig) bool {
+	return blobFlagHolds(fields, "AllowSending", config.AllowSending) &&
+		blobFlagHolds(fields, "AllowReceiving", config.AllowReceiving) &&
+		blobFlagHolds(fields, "AllowOverdraft", config.AllowOverdraft) &&
+		blobFlagHolds(fields, "OverdraftLimitEnabled", config.OverdraftLimitEnabled) &&
+		blobLimitHolds(fields, "OverdraftLimit", config.OverdraftLimit) &&
+		blobTextHolds(fields, "BalanceScope", config.BalanceScope)
+}
+
+// blobRepresentations returns the values of every representation of a field the
+// blob carries: uppercase, lowercase, or both.
+func blobRepresentations(fields map[string]json.RawMessage, name string) []json.RawMessage {
+	values := make([]json.RawMessage, 0, 2)
+
+	if raw, exists := fields[name]; exists {
+		values = append(values, raw)
+	}
+
+	if raw, exists := fields[lowerName(name)]; exists {
+		values = append(values, raw)
+	}
+
+	return values
+}
+
+// blobFlagHolds accepts the numeric and the boolean forms in any representation.
+func blobFlagHolds(fields map[string]json.RawMessage, name string, want bool) bool {
+	values := blobRepresentations(fields, name)
+	if len(values) == 0 {
+		return false
+	}
+
+	for _, raw := range values {
+		switch string(raw) {
+		case "1", "true":
+			if !want {
+				return false
+			}
+		case "0", "false":
+			if want {
+				return false
+			}
+		default:
+			return false
+		}
+	}
+
+	return true
+}
+
+// blobLimitHolds compares by value, so a limit written with other digits holds.
+func blobLimitHolds(fields map[string]json.RawMessage, name string, want decimal.Decimal) bool {
+	values := blobRepresentations(fields, name)
+	if len(values) == 0 {
+		return false
+	}
+
+	for _, raw := range values {
+		text, valid := moneyText(raw, true)
+		if !valid {
+			return false
+		}
+
+		limit, err := decimal.NewFromString(text)
+		if err != nil || !limit.Equal(want) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func blobTextHolds(fields map[string]json.RawMessage, name, want string) bool {
+	values := blobRepresentations(fields, name)
+	if len(values) == 0 {
+		return false
+	}
+
+	for _, raw := range values {
+		var text string
+		if json.Unmarshal(raw, &text) != nil || text != want {
+			return false
+		}
+	}
+
+	return true
 }
 
 // BlobConfigVersions reads the versions of the two configuration copies a blob
