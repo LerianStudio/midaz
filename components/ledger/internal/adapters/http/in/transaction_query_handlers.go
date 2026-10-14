@@ -43,7 +43,7 @@ func (handler *TransactionHandler) getAllTransactions(ctx context.Context, organ
 	if headerParams.Metadata != nil {
 		trans, cur, err := handler.Query.GetAllMetadataTransactions(ctx, organizationID, ledgerID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Transactions by metadata", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all Transactions by metadata", err)
 
 			return http.Pagination{}, err
 		}
@@ -58,7 +58,7 @@ func (handler *TransactionHandler) getAllTransactions(ctx context.Context, organ
 
 	trans, cur, err := handler.Query.GetAllTransactions(ctx, organizationID, ledgerID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Transactions", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all Transactions", err)
 
 		return http.Pagination{}, err
 	}

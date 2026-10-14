@@ -30,12 +30,15 @@ func TestGetAllAccountsByHolder(t *testing.T) {
 
 	filter := http.QueryHeader{Limit: 10, Page: 1, SortOrder: "asc"}
 
+	errMongoDown := errors.New("mongo down")
+
 	tests := []struct {
 		name             string
 		ledgerID         *uuid.UUID
 		setupMocks       func(*account.MockRepository, *mongodb.MockRepository)
 		expectedErrCode  string
 		expectedErrText  string
+		technicalErr     error
 		expectedAccounts []*mmodel.Account
 	}{
 		{
@@ -109,7 +112,7 @@ func TestGetAllAccountsByHolder(t *testing.T) {
 			expectedErrText: "connection refused",
 		},
 		{
-			name:     "metadata failure becomes ErrNoAccountsFound",
+			name:     "metadata failure is returned as a technical error",
 			ledgerID: nil,
 			setupMocks: func(accounts *account.MockRepository, metadata *mongodb.MockRepository) {
 				accounts.EXPECT().
@@ -119,10 +122,10 @@ func TestGetAllAccountsByHolder(t *testing.T) {
 
 				metadata.EXPECT().
 					FindByEntityIDs(gomock.Any(), constant.EntityAccount, []string{"acc1"}).
-					Return(nil, errors.New("mongo down")).
+					Return(nil, errMongoDown).
 					Times(1)
 			},
-			expectedErrCode: constant.ErrNoAccountsFound.Error(),
+			technicalErr: errMongoDown,
 		},
 	}
 
@@ -146,6 +149,17 @@ func TestGetAllAccountsByHolder(t *testing.T) {
 				var notFound pkg.EntityNotFoundError
 				require.ErrorAs(t, err, &notFound)
 				assert.Equal(t, tt.expectedErrCode, notFound.Code)
+				assert.Nil(t, got)
+
+				return
+			}
+
+			if tt.technicalErr != nil {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.technicalErr)
+
+				var nf pkg.EntityNotFoundError
+				assert.False(t, errors.As(err, &nf))
 				assert.Nil(t, got)
 
 				return

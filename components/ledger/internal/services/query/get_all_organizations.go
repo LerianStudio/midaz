@@ -10,7 +10,6 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -55,9 +54,7 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntityOrganization, organizationIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, constant.EntityOrganization)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get organization metadata on repo", err)
 
 		return nil, err
 	}

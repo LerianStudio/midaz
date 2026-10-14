@@ -6,6 +6,7 @@ package in
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -379,7 +380,7 @@ func TestGetAllOperationsByAccount_MetadataFilter_Success(t *testing.T) {
 	assert.Contains(t, first, "metadata")
 }
 
-func TestGetAllOperationsByAccount_MetadataFilter_NotFound(t *testing.T) {
+func TestGetAllOperationsByAccount_MetadataFilter_NoMatch(t *testing.T) {
 	// NOT parallel: process-global huma state.
 	ctrl := gomock.NewController(t)
 	t.Cleanup(ctrl.Finish)
@@ -388,13 +389,13 @@ func TestGetAllOperationsByAccount_MetadataFilter_NotFound(t *testing.T) {
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	accountID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	// A nil metadata list short-circuits to the canonical 0069 / 404 before the
+	// A filter with no metadata match answers an empty page before the
 	// operation repository is touched.
 	opRepo := operation.NewMockRepository(ctrl)
 	metaRepo := txMongodb.NewMockRepository(ctrl)
 
 	metaRepo.EXPECT().FindList(gomock.Any(), constant.EntityOperation, gomock.Any()).
-		Return(nil, nil).Times(1)
+		Return([]*txMongodb.Metadata{}, nil).Times(1)
 
 	handler := &OperationHandler{Query: &query.UseCase{OperationRepo: opRepo, TransactionMetadataRepo: metaRepo}}
 
@@ -406,11 +407,47 @@ func TestGetAllOperationsByAccount_MetadataFilter_NotFound(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", string(respBody))
 
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
-	assert.Equal(t, constant.ErrNoOperationsFound.Error(), got["code"])
+
+	items, ok := got["items"].([]any)
+	require.True(t, ok, "items should be an array, got %v", got["items"])
+	assert.Empty(t, items)
+}
+
+func TestGetAllOperationsByAccount_MetadataFilter_StoreFailure(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	// An unreachable metadata store is a technical failure, never a not-found.
+	opRepo := operation.NewMockRepository(ctrl)
+	metaRepo := txMongodb.NewMockRepository(ctrl)
+
+	metaRepo.EXPECT().FindList(gomock.Any(), constant.EntityOperation, gomock.Any()).
+		Return(nil, errors.New("server selection error: context deadline exceeded")).Times(1)
+
+	handler := &OperationHandler{Query: &query.UseCase{OperationRepo: opRepo, TransactionMetadataRepo: metaRepo}}
+
+	app := buildHumaOperationApp(t, handler, true)
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String()+"/operations?metadata.key=value", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, constant.ErrInternalServer.Error(), got["code"])
 }
 
 func TestGetAllOperationsByAccount_ServiceError_500(t *testing.T) {

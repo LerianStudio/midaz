@@ -19,6 +19,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -226,7 +227,7 @@ func TestGetAllOperationRoutesEmpty(t *testing.T) {
 	assert.Len(t, result, 0)
 }
 
-// TestGetAllOperationRoutesMetadataError tests getting all operation routes with metadata error
+// TestGetAllOperationRoutesMetadataError tests that a metadata repository failure is returned as a technical error
 func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -283,9 +284,12 @@ func TestGetAllOperationRoutesMetadataError(t *testing.T) {
 	result, cur, err := uc.GetAllOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
 	assert.Error(t, err)
+	assert.ErrorIs(t, err, metadataError)
+
+	var nf pkg.EntityNotFoundError
+	assert.False(t, errors.As(err, &nf))
 	assert.Nil(t, result)
 	assert.Equal(t, libHTTP.CursorPagination{}, cur)
-	assert.Contains(t, err.Error(), "No entity was found for the given ID")
 }
 
 // TestGetAllOperationRoutesWithDifferentPagination tests getting all operation routes with different pagination settings

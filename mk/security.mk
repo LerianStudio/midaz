@@ -23,7 +23,13 @@
 # ------------------------------------------------------
 
 # Pinned tool versions for reproducible security scans
-GOSEC_VERSION ?= v2.29.0
+# gosec v2.29.0 (the latest tag) depends on golang.org/x/tools v0.49.0, which
+# cannot read the export data of packages compiled by Go 1.27 ("export data
+# version 5 is greater than maximum supported version 4"): every package fails
+# to type-check and the scan exits non-zero with zero findings. This pseudo-version
+# is the upstream main commit that moves to x/tools v0.52.0; replace it with the
+# next tagged release once one ships.
+GOSEC_VERSION ?= v2.29.1-0.20261012130337-71577268350e
 GOVULNCHECK_VERSION ?= v1.8.0
 
 # A tool on PATH counts as current only when `go version -m` shows it was

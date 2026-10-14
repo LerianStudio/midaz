@@ -2,6 +2,8 @@ module github.com/LerianStudio/midaz/v4
 
 go 1.27.0
 
+toolchain go1.27.2
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-auth/v5 v5.8.0

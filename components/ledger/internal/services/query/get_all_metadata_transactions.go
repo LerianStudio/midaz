@@ -9,8 +9,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -100,9 +98,7 @@ func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, 
 
 	operationMetadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityOperation, operationIDsAll)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operation metadata", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get operation metadata on repo", err)
 
 		return err
 	}
