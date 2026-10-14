@@ -77,7 +77,7 @@ Current driver coverage in this repo:
 
 **Rationale:** Recording every 4xx via `HandleSpanError` flips spans red on expected business outcomes (validation failures, not-found, conflicts), inflating error-rate SLOs and burying real infrastructure failures. The audit found CRM using `HandleSpanError` exclusively (0 business events) and fees crossing over mid-file. A single predicate keyed on error class makes the choice mechanical and consistent across services.
 
-**Canonical example:** [`pkg/errors.go:254`](../../pkg/errors.go) — `pkg.IsBusinessError(err error) bool`, the `errors.As`-based class predicate that lives beside the typed structs it inspects.
+**Canonical example:** [`pkg/errors.go:357`](../../pkg/errors.go) — `pkg.IsBusinessError(err error) bool`, the `errors.As`-based class predicate that lives beside the typed structs it inspects.
 
 **Enforcement:** `contract-test` — a per-path test asserting that an induced validation failure leaves span status UNSET with a business event, and an induced infra failure sets status Error. (`review-only` for the predicate-selection wiring at each call site.)
 
@@ -115,13 +115,13 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 ## T8 — Single-point logging
 
-**Rule:** An error MUST be logged at exactly **one** layer — the boundary that owns the handling decision (HTTP handler or consumer loop). Inner layers (use cases, repositories, adapters) MUST record the error onto the span and return it; they MUST NOT log it.
+**Rule:** An error MUST be logged at exactly **one** layer — the layer that owns the handling decision: the consumer loop on async paths and, on the HTTP path, the innermost use case that received the error, because the Huma boundary (`HumaProblem`) emits no log and the lib-observability access log is already the single line for business (4xx) outcomes. That use case logs a technical error once and records a business error as a span event only. Repositories and adapters MUST record the error onto the span and return it; they MUST NOT log it.
 
 > This rule is referenced by `error-handling.md` **Rule E8** and defined only here — do not restate it there.
 
-**Rationale:** Logging the same error at every layer it passes through produces N-layer duplicate log lines (the audit found triple-logs per create in tracer), inflating log volume and making it impossible to count distinct failures. The span carries the error detail for trace correlation; the owning boundary logs it once with the level decision (T7).
+**Rationale:** Logging the same error at every layer it passes through produces N-layer duplicate log lines (the audit found triple-logs per create in tracer), inflating log volume and making it impossible to count distinct failures. The span carries the error detail for trace correlation; the owning layer logs it once with the level decision (T7).
 
-**Canonical example:** [`components/ledger/internal/services/command/create_account.go:54`](../../components/ledger/internal/services/command/create_account.go) — the use case records onto the span via `HandleSpanBusinessErrorEvent` and returns; the logging-vs-recording decision is owned upward at the boundary. (Inner adapters such as `account.postgresql.go` are the violation pattern: they both `HandleSpanError` and `logger.Log` the same error.)
+**Canonical example:** [`components/ledger/internal/services/query/errors.go:23`](../../components/ledger/internal/services/query/errors.go) — `recordQueryError` records the error onto the span by class (T5) and logs it once at Error only when it is technical; a business/4xx error stays a span event, and the access log emits its single line. [`components/ledger/internal/services/command/command.go:273`](../../components/ledger/internal/services/command/command.go) — `recordCommandError` is the command-side twin. The Postgres adapters under `components/ledger/internal/adapters/postgres/` record on the span only (`HandleSpanError` / `HandleSpanBusinessErrorEvent`) and return, never logging the same error again.
 
 **Enforcement:** `review-only` — "which layer owns the decision" is not mechanically inferable; gate at code review against the boundary-owns-logging convention.
 
