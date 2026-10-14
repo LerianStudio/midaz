@@ -13,7 +13,9 @@ import (
 	constant "github.com/LerianStudio/lib-commons/v7/commons/constants"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	pkgConstant "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -273,11 +275,10 @@ func DetermineOperation(isPending bool, isFrom bool, transactionType string) (st
 //
 // Skipped for CREATED transactions because their balance operations (simple
 // DEBIT/CREDIT) do not branch on RouteValidationEnabled.
+//
+// It is a step without I/O and cannot fail, so it opens no span of its own.
 func PropagateRouteValidation(ctx context.Context, validate *Responses, transactionStatus string) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "transaction.propagate_route_validation")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	if validate == nil {
 		return
@@ -469,16 +470,36 @@ func AppendIfNotExist(slice []string, s []string) []string {
 // The returned Responses struct carries the resolved per-account amounts, the
 // alias lists (for balance lookups), and route information (for accounting
 // validation).
+//
+// It is a step without I/O, so it opens no span of its own. A rejection is recorded
+// as a business event, named after the step, on the caller's span (the command or
+// use case that runs the validation); an accepted send leaves no trace.
 func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transaction, transactionType string) (*Responses, error) {
+	response, err := validateSendSourceAndDistribute(ctx, transaction, transactionType)
+	if err != nil {
+		// Every rejection here is a business error (pkg.ValidateBusinessError), so it is
+		// an event that keeps the caller's span status unset (telemetry T5).
+		libOpentelemetry.HandleSpanBusinessErrorEvent(trace.SpanFromContext(ctx), validateSendSourceAndDistributeStep, err)
+
+		return nil, err
+	}
+
+	return response, nil
+}
+
+// validateSendSourceAndDistributeStep names the step on the caller's span when
+// ValidateSendSourceAndDistribute rejects a send.
+const validateSendSourceAndDistributeStep = "transaction.validate_send_source_and_distribute"
+
+// validateSendSourceAndDistribute holds the checks ValidateSendSourceAndDistribute
+// documents; the exported wrapper only records a rejection on the caller's span.
+func validateSendSourceAndDistribute(ctx context.Context, transaction Transaction, transactionType string) (*Responses, error) {
 	var (
 		sourcesTotal      decimal.Decimal
 		destinationsTotal decimal.Decimal
 	)
 
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "transaction.validate_send_source_and_distribute")
-	defer span.End()
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	sizeFrom := len(transaction.Send.Source.From)
 	sizeTo := len(transaction.Send.Distribute.To)
