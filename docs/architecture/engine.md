@@ -750,6 +750,15 @@ that write and is never renewed. The engine only reads them. It never writes,
 recreates, or extends one; a key that expired between the balance load and the
 script leaves the request's configuration in force for that execution only.
 
+The balance load uses a live key, except for a balance it seeds from its row on a
+cache miss: that load already read the balance row and its account row, so where
+either row carries a newer version than its key, the row decides and the load
+writes it to the key under the same version rule; an equal version keeps the key.
+A row newer than its key was committed without the key, by a PATCH an earlier
+release served or by a PATCH whose key write failed before the client's retry.
+The load logs each such key at Warn. A cached balance reads no row, and its blob
+copy is left to the decision below.
+
 The request carries the configuration the balance load resolved: the snapshot
 holds the balance configuration and `balanceConfigVersion` its version, and each
 account declaration holds `blocked` and `configVersion`. The versions travel
@@ -1391,8 +1400,9 @@ copy and current pods decide as described in
 [Configuration keys](#configuration-keys). A configuration PATCH served by an
 earlier pod writes PostgreSQL and the blob but no configuration key, and leaves
 the blob's version fields as they were. Current pods see that change after the
-next PATCH a current pod serves on that balance or account, or once the key
-expires: at most one hour. An account blocked by an earlier pod during the
+next PATCH a current pod serves on that balance or account, when a current pod
+seeds one of its balances from a cache miss, or once the key expires: at most
+one hour. An account blocked by an earlier pod during the
 rollout can therefore still transact on current pods for up to one hour.
 
 Current pods do not undo that change in the blob. Its version field still
@@ -1406,17 +1416,13 @@ confirmed, whichever release served it, and preserves the version fields it does
 not know; a blob an earlier pod seeds from scratch has no version fields and
 reads version 0. The configuration keys left behind expire within one hour;
 after a new rollout, a key that outlived the rollback is honored for at most
-that hour. Two cases stay outside that guarantee:
-
-- A blob whose copy already disagreed with PostgreSQL before this release reads
-  version 0, as the row does. The engine keeps that copy; the next PATCH on the
-  balance or account replaces it.
-- A balance a current pod seeds from a cache miss, while a key older than the
-  row a PATCH on an earlier pod committed still lives, takes the key's
-  configuration. A later committed execution that decides with the reloaded row
-  copies it, but a refusal writes nothing: a blob of an account blocked that way
-  keeps the unblocked copy, and after a rollback the earlier release obeys it
-  until the next PATCH on the account.
+that hour. A balance a current pod seeds from a cache miss while an older key
+still lives decides with the newer row (see
+[Configuration keys](#configuration-keys)), so the seeded blob never takes the
+configuration that PATCH replaced. One case stays outside that guarantee: a blob
+whose copy already disagreed with PostgreSQL before this release reads version 0,
+as the row does. The engine keeps that copy; the next PATCH on the balance or
+account replaces it.
 
 A configuration version may only rise. The down migrations remove the triggers
 and their functions but keep the `config_version` columns, and the up adds a

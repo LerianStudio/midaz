@@ -135,7 +135,7 @@ func TestResolveEngineConfiguration_FailedKeyWritesKeepThePrimaryRow(t *testing.
 			f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, gomock.Any()).
 				Return(accounting.AccountConfig{}, redis.ConfigWriteOutcome(0), writeErr)
 
-			require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}))
+			require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil))
 			assertCarriesPrimaryConfiguration(t, f.loaded)
 		})
 	}
@@ -156,7 +156,7 @@ func TestResolveEngineConfiguration_FailedKeyReadReloadsFromThePrimary(t *testin
 	f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, accountConfig).
 		Return(accountConfig, redis.ConfigWritten, nil)
 
-	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}))
+	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil))
 	assertCarriesPrimaryConfiguration(t, f.loaded)
 }
 
@@ -188,7 +188,7 @@ func TestResolveEngineConfiguration_FailedPrimaryReadFailsTheLoad(t *testing.T) 
 				Return(redis.ConfigKeyValues{}, nil)
 			expect(f, primaryErr)
 
-			err := f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded})
+			err := f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil)
 			require.ErrorIs(t, err, primaryErr)
 		})
 	}
@@ -212,7 +212,7 @@ func TestResolveEngineConfiguration_RowsMissingOnThePrimaryWriteNothing(t *testi
 	f.accounts.EXPECT().ListAccountsByIDs(gomock.Any(), f.orgID, f.ledgerID, []uuid.UUID{f.accountID}).
 		Return(nil, nil)
 
-	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}))
+	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, nil))
 
 	assert.True(t, f.loaded.AllowSending, "another balance's row never configures this one")
 	assert.Zero(t, f.loaded.ConfigVersion)
@@ -229,6 +229,7 @@ func TestResolveEngineConfiguration_ReportsACopyDivergingUnderTheDecidedVersion(
 
 	tests := []struct {
 		name            string
+		seeded          bool
 		shape           func(f configResolutionFixture, sibling *mmodel.Balance)
 		balanceDiverges int64
 		accountDiverges int64
@@ -243,6 +244,26 @@ func TestResolveEngineConfiguration_ReportsACopyDivergingUnderTheDecidedVersion(
 			},
 			balanceDiverges: 1,
 			accountDiverges: 1,
+		},
+		{
+			// Rows read on a cache miss that tie with the keys: the keys decide and
+			// the divergence is reported as for a blob copy.
+			name:   "seeded rows, same versions, other content",
+			seeded: true,
+			shape: func(f configResolutionFixture, sibling *mmodel.Balance) {
+				f.loaded.ConfigVersion, f.loaded.AccountConfigVersion = 4, 2
+				sibling.AccountConfigVersion = 2
+			},
+			balanceDiverges: 1,
+			accountDiverges: 1,
+		},
+		{
+			name:   "seeded rows, older versions",
+			seeded: true,
+			shape: func(f configResolutionFixture, sibling *mmodel.Balance) {
+				f.loaded.ConfigVersion, f.loaded.AccountConfigVersion = 3, 1
+				sibling.AccountConfigVersion = 1
+			},
 		},
 		{
 			name: "older versions",
@@ -298,7 +319,14 @@ func TestResolveEngineConfiguration_ReportsACopyDivergingUnderTheDecidedVersion(
 			logs := &recordingLogger{}
 			ctx := libObservability.ContextWithLogger(t.Context(), logs)
 
-			require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded, sibling}))
+			var seeded map[string]struct{}
+			if tt.seeded {
+				seeded = map[string]struct{}{f.loaded.ID: {}, sibling.ID: {}}
+			}
+
+			// No key write is expected: a row that does not outrank its key never
+			// replaces it.
+			require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded, sibling}, seeded))
 			assertCarriesPrimaryConfiguration(t, f.loaded)
 
 			divergent := counterByLabel(t, reader, utils.ConfigCopyDivergent.Name, "family")
@@ -317,6 +345,59 @@ func TestResolveEngineConfiguration_ReportsACopyDivergingUnderTheDecidedVersion(
 			assert.Equal(t, []string{f.accountID.String()}, entry.fields["account_ids"])
 		})
 	}
+}
+
+// A balance seeded from rows newer than its live keys decides with the rows, writes
+// them to the keys, and reports the older keys; the rows are not a divergent copy.
+func TestResolveEngineConfiguration_SeededRowsNewerThanTheKeysDecide(t *testing.T) {
+	t.Parallel()
+
+	f := newConfigResolutionFixture(t)
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+
+	factory, err := metrics.NewMetricsFactory(provider.Meter("config-seeded-rows-test"), nil)
+	require.NoError(t, err)
+
+	f.uc.MetricsFactory = factory
+
+	// The keys hold the primary fixture (balance v4 sending off, account v2
+	// blocked); the seeded rows moved past them: sending on at v5, unblocked at v3.
+	keyBalance, keyAccount := f.primaryConfigs(t)
+	f.loaded.ConfigVersion, f.loaded.AccountConfigVersion, f.loaded.Blocked = 5, 3, false
+
+	rowBalance, err := balancecache.BalanceConfigFromBalance(f.loaded)
+	require.NoError(t, err)
+
+	rowAccount := accounting.AccountConfig{AccountID: f.accountID, Version: 3, Blocked: false}
+
+	f.redis.EXPECT().ReadConfigKeys(gomock.Any(), f.orgID, f.ledgerID, []string{f.ref}, []uuid.UUID{f.accountID}).
+		Return(redis.ConfigKeyValues{
+			Balances: map[string]accounting.BalanceConfig{f.ref: keyBalance},
+			Accounts: map[uuid.UUID]accounting.AccountConfig{f.accountID: keyAccount},
+		}, nil)
+	f.redis.EXPECT().WriteBalanceConfig(gomock.Any(), f.orgID, f.ledgerID, f.ref, rowBalance).
+		Return(rowBalance, redis.ConfigWritten, nil)
+	f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, rowAccount).
+		Return(rowAccount, redis.ConfigWritten, nil)
+
+	logs := &recordingLogger{}
+	ctx := libObservability.ContextWithLogger(t.Context(), logs)
+
+	require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, map[string]struct{}{f.loaded.ID: {}}))
+
+	assert.Equal(t, int64(5), f.loaded.ConfigVersion)
+	assert.True(t, f.loaded.AllowSending)
+	assert.Nil(t, f.loaded.Settings, "the row's default settings, not the key's overdraft")
+	assert.False(t, f.loaded.Blocked)
+	assert.Equal(t, int64(3), f.loaded.AccountConfigVersion)
+
+	assert.Empty(t, counterByLabel(t, reader, utils.ConfigCopyDivergent.Name, "family"), "a newer row is not a divergent copy")
+
+	older := logs.entriesWith("Configuration key is older than the row the balance was seeded from, deciding with the row")
+	require.Len(t, older, 2, "one report per family")
+	assert.ElementsMatch(t, []any{configFamilyBalance, configFamilyAccount}, []any{older[0].fields["family"], older[1].fields["family"]})
 }
 
 // counterByLabel sums one counter's data points by the value of one label.

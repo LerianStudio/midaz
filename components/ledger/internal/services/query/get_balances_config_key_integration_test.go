@@ -507,3 +507,126 @@ func TestIntegration_EngineConfig_ReloadReadsThePrimary(t *testing.T) {
 	assert.Equal(t, int64(1), stored.Version)
 	assert.False(t, stored.AllowReceiving)
 }
+
+// A configuration change committed without its key — a PATCH an earlier release
+// served writes PostgreSQL and no configuration key — leaves a live key older than
+// the row. A balance loaded from its row, because it was not cached, already holds
+// that row and its account row, so the newer version decides and is written to the
+// key, with no further read. An equal version keeps the key, and a cached balance
+// keeps deciding with its key without reading its configuration rows.
+func TestIntegration_EngineConfig_ColdBalanceDecidesWithARowNewerThanTheLiveKey(t *testing.T) {
+	infra := setupReseedTestInfra(t)
+
+	spy := func(t *testing.T) (*spyBalanceRepo, *spyAccountRepo) {
+		t.Helper()
+
+		balanceRepo, accountRepo := infra.uc.BalanceRepo, infra.uc.AccountRepo
+		t.Cleanup(func() { infra.uc.BalanceRepo, infra.uc.AccountRepo = balanceRepo, accountRepo })
+
+		return infra.spyOnRepositories()
+	}
+
+	// writeKeys stores the keys a load wrote before the configuration changed: the
+	// balance's row at version 0 (sending allowed) and its account unblocked at 0,
+	// with the given content changes applied.
+	writeKeys := func(t *testing.T, ctx context.Context, ref string, accountID uuid.UUID, allowSending, blocked bool) {
+		t.Helper()
+
+		config := infra.primaryConfig(t, ref)
+		require.Equal(t, int64(0), config.Version)
+		require.True(t, config.AllowSending)
+
+		config.AllowSending = allowSending
+
+		_, outcome, err := infra.uc.TransactionRedisRepo.WriteBalanceConfig(ctx, infra.orgID, infra.ledgerID, ref, config)
+		require.NoError(t, err)
+		require.Equal(t, redis.ConfigWritten, outcome)
+
+		_, outcome, err = infra.uc.TransactionRedisRepo.WriteAccountConfig(ctx, infra.orgID, infra.ledgerID,
+			accounting.AccountConfig{AccountID: accountID, Version: 0, Blocked: blocked})
+		require.NoError(t, err)
+		require.Equal(t, redis.ConfigWritten, outcome)
+	}
+
+	changeRows := func(t *testing.T, accountID, balanceID uuid.UUID) {
+		t.Helper()
+
+		infra.execBalance(t, `UPDATE balance SET allow_sending = false WHERE id = $1`, balanceID)
+
+		_, err := infra.onboardingDB.DB.Exec(`UPDATE account SET blocked = true WHERE id = $1`, accountID)
+		require.NoError(t, err)
+	}
+
+	t.Run("a newer row of an uncached balance decides and moves the keys", func(t *testing.T) {
+		ctx := context.Background()
+		accountID, balanceID, alias := infra.seedBalance(t, "cfg-cold-newer", decimal.NewFromInt(100), 0)
+		ref := alias + "#" + constant.DefaultBalanceKey
+
+		writeKeys(t, ctx, ref, accountID, true, false)
+		changeRows(t, accountID, balanceID)
+
+		balances, accounts := spy(t)
+
+		_, execution, err := infra.uc.GetEngineBalances(ctx, infra.orgID, infra.ledgerID, []string{ref})
+		require.NoError(t, err)
+
+		got := engineBalanceByRef(t, execution, ref)
+		assert.Equal(t, int64(1), got.ConfigVersion, "the request carries the row's version")
+		assert.False(t, got.AllowSending, "the request carries the row's configuration")
+		assert.True(t, got.Blocked, "the request carries the account row's blocked flag")
+		assert.Equal(t, int64(1), got.AccountConfigVersion)
+
+		assert.Zero(t, balances.primaryReads.Load(), "the row the seed read decides; no reload")
+		assert.Equal(t, int32(1), accounts.listByIDs.Load(), "only the seed's own account read")
+
+		keys := infra.readKeys(t, ctx, []string{ref}, []uuid.UUID{accountID})
+		assert.True(t, keys.Balances[ref].Equal(infra.primaryConfig(t, ref)), "the balance key takes the row: %+v", keys.Balances[ref])
+		assert.Equal(t, accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: true}, keys.Accounts[accountID])
+	})
+
+	t.Run("an equal version keeps the key", func(t *testing.T) {
+		ctx := context.Background()
+		accountID, _, alias := infra.seedBalance(t, "cfg-cold-equal", decimal.NewFromInt(100), 0)
+		ref := alias + "#" + constant.DefaultBalanceKey
+
+		// Same version 0 as the rows, other content: the key wins the tie.
+		writeKeys(t, ctx, ref, accountID, false, true)
+
+		_, execution, err := infra.uc.GetEngineBalances(ctx, infra.orgID, infra.ledgerID, []string{ref})
+		require.NoError(t, err)
+
+		got := engineBalanceByRef(t, execution, ref)
+		assert.Equal(t, int64(0), got.ConfigVersion)
+		assert.False(t, got.AllowSending, "the key decides an equal version")
+		assert.True(t, got.Blocked, "the account key decides an equal version")
+
+		keys := infra.readKeys(t, ctx, []string{ref}, []uuid.UUID{accountID})
+		assert.False(t, keys.Balances[ref].AllowSending, "the key is left as it was")
+		assert.Equal(t, accounting.AccountConfig{AccountID: accountID, Version: 0, Blocked: true}, keys.Accounts[accountID])
+	})
+
+	t.Run("a cached balance decides with its key and reads no configuration row", func(t *testing.T) {
+		ctx := context.Background()
+		accountID, balanceID, alias := infra.seedBalance(t, "cfg-hot-older-key", decimal.NewFromInt(100), 1)
+		ref := alias + "#" + constant.DefaultBalanceKey
+
+		writeKeys(t, ctx, ref, accountID, true, false)
+		changeRows(t, accountID, balanceID)
+		infra.cacheBlob(t, accountID, balanceID, alias, constant.DefaultBalanceKey, 1)
+
+		balances, accounts := spy(t)
+
+		_, execution, err := infra.uc.GetEngineBalances(ctx, infra.orgID, infra.ledgerID, []string{ref})
+		require.NoError(t, err)
+
+		got := engineBalanceByRef(t, execution, ref)
+		assert.Equal(t, int64(0), got.ConfigVersion, "a live key decides a cached balance")
+		assert.True(t, got.AllowSending)
+		assert.False(t, got.Blocked)
+
+		// The uncached overdraft companion is still looked up by alias, as before; no
+		// configuration row is read.
+		assert.Zero(t, balances.primaryReads.Load(), "a cached balance with live keys reloads no configuration")
+		assert.Zero(t, accounts.listByIDs.Load(), "a cached balance with a live account key reads no account row")
+	})
+}
