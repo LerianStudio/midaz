@@ -1637,7 +1637,9 @@ func (rr *RedisConsumerRepository) GetBytes(ctx context.Context, key string) ([]
 
 	val, err := rds.Get(ctx, key).Bytes()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get bytes on redis", err)
+		if !errors.Is(err, redis.Nil) {
+			libOpentelemetry.HandleSpanError(span, "Failed to get bytes on redis", err)
+		}
 
 		return nil, err
 	}
@@ -2594,6 +2596,14 @@ func (rr *RedisConsumerRepository) ListBalanceByKey(ctx context.Context, organiz
 
 	value, err := rds.Get(ctx, internalKey).Result()
 	if err != nil {
+		// A missing key is a cache miss the callers handle, not a failure: it is
+		// returned unchanged without marking the span or logging an error.
+		if errors.Is(err, redis.Nil) {
+			logger.Log(ctx, libLog.LevelDebug, "Balance not found in Redis")
+
+			return nil, err
+		}
+
 		libOpentelemetry.HandleSpanError(span, "Failed to get balance on redis", err)
 
 		logger.Log(ctx, libLog.LevelError, "Failed to get balance from Redis", libLog.Err(err))
