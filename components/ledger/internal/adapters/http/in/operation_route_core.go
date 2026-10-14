@@ -244,7 +244,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 	if headerParams.Metadata != nil {
 		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, nil, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all operation routes by metadata", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
 
 			return http.Pagination{}, err

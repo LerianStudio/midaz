@@ -11,6 +11,7 @@ import (
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -38,10 +39,13 @@ func TestGetAllLedgers(t *testing.T) {
 		Page:  1,
 	}
 
+	errMetadata := errors.New("failed to retrieve metadata")
+
 	tests := []struct {
 		name            string
 		setupMocks      func()
 		expectedErr     error
+		technicalErr    bool
 		expectedLedgers []*mmodel.Ledger
 	}{
 		{
@@ -92,7 +96,7 @@ func TestGetAllLedgers(t *testing.T) {
 			expectedLedgers: nil,
 		},
 		{
-			name: "failure - metadata retrieval error",
+			name: "failure - metadata failure is returned as a technical error",
 			setupMocks: func() {
 				mockLedgerRepo.EXPECT().
 					FindAll(gomock.Any(), organizationID, filter).
@@ -104,10 +108,11 @@ func TestGetAllLedgers(t *testing.T) {
 
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), "Ledger", []string{"ledger1", "ledger2"}).
-					Return(nil, errors.New("failed to retrieve metadata")).
+					Return(nil, errMetadata).
 					Times(1)
 			},
-			expectedErr:     errors.New("No ledgers were found in the search. Please review the search criteria and try again."),
+			expectedErr:     errMetadata,
+			technicalErr:    true,
 			expectedLedgers: nil,
 		},
 	}
@@ -118,7 +123,14 @@ func TestGetAllLedgers(t *testing.T) {
 
 			result, err := uc.GetAllLedgers(ctx, organizationID, filter)
 
-			if tt.expectedErr != nil {
+			if tt.technicalErr {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+
+				var nf pkg.EntityNotFoundError
+				assert.False(t, errors.As(err, &nf))
+				assert.Nil(t, result)
+			} else if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)

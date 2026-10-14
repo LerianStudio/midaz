@@ -11,7 +11,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -23,9 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
 	// GetAllTransactions fetch all Transactions from the repository
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // transactionLegAliases answers the source and destination alias lists every
@@ -117,9 +114,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	metadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityTransaction, transactionIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction", err)
+		recordQueryError(ctx, span, logger, "Failed to get transaction metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -161,9 +156,7 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 
 	operationMetadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityOperation, operationIDs)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operation metadata", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get operation metadata on repo", err)
 
 		return err
 	}

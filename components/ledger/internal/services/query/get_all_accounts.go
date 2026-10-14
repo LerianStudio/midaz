@@ -10,7 +10,6 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -50,8 +49,7 @@ func (uc *UseCase) GetAllAccount(ctx context.Context, organizationID, ledgerID u
 }
 
 // attachAccountMetadata enriches a page of accounts with their onboarding
-// metadata. A metadata lookup failure surfaces as ErrNoAccountsFound, the same
-// class both account listings report.
+// metadata. A metadata lookup failure is technical and is returned as is.
 func (uc *UseCase) attachAccountMetadata(ctx context.Context, span trace.Span, accounts []*mmodel.Account) ([]*mmodel.Account, error) {
 	if len(accounts) == 0 {
 		return accounts, nil
@@ -64,9 +62,7 @@ func (uc *UseCase) attachAccountMetadata(ctx context.Context, span trace.Span, a
 
 	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntityAccount, accountIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
+		recordQueryError(ctx, span, libObservability.NewLoggerFromContext(ctx), "Failed to get account metadata on repo", err)
 
 		return nil, err
 	}

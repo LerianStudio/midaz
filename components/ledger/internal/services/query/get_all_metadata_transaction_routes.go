@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -30,12 +29,16 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 	defer span.End()
 
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransactionRoute, filter)
-	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionRoutesFound, constant.EntityTransactionRoute)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction routes on repo by metadata", err)
+	if err != nil {
+		recordQueryError(ctx, span, logger, "Failed to get transaction route metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if len(metadata) == 0 {
+		span.AddEvent("No metadata matched the filter")
+
+		return []*mmodel.TransactionRoute{}, libHTTP.CursorPagination{}, nil
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -55,7 +58,7 @@ func (uc *UseCase) GetAllMetadataTransactionRoutes(ctx context.Context, organiza
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	var filteredTransactionRoutes []*mmodel.TransactionRoute
+	filteredTransactionRoutes := make([]*mmodel.TransactionRoute, 0, len(allTransactionRoutes))
 
 	for _, transactionRoute := range allTransactionRoutes {
 		if data, ok := metadataMap[transactionRoute.ID.String()]; ok {
