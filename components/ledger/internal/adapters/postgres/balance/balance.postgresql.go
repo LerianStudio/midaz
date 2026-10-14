@@ -84,6 +84,11 @@ type Repository interface {
 	UpdateAllByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, balance mmodel.UpdateBalance) error
 	ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error)
 	ListByAccountIDAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error)
+	// ListBalanceTrailPairs returns up to pageSize non-deleted balances with id > cursor,
+	// ordered by id, each paired with the head of its trail. next is the last id of the
+	// page; a page shorter than pageSize means the table ended. The read runs in one
+	// read-only transaction on the primary.
+	ListBalanceTrailPairs(ctx context.Context, cursor uuid.UUID, pageSize int) (pairs []mmodel.BalanceTrailPair, next uuid.UUID, err error)
 }
 
 // BalancePostgreSQLRepository is a Postgresql-specific implementation of the BalanceRepository.
