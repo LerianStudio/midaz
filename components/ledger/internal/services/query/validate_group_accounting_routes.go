@@ -183,6 +183,7 @@ func validateCrossLedgerBridgeRoutes(ctx context.Context, cache mmodel.Transacti
 		}
 
 		err := pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteNotConfigured, constant.EntityTransactionRoute)
+
 		span.SetAttributes(
 			attribute.String("app.request.operation_route_id", routeID),
 			attribute.String("app.request.operation_direction", operation.Amount.Direction),

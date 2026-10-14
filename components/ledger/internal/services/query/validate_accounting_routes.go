@@ -223,6 +223,7 @@ func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteC
 
 		if !overdraftRubricConfigured(cache, routeID, op.Amount.Direction) {
 			err := pkg.ValidateBusinessError(constant.ErrOverdraftRouteNotConfigured, constant.EntityOperationRoute)
+
 			span.SetAttributes(
 				attribute.String("app.request.operation_route_id", routeID),
 				attribute.String("app.request.operation_direction", op.Amount.Direction),
