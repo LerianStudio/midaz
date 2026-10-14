@@ -175,6 +175,8 @@ func TestIntegrationEngineLegacyIndexedAliasKeepsIdentityGuard(t *testing.T) {
 // A pre-4.1 blob can carry both the indexed alias and a noncanonical overdraft
 // limit. The engine must accept its identity to reach the limit signal, and the
 // Go repair must accept it to rewrite the limit, before the execution applies.
+// Only a configuration copy newer than the request decides, and only a deciding
+// copy asks for the repair, so the blob carries a copy version above the request's.
 func TestIntegration_AdapterExecute_RepairsLimitOfLegacyIndexedAliasBalance(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -190,6 +192,7 @@ func TestIntegration_AdapterExecute_RepairsLimitOfLegacyIndexedAliasBalance(t *t
 	hot.OverdraftLimit = decimal.NewFromInt(1000)
 	fields := pureLegacyIndexedAliasBlob(t, hot, "0#"+hot.Alias+"#"+hot.Key)
 	fields["OverdraftLimit"] = rawJSON(t, "1000.00")
+	fields[balancecache.BlobBalanceConfigVersionField] = rawJSON(t, "1")
 	encoded, err := json.Marshal(fields)
 	require.NoError(t, err)
 

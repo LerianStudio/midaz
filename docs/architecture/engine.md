@@ -540,7 +540,9 @@ flags retain 0/1 and legacy Version retains its compatible numeric representatio
 
 During dual writing, legacy CamelCase fields win whenever present, regardless of
 SchemaVersion. New lowerCamel fields are authoritative only in a new-only blob.
-Every dual writer updates both representations. An old writer may mutate only
+Every dual writer updates both representations of what it writes; the engine
+leaves a configuration family it does not copy exactly as the blob had it (see
+[Configuration keys](#configuration-keys)). An old writer may mutate only
 the legacy fields while preserving stale lowerCamel fields, so selecting fields
 by schema version would read stale money. Readers must also accept new-only
 blobs; a dual writer reading one reconstructs both representations coherently.
@@ -769,17 +771,28 @@ inconsistency when it writes the key.
 
 A noncanonical overdraft limit in the blob requests the precommit repair only
 when the blob's own copy decides the configuration; a limit from the key or the
-request is canonical, and the next committed write replaces the blob's limit.
+request is canonical, and the blob keeps its own limit until a newer version is
+copied over it.
 
-Every blob a committed execution writes receives the configuration it decided
-with, in both cache representations, plus `balanceConfigVersion` and
-`accountConfigVersion` (decimal strings; a version-0 decision writes neither).
-The decided version is never lower than the blob's, so a copy never moves back.
-A refusal writes nothing, and no write was added before the commit phase. A
-cached companion that is only refreshed keeps its value. The configuration copy
-in the blob is a compatibility bridge for releases that read the configuration
-from the blob, and the configuration PATCH confirms it before answering; it is
-removable once no rollback target reads the configuration from the blob.
+A committed execution copies a configuration family into a blob it writes only
+when the version it decided with is newer than the blob's copy of that family,
+each family on its own: the balance configuration with `balanceConfigVersion`,
+the `blocked` flag with `accountConfigVersion` (decimal strings). The copy goes
+in both cache representations. On an equal version the blob keeps its copy
+unchanged, the version field and every configuration field in whichever
+representations it had them, even when the execution decided with other content
+from the key or the request: an earlier release changes the copy without
+changing a version field it does not know, and overwriting that copy would undo
+its change for the releases that read the blob. A balance the execution seeds
+from a cache miss has no copy yet and receives the decided configuration (a
+version-0 decision writes no version field). The decided version is never lower
+than the blob's, so a copy never moves back. Money, `Version` and identity are
+written as always. A refusal writes nothing, and no write was added before the
+commit phase. A cached companion that is only refreshed keeps its value. The
+configuration copy in the blob is a compatibility bridge for releases that read
+the configuration from the blob, and the configuration PATCH confirms it before
+answering; it is removable once no rollback target reads the configuration from
+the blob.
 
 ## Single execution, transport, and error classification
 
@@ -1374,12 +1387,28 @@ next PATCH a current pod serves on that balance or account, or once the key
 expires: at most one hour. An account blocked by an earlier pod during the
 rollout can therefore still transact on current pods for up to one hour.
 
-A rollback needs no data step. The earlier release reads the blob copy, which
-every PATCH that answered with success has confirmed, and preserves the version
-fields it does not know; a blob an earlier pod seeds from scratch has no version
-fields and reads version 0. The configuration keys left behind expire within one
-hour; after a new rollout, a key that outlived the rollback is honored for at
-most that hour.
+Current pods do not undo that change in the blob. Its version field still
+names the version the key holds, so a committed execution decides with the key
+and keeps the blob's copy as it is; only a newer decided version, a reload of
+the row once the key expires or a later PATCH, is copied over it.
+
+A rollback therefore needs no data step for the blobs in the cache. The earlier
+release reads the blob copy, which every PATCH that answered with success has
+confirmed, whichever release served it, and preserves the version fields it does
+not know; a blob an earlier pod seeds from scratch has no version fields and
+reads version 0. The configuration keys left behind expire within one hour;
+after a new rollout, a key that outlived the rollback is honored for at most
+that hour. Two cases stay outside that guarantee:
+
+- A blob whose copy already disagreed with PostgreSQL before this release reads
+  version 0, as the row does. The engine keeps that copy; the next PATCH on the
+  balance or account replaces it.
+- A balance a current pod seeds from a cache miss, while a key older than the
+  row a PATCH on an earlier pod committed still lives, takes the key's
+  configuration. A later committed execution that decides with the reloaded row
+  copies it, but a refusal writes nothing: a blob of an account blocked that way
+  keeps the unblocked copy, and after a rollback the earlier release obeys it
+  until the next PATCH on the account.
 
 ### Cache writer compatibility
 

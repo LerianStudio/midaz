@@ -52,7 +52,8 @@ The entrypoint tells one ordered story:
    same way, from its account configuration key, the request, and the copies in
    the blobs of its balances, and applies it to every balance of the account.
    The decided versions stay in `item.configVersions`, outside `item.current`,
-   so the result and the recovery evidence keep their shape.
+   so the result and the recovery evidence keep their shape; the versions of the
+   blob's own copies stay in `item.blobConfigVersions`.
 4. `loadAccountProtection` reads the closing controls of every account of the
    pool, and `validateAccountClosingAvailability` refuses every requirement and
    posting whose account is closing or closed, and every used balance this
@@ -94,12 +95,16 @@ The entrypoint tells one ordered story:
    companion keeps its cached value, flag included.
 9. `prepareExecutionWrites` serializes the response, including the execution's
    single `appliedAtUnixMicro` value, changed balance blobs and published
-   companion blobs (each with the configuration it decided and its
-   `balanceConfigVersion` and `accountConfigVersion`, the compatibility copy for
-   releases that read the configuration from the blob), versioned write-behind evidence, transaction-state index entries,
+   companion blobs, versioned write-behind evidence, transaction-state index entries,
    recovery records, receipt, guards, and protection data while enforcing the
    total prepared-byte ceiling. An execution without movements prepares none of
-   them, so refusals and no-ops publish no companion.
+   them, so refusals and no-ops publish no companion. Each blob carries the
+   compatibility copy of the configuration for releases that read it from the
+   blob: `encodeBalance` copies a family (the balance configuration with
+   `balanceConfigVersion`, the `blocked` flag with `accountConfigVersion`) only
+   when the decided version is newer than the blob's copy of it, and otherwise
+   keeps the blob's copy, version and fields, exactly as it was. A seeded blob
+   takes the decided configuration.
 10. `commitPreparedExecution` is the only publication phase. It receives the
     score derived from the same Redis `TIME` read and writes changed and
     published companion balances, changed fee-debt lists, synchronization
