@@ -59,8 +59,13 @@ func (t *AssetPostgreSQLModel) ToEntity() *mmodel.Asset {
 
 // FromEntity converts a request entity Asset to AssetPostgreSQLModel
 func (t *AssetPostgreSQLModel) FromEntity(asset *mmodel.Asset) {
+	ID := asset.ID
+	if ID == "" {
+		ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+	}
+
 	*t = AssetPostgreSQLModel{
-		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:                ID,
 		Name:              asset.Name,
 		Type:              asset.Type,
 		Code:              asset.Code,

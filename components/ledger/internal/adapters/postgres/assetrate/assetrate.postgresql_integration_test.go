@@ -596,3 +596,46 @@ func TestIntegration_AssetRateRepository_Update_WrongOrganization(t *testing.T) 
 	require.Error(t, err, "Update should return error for wrong organization")
 	assert.Nil(t, updated, "updated asset rate should be nil")
 }
+
+// TestIntegration_AssetRateRepository_Create_PreservesPresetID guards the
+// contract that metadata written under a pre-assigned ID stays attached: Create
+// must persist the caller's ID instead of minting a new one. The repository has
+// no lookup by primary key, so the row is read back by external ID and its ID
+// compared against the preset one.
+func TestIntegration_AssetRateRepository_Create_PreservesPresetID(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "transaction")
+	repo := createRepository(t, container)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	externalID := uuid.Must(libCommons.GenerateUUIDv7())
+	presetID := uuid.Must(libCommons.GenerateUUIDv7())
+	scale := 2.0
+	now := time.Now().Truncate(time.Microsecond)
+
+	assetRate := &AssetRate{
+		ID:             presetID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		ExternalID:     externalID.String(),
+		From:           "GBP",
+		To:             "BRL",
+		Rate:           6.75,
+		Scale:          &scale,
+		TTL:            3600,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, assetRate)
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, presetID.String(), created.ID, "Create must keep the preset ID")
+
+	found, err := repo.FindByExternalID(ctx, orgID, ledgerID, externalID)
+	require.NoError(t, err, "asset rate should be retrievable after Create")
+	require.NotNil(t, found)
+	assert.Equal(t, presetID.String(), found.ID, "persisted row must carry the preset ID")
+}
