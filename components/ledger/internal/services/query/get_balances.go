@@ -545,13 +545,20 @@ func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, le
 		return err
 	}
 
-	blockedByAccount := make(map[string]bool, len(accounts))
+	byAccount := make(map[string]*mmodel.Account, len(accounts))
 	for _, acc := range accounts {
-		blockedByAccount[acc.ID] = acc.Blocked != nil && *acc.Blocked
+		byAccount[acc.ID] = acc
 	}
 
+	// The flag carries the version it was read at, as a cached balance carries the
+	// version of its blob's copy, so the engine configuration compares like with like.
 	for _, b := range balances {
-		b.Blocked = blockedByAccount[b.AccountID]
+		b.Blocked, b.AccountConfigVersion = false, 0
+
+		if acc, ok := byAccount[b.AccountID]; ok {
+			b.Blocked = acc.Blocked != nil && *acc.Blocked
+			b.AccountConfigVersion = acc.ConfigVersion
+		}
 	}
 
 	return nil
@@ -654,6 +661,10 @@ func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, led
 			Direction:      snapshot.Direction,
 			OverdraftUsed:  snapshot.OverdraftUsed,
 			Settings:       settings,
+			// The versions of the blob's configuration copies, so the engine load can
+			// tell a copy that diverges under the version it decides with.
+			ConfigVersion:        snapshot.ConfigVersion,
+			AccountConfigVersion: snapshot.AccountConfigVersion,
 		})
 	}
 

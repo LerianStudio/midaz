@@ -766,8 +766,13 @@ over the request and the request over the blob copy. A key whose identity is
 not the balance's (left by a deleted balance under the same `alias#key`), or
 whose value is unreadable, is absent. An equal version with different content
 cannot be refused inside the execution without blocking the balance until the
-key expires, so the precedence decides; the Go balance load reports that
-inconsistency when it writes the key.
+key expires, so the precedence decides, and the script reports nothing. The Go
+balance load reports it before the execution: it logs at Error a key holding
+other content under the version it writes, and it compares the configuration
+each balance was loaded with (the blob's copy, or the rows on a cache miss) with
+the one it resolved, logging at Warn and counting in
+`config_copy_divergent_total` (label `family`: `balance` or `account`) every
+copy with the same version and other content.
 
 A noncanonical overdraft limit in the blob requests the precommit repair only
 when the blob's own copy decides the configuration; a limit from the key or the

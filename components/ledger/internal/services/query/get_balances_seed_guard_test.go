@@ -550,6 +550,22 @@ func (r *recordingLogger) Log(_ context.Context, _ int, msg string, fields ...an
 	r.entries = append(r.entries, entry)
 }
 
+// entriesWith returns every captured entry carrying msg.
+func (r *recordingLogger) entriesWith(msg string) []loggedEntry {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var found []loggedEntry
+
+	for _, e := range r.entries {
+		if e.msg == msg {
+			found = append(found, e)
+		}
+	}
+
+	return found
+}
+
 // entryWith returns the single captured entry carrying msg.
 func (r *recordingLogger) entryWith(t *testing.T, msg string) loggedEntry {
 	t.Helper()

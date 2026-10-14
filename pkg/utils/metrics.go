@@ -197,6 +197,19 @@ var (
 		Description: "Total balance and account configurations reloaded from the primary database because their configuration key was absent.",
 	}
 
+	// ConfigCopyDivergent counts configurations loaded for an engine execution whose
+	// copy (the blob's, or the row's on a cache miss) carries the version the engine
+	// decides with but other content, by family (balance|account). The engine decides
+	// with the configuration key and keeps the blob's copy, so nothing fails; a
+	// nonzero rate means a release that reads the configuration from the blob changed
+	// it without a version (expected only while earlier pods serve PATCHes), a copy
+	// that diverged before versions existed, or versions moved back.
+	ConfigCopyDivergent = metrics.Metric{
+		Name:        "config_copy_divergent_total",
+		Unit:        "1",
+		Description: "Total balance and account configuration copies found with other content under the version the engine decides with.",
+	}
+
 	// BalanceReconcilerDivergences is how many balances the last reconciler pass
 	// found diverging from the head of their operation trail, by tenant_id (empty
 	// in single-tenant) and direction (balance_ahead|trail_ahead|value_mismatch).

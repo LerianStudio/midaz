@@ -91,19 +91,125 @@ func (uc *UseCase) resolveEngineConfiguration(ctx context.Context, organizationI
 		return err
 	}
 
+	var divergent configCopyDivergence
+
 	for _, target := range targets {
 		if config, ok := balanceConfigs[target.balanceID]; ok {
+			if balanceCopyDiverges(target.balance, config) {
+				divergent.balanceRefs = append(divergent.balanceRefs, target.ref)
+			}
+
 			applyBalanceConfig(target.balance, config)
 		}
 
 		// An account without a row (soft-deleted) is not blocked, as the blocked
 		// hydration of a seed has always resolved it.
-		account := accountConfigs[target.accountID]
+		account, found := accountConfigs[target.accountID]
+		if found && accountCopyDiverges(target.balance, account) {
+			divergent.addAccount(target.accountID)
+		}
+
 		target.balance.Blocked = account.Blocked
 		target.balance.AccountConfigVersion = account.Version
 	}
 
+	uc.reportConfigCopyDivergence(ctx, span, divergent)
+
 	return nil
+}
+
+// configCopyDivergence collects the balances and accounts of one load whose loaded
+// copy diverges from the configuration the engine decides with (see
+// balanceCopyDiverges).
+type configCopyDivergence struct {
+	balanceRefs []string
+	accountIDs  []string
+	accounts    map[uuid.UUID]struct{}
+}
+
+func (d *configCopyDivergence) addAccount(accountID uuid.UUID) {
+	if _, seen := d.accounts[accountID]; seen {
+		return
+	}
+
+	if d.accounts == nil {
+		d.accounts = make(map[uuid.UUID]struct{})
+	}
+
+	d.accounts[accountID] = struct{}{}
+	d.accountIDs = append(d.accountIDs, accountID.String())
+}
+
+// balanceCopyDiverges reports whether the configuration a balance was loaded with —
+// the copy in its blob, or its row on a cache miss — carries the version the engine
+// decides with but other content. A version names one committed row state, so that
+// is an inconsistency: a release that reads the configuration from the blob changed
+// the copy without a version it does not know, a copy diverged before versions
+// existed, or versions moved back. The engine decides with the key and keeps the
+// blob's copy; nothing in the execution reports it, so the load does.
+func balanceCopyDiverges(loaded *mmodel.Balance, resolved accounting.BalanceConfig) bool {
+	if loaded.ConfigVersion != resolved.Version {
+		return false
+	}
+
+	copied, err := balancecache.BalanceConfigFromBalance(loaded)
+	if err != nil {
+		return false
+	}
+
+	// A disabled limit is inert, and a balance read from the cache does not carry
+	// it, so it is compared only when enabled.
+	if !copied.OverdraftLimitEnabled && !resolved.OverdraftLimitEnabled {
+		copied.OverdraftLimit = resolved.OverdraftLimit
+	}
+
+	return !copied.Equal(resolved)
+}
+
+// accountCopyDiverges is balanceCopyDiverges for the account's blocked flag.
+func accountCopyDiverges(loaded *mmodel.Balance, resolved accounting.AccountConfig) bool {
+	return loaded.AccountConfigVersion == resolved.Version && loaded.Blocked != resolved.Blocked
+}
+
+// reportConfigCopyDivergence logs the divergent copies of one load at Warn, with
+// the balances and accounts they belong to, and counts them by family. The engine
+// still decides, so this is a signal, never a failure; a metric failure never
+// affects the load.
+func (uc *UseCase) reportConfigCopyDivergence(ctx context.Context, span trace.Span, divergent configCopyDivergence) {
+	if len(divergent.balanceRefs) == 0 && len(divergent.accountIDs) == 0 {
+		return
+	}
+
+	logger := libObservability.NewLoggerFromContext(ctx)
+
+	span.SetAttributes(
+		attribute.Int("app.config_copy.balance.divergent_count", len(divergent.balanceRefs)),
+		attribute.Int("app.config_copy.account.divergent_count", len(divergent.accountIDs)),
+	)
+
+	logger.Log(ctx, libLog.LevelWarn, "Configuration copy holds other content under the version the engine decides with",
+		libLog.Any("balance_refs", divergent.balanceRefs), libLog.Any("account_ids", divergent.accountIDs))
+
+	if uc.MetricsFactory == nil {
+		return
+	}
+
+	counter, err := uc.MetricsFactory.Counter(utils.ConfigCopyDivergent)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelDebug, "Failed to create configuration copy divergence counter", libLog.Err(err))
+
+		return
+	}
+
+	for family, count := range map[string]int{configFamilyBalance: len(divergent.balanceRefs), configFamilyAccount: len(divergent.accountIDs)} {
+		if count == 0 {
+			continue
+		}
+
+		if addErr := counter.WithLabels(map[string]string{"family": family}).Add(ctx, int64(count)); addErr != nil {
+			logger.Log(ctx, libLog.LevelDebug, "Failed to emit configuration copy divergence counter", libLog.Err(addErr))
+		}
+	}
 }
 
 // configurationTarget is one balance of the pool with the identities its

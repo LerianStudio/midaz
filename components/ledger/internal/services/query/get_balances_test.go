@@ -15,7 +15,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -500,6 +502,38 @@ func TestGetBalancesFromCache(t *testing.T) {
 // Settings off of mmodel.Balance, causing the Lua atomic script to observe
 // Direction="" + AllowOverdraft=0 and reject overdraft-enabled transactions
 // with 0018 (insufficient funds) instead of splitting at zero.
+// A cached balance carries the versions of its blob's configuration copies, so
+// the engine load can compare the copy with the configuration it resolves.
+func TestGetBalancesFromCache_CarriesTheBlobCopyVersions(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
+	organizationID, ledgerID := uuid.New(), uuid.New()
+
+	encoded, err := balancecache.Encode(accounting.BalanceSnapshot{
+		ID: uuid.New(), AccountID: uuid.New(), AccountType: "deposit", AssetCode: "BRL",
+		Alias: "@alice", Key: "default", Direction: "credit", BalanceScope: mmodel.BalanceScopeTransactional,
+		Available: decimal.NewFromInt(50), OnHold: decimal.Zero, OverdraftUsed: decimal.Zero, OverdraftLimit: decimal.Zero,
+		Version: 3, AllowSending: true, AllowReceiving: true, Blocked: true,
+		ConfigVersion: 4, AccountConfigVersion: 2,
+	}, balancecache.FormatDual)
+	require.NoError(t, err)
+
+	mockRedisRepo.EXPECT().
+		Get(gomock.Any(), utils.BalanceInternalKey(organizationID, ledgerID, "@alice#default")).
+		Return(string(encoded), nil).
+		Times(1)
+
+	balances, misses := uc.getBalancesFromCache(context.Background(), organizationID, ledgerID, []string{"@alice#default"})
+	require.Empty(t, misses)
+	require.Len(t, balances, 1)
+	assert.Equal(t, int64(4), balances[0].ConfigVersion)
+	assert.Equal(t, int64(2), balances[0].AccountConfigVersion)
+	assert.True(t, balances[0].Blocked)
+}
+
 func TestGetBalancesFromCache_PropagatesOverdraftFields(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -707,8 +741,8 @@ func TestGetBalances_BlockedHydration(t *testing.T) {
 					"the batched lookup must carry the DISTINCT account IDs, once each")
 
 				return []*mmodel.Account{
-					{ID: blockedAccountID.String(), Blocked: boolPtr(true)},
-					{ID: openAccountID.String(), Blocked: boolPtr(false)},
+					{ID: blockedAccountID.String(), Blocked: boolPtr(true), ConfigVersion: 3},
+					{ID: openAccountID.String(), Blocked: boolPtr(false), ConfigVersion: 1},
 				}, nil
 			}).
 			Times(1)
@@ -718,13 +752,18 @@ func TestGetBalances_BlockedHydration(t *testing.T) {
 		require.Len(t, balances, 3)
 
 		byKey := make(map[string]bool, len(balances))
+		versionByKey := make(map[string]int64, len(balances))
+
 		for _, b := range balances {
 			byKey[b.Alias+"#"+b.Key] = b.Blocked
+			versionByKey[b.Alias+"#"+b.Key] = b.AccountConfigVersion
 		}
 
 		assert.True(t, byKey["blocked#default"], "balance of blocked account must carry Blocked=true")
 		assert.True(t, byKey["blocked#extra"], "every balance of a blocked account must carry Blocked=true")
 		assert.False(t, byKey["open#default"], "balance of unblocked account must carry Blocked=false")
+		assert.Equal(t, map[string]int64{"blocked#default": 3, "blocked#extra": 3, "open#default": 1}, versionByKey,
+			"the flag carries the account version it was read at")
 	})
 
 	t.Run("cache hit never touches the account repository", func(t *testing.T) {

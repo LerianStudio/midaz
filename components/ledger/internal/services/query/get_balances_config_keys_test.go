@@ -5,13 +5,19 @@
 package query
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
@@ -20,6 +26,7 @@ import (
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 type configResolutionFixture struct {
@@ -211,6 +218,134 @@ func TestResolveEngineConfiguration_RowsMissingOnThePrimaryWriteNothing(t *testi
 	assert.Zero(t, f.loaded.ConfigVersion)
 	assert.False(t, f.loaded.Blocked, "an account without a row is not blocked")
 	assert.Zero(t, f.loaded.AccountConfigVersion)
+}
+
+// A balance loaded with a copy that carries the version the engine decides with but
+// other content is reported once per balance and once per account, with a Warn and
+// the divergence counter by family; a copy at another version, or with the same
+// content, is not.
+func TestResolveEngineConfiguration_ReportsACopyDivergingUnderTheDecidedVersion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		shape           func(f configResolutionFixture, sibling *mmodel.Balance)
+		balanceDiverges int64
+		accountDiverges int64
+	}{
+		{
+			name: "same versions, other content",
+			shape: func(f configResolutionFixture, sibling *mmodel.Balance) {
+				// An earlier release turned sending on and unblocked the account in
+				// the blobs without changing the version fields it does not know.
+				f.loaded.ConfigVersion, f.loaded.AccountConfigVersion = 4, 2
+				sibling.AccountConfigVersion = 2
+			},
+			balanceDiverges: 1,
+			accountDiverges: 1,
+		},
+		{
+			name: "older versions",
+			shape: func(f configResolutionFixture, sibling *mmodel.Balance) {
+				f.loaded.ConfigVersion, f.loaded.AccountConfigVersion = 3, 1
+				sibling.AccountConfigVersion = 1
+			},
+		},
+		{
+			name: "same versions, same content",
+			shape: func(f configResolutionFixture, sibling *mmodel.Balance) {
+				*f.loaded = *f.primary
+				f.loaded.Blocked, f.loaded.AccountConfigVersion = true, 2
+				sibling.Blocked, sibling.AccountConfigVersion = true, 2
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			f := newConfigResolutionFixture(t)
+			reader := sdkmetric.NewManualReader()
+			provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+			t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+
+			factory, err := metrics.NewMetricsFactory(provider.Meter("config-copy-divergence-test"), nil)
+			require.NoError(t, err)
+
+			f.uc.MetricsFactory = factory
+
+			// A second balance of the same account, with its own key, so the
+			// account is reported once whatever the number of its balances.
+			siblingID := uuid.New()
+			sibling := &mmodel.Balance{
+				ID: siblingID.String(), AccountID: f.accountID.String(), Alias: "@cfg", Key: "savings",
+				AllowSending: true, AllowReceiving: true,
+			}
+			siblingConfig := accounting.BalanceConfig{
+				BalanceID: siblingID, AllowSending: true, AllowReceiving: true,
+				OverdraftLimit: decimal.Zero, BalanceScope: mmodel.BalanceScopeTransactional,
+			}
+			tt.shape(f, sibling)
+
+			balanceConfig, accountConfig := f.primaryConfigs(t)
+			f.redis.EXPECT().ReadConfigKeys(gomock.Any(), f.orgID, f.ledgerID, []string{f.ref, "@cfg#savings"}, []uuid.UUID{f.accountID}).
+				Return(redis.ConfigKeyValues{
+					Balances: map[string]accounting.BalanceConfig{f.ref: balanceConfig, "@cfg#savings": siblingConfig},
+					Accounts: map[uuid.UUID]accounting.AccountConfig{f.accountID: accountConfig},
+				}, nil)
+
+			logs := &recordingLogger{}
+			ctx := libObservability.ContextWithLogger(t.Context(), logs)
+
+			require.NoError(t, f.uc.resolveEngineConfiguration(ctx, f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded, sibling}))
+			assertCarriesPrimaryConfiguration(t, f.loaded)
+
+			divergent := counterByLabel(t, reader, utils.ConfigCopyDivergent.Name, "family")
+			assert.Equal(t, tt.balanceDiverges, divergent["balance"])
+			assert.Equal(t, tt.accountDiverges, divergent["account"])
+
+			const message = "Configuration copy holds other content under the version the engine decides with"
+			if tt.balanceDiverges == 0 && tt.accountDiverges == 0 {
+				assert.Empty(t, logs.entriesWith(message))
+
+				return
+			}
+
+			entry := logs.entryWith(t, message)
+			assert.Equal(t, []string{f.ref}, entry.fields["balance_refs"])
+			assert.Equal(t, []string{f.accountID.String()}, entry.fields["account_ids"])
+		})
+	}
+}
+
+// counterByLabel sums one counter's data points by the value of one label.
+func counterByLabel(t *testing.T, reader *sdkmetric.ManualReader, name, label string) map[string]int64 {
+	t.Helper()
+
+	var rm metricdata.ResourceMetrics
+
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	totals := map[string]int64{}
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != name {
+				continue
+			}
+
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok, "%s must be a Sum[int64], got %T", name, m.Data)
+
+			for _, dp := range sum.DataPoints {
+				value, _ := dp.Attributes.Value(attribute.Key(label))
+				totals[value.AsString()] += dp.Value
+			}
+		}
+	}
+
+	return totals
 }
 
 // The configuration a balance carries must read back as the same configuration,
