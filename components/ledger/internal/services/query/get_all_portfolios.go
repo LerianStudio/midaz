@@ -17,11 +17,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	// GetAllPortfolio fetch all Portfolio from the repository
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllPortfolio fetch all Portfolio from the repository
 func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Portfolio, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -30,19 +28,11 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 
 	portfolios, err := uc.PortfolioRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting portfolios on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, constant.EntityPortfolio)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get portfolios on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No portfolios found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, constant.EntityPortfolio)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get portfolios on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get portfolios on repo", err)
 
 		return nil, err
 	}
@@ -61,8 +51,6 @@ func (uc *UseCase) GetAllPortfolio(ctx context.Context, organizationID, ledgerID
 		err := pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, constant.EntityPortfolio)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 		return nil, err
 	}

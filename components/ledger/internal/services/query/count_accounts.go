@@ -9,17 +9,14 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	// CountAccounts returns the number of accounts for the specified organization, ledger and optional portfolio.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// CountAccounts returns the number of accounts for the specified organization, ledger and optional portfolio.
 func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -28,19 +25,11 @@ func (uc *UseCase) CountAccounts(ctx context.Context, organizationID, ledgerID u
 
 	count, err := uc.AccountRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error counting accounts on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoAccountsFound, constant.EntityAccount)
-
-			logger.Log(ctx, libLog.LevelWarn, "No accounts found for organization")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts on repo", err)
-
-			return 0, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count accounts on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to count accounts on repo", err)
 
 		return 0, err
 	}

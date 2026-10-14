@@ -8,7 +8,6 @@ import (
 	"context"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -22,8 +21,7 @@ func (uc *UseCase) findPageMetadata(ctx context.Context, span trace.Span, logger
 
 	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, collection, ids)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get page metadata on repo", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting page metadata on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get page metadata on repo", err)
 
 		return nil, err
 	}

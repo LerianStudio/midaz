@@ -29,9 +29,7 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 
 	balance, err := uc.BalanceRepo.Find(ctx, organizationID, ledgerID, balanceID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get balance on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting balance", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get balance on repo by id", err)
 
 		return nil, err
 	}
@@ -40,8 +38,6 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityBalance)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Balance not found", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Balance not found")
 
 		return nil, err
 	}

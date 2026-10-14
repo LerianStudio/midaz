@@ -131,6 +131,16 @@ turn incidental behavior into a new guarantee.
   demonstrated drain or continued compatible consumers. An empty inventory page
   does not prove all families and tenants have drained.
 
+## Error Logging
+
+- Use cases log a technical error once, at Error, via `recordQueryError`
+  (`services/query/errors.go`) or `recordCommandError` (`services/command/command.go`).
+  Business errors are span events only; the access log emits their single line.
+- Adapters record errors on the span and return; they never log them.
+- Exception: `adapters/http/in/metadata_core.go` calls the metadata repository
+  without a use case, so the handler owns the single Error line through its local
+  `recordMetadataIndexError` helper.
+
 ## Changes and Verification
 
 - For format changes, inspect Go codecs, wire/Lua, readers, consumers, ACK,

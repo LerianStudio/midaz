@@ -8,8 +8,6 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -24,9 +22,7 @@ func (uc *UseCase) CountTransactionsByFilters(ctx context.Context, organizationI
 
 	count, err := uc.TransactionRepo.CountByFilters(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count transactions by filters", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to count transactions by filters", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to count transactions by filters", err)
 
 		return 0, err
 	}

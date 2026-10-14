@@ -9,8 +9,6 @@ import (
 	"fmt"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
@@ -99,15 +97,16 @@ func (uc *UseCase) protectBalanceSeedAdmission(ctx context.Context, span trace.S
 
 	accountIDs, err := seedAccountIDs(balances)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
-		logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Invalid account ID on balance", err)
 
 		return nil, err
 	}
 
 	admission, err := guard.AcquireSeedAdmission(ctx, organizationID, ledgerID, accountIDs)
 	if err != nil {
-		recordSeedAdmissionRefusal(ctx, span, logger, "Failed to protect the balance seed admission", err)
+		// A refusal by another operation holding the account is the protection answering as designed
+		// (business); a protection state that could not be read is a dependency failing (infra).
+		recordQueryError(ctx, span, logger, "Failed to protect the balance seed admission", err)
 
 		return nil, err
 	}
@@ -117,7 +116,7 @@ func (uc *UseCase) protectBalanceSeedAdmission(ctx context.Context, span trace.S
 			err = pkg.ValidateBusinessError(constant.ErrAccountClosed, constant.EntityAccount)
 		}
 
-		recordSeedAdmissionRefusal(ctx, span, logger, "Refused to admit a balance of a closed account", err)
+		recordQueryError(ctx, span, logger, "Refused to admit a balance of a closed account", err)
 
 		admission.Release(ctx)
 
@@ -163,8 +162,7 @@ func (uc *UseCase) readSeedsUnderAdmission(
 	for extensions := 0; ; extensions++ {
 		balances, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, aliases)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get balances from database", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get balances from database", err)
 
 			return nil, err
 		}
@@ -175,8 +173,7 @@ func (uc *UseCase) readSeedsUnderAdmission(
 
 		uncovered, err := uncoveredSeeds(balances, covered)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
-			logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Invalid account ID on balance", err)
 
 			return nil, err
 		}
@@ -188,7 +185,7 @@ func (uc *UseCase) readSeedsUnderAdmission(
 		if extensions == maxSeedAdmissionExtensions {
 			indeterminate := pkg.ValidateBusinessError(constant.ErrAccountClosingProtectionIndeterminate, constant.EntityAccount)
 
-			recordSeedAdmissionRefusal(ctx, span, logger, "Refused a balance seed outside the protected account set", indeterminate)
+			recordQueryError(ctx, span, logger, "Refused a balance seed outside the protected account set", indeterminate)
 
 			return nil, indeterminate
 		}
@@ -224,22 +221,6 @@ func uncoveredSeeds(balances []*mmodel.Balance, covered map[uuid.UUID]struct{}) 
 	}
 
 	return uncovered, nil
-}
-
-// recordSeedAdmissionRefusal records a refused seed admission with the class of
-// its cause: another operation holding the account, or a closed account, is the
-// protection answering as designed; a protection state that could not be read is a
-// dependency failing and must reach this span as such.
-func recordSeedAdmissionRefusal(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error) {
-	if pkg.IsBusinessError(err) {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
-		logger.Log(ctx, libLog.LevelWarn, message, libLog.Err(err))
-
-		return
-	}
-
-	libOpentelemetry.HandleSpanError(span, message, err)
-	logger.Log(ctx, libLog.LevelError, message, libLog.Err(err))
 }
 
 // seedAccountIDs collects the owning accounts of the loaded balances. An

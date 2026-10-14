@@ -17,6 +17,7 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -70,6 +71,11 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 		key = hash
 	}
 
+	span.SetAttributes(
+		attribute.String("app.request.idempotency_key", key),
+		attribute.Bool("app.request.idempotency_key_explicit", explicitKey),
+	)
+
 	internalKey := utils.IdempotencyInternalKey(organizationID, ledgerID, key)
 	result := &TransactionIdempotencyResult{InternalKey: &internalKey}
 
@@ -104,8 +110,6 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 			if slot.RequestFingerprint != "" && slot.RequestFingerprint != fingerprint {
 				err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckTransactionIdempotency", key)
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Idempotency key reused with a different request", err)
-				logger.Log(ctx, libLog.LevelWarn, "Idempotency key reused with a different request",
-					libLog.Bool("idempotency_key_explicit", explicitKey), libLog.Err(err))
 
 				return result, err
 			}
@@ -116,7 +120,7 @@ func (uc *UseCase) CreateOrCheckTransactionIdempotency(ctx context.Context, orga
 		}
 
 		err = pkg.ValidateBusinessError(constant.ErrIdempotencyKey, "CreateOrCheckTransactionIdempotency", key)
-		logger.Log(ctx, libLog.LevelWarn, "Idempotency key already in use", libLog.Err(err))
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Idempotency key already in use", err)
 
 		return result, err
 	}

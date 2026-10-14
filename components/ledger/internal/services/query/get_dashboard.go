@@ -8,8 +8,6 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/dashboard"
@@ -26,9 +24,7 @@ func (uc *UseCase) GetDashboardMetrics(ctx context.Context, organizationID, ledg
 
 	metrics, err := uc.DashboardRepo.Metrics(ctx, organizationID, ledgerID, window)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read dashboard metrics", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to read dashboard metrics", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to read dashboard metrics", err)
 
 		return nil, err
 	}
@@ -45,9 +41,7 @@ func (uc *UseCase) GetDashboardVolume(ctx context.Context, organizationID, ledge
 
 	volume, err := uc.DashboardRepo.Volume(ctx, organizationID, ledgerID, window)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read dashboard volume", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to read dashboard volume", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to read dashboard volume", err)
 
 		return nil, err
 	}
@@ -65,9 +59,7 @@ func (uc *UseCase) GetDashboardAssets(ctx context.Context, organizationID, ledge
 
 	assets, err := uc.DashboardRepo.Assets(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to read dashboard assets", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to read dashboard assets", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to read dashboard assets", err)
 
 		return nil, err
 	}

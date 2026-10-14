@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
@@ -30,19 +29,11 @@ func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID 
 
 	segments, err := uc.SegmentRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting segments on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No segments found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get segments on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get segments on repo", err)
 
 		return nil, err
 	}
@@ -61,8 +52,6 @@ func (uc *UseCase) GetAllSegments(ctx context.Context, organizationID, ledgerID 
 		err := pkg.ValidateBusinessError(constant.ErrNoSegmentsFound, constant.EntitySegment)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 		return nil, err
 	}

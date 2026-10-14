@@ -31,9 +31,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 
 	balances, cur, err := uc.BalanceRepo.ListAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting balances on repo", libLog.Err(err))
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get balances on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -85,9 +83,7 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 
 	balances, err := uc.BalanceRepo.ListByAliases(ctx, organizationID, ledgerID, []string{alias})
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to list balances by alias on balance database", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to list balances by alias on balance database", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to list balances by alias on balance database", err)
 
 		return nil, err
 	}

@@ -9,8 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -28,19 +26,11 @@ func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledg
 
 	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrFailedToRetrieveAccountsByAliases, constant.EntityAccount)
-
-			logger.Log(ctx, libLog.LevelWarn, "No accounts found for provided aliases", libLog.Int("count", len(aliases)))
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Accounts by aliases", err)
-
-			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Accounts by aliases", err)
+		recordQueryError(ctx, span, logger, "Failed to retrieve Accounts by aliases", err)
 
 		return nil, err
 	}

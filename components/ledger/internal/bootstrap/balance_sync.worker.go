@@ -976,6 +976,15 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 		return false
 	}
 
+	// The batch outcome rides the span, not an INFO line per batch: it is set on
+	// every completed batch, including one that synced nothing.
+	span.SetAttributes(
+		attribute.Int("app.balance_sync.keys_processed", result.KeysProcessed),
+		attribute.Int("app.balance_sync.balances_aggregated", result.BalancesAggregated),
+		attribute.Int64("app.balance_sync.balances_synced", result.BalancesSynced),
+		attribute.Int64("app.balance_sync.keys_removed", result.KeysRemoved),
+	)
+
 	// A batch that ran to completion is a sign of life even when it synced nothing,
 	// so the timestamp is recorded before the synced-count branch.
 	w.recordSyncSuccess(ctx, metricFactory, organizationID, ledgerID, tenantID)
@@ -996,16 +1005,6 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 					libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 			}
 		}
-	}
-
-	if result.KeysProcessed > 0 {
-		w.logger.Log(
-			ctx, libLog.LevelInfo, "BalanceSyncWorker: batch sync completed",
-			libLog.Int("processed", result.KeysProcessed),
-			libLog.Int("aggregated", result.BalancesAggregated),
-			libLog.Int("synced", int(result.BalancesSynced)),
-			libLog.Int("removed", int(result.KeysRemoved)),
-		)
 	}
 
 	return result.BalancesSynced > 0 || result.BalancesAggregated > 0 || result.KeysRemoved > 0

@@ -9,18 +9,15 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	// ListAccountsByIDs get Accounts from the repository by given ids.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// ListAccountsByIDs get Accounts from the repository by given ids.
 func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -29,19 +26,11 @@ func (uc *UseCase) ListAccountsByIDs(ctx context.Context, organizationID, ledger
 
 	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, ids)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting accounts on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrIDsNotFoundForAccounts, constant.EntityAccount)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Accounts by ids", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No accounts found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrIDsNotFoundForAccounts, constant.EntityAccount)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Accounts by ids", err)
+		recordQueryError(ctx, span, logger, "Failed to retrieve Accounts by ids", err)
 
 		return nil, err
 	}

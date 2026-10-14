@@ -89,9 +89,6 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, msg, err)
 
-			logger.Log(ctx, libLog.LevelWarn, msg,
-				libLog.String("transaction_route_id", transactionRouteID.String()))
-
 			if setErr := uc.TransactionRedisRepo.SetBytes(ctx, internalKey, cacheNotFoundSentinel, sentinelTTL); setErr != nil {
 				logger.Log(ctx, libLog.LevelWarn, "Failed to store not-found sentinel in cache", libLog.Err(setErr))
 			}
@@ -99,9 +96,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 			return mmodel.TransactionRouteCache{}, errTransactionRouteNotFound
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to fetch transaction route from database", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error fetching transaction route from database", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to fetch transaction route from database", err)
 
 		return mmodel.TransactionRouteCache{}, err
 	}
@@ -110,18 +105,14 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	cacheBytes, err := cacheData.ToMsgpack()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert route to msgpack cache data", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to convert route to msgpack cache data", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to convert route to msgpack cache data", err)
 
 		return mmodel.TransactionRouteCache{}, err
 	}
 
 	err = uc.TransactionRedisRepo.SetBytes(ctx, internalKey, cacheBytes, 0)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to create transaction route cache", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to create transaction route cache", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to create transaction route cache", err)
 
 		return mmodel.TransactionRouteCache{}, err
 	}

@@ -18,11 +18,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	// GetAllMetadataOperations fetch all Operations from the repository
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllMetadataOperations fetch all Operations from the repository
 func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -36,8 +34,6 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo by metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operations on repo by metadata", libLog.Err(err))
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -57,19 +53,11 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	oper, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, opFilter, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting operations on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting operations on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
