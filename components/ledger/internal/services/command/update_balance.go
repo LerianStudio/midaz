@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -133,8 +135,12 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 //  1. Validates the Settings payload (HARD GATE — fails closed, no partial writes).
 //  2. Enforces overdraft transition invariants:
 //     - reducing limit below current usage is rejected
-//  3. Auto-creates the system-managed "overdraft" balance on a false→true
-//     transition (idempotent — existing overdraft balances are reused).
+//  3. Readies the system-managed "overdraft" companion before the UPDATE when
+//     the payload enables the overdraft (existing companions are reused).
+//
+// After the UPDATE commits, the configuration events are published, then the
+// committed configuration is written where transactions read it, failing the
+// PATCH when that write cannot be completed (see writeBalanceConfiguration).
 func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID, update mmodel.UpdateBalance) (_ *mmodel.Balance, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -183,23 +189,14 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		}
 	}
 
-	// Auto-create the system-managed overdraft balance BEFORE persisting
-	// the settings update. If auto-creation fails (e.g., Create returns a
-	// database error), the parent balance's settings MUST NOT have been
-	// mutated — this keeps the pair (parent.AllowOverdraft, overdraft
-	// balance) consistent on failure. Guarded so the path only runs when
-	// the caller actually provided new settings.
-	//
-	// When this call materializes a fresh companion balance (rather than
-	// finding an existing one or losing the concurrent-insert race) it
-	// returns the persisted companion so we can publish
-	// balance.config_changed{changeType=overdraft_enabled} for that row.
-	// That event substitutes for the suppressed balance.created on the
-	// companion (companions are system-managed).
+	// Ready the overdraft companion BEFORE persisting the settings, so that a
+	// failure leaves the parent untouched and the payload of the
+	// overdraft_enabled event exists before the UPDATE that may switch the
+	// overdraft on.
 	var companion *mmodel.Balance
 
 	if update.Settings != nil {
-		c, err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings)
+		c, _, err := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, current, update.Settings)
 		if err != nil {
 			return nil, err
 		}
@@ -207,61 +204,100 @@ func (uc *UseCase) Update(ctx context.Context, organizationID, ledgerID, balance
 		companion = c
 	}
 
-	balance, _, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
+	balance, enabledOverdraft, err := uc.BalanceRepo.Update(ctx, organizationID, ledgerID, balanceID, update)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to update balance on repo", err)
 
 		return nil, err
 	}
 
-	if update.AllowSending != nil || update.AllowReceiving != nil {
-		if err := uc.propagateBalanceAllowFlagsToCache(ctx, span, logger, organizationID, ledgerID, balance, update); err != nil {
-			return nil, err
-		}
-	}
-
-	// Publish events for both branches in order: the companion's
-	// config_changed{overdraft_enabled} (when ensureOverdraftBalance
-	// materialized a fresh row), then the parent's
-	// config_changed{settings_updated}. A single PATCH that flips
-	// AllowOverdraft false->true therefore produces two events; an
-	// ordinary settings PATCH produces only the parent's.
-	if companion != nil {
+	// The events announce the persisted configuration, so they go out right
+	// after the commit, before the cache write that may still fail the PATCH:
+	// a cache failure must not lose them, and the client's retry commits
+	// nothing new to announce. overdraft_enabled belongs to the UPDATE that
+	// switched the overdraft on — only that request publishes it, even when the
+	// companion existed before (a retry after a failure) — and is published
+	// first, then the parent's settings_updated.
+	if enabledOverdraft && companion != nil {
 		uc.emitBalanceConfigChangedEvent(ctx, span, logger, companion, events.BalanceConfigChangeTypeOverdraftEnabled)
 	}
 
 	uc.emitBalanceConfigChangedEvent(ctx, span, logger, balance, events.BalanceConfigChangeTypeSettingsUpdated)
 
-	uc.overlayBalanceAmountsFromCache(ctx, span, logger, organizationID, ledgerID, balance)
-
-	// When the caller updates overdraft/scope Settings, rewrite ONLY those
-	// fields in the cached JSON blob in place. Deleting the key would discard
-	// live transactional state (Available, OnHold, Version, OverdraftUsed)
-	// that the Lua atomic script may have mutated but not yet flushed to
-	// PostgreSQL. An in-place settings rewrite preserves that state while
-	// making the new overdraft configuration visible to the next transaction.
-	//
-	// The repo method composes its own BalanceInternalKey from (org, ledger,
-	// alias#key) and applies the tenant prefix internally, mirroring the Get
-	// above. A cache miss inside the repo is a no-op — the next transaction
-	// will load the freshly-persisted settings via the Lua SETNX path.
-	//
-	// AllowSending/AllowReceiving are not part of the settings contract this
-	// rewrite guards; they travel through their own fail-closed propagation
-	// above (propagateBalanceAllowFlagsToCache).
-	//
-	// This is best-effort: the PostgreSQL write is already durable, so a
-	// Redis-side failure here is logged and swallowed. A subsequent cache
-	// miss or the sync worker will reconcile.
-	if update.Settings != nil {
-		cacheKey := balance.Alias + "#" + balance.Key
-		if uerr := uc.TransactionRedisRepo.UpdateBalanceCacheSettings(ctx, organizationID, ledgerID, cacheKey, update.Settings); uerr != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update balance cache settings on redis", uerr)
-			logger.Log(ctx, libLog.LevelWarn, "Failed to update balance cache settings on Redis", libLog.Err(uerr))
-		}
+	if err := uc.writeBalanceConfiguration(ctx, span, logger, organizationID, ledgerID, balance); err != nil {
+		return nil, err
 	}
 
+	uc.overlayBalanceAmountsFromCache(ctx, span, logger, organizationID, ledgerID, balance)
+
 	return balance, nil
+}
+
+// errConfigurationCopyNotConfirmed reports a configuration copy that kept losing
+// its compare-and-set to concurrent writes of the balance blob.
+var errConfigurationCopyNotConfirmed = errors.New("configuration copy in the balance cache not confirmed")
+
+// writeBalanceConfiguration makes the configuration a balance UPDATE committed
+// the one transactions obey. It writes the balance's configuration key with the
+// row the UPDATE returned and its version, then confirms the configuration copy
+// in the balance blob, which releases reading the configuration from the blob
+// obey (a compatibility bridge, removable once no rollback target reads it
+// there). The copy never touches money: it is written through a compare-and-set
+// on the exact bytes read, and a blob a transaction already moved to this
+// version or a newer one needs no write.
+//
+// Fail-closed: PostgreSQL already committed, but answering success while the key
+// or the copy still holds the previous configuration would let transactions keep
+// obeying it. A Redis failure, or a copy still unconfirmed after the bounded
+// compare-and-set attempts, fails the PATCH as a technical error. The client's
+// retry is idempotent: the version does not rise without a real change, and the
+// same version with the same content writes nothing.
+func (uc *UseCase) writeBalanceConfiguration(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, balance *mmodel.Balance) error {
+	config, err := balancecache.BalanceConfigFromBalance(balance)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to read the committed balance configuration", err)
+
+		return err
+	}
+
+	ref := balanceCacheRef(balance.Alias, balance.Key)
+
+	if _, _, err := uc.TransactionRedisRepo.WriteBalanceConfig(ctx, organizationID, ledgerID, ref, config); err != nil {
+		recordCommandError(ctx, span, logger, "Failed to write the balance configuration key", err,
+			libLog.String("balance_ref", ref), libLog.Any("config_version", config.Version))
+
+		return err
+	}
+
+	outcome, err := uc.TransactionRedisRepo.CopyBalanceConfigToBlob(ctx, organizationID, ledgerID, ref, config)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to copy the balance configuration to the balance cache", err,
+			libLog.String("balance_ref", ref), libLog.Any("config_version", config.Version))
+
+		return err
+	}
+
+	span.SetAttributes(attribute.String("app.balance_config.blob_copy", outcome.String()))
+
+	if !outcome.Confirmed() {
+		err := fmt.Errorf("balance %s version %d: %w", config.BalanceID, config.Version, errConfigurationCopyNotConfirmed)
+		recordCommandError(ctx, span, logger, "Balance configuration copy not confirmed", err,
+			libLog.String("balance_ref", ref), libLog.String("outcome", outcome.String()))
+
+		return err
+	}
+
+	return nil
+}
+
+// balanceCacheRef is the alias#key a balance is cached under; a legacy row with
+// an empty key is cached under the default key.
+func balanceCacheRef(alias, key string) string {
+	if key == "" {
+		key = constant.DefaultBalanceKey
+	}
+
+	return alias + "#" + key
 }
 
 // overlayBalanceAmountsFromCache overlays amounts from the Redis cache onto a
@@ -300,51 +336,22 @@ func (uc *UseCase) overlayBalanceAmountsFromCache(ctx context.Context, span trac
 	}
 }
 
-// propagateBalanceAllowFlagsToCache rewrites AllowSending/AllowReceiving in
-// place on the balance's cached blob after a PATCH that carries either flag.
-// PostgreSQL was updated first (source of truth); the rewrite runs as ONE
-// atomic Lua EVAL, preserving live transactional state pending write-behind
-// sync (no DEL). Only the flags present in the payload are written — the
-// repository resolves the absent ones to "keep".
-//
-// Fail-closed: the transaction pre-validation reads the flags from the cached
-// blob, which takes precedence over PostgreSQL and has its TTL renewed by every
-// operation — on a hot balance a stale flag never self-heals. Returning success
-// with a stale cache would therefore keep a frozen balance transacting, so the
-// error fails the PATCH; the client's retry is idempotent and heals the blob.
-// A cache miss and a blob the script cannot decode are not errors (neither can
-// approve a transaction on the old flags). These failures are TECHNICAL
-// (infrastructure, not caller error), so they flip the span red and log at
-// Error for operator attention.
-func (uc *UseCase) propagateBalanceAllowFlagsToCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, balance *mmodel.Balance, update mmodel.UpdateBalance) error {
-	cacheKey := balance.Alias + "#" + balance.Key
-
-	if err := uc.TransactionRedisRepo.UpdateBalanceCacheAllowFlags(ctx, organizationID, ledgerID, cacheKey, update.AllowSending, update.AllowReceiving); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update balance cache allow flags", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to update balance cache allow flags on Redis", libLog.Err(err))
-
-		return err
-	}
-
-	return nil
-}
-
 // emitBalanceConfigChangedEvent publishes the balance.config_changed
 // event for a successfully persisted balance configuration mutation.
 // IMPORTANT posture: build and emit failures are span-recorded and
 // logged at Warn, never returned. Durability of the event is owned by
 // the persisted database mutation; this helper does not make broker delivery transactional.
 //
-// Anchor (two callers):
-//   - UseCase.Update at the post-Update success branch, with the
-//     parent balance and changeType=settings_updated.
-//   - UseCase.Update at the post-ensureOverdraftBalance success branch,
-//     with the COMPANION balance and changeType=overdraft_enabled.
+// Anchor (callers):
+//   - UseCase.Update right after the UPDATE commits, with the parent
+//     balance and changeType=settings_updated, and with the COMPANION
+//     balance and changeType=overdraft_enabled when that UPDATE switched
+//     the overdraft on.
+//   - UseCase.CreateAdditionalBalance, with the companion it created.
 //
-// Caller invariant: b must be the value returned by BalanceRepo.Update
-// (settings_updated branch) or by BalanceRepo.Create via
-// ensureOverdraftBalance (overdraft_enabled branch). In both cases
-// b.UpdatedAt must reflect the persisted row.
+// Caller invariant: b must be a persisted row — returned by
+// BalanceRepo.Update (settings_updated) or the companion readied by
+// ensureOverdraftBalance (overdraft_enabled) — so b.UpdatedAt reflects it.
 //
 // Wire-format mapping lives in pkg/streaming/events/balance_config_changed.go;
 // changes to the payload contract belong there, not here.

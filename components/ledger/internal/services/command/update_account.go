@@ -7,6 +7,7 @@ package command
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -87,7 +89,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	}
 
 	if uai.Blocked != nil {
-		if err := uc.propagateAccountBlockedToCache(ctx, span, logger, organizationID, ledgerID, id, *uai.Blocked); err != nil {
+		if err := uc.writeAccountConfiguration(ctx, span, logger, organizationID, ledgerID, accountUpdated); err != nil {
 			return nil, err
 		}
 	}
@@ -159,61 +161,86 @@ func mergePatchAccount(pre, in *mmodel.Account, updatedAt time.Time) *mmodel.Acc
 	return &out
 }
 
-// propagateAccountBlockedToCache rewrites the Blocked flag in place on every
-// cached balance blob of the account after a PATCH that carries blocked.
-// PostgreSQL was updated first (source of truth); the rewrite runs as ONE
-// atomic multi-key Lua EVAL, preserving live transactional state pending
-// write-behind sync (no DEL). Keys not in cache are skipped — the on-demand
-// hydration covers them with the new value on the next miss.
+// writeAccountConfiguration makes the blocked flag an account UPDATE committed
+// the one transactions obey. It writes the account's configuration key with the
+// row the UPDATE returned and its version, then confirms the copy of the flag in
+// every cached blob of the account's balances, which releases reading the flag
+// from the blob obey (a compatibility bridge, removable once no rollback target
+// reads it there). The blobs are read in one MGET and only the ones holding an
+// older or a divergent copy are written, through a compare-and-set that never
+// touches money. Blobs not in cache are skipped: the next load reads the flag
+// from PostgreSQL.
 //
-// Fail-closed: Blocked is a security control, so a listing or Redis failure
-// returns an error and fails the PATCH even though PostgreSQL already
-// committed. The caller must retry; the retry is idempotent and heals the
-// cache. Reporting success instead would leave the transaction Lua guard
-// (balance_atomic_operation.lua) honoring a stale cached flag — that guard
-// gives the cached blob precedence over PostgreSQL, and renews the cache
-// entry's TTL on every operation, so on a hot account the stale flag never
-// self-heals. These failures are TECHNICAL (infrastructure, not caller
-// error), so they flip the span red and log at Error for operator attention.
-// Unblocking an account that was never blocked follows the same path and is
-// a natural no-op (RF-02).
-func (uc *UseCase) propagateAccountBlockedToCache(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID, accountID uuid.UUID, blocked bool) error {
-	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, accountID)
+// Fail-closed: Blocked is a security control, so a listing or Redis failure, or a
+// copy still unconfirmed after the bounded compare-and-set attempts, fails the
+// PATCH even though PostgreSQL already committed. The client's retry is
+// idempotent and completes the write. These failures are TECHNICAL
+// (infrastructure, not caller error), so they flip the span red and log at Error
+// for operator attention. Unblocking an account that was never blocked follows
+// the same path and is a natural no-op (RF-02).
+func (uc *UseCase) writeAccountConfiguration(ctx context.Context, span trace.Span, logger libLog.Logger, organizationID, ledgerID uuid.UUID, account *mmodel.Account) error {
+	config, err := balancecache.AccountConfigFromAccount(account)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to list balances for blocked cache propagation", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to list balances for blocked cache propagation", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to read the committed account configuration", err)
 
 		return err
 	}
 
-	if len(balances) == 0 {
-		return nil
+	if _, _, err := uc.TransactionRedisRepo.WriteAccountConfig(ctx, organizationID, ledgerID, config); err != nil {
+		recordCommandError(ctx, span, logger, "Failed to write the account configuration key", err,
+			libLog.String("account_id", config.AccountID.String()), libLog.Any("config_version", config.Version))
+
+		return err
+	}
+
+	balances, err := uc.BalanceRepo.ListByAccountID(ctx, organizationID, ledgerID, config.AccountID)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to list balances for the account configuration copy", err)
+
+		return err
 	}
 
 	// Dedupe: a legacy balance row with an empty key normalizes to the
 	// default key and may collide with an explicit "default" balance.
 	seen := make(map[string]struct{}, len(balances))
-	cacheKeys := make([]string, 0, len(balances))
+	refs := make([]string, 0, len(balances))
 
 	for _, b := range balances {
-		balanceKey := b.Key
-		if balanceKey == "" {
-			balanceKey = constant.DefaultBalanceKey
-		}
-
-		cacheKey := b.Alias + "#" + balanceKey
-		if _, ok := seen[cacheKey]; ok {
+		ref := balanceCacheRef(b.Alias, b.Key)
+		if _, ok := seen[ref]; ok {
 			continue
 		}
 
-		seen[cacheKey] = struct{}{}
+		seen[ref] = struct{}{}
 
-		cacheKeys = append(cacheKeys, cacheKey)
+		refs = append(refs, ref)
 	}
 
-	if err := uc.TransactionRedisRepo.UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, cacheKeys, blocked); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update balance cache blocked flag", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to update balance cache blocked flag", libLog.Err(err))
+	if len(refs) == 0 {
+		return nil
+	}
+
+	outcomes, err := uc.TransactionRedisRepo.CopyAccountConfigToBlobs(ctx, organizationID, ledgerID, refs, config)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to copy the account configuration to the balance cache", err,
+			libLog.String("account_id", config.AccountID.String()))
+
+		return err
+	}
+
+	unconfirmed := 0
+
+	for _, outcome := range outcomes {
+		if !outcome.Confirmed() {
+			unconfirmed++
+		}
+	}
+
+	span.SetAttributes(attribute.Int("app.account_config.blob_copy_unconfirmed", unconfirmed))
+
+	if unconfirmed > 0 {
+		err := fmt.Errorf("account %s version %d, %d balances: %w", config.AccountID, config.Version, unconfirmed, errConfigurationCopyNotConfirmed)
+		recordCommandError(ctx, span, logger, "Account configuration copy not confirmed", err)
 
 		return err
 	}
@@ -226,7 +253,7 @@ func (uc *UseCase) propagateAccountBlockedToCache(ctx context.Context, span trac
 // failures are span-recorded and logged at Warn, never returned.
 // The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
-// Anchor: invoked after the fail-closed blocked-cache propagation gate and
+// Anchor: invoked after the fail-closed blocked configuration write and
 // before the metadata-write call in UpdateAccount, so a propagation failure
 // short-circuits before the event is announced, a downstream Mongo failure
 // cannot mask the event, and an update rollback cannot leak it.

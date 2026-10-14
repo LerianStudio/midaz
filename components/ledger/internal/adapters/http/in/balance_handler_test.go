@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -542,10 +543,13 @@ func TestUpdateBalance_Success(t *testing.T) {
 	}, false, nil).Times(1)
 	redisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
 
-	// An allow-flags PATCH propagates the new flags to the cached balance blob
-	// before the response is written; the command layer fails closed on error.
-	redisRepo.EXPECT().UpdateBalanceCacheAllowFlags(gomock.Any(), orgID, ledgerID, "@user1#default",
-		testutils.Ptr(false), testutils.Ptr(true)).Return(nil).Times(1)
+	// An allow-flags PATCH writes the committed configuration where
+	// transactions read it before the response is written; the command layer
+	// fails closed on error.
+	redisRepo.EXPECT().WriteBalanceConfig(gomock.Any(), orgID, ledgerID, "@user1#default", gomock.Any()).
+		Return(accounting.BalanceConfig{}, redis.ConfigWritten, nil).Times(1)
+	redisRepo.EXPECT().CopyBalanceConfigToBlob(gomock.Any(), orgID, ledgerID, "@user1#default", gomock.Any()).
+		Return(redis.BlobCopyWritten, nil).Times(1)
 
 	handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
 
@@ -568,6 +572,56 @@ func TestUpdateBalance_Success(t *testing.T) {
 	assert.Equal(t, balanceID.String(), got["id"])
 	assert.Equal(t, false, got["allowSending"])
 	assert.Equal(t, true, got["allowReceiving"])
+}
+
+// TestUpdateBalance_ConfigurationWriteFailure_Internal500 pins the status a
+// PATCH answers when PostgreSQL committed but the configuration could not be
+// written where transactions read it: the same technical error the allow-flags
+// cache failure always answered, so the client retries.
+func TestUpdateBalance_ConfigurationWriteFailure_Internal500(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	for name, payload := range map[string]map[string]any{
+		"allow flags": {"allowSending": false},
+		"settings":    {"settings": map[string]any{"allowOverdraft": false}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			row := &mmodel.Balance{ID: balanceID.String(), Alias: "@user1", Key: "default", AllowReceiving: true}
+
+			balanceRepo := balance.NewMockRepository(ctrl)
+			redisRepo := redis.NewMockRedisRepository(ctrl)
+
+			balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).Return(row, nil).Times(1)
+			balanceRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, balanceID, gomock.Any()).Return(row, false, nil).Times(1)
+			redisRepo.EXPECT().WriteBalanceConfig(gomock.Any(), orgID, ledgerID, "@user1#default", gomock.Any()).
+				Return(accounting.BalanceConfig{}, redis.ConfigWriteOutcome(0), errors.New("redis connection refused")).Times(1)
+
+			handler := &BalanceHandler{Command: &command.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
+			app := buildHumaBalanceApp(t, handler, true)
+
+			body, _ := json.Marshal(payload)
+			req := httptest.NewRequest(http.MethodPatch, balPath(orgID, ledgerID, "/balances/"+balanceID.String()), bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+
+			resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, _ := io.ReadAll(resp.Body)
+			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "body: %s", string(respBody))
+
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+			assert.Equal(t, constant.ErrInternalServer.Error(), got["code"])
+			assert.NotContains(t, string(respBody), "redis", "the infrastructure detail must not leak")
+		})
+	}
 }
 
 func TestUpdateBalance_ServiceError_Canonical404(t *testing.T) {

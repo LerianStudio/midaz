@@ -205,12 +205,12 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 		writeIssued = true
 
-		companion, oerr := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, &syntheticCurrent, cbi.Settings)
+		companion, created, oerr := uc.ensureOverdraftBalance(ctx, logger, span, organizationID, ledgerID, &syntheticCurrent, cbi.Settings)
 		if oerr != nil {
 			return nil, oerr
 		}
 
-		overdraftCompanion = companion
+		overdraftCompanion = createdCompanion(companion, created)
 	}
 
 	writeIssued = true
@@ -244,6 +244,16 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	}
 
 	return created, nil
+}
+
+// createdCompanion returns the companion only when this request created it: an
+// existing companion was announced when it came into being.
+func createdCompanion(companion *mmodel.Balance, created bool) *mmodel.Balance {
+	if !created {
+		return nil
+	}
+
+	return companion
 }
 
 func isBalanceKeyUniqueViolation(err error) bool {

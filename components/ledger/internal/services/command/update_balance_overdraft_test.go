@@ -85,12 +85,9 @@ func TestUpdateBalance_WithSettings(t *testing.T) {
 		Return(&expected, false, nil).Times(1)
 
 	mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
-	// Cache settings are rewritten in-place after a settings update to make
-	// the new overdraft configuration visible without discarding live
-	// transactional state (Available, OnHold, Version, OverdraftUsed).
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).AnyTimes()
+	// The new overdraft configuration reaches the configuration key and the
+	// blob copy without discarding live transactional state.
+	written := expectBalanceConfigurationWrite(t, mockRedisRepo, orgID, ledgerID, "@alice#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -108,6 +105,8 @@ func TestUpdateBalance_WithSettings(t *testing.T) {
 	assert.True(t, result.Settings.OverdraftLimitEnabled)
 	require.NotNil(t, result.Settings.OverdraftLimit)
 	assert.Equal(t, "1000", *result.Settings.OverdraftLimit)
+	assert.True(t, written.AllowOverdraft)
+	assert.True(t, written.OverdraftLimit.Equal(decimal.NewFromInt(1000)))
 }
 
 // TestUpdateBalance_SettingsValidation verifies that invalid settings are
@@ -244,10 +243,7 @@ func TestUpdateBalance_CanDisableOverdraftWithUsage(t *testing.T) {
 		Return("", nil).
 		Times(1)
 
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), orgID, ledgerID, "@indebted#default", update.Settings).
-		Return(nil).
-		Times(1)
+	written := expectBalanceConfigurationWrite(t, mockRedisRepo, orgID, ledgerID, "@indebted#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -261,6 +257,7 @@ func TestUpdateBalance_CanDisableOverdraftWithUsage(t *testing.T) {
 	require.NotNil(t, result.Settings)
 	assert.False(t, result.Settings.AllowOverdraft)
 	assert.Equal(t, decimal.NewFromInt(250), result.OverdraftUsed)
+	assert.False(t, written.AllowOverdraft, "the key must carry the overdraft switched off")
 }
 
 // TestUpdateBalance_CannotReduceLimitBelowUsage verifies that the limit

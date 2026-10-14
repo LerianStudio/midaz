@@ -288,11 +288,9 @@ func TestBalanceUpdate_AllowsNormalBalance(t *testing.T) {
 		Return("", nil).
 		Times(1)
 
-	// An allow-flags PATCH propagates the new flags to the cached blob.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheAllowFlags(gomock.Any(), orgID, ledgerID, "@normal#default", gomock.Any(), nil).
-		Return(nil).
-		Times(1)
+	// An allow-flags PATCH writes the committed configuration where
+	// transactions read it.
+	expectBalanceConfigurationWrite(t, mockRedisRepo, orgID, ledgerID, "@normal#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,

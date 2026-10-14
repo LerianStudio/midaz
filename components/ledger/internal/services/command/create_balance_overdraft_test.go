@@ -512,10 +512,10 @@ func TestCreateAdditionalBalance_AllowOverdraft_CompanionRaceIsBenign(t *testing
 				return nil, &pgconn.PgError{Code: constant.UniqueViolationCode}
 			}).
 			Times(1),
-		// Reload resolves the peer-created row: benign race.
+		// Reload from the primary resolves the peer-created row: benign race.
 		mockBalanceRepo.EXPECT().
-			FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, accountID, constant.OverdraftBalanceKey).
-			Return(peerCompanion, nil).
+			ListByAliasesWithKeysOnPrimary(gomock.Any(), orgID, ledgerID, []string{alias + "#" + constant.OverdraftBalanceKey}).
+			Return([]*mmodel.Balance{peerCompanion}, nil).
 			Times(1),
 		// Parent Create proceeds normally.
 		mockBalanceRepo.EXPECT().

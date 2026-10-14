@@ -107,12 +107,7 @@ func TestUpdateBalance_EnableOverdraft_AutoCreatesOverdraftBalance(t *testing.T)
 		Return("", nil).
 		AnyTimes()
 
-	// Cache settings are rewritten in-place after a settings update (live
-	// transactional state is preserved — no Del).
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		AnyTimes()
+	expectBalanceConfigurationWrite(t, mockRedisRepo, orgID, ledgerID, "@fresh#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -207,12 +202,7 @@ func TestUpdateBalance_EnableOverdraft_Idempotent(t *testing.T) {
 		Return("", nil).
 		AnyTimes()
 
-	// Cache settings are rewritten in-place after a settings update (live
-	// transactional state is preserved — no Del).
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).
-		AnyTimes()
+	expectBalanceConfigurationWrite(t, mockRedisRepo, orgID, ledgerID, "@fresh#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
