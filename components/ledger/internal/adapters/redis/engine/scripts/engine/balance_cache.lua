@@ -170,7 +170,8 @@ end
 
 -- The blob keeps a copy of the configuration with the version of each family, in
 -- lowercase fields that releases reading the configuration from the blob neither
--- read nor drop. A blob without a copy reads version 0.
+-- read nor drop. A family without its version field reads version 0 in the
+-- decision; it is a copy of unknown age (see keptConfigFields).
 local balanceConfigVersionField, accountConfigVersionField = "balanceConfigVersion", "accountConfigVersion"
 
 local function blobConfigVersion(blob, field)
@@ -225,28 +226,34 @@ local function decodeAccountConfigKey(raw, accountId)
     return { version = value.configVersion, blocked = value.blocked }
 end
 
--- encodeBalance serializes the final live state in both current and legacy field
--- shapes so readers on either side of the rollout observe the same balance.
---
 -- The blob keeps a copy of the configuration for releases that read it from the
 -- blob: a compatibility bridge, removable once no rollback target does. Each
 -- family (the balance configuration, the account's blocked flag) is copied only
--- when the execution decided with a version newer than the blob's copy of it. On
--- an equal version the blob keeps its own copy, fields and version alike, even
--- when the decision preferred other content: a release that reads the blob
--- changes the copy without changing its version label, and overwriting that
--- change would undo it for those readers, after a rollback for good. A seeded
--- balance has no copy yet and takes the decided configuration.
+-- when the execution decided with a version newer than the blob's copy of it. A
+-- release that reads the blob changes the copy without touching a version field it
+-- does not know, so the blob keeps its own copy, fields and version field alike:
+--   * on an equal version, even when the decision preferred other content;
+--   * when the family has no version field at all: an earlier release seeded the
+--     blob from scratch, possibly after a PATCH it served, or the blob predates
+--     versions. Its copy may be newer than a live key, so only a PATCH, which
+--     writes the version field, replaces it.
+-- Overwriting such a copy would undo that change for those readers, after a
+-- rollback for good. A version field this release wrote is kept to that rule even
+-- at "0". A seeded balance has no copy yet and takes the decided configuration.
 local accountConfigFields = { "blocked" }
+
+local function keptFamily(blob, versionField, decided, copied)
+    return blob[versionField] == nil or not newerConfigVersion(decided, copied)
+end
 
 local function keptConfigFields(item)
     local kept = {}
-    local copied = item.blobConfigVersions
-    if not copied then return kept end
-    if not newerConfigVersion(item.configVersions.balance, copied.balance) then
+    local blob, copied = item.blob, item.blobConfigVersions
+    if not blob then return kept end
+    if keptFamily(blob, balanceConfigVersionField, item.configVersions.balance, copied.balance) then
         for _, field in ipairs(balanceConfigFields) do kept[field] = true end
     end
-    if not newerConfigVersion(item.configVersions.account, copied.account) then
+    if keptFamily(blob, accountConfigVersionField, item.configVersions.account, copied.account) then
         for _, field in ipairs(accountConfigFields) do kept[field] = true end
     end
     return kept
@@ -257,10 +264,13 @@ end
 --
 -- Money, version and identity always come from the execution. The configuration
 -- families follow keptConfigFields: a family copied from the decision carries its
--- decided version (a version-0 decision leaves the blob without version fields, as
--- before versions existed); a kept family is carried over unchanged, in whichever
+-- decided version; a kept family is carried over unchanged, in whichever
 -- representations the blob had it. The decided version is never below the copy's,
--- so a copy never moves back.
+-- so a copy never moves back. A version-0 decision writes no version field, as
+-- before versions existed, so later executions keep that copy as they keep one an
+-- earlier release seeded. It holds the row at version 0, and a later change
+-- reaches it through the PATCH copy, which writes the version field, or through
+-- the blob write of the earlier release that served the PATCH.
 local function encodeBalance(item)
     local blob = item.blob and clone(item.blob) or object()
     local kept = keptConfigFields(item)

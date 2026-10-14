@@ -45,6 +45,31 @@ func newOverdraftConfigFixture(t *testing.T, client redis.UniversalClient) *inte
 	return f
 }
 
+// seedWithCopyVersions caches the balance at index as this release writes it: the
+// configuration copy carries the version of each family, version 0 included, as a
+// PATCH copy writes it. seed leaves a version-0 family without a version field, as
+// a blob an earlier release wrote.
+func (f *integrationFixture) seedWithCopyVersions(t *testing.T, index int, snapshot accounting.BalanceSnapshot) {
+	t.Helper()
+	encoded, err := balancecache.Encode(snapshot, balancecache.FormatDual)
+	require.NoError(t, err)
+
+	key := f.resolved.Balances[f.input.Execution.Balances[index].BalanceRef].Balance
+	require.NoError(t, f.client.Set(context.Background(), key, withCopyVersions(t, encoded, snapshot.ConfigVersion, snapshot.AccountConfigVersion), time.Hour).Err())
+}
+
+// withCopyVersions sets both configuration copy version fields of an encoded blob.
+func withCopyVersions(t *testing.T, encoded []byte, balanceVersion, accountVersion int64) []byte {
+	t.Helper()
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(encoded, &fields))
+	fields[balancecache.BlobBalanceConfigVersionField] = json.RawMessage(strconv.Quote(strconv.FormatInt(balanceVersion, 10)))
+	fields[balancecache.BlobAccountConfigVersionField] = json.RawMessage(strconv.Quote(strconv.FormatInt(accountVersion, 10)))
+
+	return mustMarshal(t, fields)
+}
+
 func (f *integrationFixture) blobFields(t *testing.T, index int) map[string]json.RawMessage {
 	t.Helper()
 
@@ -133,6 +158,7 @@ func TestIntegrationEngineConfigKeyDecidesOverTheBlobCopy(t *testing.T) {
 
 	t.Run("an approved execution copies the key's configuration and both versions", func(t *testing.T) {
 		f := newOverdraftConfigFixture(t, container.Client)
+		f.seedWithCopyVersions(t, 0, f.input.Execution.Balances[0])
 		f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(4)
 		primary := f.input.Execution.Balances[0]
 		primary.AllowOverdraft = false
@@ -156,6 +182,7 @@ func TestIntegrationEngineConfigKeyDecidesOverTheBlobCopy(t *testing.T) {
 
 	t.Run("a newer key decides over an older request and is left untouched", func(t *testing.T) {
 		f := newOverdraftConfigFixture(t, container.Client)
+		f.seedWithCopyVersions(t, 0, f.input.Execution.Balances[0])
 		f.input.Execution.Balances[0].AllowOverdraft = false
 		f.input.Execution.Balances[0].ConfigVersion = 4
 		live := f.input.Execution.Balances[0]
@@ -169,7 +196,7 @@ func TestIntegrationEngineConfigKeyDecidesOverTheBlobCopy(t *testing.T) {
 		result := decodeIntegrationResult(t, raw)
 		require.Len(t, result.Movements, 2)
 		require.Equal(t, "20", result.Final[0].OverdraftUsed)
-		requireBlobConfiguration(t, f.blobFields(t, 0), true, "5", "")
+		requireBlobConfiguration(t, f.blobFields(t, 0), true, "5", "0")
 		require.Equal(t, key, f.storedKey(t, f.balanceConfigKey(0)))
 	})
 
@@ -253,6 +280,7 @@ func TestIntegrationEngineConfigKeyIsOnlyRead(t *testing.T) {
 
 	t.Run("a key gone before the execution leaves the request in force for that execution only", func(t *testing.T) {
 		f := newOverdraftConfigFixture(t, container.Client)
+		f.seedWithCopyVersions(t, 0, f.input.Execution.Balances[0])
 		// Go read version 3 from the key; the key expired before the script ran.
 		f.input.Execution.Balances[0].AllowOverdraft = false
 		f.input.Execution.Balances[0].ConfigVersion = 3
@@ -412,6 +440,126 @@ func TestIntegrationEngineKeepsTheBlobCopyOnAnEqualVersion(t *testing.T) {
 	})
 }
 
+// blobConfigCopyFields names every field of the configuration copy in a blob: each
+// family in both cache representations, and the version of each family.
+var blobConfigCopyFields = []string{
+	"AllowSending", "allowSending", "AllowReceiving", "allowReceiving",
+	"AllowOverdraft", "allowOverdraft", "OverdraftLimitEnabled", "overdraftLimitEnabled",
+	"OverdraftLimit", "overdraftLimit", "BalanceScope", "balanceScope",
+	balancecache.BlobBalanceConfigVersionField,
+	"Blocked", "blocked",
+	balancecache.BlobAccountConfigVersionField,
+}
+
+// blobConfigCopy returns the raw bytes of every configuration copy field of a blob;
+// a field the blob does not have is left out.
+func blobConfigCopy(fields map[string]json.RawMessage) map[string]string {
+	copied := make(map[string]string, len(blobConfigCopyFields))
+
+	for _, name := range blobConfigCopyFields {
+		if raw, exists := fields[name]; exists {
+			copied[name] = string(raw)
+		}
+	}
+
+	return copied
+}
+
+// TestIntegrationEngineKeepsABlobCopyWithoutAVersion pins what an approved
+// execution writes into a blob whose copy of a family has no version field: a blob
+// an earlier release seeded from scratch, or one written before versions existed.
+// Its copy may be newer than a live key, as when an earlier pod seeds the blob after
+// a PATCH it served, so the execution decides as usual but keeps the copy, fields
+// and absent version alike. Each family is judged on its own.
+func TestIntegrationEngineKeepsABlobCopyWithoutAVersion(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+
+	t.Run("an earlier release's account block survives an older key in every blob of the account", func(t *testing.T) {
+		f := newOverdraftConfigFixture(t, container.Client)
+		f.input.Execution.Transactions[0].RejectBlockedBalances = true
+		accountID := f.input.Execution.Balances[0].AccountID
+		for index := range f.input.Execution.Balances {
+			f.input.Execution.Balances[index].AccountConfigVersion = 1
+		}
+		// A current pod wrote version 1 (not blocked) to the key; an earlier pod then
+		// blocked the account and seeded both blobs from the row, without versions.
+		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: false})
+		before := make([]map[string]string, len(f.input.Execution.Balances))
+		for index := range f.input.Execution.Balances {
+			blocked := f.input.Execution.Balances[index]
+			blocked.Blocked, blocked.AccountConfigVersion = true, 0
+			f.seed(t, index, blocked)
+			before[index] = blobConfigCopy(f.blobFields(t, index))
+			require.Equal(t, "1", before[index]["Blocked"])
+			require.NotContains(t, before[index], balancecache.BlobAccountConfigVersionField)
+		}
+
+		raw, err := f.run(t)
+		require.NoError(t, err, "the key's version 1 decides the account is not blocked")
+
+		result := decodeIntegrationResult(t, raw)
+		require.Len(t, result.Final, 2)
+		require.False(t, result.Final[0].Blocked, "the result reports the configuration the execution decided with")
+
+		available := make(map[string]string, len(result.Final))
+		for _, final := range result.Final {
+			available[final.BalanceRef] = final.Available
+		}
+
+		for index, balance := range f.input.Execution.Balances {
+			fields := f.blobFields(t, index)
+			require.Equal(t, before[index], blobConfigCopy(fields), "the blob keeps the copy the earlier release wrote, without a version")
+			require.Equal(t, strconv.Quote(available[balance.BalanceRef]), string(fields["Available"]), "money moves as usual")
+		}
+	})
+
+	t.Run("an earlier release's balance configuration survives an older key", func(t *testing.T) {
+		f := newOverdraftConfigFixture(t, container.Client)
+		primary := &f.input.Execution.Balances[0]
+		primary.AllowSending, primary.AllowReceiving, primary.AllowOverdraft = true, true, true
+		primary.OverdraftLimitEnabled, primary.OverdraftLimit, primary.BalanceScope = false, decimal.Zero, "transactional"
+		primary.ConfigVersion = 1
+		f.writeBalanceConfig(t, 0, snapshotBalanceConfig(*primary, 1))
+		// The earlier release changed every field of the family and seeded the blob
+		// without a version.
+		changed := *primary
+		changed.AllowSending, changed.AllowReceiving, changed.AllowOverdraft = false, false, false
+		changed.OverdraftLimitEnabled, changed.OverdraftLimit, changed.BalanceScope = true, decimal.NewFromInt(50), "internal"
+		changed.ConfigVersion = 0
+		f.seed(t, 0, changed)
+		before := blobConfigCopy(f.blobFields(t, 0))
+		require.NotContains(t, before, balancecache.BlobBalanceConfigVersionField)
+
+		raw, err := f.run(t)
+		require.NoError(t, err, "the key's version 1 allows the draw")
+
+		result := decodeIntegrationResult(t, raw)
+		require.Equal(t, "20", result.Final[0].OverdraftUsed)
+		fields := f.blobFields(t, 0)
+		require.Equal(t, before, blobConfigCopy(fields), "the blob keeps the copy the earlier release wrote, without a version")
+		require.Equal(t, strconv.Quote(result.Final[0].Available), string(fields["Available"]), "money moves as usual")
+		require.Equal(t, strconv.Quote(result.Final[0].OverdraftUsed), string(fields["OverdraftUsed"]))
+	})
+
+	t.Run("a copy this release wrote at version 0 is replaced by a newer decision", func(t *testing.T) {
+		f := newOverdraftConfigFixture(t, container.Client)
+		f.input.Execution.Balances[0].ConfigVersion = 1
+		f.writeBalanceConfig(t, 0, snapshotBalanceConfig(f.input.Execution.Balances[0], 1))
+		stale := f.input.Execution.Balances[0]
+		stale.AllowOverdraft, stale.ConfigVersion = false, 0
+		f.seedWithCopyVersions(t, 0, stale)
+		require.Equal(t, `"0"`, string(f.blobFields(t, 0)[balancecache.BlobBalanceConfigVersionField]))
+
+		_, err := f.run(t)
+		require.NoError(t, err)
+		requireBlobConfiguration(t, f.blobFields(t, 0), true, "1", "0")
+	})
+}
+
 func TestIntegrationEngineConfigKeyOfAnotherBalanceIsAbsent(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -469,6 +617,8 @@ func TestIntegrationEngineAccountConfigKeyBlocksEveryBalanceOfTheAccount(t *test
 
 	t.Run("a valid grant still releases the primary and its companion", func(t *testing.T) {
 		f := newOverdraftConfigFixture(t, container.Client)
+		f.seedWithCopyVersions(t, 0, f.input.Execution.Balances[0])
+		f.seedWithCopyVersions(t, 1, f.input.Execution.Balances[1])
 		f.input.Execution.Transactions[0].RejectBlockedBalances = true
 		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: f.input.Execution.Balances[0].AccountID, Version: 1, Blocked: true})
 		f.addGrant(t, "@source", "30")
@@ -566,13 +716,16 @@ func TestIntegrationEngineCanonicalConfigurationNeedsNoLimitRepair(t *testing.T)
 
 	container := redistestutil.SetupReusableContainer(t)
 
-	// A newer key replaces the blob's copy with its canonical limit; a request at
-	// the blob's own version decides, but the blob keeps its copy as it was.
+	// A newer key replaces the blob's versioned copy with its canonical limit; a
+	// request at the blob's own version decides, and so does a newer key over a copy
+	// without a version, but the blob keeps either copy as it was.
 	for _, test := range []struct {
-		source    string
-		blobLimit string
+		source       string
+		copyVersions bool
+		blobLimit    string
 	}{
-		{source: "configuration key", blobLimit: `"1000"`},
+		{source: "configuration key", copyVersions: true, blobLimit: `"1000"`},
+		{source: "configuration key over a copy without a version", blobLimit: `"1000.00"`},
 		{source: "request", blobLimit: `"1000.00"`},
 	} {
 		t.Run(test.source, func(t *testing.T) {
@@ -580,9 +733,12 @@ func TestIntegrationEngineCanonicalConfigurationNeedsNoLimitRepair(t *testing.T)
 			f.input.Execution.Balances[0].OverdraftLimitEnabled = true
 			encoded, err := balancecache.Encode(f.input.Execution.Balances[0], balancecache.FormatDual)
 			require.NoError(t, err)
+			if test.copyVersions {
+				encoded = withCopyVersions(t, encoded, 0, 0)
+			}
 			encoded = replaceLimitTestBytes(t, encoded, []byte(`"OverdraftLimit":"1000"`), []byte(`"OverdraftLimit":"1000.00"`))
 			require.NoError(t, f.client.Set(context.Background(), f.resolved.Balances["@source#default"].Balance, encoded, time.Hour).Err())
-			if test.source == "configuration key" {
+			if test.source != "request" {
 				f.liveConfiguration(t, 0, f.input.Execution.Balances[0], 1)
 			}
 
@@ -906,78 +1062,93 @@ func mustMarshal(t *testing.T, fields map[string]json.RawMessage) []byte {
 
 // TestIntegrationEngineCopyConfirmsAConfigurationPatch runs a configuration PATCH
 // against the real engine: an engine execution commits between the PATCH's read
-// of the blob and its compare-and-set. The execution copies the key's
-// configuration and version into the blob, so the PATCH finds its version already
-// there and confirms without writing the blob, and the money the execution wrote
-// stays.
+// of the blob and its compare-and-set, so the compare-and-set loses and the PATCH
+// reads the blob again. Over a copy with a version, the execution copies the key's
+// newer configuration and version into the blob, and the PATCH finds its version
+// already there and confirms without writing. Over a copy without a version, which
+// the execution keeps, the PATCH writes the copy itself on that second read. Either
+// way the money the execution wrote stays.
 func TestIntegrationEngineCopyConfirmsAConfigurationPatch(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
 	}
 
-	ctx := context.Background()
 	container := redistestutil.SetupReusableContainer(t)
-	input, limits := richAdapterExecution(t)
-	balance := &input.Execution.Balances[0]
-	balance.Available = decimal.NewFromInt(100)
-	balance.AllowOverdraft = true
-	payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
-	require.NoError(t, err)
-	payload.OperationSpecs[0].Balance.Available = balance.Available
-	input.CompletionPlans[0].Payload = encodeAdapterRecovery(t, &input, *payload)
 
-	keys, err := resolveAdapterKeys(ctx, input.Execution)
-	require.NoError(t, err)
-	blobKey := keys.Balances[balance.BalanceRef].Balance
-	encoded, err := balancecache.Encode(*balance, balancecache.FormatDual)
-	require.NoError(t, err)
-	require.NoError(t, container.Client.Set(ctx, blobKey, encoded, time.Hour).Err())
+	for _, test := range []struct {
+		name        string
+		copyVersion int64
+		want        redistransaction.BlobCopyOutcome
+	}{
+		{name: "the engine copies over a copy with a version", copyVersion: 4, want: redistransaction.BlobCopyAlreadyCurrent},
+		{name: "the PATCH copies over a copy without a version", want: redistransaction.BlobCopyWritten},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			input, limits := richAdapterExecution(t)
+			balance := &input.Execution.Balances[0]
+			balance.Available = decimal.NewFromInt(100)
+			balance.AllowOverdraft = true
+			balance.ConfigVersion = test.copyVersion
+			payload, err := command.DecodeTransactionCompletionPlan(input.CompletionPlans[0].Payload)
+			require.NoError(t, err)
+			payload.OperationSpecs[0].Balance.Available = balance.Available
+			input.CompletionPlans[0].Payload = encodeAdapterRecovery(t, &input, *payload)
 
-	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: container.Client}, limits)
-	require.NoError(t, err)
+			keys, err := resolveAdapterKeys(ctx, input.Execution)
+			require.NoError(t, err)
+			blobKey := keys.Balances[balance.BalanceRef].Balance
+			encoded, err := balancecache.Encode(*balance, balancecache.FormatDual)
+			require.NoError(t, err)
+			require.NoError(t, container.Client.Set(ctx, blobKey, encoded, time.Hour).Err())
 
-	patched := snapshotBalanceConfig(*balance, 5)
-	patched.AllowOverdraft = false
+			adapter, err := newAdapterWithLimits(&integrationClientProvider{client: container.Client}, limits)
+			require.NoError(t, err)
 
-	connection := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
-	patchClient, err := connection.GetClient(ctx)
-	require.NoError(t, err)
+			patched := snapshotBalanceConfig(*balance, 5)
+			patched.AllowOverdraft = false
 
-	var executed *accounting.ExecutionResult
+			connection := redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB)
+			patchClient, err := connection.GetClient(ctx)
+			require.NoError(t, err)
 
-	hook := &afterBlobRead{key: blobKey, after: func() error {
-		var executeErr error
+			var executed *accounting.ExecutionResult
 
-		executed, executeErr = adapter.Execute(ctx, input)
+			hook := &afterBlobRead{key: blobKey, after: func() error {
+				var executeErr error
 
-		return executeErr
-	}}
-	patchClient.AddHook(hook)
+				executed, executeErr = adapter.Execute(ctx, input)
 
-	repository, err := redistransaction.NewConsumerRedis(connection)
-	require.NoError(t, err)
+				return executeErr
+			}}
+			patchClient.AddHook(hook)
 
-	_, outcome, err := repository.WriteBalanceConfig(ctx, input.Execution.OrganizationID, input.Execution.LedgerID, balance.BalanceRef, patched)
-	require.NoError(t, err)
-	require.Equal(t, redistransaction.ConfigWritten, outcome)
+			repository, err := redistransaction.NewConsumerRedis(connection)
+			require.NoError(t, err)
 
-	copied, err := repository.CopyBalanceConfigToBlob(ctx, input.Execution.OrganizationID, input.Execution.LedgerID, balance.BalanceRef, patched)
-	require.NoError(t, err)
-	require.NoError(t, hook.err)
-	require.NotNil(t, executed, "the engine execution ran between the PATCH's read and its write")
-	require.Equal(t, redistransaction.BlobCopyAlreadyCurrent, copied, "the engine already copied the PATCH's configuration")
-	require.Equal(t, int32(2), hook.reads.Load(), "the PATCH read the blob again after its compare-and-set lost")
+			_, outcome, err := repository.WriteBalanceConfig(ctx, input.Execution.OrganizationID, input.Execution.LedgerID, balance.BalanceRef, patched)
+			require.NoError(t, err)
+			require.Equal(t, redistransaction.ConfigWritten, outcome)
 
-	raw, err := container.Client.Get(ctx, blobKey).Bytes()
-	require.NoError(t, err)
-	stored, err := balancecache.Decode(raw)
-	require.NoError(t, err)
-	require.True(t, stored.Available.Equal(executed.Final[0].Available), "the PATCH kept the money the engine wrote")
-	require.Equal(t, executed.Final[0].Version, stored.Version)
-	require.False(t, stored.AllowOverdraft)
-	balanceVersion, _, err := balancecache.BlobConfigVersions(raw)
-	require.NoError(t, err)
-	require.Equal(t, int64(5), balanceVersion)
+			copied, err := repository.CopyBalanceConfigToBlob(ctx, input.Execution.OrganizationID, input.Execution.LedgerID, balance.BalanceRef, patched)
+			require.NoError(t, err)
+			require.NoError(t, hook.err)
+			require.NotNil(t, executed, "the engine execution ran between the PATCH's read and its write")
+			require.Equal(t, test.want, copied)
+			require.Equal(t, int32(2), hook.reads.Load(), "the PATCH read the blob again after its compare-and-set lost")
+
+			raw, err := container.Client.Get(ctx, blobKey).Bytes()
+			require.NoError(t, err)
+			stored, err := balancecache.Decode(raw)
+			require.NoError(t, err)
+			require.True(t, stored.Available.Equal(executed.Final[0].Available), "the PATCH kept the money the engine wrote")
+			require.Equal(t, executed.Final[0].Version, stored.Version)
+			require.False(t, stored.AllowOverdraft)
+			balanceVersion, _, err := balancecache.BlobConfigVersions(raw)
+			require.NoError(t, err)
+			require.Equal(t, int64(5), balanceVersion)
+		})
+	}
 }
 
 // TestIntegrationEngineDecidesWithTheCopyAPatchWroteIntoItsBlob closes the loop

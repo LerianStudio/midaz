@@ -102,9 +102,12 @@ The entrypoint tells one ordered story:
    compatibility copy of the configuration for releases that read it from the
    blob: `encodeBalance` copies a family (the balance configuration with
    `balanceConfigVersion`, the `blocked` flag with `accountConfigVersion`) only
-   when the decided version is newer than the blob's copy of it, and otherwise
-   keeps the blob's copy, version and fields, exactly as it was. A seeded blob
-   takes the decided configuration.
+   when the blob has that family's version field and the decided version is
+   newer than it. Otherwise it keeps the blob's copy, version field (or its
+   absence) and fields, exactly as they were: a copy without a version field was
+   written by a release that reads the configuration from the blob, or before
+   versions existed, and only the configuration PATCH replaces it. A seeded blob
+   takes the decided configuration, with version fields for nonzero versions.
 10. `commitPreparedExecution` is the only publication phase. It receives the
     score derived from the same Redis `TIME` read and writes changed and
     published companion balances, changed fee-debt lists, synchronization

@@ -767,7 +767,7 @@ outside the snapshot, whose shape is also the shape of the engine's result.
 
 Inside the atomic execution each balance decides once, with the newest balance
 configuration among its configuration key, the request, and the copy in its blob
-(a blob without a copy reads version 0). Each account decides once, with the
+(a copy without a version field reads 0). Each account decides once, with the
 newest account configuration among its configuration key, the request, and the
 copies in the blobs of its balances in the pool; every balance of the account,
 the overdraft companion included, carries that `blocked` flag. Versions compare
@@ -801,16 +801,29 @@ unchanged, the version field and every configuration field in whichever
 representations it had them, even when the execution decided with other content
 from the key or the request: an earlier release changes the copy without
 changing a version field it does not know, and overwriting that copy would undo
-its change for the releases that read the blob. A balance the execution seeds
-from a cache miss has no copy yet and receives the decided configuration (a
-version-0 decision writes no version field). The decided version is never lower
-than the blob's, so a copy never moves back. Money, `Version` and identity are
+its change for the releases that read the blob. The blob also keeps a family's
+copy unchanged when it has no version field for that family: an earlier release
+seeded the blob from scratch, possibly after a PATCH it served, or the blob
+predates versions, so its copy may be newer than a live key. Only the PATCH copy,
+which writes the version field, replaces such a copy; a version field this release
+wrote, `"0"` included, follows the version rule. A balance the execution seeds
+from a cache miss has no copy yet and receives the decided configuration with its
+versions. A version-0 decision writes no version field, so later executions keep
+that copy as they keep an earlier release's: it holds the row at version 0, and a
+later change reaches it through the PATCH copy or through the blob write of the
+earlier release that served the PATCH. The decided version is never lower than
+the blob's, so a copy never moves back. Money, `Version` and identity are
 written as always. A refusal writes nothing, and no write was added before the
 commit phase. A cached companion that is only refreshed keeps its value. The
 configuration copy in the blob is a compatibility bridge for releases that read
 the configuration from the blob, and the configuration PATCH confirms it before
 answering; it is removable once no rollback target reads the configuration from
-the blob.
+the blob. Over a copy with an older version field, an execution that commits
+between the PATCH's read of the blob and its compare-and-set has already copied
+the PATCH's version, so the PATCH confirms without writing. Over a copy without a
+version field it has not: the PATCH writes the copy on a later attempt, and on a
+balance busy enough to win every compare-and-set the PATCH answers a technical
+error, which the client's retry completes.
 
 ## Single execution, transport, and error classification
 
@@ -1399,36 +1412,49 @@ roll, and earlier releases work over the migrated schema. While earlier and
 current pods run side by side, earlier pods read the configuration from the blob
 copy and current pods decide as described in
 [Configuration keys](#configuration-keys). A configuration PATCH served by an
-earlier pod writes PostgreSQL and the blob but no configuration key, and leaves
-the blob's version fields as they were. Current pods see that change after the
+earlier pod writes PostgreSQL and the cached blobs but no configuration key, and
+leaves the blob's version fields as they were; a blob an earlier pod seeds from
+scratch has no version fields. Current pods see that change after the
 next PATCH a current pod serves on that balance or account, when a current pod
 seeds one of its balances from a cache miss (for the balance configuration, once
 the replica serving that read has the change), or once the key expires: at most
 one hour. An account blocked by an earlier pod during the
 rollout can therefore still transact on current pods for up to one hour.
 
-Current pods do not undo that change in the blob. Its version field still
-names the version the key holds, so a committed execution decides with the key
-and keeps the blob's copy as it is; only a newer decided version, a reload of
-the row once the key expires or a later PATCH, is copied over it.
+Current pods do not undo that change in the blob. Where the blob had a version
+field, it still names the version the key holds; where an earlier pod seeded the
+blob, it has none. Either way a committed execution decides with the key and
+keeps the blob's copy as it is. Only a newer decided version is copied over a
+copy with a version field (a reload of the row once the key expires, or a later
+PATCH), and only a PATCH a current pod serves replaces a copy without one.
 
-A rollback therefore needs no data step for the blobs in the cache. The earlier
-release reads the blob copy, which every PATCH that answered with success has
-confirmed, whichever release served it, and preserves the version fields it does
-not know; a blob an earlier pod seeds from scratch has no version fields and
-reads version 0. The configuration keys left behind expire within one hour;
+A rollback therefore needs no data step for the blobs in the cache, outside the
+cases below. The earlier release reads the blob copy and preserves the version
+fields it does not know. Every PATCH a current pod answered with success has
+confirmed that copy, and the blob write of a PATCH an earlier pod served is kept
+as described above. The configuration keys left behind expire within one hour;
 after a new rollout, a key that outlived the rollback is honored for at most
-that hour. A balance a current pod seeds from a cache miss while an older key
-still lives decides with the newer row (see
-[Configuration keys](#configuration-keys)). The account row is read from the
-primary, so the seeded blob always takes a block an earlier pod committed. The
-balance row follows read routing: until the replica serving it applies the PATCH
-an earlier pod served, the seeded blob takes the key's older balance
-configuration, and a rollback before an approved execution copies the newer
-version leaves the earlier release obeying it. Another case stays outside that
-guarantee: a blob whose copy already disagreed with PostgreSQL before this
-release reads version 0, as the row does. The engine keeps that copy; the next
-PATCH on the balance or account replaces it.
+that hour.
+
+These cases stay outside that guarantee, until the next PATCH on the balance or
+account:
+
+- A blob whose copy already disagreed with PostgreSQL before this release. The
+  copy has no version field and the row reads version 0; the engine keeps that
+  copy.
+- A balance a current pod seeds from a cache miss while an older key still lives
+  decides with the newer row (see [Configuration keys](#configuration-keys)). The
+  account row is read from the primary, so the seeded blob always takes a block
+  an earlier pod committed. The balance row follows read routing: until the
+  replica serving it applies the PATCH an earlier pod served, the seeded blob
+  takes the key's older balance configuration, and a rollback before an approved
+  execution copies the newer version leaves the earlier release obeying it.
+- Earlier pods serve two PATCHes on the same balance or account while one key
+  lives, and between them a current pod reloads the key with the first without
+  copying it into a blob, because its execution was refused or the blob, of
+  another balance of the account, was outside its pool. That blob's copy keeps a
+  version older than the key, so an execution a current pod approves afterwards
+  copies the first PATCH's configuration over the second's.
 
 A configuration version may only rise. The down migrations remove the triggers
 and their functions but keep the `config_version` columns, and the up adds a
