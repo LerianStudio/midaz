@@ -1253,11 +1253,11 @@ organization and ledger, and alias/key identity is verified.
 Parser integration accepts Lua responses encoded as arrays, single objects,
 empty objects, or numeric-indexed objects through the shared codec. It preserves
 original legacy alias/key correlation; invalid entries become technical errors
-and are not silently discarded after a possible commit. For canonical decode
-and PATCH replacement, the adapter normalizes legacy-qualified `alias#domainKey`
-values in a copy, preserving response correlation without arbitrary Redis or
-organization-prefix stripping. PATCH writes domain-only keys after conversion
-and does not change financial or version semantics.
+and are not silently discarded after a possible commit. For canonical decode,
+the adapter normalizes legacy-qualified `alias#domainKey` values in a copy,
+preserving response correlation without arbitrary Redis or organization-prefix
+stripping. The configuration copy a PATCH confirms carries the alias and key
+fields over unchanged and does not change financial or version semantics.
 
 For `GetBalancesByKeys`, a Redis `MGET` nil means only that the key is absent.
 A present malformed, undecodable, or unexpected-typed value is a whole-batch

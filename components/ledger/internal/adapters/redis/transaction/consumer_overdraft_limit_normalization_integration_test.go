@@ -18,7 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 
 	"github.com/google/uuid"
@@ -412,30 +411,4 @@ func TestIntegration_OverdraftLimitNormalization_CanonicalLimitMalformedBatchIsR
 			require.Equal(t, before, captureLimitNormalizationRedisState(t, infra), "the complete batch must preserve bytes, expiries, key absence, backups and schedule")
 		})
 	}
-}
-
-func TestIntegration_OverdraftLimitNormalization_SettingsPatch(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-	infra := setupRedisIntegrationInfra(t)
-	orgID, ledgerID := uuid.New(), uuid.New()
-	op := newLimitNormalizationOperation(orgID, ledgerID, "@patch-limit", 1)
-	cacheKey := "@patch-limit#default"
-	op.InternalKey = utils.BalanceInternalKey(orgID, ledgerID, cacheKey)
-	seedLimitNormalizationCache(t, infra, op, "100")
-
-	err := infra.repo.UpdateBalanceCacheSettings(context.Background(), orgID, ledgerID, cacheKey, op.Balance.Settings)
-	require.NoError(t, err)
-	cached := readLimitNormalizationCache(t, infra, op.InternalKey)
-	require.JSONEq(t, `"1000"`, string(cached["OverdraftLimit"]))
-	require.JSONEq(t, `"120"`, string(cached["Available"]))
-	require.JSONEq(t, `"11"`, string(cached["OnHold"]))
-	require.JSONEq(t, `7`, string(cached["Version"]))
-
-	before := captureLimitNormalizationRedisState(t, infra)
-	*op.Balance.Settings.OverdraftLimit = "invalid"
-	err = infra.repo.UpdateBalanceCacheSettings(context.Background(), orgID, ledgerID, cacheKey, op.Balance.Settings)
-	require.Error(t, err)
-	require.Equal(t, before, captureLimitNormalizationRedisState(t, infra))
 }

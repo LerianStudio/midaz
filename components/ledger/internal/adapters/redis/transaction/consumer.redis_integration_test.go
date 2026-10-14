@@ -8,6 +8,7 @@ package redis
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -31,6 +32,30 @@ import (
 // =============================================================================
 // TEST HELPERS
 // =============================================================================
+
+// decodeSettingsUpdateField decodes one field of a cached balance blob read by
+// readCachedBalanceFields.
+func decodeSettingsUpdateField[T any](t *testing.T, cached map[string]json.RawMessage, field string) T {
+	t.Helper()
+	var value T
+	require.NoError(t, json.Unmarshal(cached[field], &value))
+
+	return value
+}
+
+// readCachedBalanceFields reads the raw fields of a cached balance blob, which
+// must exist.
+func readCachedBalanceFields(t *testing.T, infra *integrationTestInfra, key string) map[string]json.RawMessage {
+	t.Helper()
+
+	raw, err := infra.redisContainer.Client.Get(context.Background(), key).Result()
+	require.NoError(t, err, "balance cache key %q must exist", key)
+
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(raw), &fields))
+
+	return fields
+}
 
 // skipIfNotChaos skips the test if CHAOS=1 environment variable is not set.
 // Use this for tests that inject failures (network chaos, container restarts, etc.)

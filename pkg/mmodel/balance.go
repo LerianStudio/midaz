@@ -461,10 +461,12 @@ type Balances struct {
 // marshal BalanceRedis directly into the cache: its JSON tags are the new
 // lowerCamel representation, not the complete dual wire format.
 //
-// Settings writes use scripts/update_balance_settings.lua through
-// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go.
-// They preserve live monetary state and emit the legacy fields required by the
-// accounting script. The shared codec owns the dual wire format.
+// A configuration PATCH does not rewrite this blob: it writes the configuration
+// keys the engine decides with, then confirms a copy of the configuration in the
+// blob for earlier releases (CopyBalanceConfig and CopyAccountConfig in the
+// ledger's adapters/redis/balancecache). The copy replaces only the configuration
+// fields and carries live monetary state over byte for byte. The shared codec
+// owns the dual wire format.
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`
