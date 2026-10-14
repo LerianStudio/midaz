@@ -12,6 +12,14 @@ import (
 // BalanceSnapshot supplies a cache-miss seed. When the physical cache key
 // exists, implementations use its live state and settings. A snapshot in the
 // pool need not be touched; overdraft companions are required only when needed.
+//
+// ConfigVersion is the version of the balance configuration the snapshot carries
+// (AllowSending, AllowReceiving, AllowOverdraft, OverdraftLimitEnabled,
+// OverdraftLimit, BalanceScope) and AccountConfigVersion the version of the
+// account's Blocked flag; see BalanceConfig and AccountConfig. Both stay out of
+// JSON: this struct is serialized into the execution result that completion
+// records and write-behind messages carry, which the previous release decodes
+// with unknown fields refused.
 type BalanceSnapshot struct {
 	OrganizationID        uuid.UUID       `json:"organizationId"`
 	LedgerID              uuid.UUID       `json:"ledgerId"`
@@ -34,6 +42,8 @@ type BalanceSnapshot struct {
 	Blocked               bool            `json:"blocked"`
 	AllowOverdraft        bool            `json:"allowOverdraft"`
 	OverdraftLimitEnabled bool            `json:"overdraftLimitEnabled"`
+	ConfigVersion         int64           `json:"-"`
+	AccountConfigVersion  int64           `json:"-"`
 }
 
 // BalanceState contains the real monetary state at a movement boundary.

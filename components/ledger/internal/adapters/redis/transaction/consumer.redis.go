@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -311,6 +312,29 @@ type RedisRepository interface {
 	// reported but not an error: the atomic script cannot decode it either, so
 	// it approves no transaction.
 	UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error
+	// ReadConfigKeys reads the configuration keys of the given balances (alias#key)
+	// and accounts in one MGET, without touching their expiry. Missing and
+	// unreadable keys have no entry; a balance entry of another balance ID is
+	// absent for the caller (BalanceConfig.Describes). The key contract is in
+	// package balancecache.
+	ReadConfigKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string, accountIDs []uuid.UUID) (ConfigKeyValues, error)
+	// WriteBalanceConfig writes one balance configuration key (alias#key) when it is
+	// absent, of another balance or older, and returns the value it holds afterwards.
+	// Same version and content is ConfigUnchanged (expiry untouched); a newer stored
+	// version is ConfigSuperseded and is returned; same version with other content is
+	// ErrConfigVersionConflict and nothing is written.
+	WriteBalanceConfig(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRef string, config accounting.BalanceConfig) (accounting.BalanceConfig, ConfigWriteOutcome, error)
+	// WriteAccountConfig is WriteBalanceConfig for the configuration key of one account.
+	WriteAccountConfig(ctx context.Context, organizationID, ledgerID uuid.UUID, config accounting.AccountConfig) (accounting.AccountConfig, ConfigWriteOutcome, error)
+	// CopyBalanceConfigToBlob writes the complete balance configuration and its
+	// version into the balance blob (alias#key) when the blob holds an older copy,
+	// through an exact-bytes compare-and-set that never overwrites newer money.
+	// Compatibility bridge for releases that read the configuration from the blob.
+	CopyBalanceConfigToBlob(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRef string, config accounting.BalanceConfig) (BlobCopyOutcome, error)
+	// CopyAccountConfigToBlobs writes the account's blocked flag and its version into
+	// every given blob of the account (alias#key) that holds an older copy, reading
+	// them in one MGET; same compare-and-set rule as CopyBalanceConfigToBlob.
+	CopyAccountConfigToBlobs(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string, config accounting.AccountConfig) (map[string]BlobCopyOutcome, error)
 	// CreateAccountBlockExceptions writes a batch of single-use account-block
 	// exceptions, one key per exception with its own native Redis expiry. The
 	// cache is the exception's COMPLETE storage: there is no table, no sweeper

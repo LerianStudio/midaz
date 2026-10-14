@@ -18,6 +18,10 @@ func TestPolicyConstants(t *testing.T) {
 		t.Fatalf("BalanceTTL = %s, want 24h", cachepolicy.BalanceTTL)
 	}
 
+	if cachepolicy.ConfigKeyTTL != time.Hour {
+		t.Fatalf("ConfigKeyTTL = %s, want 1h", cachepolicy.ConfigKeyTTL)
+	}
+
 	if cachepolicy.HashTag != "{transactions}" {
 		t.Fatalf("HashTag = %q, want %q", cachepolicy.HashTag, "{transactions}")
 	}

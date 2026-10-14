@@ -21,6 +21,11 @@ const (
 	// the legacy transaction backup hash while sharing its Redis Cluster slot.
 	EngineRecoverQueue   = "engine:" + HashTag + ":recover"
 	DeletionMarkerSuffix = ":deleted"
+	// ConfigKeyTTL is the fixed lifetime of a balance or account configuration key.
+	// It is set only when Go writes the key with data read from PostgreSQL; reads
+	// and transactions never renew it, so a configuration the key missed can stay
+	// unseen for at most this long.
+	ConfigKeyTTL = time.Hour
 )
 
 // DeletionMarkerKey moves a balance key into the dedicated marker namespace

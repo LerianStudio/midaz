@@ -5,11 +5,17 @@
 package utils
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
+	tmvalkey "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/valkey"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 )
 
 func TestIdempotencyReverseKey(t *testing.T) {
@@ -657,4 +663,45 @@ func TestAccountProtectionKeys_AreDistinctPerScope(t *testing.T) {
 	assert.NotEqual(t, base, AccountClosingMarkerKey(orgID, ledgerID, uuid.New()))
 	assert.NotEqual(t, base, AccountClosedMarkerKey(orgID, ledgerID, accountID))
 	assert.NotEqual(t, base, AccountAdminOwnershipKey(orgID, ledgerID, accountID))
+}
+
+// The configuration keys are addressed by the same scope as the data they describe,
+// live in namespaces of their own, and share the balance blobs' hash slot so the
+// engine can read them in the EVAL that reads the blobs. With a tenant in the
+// context the prefix goes in front, which leaves the first hash tag, and so the
+// slot, unchanged; without one (single-tenant) the key is used as built.
+func TestConfigKeys(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.MustParse("550e8400-e29b-41d4-a716-446655440000")
+	ledgerID := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	accountID := uuid.MustParse("018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f")
+	scope := "550e8400-e29b-41d4-a716-446655440000:6ba7b810-9dad-11d1-80b4-00c04fd430c8"
+
+	balanceKey := BalanceConfigKey(orgID, ledgerID, "@payer#default")
+	accountKey := AccountConfigKey(orgID, ledgerID, accountID)
+
+	assert.Equal(t, "balance-config:{transactions}:"+scope+":@payer#default", balanceKey)
+	assert.Equal(t, "account-config:{transactions}:"+scope+":018f2c1e-6a3b-7c4d-8e5f-0a1b2c3d4e5f", accountKey)
+
+	blob := BalanceInternalKey(orgID, ledgerID, "@payer#default")
+	assert.Equal(t, hashTagOf(t, blob), hashTagOf(t, balanceKey))
+	assert.Equal(t, hashTagOf(t, blob), hashTagOf(t, accountKey))
+
+	_, isBalanceBlob := cachepolicy.DeletionMarkerKey(balanceKey)
+	assert.False(t, isBalanceBlob, "a configuration key must never be read as a balance blob key")
+
+	singleTenant, err := tmvalkey.GetKeyContext(context.Background(), balanceKey)
+	require.NoError(t, err)
+	assert.Equal(t, balanceKey, singleTenant, "single-tenant keys carry no prefix")
+
+	first, err := tmvalkey.GetKeyContext(tmcore.ContextWithTenantID(context.Background(), "t1"), balanceKey)
+	require.NoError(t, err)
+
+	second, err := tmvalkey.GetKeyContext(tmcore.ContextWithTenantID(context.Background(), "t2"), balanceKey)
+	require.NoError(t, err)
+
+	assert.Equal(t, "tenant:t1:"+balanceKey, first)
+	assert.NotEqual(t, first, second, "two tenants with the same scope and alias never share a key")
+	assert.Equal(t, hashTagOf(t, blob), hashTagOf(t, first), "the tenant prefix keeps the slot")
 }
