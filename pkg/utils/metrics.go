@@ -186,6 +186,17 @@ var (
 		Description: "Total cache-miss balance seeds rebuilt from the operation trail because the balance row was stale.",
 	}
 
+	// ConfigKeyReloaded counts configurations reloaded from the PostgreSQL primary
+	// before an engine execution because their configuration key was absent, by
+	// organization_id, ledger_id, tenant_id (empty in single-tenant) and family
+	// (balance|account). Absence is normal after a deploy and on every expiry of the
+	// fixed one-hour key lifetime, so the rate is the database cost of that lifetime.
+	ConfigKeyReloaded = metrics.Metric{
+		Name:        "config_key_reloaded_total",
+		Unit:        "1",
+		Description: "Total balance and account configurations reloaded from the primary database because their configuration key was absent.",
+	}
+
 	// BalanceReconcilerDivergences is how many balances the last reconciler pass
 	// found diverging from the head of their operation trail, by tenant_id (empty
 	// in single-tenant) and direction (balance_ahead|trail_ahead|value_mismatch).

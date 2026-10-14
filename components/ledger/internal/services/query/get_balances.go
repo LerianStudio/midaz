@@ -34,13 +34,26 @@ import (
 type balanceLoader func(context.Context, uuid.UUID, uuid.UUID, []string) ([]*mmodel.Balance, error)
 
 // GetEngineBalances returns the explicitly requested balances separately
-// from the complete set of balances required for engine execution.
+// from the complete set of balances required for engine execution. Every balance
+// carries the configuration the engine decides with and its versions, taken from
+// the configuration keys or, where a key is absent, from the primary.
 func (uc *UseCase) GetEngineBalances(
 	ctx context.Context,
 	organizationID, ledgerID uuid.UUID,
 	explicitAliases []string,
 ) (explicitBalances, executionBalances []*mmodel.Balance, err error) {
-	return loadEngineBalances(ctx, organizationID, ledgerID, explicitAliases, uc.GetBalances)
+	explicitBalances, executionBalances, err = loadEngineBalances(ctx, organizationID, ledgerID, explicitAliases, uc.GetBalances)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// The explicit balances are members of the execution pool, so resolving the
+	// pool resolves them too.
+	if err := uc.resolveEngineConfiguration(ctx, organizationID, ledgerID, executionBalances); err != nil {
+		return nil, nil, fmt.Errorf("resolve engine balance configuration: %w", err)
+	}
+
+	return explicitBalances, executionBalances, nil
 }
 
 func loadEngineBalances(
