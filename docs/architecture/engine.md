@@ -751,7 +751,8 @@ recreates, or extends one; a key that expired between the balance load and the
 script leaves the request's configuration in force for that execution only.
 
 The balance load uses a live key, except for a balance it seeds from its row on a
-cache miss: that load already read the balance row and its account row, so where
+cache miss: that load already read the balance row, through read routing (a
+replica where one serves reads), and its account row, from the primary. Where
 either row carries a newer version than its key, the row decides and the load
 writes it to the key under the same version rule; an equal version keeps the key.
 A row newer than its key was committed without the key, by a PATCH an earlier
@@ -1401,7 +1402,8 @@ copy and current pods decide as described in
 earlier pod writes PostgreSQL and the blob but no configuration key, and leaves
 the blob's version fields as they were. Current pods see that change after the
 next PATCH a current pod serves on that balance or account, when a current pod
-seeds one of its balances from a cache miss, or once the key expires: at most
+seeds one of its balances from a cache miss (for the balance configuration, once
+the replica serving that read has the change), or once the key expires: at most
 one hour. An account blocked by an earlier pod during the
 rollout can therefore still transact on current pods for up to one hour.
 
@@ -1418,11 +1420,15 @@ reads version 0. The configuration keys left behind expire within one hour;
 after a new rollout, a key that outlived the rollback is honored for at most
 that hour. A balance a current pod seeds from a cache miss while an older key
 still lives decides with the newer row (see
-[Configuration keys](#configuration-keys)), so the seeded blob never takes the
-configuration that PATCH replaced. One case stays outside that guarantee: a blob
-whose copy already disagreed with PostgreSQL before this release reads version 0,
-as the row does. The engine keeps that copy; the next PATCH on the balance or
-account replaces it.
+[Configuration keys](#configuration-keys)). The account row is read from the
+primary, so the seeded blob always takes a block an earlier pod committed. The
+balance row follows read routing: until the replica serving it applies the PATCH
+an earlier pod served, the seeded blob takes the key's older balance
+configuration, and a rollback before an approved execution copies the newer
+version leaves the earlier release obeying it. Another case stays outside that
+guarantee: a blob whose copy already disagreed with PostgreSQL before this
+release reads version 0, as the row does. The engine keeps that copy; the next
+PATCH on the balance or account replaces it.
 
 A configuration version may only rise. The down migrations remove the triggers
 and their functions but keep the `config_version` columns, and the up adds a
