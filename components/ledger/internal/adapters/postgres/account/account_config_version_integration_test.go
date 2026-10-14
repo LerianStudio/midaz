@@ -8,6 +8,8 @@ package account
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
@@ -61,6 +63,46 @@ func TestIntegration_AccountConfigVersion_RisesOnlyOnBlockedChange(t *testing.T)
 	_, err = container.DB.Exec(`UPDATE account SET config_version = 0 WHERE id = $1`, id)
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), storedAccountConfigVersion(t, container, id), "the counter cannot be set directly")
+}
+
+// Re-applying the migration after its down must never move a version back: the
+// cache keeps copies of the blocked flag under the versions the account had, and a
+// copy whose version outranks its row would decide over every later change.
+func TestIntegration_AccountConfigVersion_SurvivesDownAndUpMigration(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	id := pgtestutil.CreateTestAccount(t, container.DB, orgID, ledgerID, nil, "Config Version Down Up", "@account-config-version-down-up", "USD", nil)
+
+	blocked, unblocked := true, false
+	_, err := repo.Update(ctx, orgID, ledgerID, nil, id, &mmodel.Account{Blocked: &blocked})
+	require.NoError(t, err)
+	_, err = repo.Update(ctx, orgID, ledgerID, nil, id, &mmodel.Account{Blocked: &unblocked})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), storedAccountConfigVersion(t, container, id))
+
+	runAccountMigrationFile(t, container, "000023_add_account_config_version.down.sql")
+	assert.Equal(t, int64(2), storedAccountConfigVersion(t, container, id), "the down keeps the column and its versions")
+
+	runAccountMigrationFile(t, container, "000023_add_account_config_version.up.sql")
+	assert.Equal(t, int64(2), storedAccountConfigVersion(t, container, id), "the up does not restart the versions")
+
+	updated, err := repo.Update(ctx, orgID, ledgerID, nil, id, &mmodel.Account{Blocked: &blocked})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), updated.ConfigVersion, "the trigger counts on from the kept version")
+}
+
+func runAccountMigrationFile(t *testing.T, container *pgtestutil.ContainerResult, name string) {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(pgtestutil.FindMigrationsPath(t, "onboarding"), name))
+	require.NoError(t, err)
+
+	_, err = container.DB.Exec(string(content))
+	require.NoError(t, err, name)
 }
 
 // The update returns the stored row, not an echo of the request: the identity is

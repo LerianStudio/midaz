@@ -49,12 +49,15 @@ func TestMigration000047_TriggerFiresOnlyOnConfigurationColumns(t *testing.T) {
 	assert.NotContains(t, sql, "available", "the trigger must not depend on money columns")
 }
 
-func TestMigration000047_DownRemovesTriggerFunctionAndColumn(t *testing.T) {
+// The down keeps the column: dropping it would restart the versions at 0 on the
+// next up, below the versions the cache copies still carry.
+func TestMigration000047_DownRemovesTriggerAndFunctionAndKeepsTheColumn(t *testing.T) {
 	t.Parallel()
 
 	sql := readBalanceConfigVersionMigration(t, "down")
 
 	assert.Contains(t, sql, "drop trigger if exists balance_config_version on balance;")
 	assert.Contains(t, sql, "drop function if exists balance_bump_config_version();")
-	assert.Contains(t, sql, "alter table balance drop column if exists config_version;")
+	assert.NotContains(t, sql, "drop column")
+	assert.NotContains(t, sql, "alter table", "no statement of the down may touch the column or its versions")
 }

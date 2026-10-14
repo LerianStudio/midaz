@@ -1410,6 +1410,17 @@ that hour. Two cases stay outside that guarantee:
   keeps the unblocked copy, and after a rollback the earlier release obeys it
   until the next PATCH on the account.
 
+A configuration version may only rise. The down migrations remove the triggers
+and their functions but keep the `config_version` columns, and the up adds a
+column only when it is missing, so a down followed by the up keeps every stored
+version; while the triggers are absent, a configuration change does not raise
+the version. Restoring PostgreSQL to an earlier point moves versions back below
+the copies the cache holds, and such a copy would then decide over every later
+change of its balance or account. A restore therefore requires purging the
+balance blobs and the configuration keys (`balance-config:` and
+`account-config:`) from Redis, as it already does for the live money the blobs
+hold.
+
 ### Cache writer compatibility
 
 The shared readers accept legacy, dual, and schema-version-2 new-only balance

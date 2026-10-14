@@ -48,12 +48,15 @@ func TestMigration000023_TriggerFiresOnlyOnBlocked(t *testing.T) {
 	assert.Contains(t, sql, "else new.config_version := old.config_version;")
 }
 
-func TestMigration000023_DownRemovesTriggerFunctionAndColumn(t *testing.T) {
+// The down keeps the column: dropping it would restart the versions at 0 on the
+// next up, below the versions the cache copies still carry.
+func TestMigration000023_DownRemovesTriggerAndFunctionAndKeepsTheColumn(t *testing.T) {
 	t.Parallel()
 
 	sql := readAccountConfigVersionMigration(t, "down")
 
 	assert.Contains(t, sql, "drop trigger if exists account_config_version on account;")
 	assert.Contains(t, sql, "drop function if exists account_bump_config_version();")
-	assert.Contains(t, sql, "alter table account drop column if exists config_version;")
+	assert.NotContains(t, sql, "drop column")
+	assert.NotContains(t, sql, "alter table", "no statement of the down may touch the column or its versions")
 }

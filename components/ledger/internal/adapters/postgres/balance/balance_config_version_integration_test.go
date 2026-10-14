@@ -9,6 +9,8 @@ package balance
 import (
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -110,6 +112,41 @@ func TestIntegration_BalanceConfigVersion_RisesOnlyOnRealConfigurationChange(t *
 	_, err = f.container.DB.Exec(`UPDATE balance SET config_version = 0 WHERE id = $1`, id)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), f.storedConfigVersion(t, id), "the counter cannot be set directly")
+}
+
+// Re-applying the migration after its down must never move a version back: the
+// cache keeps configuration copies under the versions the rows had, and a copy
+// whose version outranks its row would decide over every later change.
+func TestIntegration_BalanceConfigVersion_SurvivesDownAndUpMigration(t *testing.T) {
+	f := newConfigVersionFixture(t)
+	ctx := context.Background()
+	id := f.createBalance(t, "@config-version-down-up")
+
+	_, _, err := f.repo.Update(ctx, f.orgID, f.ledgerID, id, mmodel.UpdateBalance{Settings: overdraftSettings(true)})
+	require.NoError(t, err)
+	_, _, err = f.repo.Update(ctx, f.orgID, f.ledgerID, id, mmodel.UpdateBalance{Settings: overdraftSettings(false)})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), f.storedConfigVersion(t, id))
+
+	runMigrationFile(t, f.container.DB, "000047_add_balance_config_version.down.sql")
+	assert.Equal(t, int64(2), f.storedConfigVersion(t, id), "the down keeps the column and its versions")
+
+	runMigrationFile(t, f.container.DB, "000047_add_balance_config_version.up.sql")
+	assert.Equal(t, int64(2), f.storedConfigVersion(t, id), "the up does not restart the versions")
+
+	updated, _, err := f.repo.Update(ctx, f.orgID, f.ledgerID, id, mmodel.UpdateBalance{Settings: overdraftSettings(true)})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), updated.ConfigVersion, "the trigger counts on from the kept version")
+}
+
+func runMigrationFile(t *testing.T, db *sql.DB, name string) {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(pgtestutil.FindMigrationsPath(t, "transaction"), name))
+	require.NoError(t, err)
+
+	_, err = db.Exec(string(content))
+	require.NoError(t, err, name)
 }
 
 func TestIntegration_BalanceConfigVersion_UnchangedByMoneyWrites(t *testing.T) {
