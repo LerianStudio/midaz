@@ -11,7 +11,6 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -20,16 +19,13 @@ import (
 // proceed without knowing whether route validation or account type validation
 // is enabled, as skipping those checks could allow invalid transactions.
 func (uc *UseCase) GetParsedLedgerSettings(ctx context.Context, organizationID, ledgerID uuid.UUID) (mmodel.LedgerSettings, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_ledger_settings")
-	defer span.End()
-
+	// No span of its own: GetLedgerSettings opens the single query.get_ledger_settings
+	// span per read and already logs and records this error there, so a wrapper span
+	// would only nest the same name inside itself.
 	settings, err := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		// logged once by GetLedgerSettings; record on this span only
-		spanattr.HandleSpanByErrorClass(span, "Failed to get ledger settings", err)
-
 		return mmodel.LedgerSettings{}, err
 	}
 
