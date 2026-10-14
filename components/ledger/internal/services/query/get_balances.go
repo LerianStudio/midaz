@@ -23,6 +23,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/accountprotection"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -277,8 +278,7 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 		// describe a closed account.
 		resolved, err := uc.BalanceRepo.ListByAliasesWithKeys(ctx, organizationID, ledgerID, uncachedAliases)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get balances from database", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to get balances from database", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get balances from database", err)
 
 			return nil, err
 		}
@@ -319,8 +319,8 @@ func (uc *UseCase) GetBalances(ctx context.Context, organizationID, ledgerID uui
 		}
 
 		if err := uc.hydrateAccountBlocked(ctx, organizationID, ledgerID, balancesDB); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to hydrate account blocked state", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to hydrate account blocked state", libLog.Err(err))
+			// logged once by hydrateAccountBlocked; record on this span only
+			spanattr.HandleSpanByErrorClass(span, "Failed to hydrate account blocked state", err)
 
 			return nil, err
 		}
@@ -372,16 +372,14 @@ func (uc *UseCase) rebuildStaleBalanceSeeds(
 	for _, b := range balances {
 		accountID, err := uuid.Parse(b.AccountID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
-			logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.String("balance_id", b.ID), libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Invalid account ID on balance", err, libLog.String("balance_id", b.ID))
 
 			return err
 		}
 
 		balanceID, err := uuid.Parse(b.ID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Invalid balance ID on balance", err)
-			logger.Log(ctx, libLog.LevelError, "Invalid balance ID on balance", libLog.String("balance_id", b.ID), libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Invalid balance ID on balance", err, libLog.String("balance_id", b.ID))
 
 			return err
 		}
@@ -391,8 +389,7 @@ func (uc *UseCase) rebuildStaleBalanceSeeds(
 
 	highWaterMarks, err := uc.OperationRepo.ListLatestByBalances(ctx, organizationID, ledgerID, refs)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to load balance high-water marks", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to load balance high-water marks", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to load balance high-water marks", err)
 
 		return err
 	}
@@ -419,9 +416,7 @@ func (uc *UseCase) rebuildStaleBalanceSeeds(
 		rowVersion := b.Version
 
 		if err := applyBalanceHighWaterMark(b, hwm); err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to rebuild stale balance seed", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to rebuild stale balance seed",
-				libLog.String("balance_id", b.ID), libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to rebuild stale balance seed", err, libLog.String("balance_id", b.ID))
 
 			return err
 		}
@@ -518,8 +513,7 @@ func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, le
 	for _, b := range balances {
 		accountID, err := uuid.Parse(b.AccountID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Invalid account ID on balance", err)
-			logger.Log(ctx, libLog.LevelError, "Invalid account ID on balance", libLog.String("balance_id", b.ID), libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Invalid account ID on balance", err, libLog.String("balance_id", b.ID))
 
 			return err
 		}
@@ -533,8 +527,7 @@ func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, le
 
 	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, accountIDs)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to list accounts for blocked hydration", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to list accounts for blocked hydration", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to list accounts for blocked hydration", err)
 
 		return err
 	}

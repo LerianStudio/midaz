@@ -77,7 +77,7 @@ func (handler *InstrumentHandler) createInstrument(ctx context.Context, organiza
 
 	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, organizationID.String(), internalKey, token, ttl)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to claim instrument idempotency", err)
+		handleSpanByErrorClass(span, "Failed to claim instrument idempotency", err)
 
 		return nil, false, err
 	}

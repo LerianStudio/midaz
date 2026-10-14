@@ -16,11 +16,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	// GetAssetByID get an Asset from the repository by given id.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAssetByID get an Asset from the repository by given id.
 func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Asset, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -29,19 +27,11 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 
 	asset, err := uc.AssetRepo.Find(ctx, organizationID, ledgerID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting asset on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset, id)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get asset on repo by id", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No asset found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset, id)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get asset on repo by id", err)
+		recordQueryError(ctx, span, logger, "Failed to get asset on repo by id", err)
 
 		return nil, err
 	}
@@ -52,8 +42,6 @@ func (uc *UseCase) GetAssetByID(ctx context.Context, organizationID, ledgerID, i
 			err := pkg.ValidateBusinessError(constant.ErrAssetIDNotFound, constant.EntityAsset, id)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb asset", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 			return nil, err
 		}

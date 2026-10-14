@@ -74,7 +74,7 @@ func (handler *HolderHandler) createHolder(ctx context.Context, organizationID u
 
 	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, organizationID.String(), internalKey, token, ttl)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to claim holder idempotency", err)
+		handleSpanByErrorClass(span, "Failed to claim holder idempotency", err)
 
 		return nil, false, err
 	}

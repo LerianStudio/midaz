@@ -16,11 +16,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	// GetAccountByIDWithDeleted get an Account from the repository by given id (including soft-deleted ones).
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAccountByIDWithDeleted get an Account from the repository by given id (including soft-deleted ones).
 func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -29,19 +27,11 @@ func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID
 
 	account, err := uc.AccountRepo.FindWithDeleted(ctx, organizationID, ledgerID, portfolioID, id, holderPolicy)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting account on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account on repo by id", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No account found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account on repo by id", err)
+		recordQueryError(ctx, span, logger, "Failed to get account on repo by id", err)
 
 		return nil, err
 	}
@@ -52,8 +42,6 @@ func (uc *UseCase) GetAccountByIDWithDeleted(ctx context.Context, organizationID
 			err := pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 			return nil, err
 		}

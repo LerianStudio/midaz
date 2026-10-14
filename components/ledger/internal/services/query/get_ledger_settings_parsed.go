@@ -9,9 +9,9 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -27,8 +27,8 @@ func (uc *UseCase) GetParsedLedgerSettings(ctx context.Context, organizationID, 
 
 	settings, err := uc.GetLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.String("ledgerId", ledgerID.String()), libLog.Err(err))
+		// logged once by GetLedgerSettings; record on this span only
+		spanattr.HandleSpanByErrorClass(span, "Failed to get ledger settings", err)
 
 		return mmodel.LedgerSettings{}, err
 	}

@@ -9,7 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -21,26 +20,26 @@ import (
 // still reading that key reloads the route instead of serving the previous rule.
 // Both writes are attempted; their failures are joined.
 func (uc *UseCase) CreateAccountingRouteCache(ctx context.Context, route *mmodel.TransactionRoute) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_transaction_route_cache")
 	defer span.End()
 
 	cacheBytes, err := route.ToCache().ToMsgpack()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to convert route to cache data", err)
+		recordCommandError(ctx, span, logger, "Failed to convert route to cache data", err)
 
 		return err
 	}
 
 	setErr := uc.TransactionRedisRepo.SetBytes(ctx, utils.AccountingRoutesInternalKey(route.OrganizationID, route.ID), cacheBytes, 0)
 	if setErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to create transaction route cache", setErr)
+		recordCommandError(ctx, span, logger, "Failed to create transaction route cache", setErr)
 	}
 
 	legacyErr := uc.deleteLedgerAccountingRouteCache(ctx, route)
 	if legacyErr != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to delete ledger-scoped transaction route cache", legacyErr)
+		recordCommandError(ctx, span, logger, "Failed to delete ledger-scoped transaction route cache", legacyErr)
 	}
 
 	return errors.Join(setErr, legacyErr)

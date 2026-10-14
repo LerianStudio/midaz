@@ -143,7 +143,7 @@ func (c *BalanceSyncCollector) Run(ctx context.Context, flushFn FlushFunc, fetch
 		c.mu.Unlock()
 
 		if bufLen > 0 {
-			c.handleDrainingMode(ctx, bufLen, timer, pollTimer)
+			c.handleDrainingMode(ctx, timer, pollTimer)
 			continue
 		}
 
@@ -174,11 +174,6 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 	// SIZE trigger: buffer full → flush immediately and reset the timeout
 	// window for the next batch cycle.
 	if bufLen >= c.batchSize {
-		c.logger.Log(
-			ctx, libLog.LevelInfo, "BalanceSyncCollector: SIZE trigger fired, flushing now",
-			libLog.Int("buffer", bufLen),
-			libLog.Int("batch_size", c.batchSize),
-		)
 		c.flush(ctx)
 		stopAndDrain(timer)
 		timer.Reset(c.flushTimeout)
@@ -192,7 +187,7 @@ func (c *BalanceSyncCollector) handleBusyMode(ctx context.Context, keys []redisT
 //   - pollTimer.C: poll interval elapsed, return to the loop to try fetching again
 //
 // pollTimer is reusable across iterations (avoids time.After allocation leak).
-func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen int, timer *time.Timer, pollTimer *time.Timer) {
+func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, timer *time.Timer, pollTimer *time.Timer) {
 	stopAndDrain(pollTimer)
 	pollTimer.Reset(c.pollInterval)
 
@@ -200,11 +195,6 @@ func (c *BalanceSyncCollector) handleDrainingMode(ctx context.Context, bufLen in
 	case <-ctx.Done():
 		return
 	case <-timer.C:
-		c.logger.Log(
-			ctx, libLog.LevelInfo, "BalanceSyncCollector: TIMEOUT trigger fired, flushing now",
-			libLog.String("flush_timeout", c.flushTimeout.String()),
-			libLog.Int("buffer", bufLen),
-		)
 		c.flush(ctx)
 		timer.Reset(c.flushTimeout)
 	case <-pollTimer.C:

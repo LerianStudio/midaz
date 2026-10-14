@@ -18,11 +18,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetAllOrganizations fetch all Organizations from the repository
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllOrganizations fetch all Organizations from the repository
 func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHeader) (_ []*mmodel.Organization, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -37,19 +35,11 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 
 	organizations, err := uc.OrganizationRepo.FindAll(ctx, filter)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting organizations on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, constant.EntityOrganization)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get organizations on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No organizations found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, constant.EntityOrganization)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get organizations on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get organizations on repo", err)
 
 		return nil, err
 	}
@@ -68,8 +58,6 @@ func (uc *UseCase) GetAllOrganizations(ctx context.Context, filter http.QueryHea
 		err := pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, constant.EntityOrganization)
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 		return nil, err
 	}

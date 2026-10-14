@@ -17,11 +17,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetAccountByID get an Account from the repository by given id.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAccountByID get an Account from the repository by given id.
 func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, holderPolicy mmodel.HolderPolicy) (_ *mmodel.Account, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -36,11 +34,11 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 
 	account, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, portfolioID, id, holderPolicy)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting account on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			return nil, pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
+			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
 		}
+
+		recordQueryError(ctx, span, logger, "Error getting account on repo by id", err)
 
 		return nil, err
 	}
@@ -48,7 +46,7 @@ func (uc *UseCase) GetAccountByID(ctx context.Context, organizationID, ledgerID 
 	if account != nil {
 		metadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, constant.EntityAccount, id.String())
 		if err != nil {
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Error get metadata on mongodb account", err)
 
 			return nil, err
 		}

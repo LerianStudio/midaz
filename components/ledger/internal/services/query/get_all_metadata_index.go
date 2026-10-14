@@ -8,7 +8,6 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -40,10 +39,7 @@ func (uc *UseCase) GetAllMetadataIndexes(ctx context.Context, filter http.QueryH
 	for _, entityName := range entitiesToQuery {
 		metadataIndexes, err := uc.TransactionMetadataRepo.FindAllIndexes(ctx, entityName)
 		if err != nil {
-			logger.Log(ctx, libLog.LevelError, "Error getting metadata indexes",
-				libLog.String("entity", entityName), libLog.Err(err))
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata indexes on repo", err)
+			recordQueryError(ctx, span, logger, "Failed to get metadata indexes on repo", err, libLog.String("entity", entityName))
 
 			return nil, err
 		}

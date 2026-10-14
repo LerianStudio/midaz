@@ -6,10 +6,16 @@ package command
 
 import (
 	"context"
+	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 )
 
 // resolveDefaultBalanceDirectionForType returns the account type's configured
@@ -32,6 +38,12 @@ func (uc *UseCase) resolveDefaultBalanceDirectionForType(ctx context.Context, or
 // the empty string ("no type default") and never fails the caller, so the
 // direction falls back to the account-type-implied default downstream. The
 // caller MUST NOT invoke this for external account types.
+//
+// A miss (not-found or any business error) is expected and logs at Debug only.
+// A technical error is tolerated by the same fallback, so it does not fail the
+// operation and must not change the caller's span status: it is recorded as a
+// plain event on the current span and logged once at Warn with the error,
+// because the repository records it on its own span without logging.
 func (uc *UseCase) resolveTypeDefaultDirection(ctx context.Context, organizationID, ledgerID uuid.UUID, accountType string) string {
 	if uc.AccountTypeRepo == nil || accountType == "" {
 		return ""
@@ -45,8 +57,19 @@ func (uc *UseCase) resolveTypeDefaultDirection(ctx context.Context, organization
 
 	at, err := uc.AccountTypeRepo.FindByKey(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelDebug, "Account type default direction lookup miss; falling back to implied default",
-			libLog.String("account_type", accountType))
+		const message = "Account type default direction lookup miss; falling back to implied default"
+
+		if pkg.IsBusinessError(err) || errors.Is(err, services.ErrDatabaseItemNotFound) {
+			logger.Log(ctx, libLog.LevelDebug, message,
+				libLog.String("account_type", accountType))
+
+			return ""
+		}
+
+		libOpentelemetry.HandleSpanEvent(trace.SpanFromContext(ctx), message)
+		logger.Log(ctx, libLog.LevelWarn, message,
+			libLog.String("account_type", accountType),
+			libLog.Err(err))
 
 		return ""
 	}

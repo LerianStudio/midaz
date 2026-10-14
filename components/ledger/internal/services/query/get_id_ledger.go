@@ -18,11 +18,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetLedgerByID Get a ledger from the repository by given id.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetLedgerByID Get a ledger from the repository by given id.
 func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UUID) (_ *mmodel.Ledger, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -37,19 +35,11 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 
 	ledger, err := uc.LedgerRepo.Find(ctx, organizationID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting ledger on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, constant.EntityLedger)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger on repo by id", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No ledger found")
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, constant.EntityLedger)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger on repo by id", err)
+		recordQueryError(ctx, span, logger, "Failed to get ledger on repo by id", err)
 
 		return nil, err
 	}
@@ -60,8 +50,6 @@ func (uc *UseCase) GetLedgerByID(ctx context.Context, organizationID, id uuid.UU
 			err := pkg.ValidateBusinessError(constant.ErrLedgerIDNotFound, constant.EntityLedger)
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb ledger", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "No metadata found")
 
 			return nil, err
 		}

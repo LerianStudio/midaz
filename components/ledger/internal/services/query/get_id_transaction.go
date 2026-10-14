@@ -9,17 +9,14 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetTransactionByID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetTransactionByID gets data in the repository.
 func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -34,9 +31,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 
 	tran, err := uc.TransactionRepo.Find(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get transaction on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting transaction", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get transaction on repo by id", err)
 
 		return nil, err
 	}
@@ -44,9 +39,7 @@ func (uc *UseCase) GetTransactionByID(ctx context.Context, organizationID, ledge
 	if tran != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, transactionID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb account", err)
 
 			return nil, err
 		}
@@ -68,9 +61,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 
 	tran, err := uc.TransactionRepo.FindWithOperations(ctx, organizationID, ledgerID, transactionID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting transaction", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get transaction on repo by id", err)
 
 		return nil, err
 	}
@@ -78,9 +69,7 @@ func (uc *UseCase) GetTransactionWithOperationsByID(ctx context.Context, organiz
 	if tran != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransaction, transactionID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb account", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb account", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb account", err)
 
 			return nil, err
 		}

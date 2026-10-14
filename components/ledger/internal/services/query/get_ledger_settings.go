@@ -45,8 +45,7 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 	// DB fallback
 	settings, err := uc.LedgerRepo.GetSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings from database", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get ledger settings", err)
 
 		return nil, err
 	}
