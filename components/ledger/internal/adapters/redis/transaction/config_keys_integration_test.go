@@ -615,6 +615,40 @@ func TestIntegration_ConfigCopy_AbsentBlobIsNotCreated(t *testing.T) {
 	assert.Zero(t, exists)
 }
 
+// A blob left under the alias#key by a balance deleted and recreated under the same
+// alias#key belongs to another balance: the engine refuses it, so there is nothing
+// to confirm, and the copy leaves it alone without failing.
+func TestIntegration_ConfigCopy_BlobOfAnotherBalanceHasNothingToConfirm(t *testing.T) {
+	infra := setupRedisIntegrationInfra(t)
+	scope := newConfigKeyScope()
+	accountID := uuid.New()
+	deleted := configCopyBlob(uuid.New(), accountID, "10", 1, "9")
+
+	require.NoError(t, infra.redisContainer.Client.Set(t.Context(), scope.blobKey(), deleted, time.Hour).Err())
+
+	outcome, err := infra.repo.CopyBalanceConfigToBlob(t.Context(), scope.orgID, scope.ledgerID, scope.ref, balanceConfigAt(uuid.New(), 1, true))
+	require.NoError(t, err)
+	assert.Equal(t, BlobCopyOfAnotherBalance, outcome)
+	assert.True(t, outcome.Confirmed())
+	assert.Equal(t, deleted, storedBlob(t, infra, scope.blobKey()), "the other balance's blob must not change")
+
+	otherRef := "@config#savings"
+	otherKey := utils.BalanceInternalKey(scope.orgID, scope.ledgerID, otherRef)
+	stale := configCopyBlob(uuid.New(), accountID, "20", 2, "")
+
+	require.NoError(t, infra.redisContainer.Client.Set(t.Context(), otherKey, stale, time.Hour).Err())
+
+	outcomes, err := infra.repo.CopyAccountConfigToBlobs(t.Context(), scope.orgID, scope.ledgerID, []string{scope.ref, otherRef},
+		accounting.AccountConfig{AccountID: uuid.New(), Version: 3, Blocked: true})
+	require.NoError(t, err, "a blob of another account must not stop the copy")
+	assert.Equal(t, map[string]BlobCopyOutcome{scope.ref: BlobCopyOfAnotherBalance, otherRef: BlobCopyOfAnotherBalance}, outcomes)
+
+	sameAccount, err := infra.repo.CopyAccountConfigToBlobs(t.Context(), scope.orgID, scope.ledgerID, []string{scope.ref, otherRef},
+		accounting.AccountConfig{AccountID: accountID, Version: 3, Blocked: true})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]BlobCopyOutcome{scope.ref: BlobCopyWritten, otherRef: BlobCopyWritten}, sameAccount)
+}
+
 func TestIntegration_ConfigCopy_DeletedBalanceIsRefused(t *testing.T) {
 	infra := setupRedisIntegrationInfra(t)
 	scope := newConfigKeyScope()

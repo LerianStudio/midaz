@@ -72,12 +72,18 @@ const (
 	// BlobCopyConflict means the blob kept changing between the read and the
 	// compare-and-set for every attempt, and the copy may still be missing.
 	BlobCopyConflict
+	// BlobCopyOfAnotherBalance means the blob under that alias#key belongs to
+	// another balance or account, such as one deleted and recreated under the same
+	// alias#key. The engine refuses such a blob, so there is no copy to confirm and
+	// nothing was written.
+	BlobCopyOfAnotherBalance
 )
 
-// Confirmed reports whether the blob is known not to hold an older copy: written,
-// already current, or absent. A conflict is not confirmed.
+// Confirmed reports whether the blob is known not to hold an older copy of the
+// configuration: written, already current, absent, or a blob of another balance. A
+// conflict is not confirmed.
 func (o BlobCopyOutcome) Confirmed() bool {
-	return o == BlobCopyWritten || o == BlobCopyAlreadyCurrent || o == BlobCopyBlobAbsent
+	return o == BlobCopyWritten || o == BlobCopyAlreadyCurrent || o == BlobCopyBlobAbsent || o == BlobCopyOfAnotherBalance
 }
 
 func (o BlobCopyOutcome) String() string {
@@ -90,6 +96,8 @@ func (o BlobCopyOutcome) String() string {
 		return "blob_absent"
 	case BlobCopyConflict:
 		return "conflict"
+	case BlobCopyOfAnotherBalance:
+		return "of_another_balance"
 	default:
 		return "unknown"
 	}
@@ -441,7 +449,7 @@ func (rr *RedisConsumerRepository) CopyAccountConfigToBlobs(ctx context.Context,
 // copyConfigToBlob runs the read / prepare / compare-and-set loop on one blob.
 // first, when set, is the blob already read by the caller and serves as the first
 // observation. It reuses the settings compare-and-set script, which also refuses a
-// balance under a deletion marker.
+// balance under a deletion marker. A blob of another balance is left alone.
 func (rr *RedisConsumerRepository) copyConfigToBlob(ctx context.Context, blobKey string, first []byte, prepare func([]byte) ([]byte, bool, error)) (BlobCopyOutcome, int, error) {
 	prefixedKey, err := tenantKeyFromContextOrError(ctx, blobKey)
 	if err != nil {
@@ -473,6 +481,10 @@ func (rr *RedisConsumerRepository) copyConfigToBlob(ctx context.Context, blobKey
 		}
 
 		replacement, current, err := prepare(observed)
+		if errors.Is(err, balancecache.ErrBlobOfAnotherBalance) {
+			return BlobCopyOfAnotherBalance, attempt, nil
+		}
+
 		if err != nil {
 			return 0, attempt, fmt.Errorf("prepare configuration copy: %w", err)
 		}
