@@ -540,11 +540,13 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 
 	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
 	// the raw aliases and refuses malformed input — mismatched totals, a
-	// non-positive remainder, the same account on both sides — before the ledger
-	// settings are read; the pass after normalizeSendLegs validates the normalized
-	// send. Both passes answer the same code for the same send.
+	// non-positive remainder — before the ledger settings are read; the pass after
+	// normalizeSendLegs validates the normalized send. Both passes answer the same
+	// code for the same send. Both run ForReversal: the reversal is rebuilt from the
+	// persisted operations, so an account the original carried on both sides is
+	// carried on both sides here too, and the original must stay reversible.
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
-	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status, mtransaction.ForReversal())
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
@@ -574,7 +576,7 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 
 	normalizeSendLegs(run)
 
-	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status, mtransaction.ForReversal())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate normalized send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate normalized send source and distribute", libLog.Err(err))
@@ -644,11 +646,13 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 
 	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
 	// the raw aliases and refuses malformed input — mismatched totals, a
-	// non-positive remainder, the same account on both sides — before the ledger
-	// settings are read; the pass after normalizeSendLegs validates the normalized
-	// send. Both passes answer the same code for the same send.
+	// non-positive remainder — before the ledger settings are read; the pass after
+	// normalizeSendLegs validates the normalized send. Both passes answer the same
+	// code for the same send. Both run ForReversal: the reversal is rebuilt from the
+	// persisted operations, so an account the original carried on both sides is
+	// carried on both sides here too, and the original must stay reversible.
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
-	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status, mtransaction.ForReversal())
 	if err != nil {
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
@@ -691,7 +695,7 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 
 	normalizeSendLegs(run)
 
-	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
+	validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status, mtransaction.ForReversal())
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate normalized send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate normalized send source and distribute", libLog.Err(err))

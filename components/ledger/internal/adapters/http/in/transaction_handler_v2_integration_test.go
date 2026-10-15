@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	redisadapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -2181,6 +2182,108 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 		requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, selfID), "@self must be untouched")
 		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, otherID), "@other must be untouched")
 	})
+}
+
+// TestIntegration_TransactionV2Revert_SameAccountOnBothSidesOrigin proves a settled
+// transaction that carries one account on both sides, as an older build could record,
+// stays reversible. The origin is posted as a three-account transfer and its third leg is
+// then rewritten onto the payer, which is the persisted shape such a build left behind.
+// The revert rebuilds that shape from the operations, carries @payer on both sides, and
+// must still post; each account's operations across origin and reversal net to zero.
+func TestIntegration_TransactionV2Revert_SameAccountOnBothSidesOrigin(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+	db := infra.pgContainer.DB
+
+	payerID, payeeID := seedTransfer(t, db, infra.orgID, infra.ledgerID, "@payer", "@payee", 1000)
+	_, otherID := seedTransfer(t, db, infra.orgID, infra.ledgerID, "@unused", "@other", 0)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	body := `{"description":"three account transfer","asset":"USD","amount":"100","debits":[{"alias":"@payer",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@payee",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@other",` + v2ScopeJSON + `,"amount":"40"}]}`
+
+	originResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
+	originID := uuid.MustParse(originResp["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// Rewrite the @other credit onto @payer, keeping every column that identifies the
+	// account consistent with the payer's own debit row.
+	res, err := db.ExecContext(ctx, `
+		UPDATE operation AS o
+		   SET account_id = p.account_id, account_alias = p.account_alias, balance_id = p.balance_id
+		  FROM operation AS p
+		 WHERE o.transaction_id = $1 AND o.account_alias = '@other'
+		   AND p.transaction_id = $1 AND p.account_alias = '@payer'`, originID)
+	require.NoError(t, err)
+
+	rewritten, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rewritten, "exactly the @other credit must be rewritten onto @payer")
+
+	// Drop the cached views of the origin, as for a transaction settled long ago, so the
+	// revert rebuilds it from the rewritten primary rows.
+	redisClient := infra.redisContainer.Client
+	indexKey := "engine:" + cachepolicy.HashTag + ":transaction-index:" + infra.orgID.String() + ":" + infra.ledgerID.String()
+
+	removed, err := redisClient.HDel(ctx, indexKey, originID.String()).Result()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), removed, "the origin's engine index entry must exist before its removal")
+	require.NoError(t, redisClient.Del(ctx, utils.WriteBehindTransactionKey(infra.orgID, infra.ledgerID, originID.String())).Err())
+
+	revertRaw := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", "")
+	revertResp := decodeTxResponse(t, revertRaw, nethttp.StatusCreated)
+	revertID := uuid.MustParse(revertResp["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, db, revertID), "the reversal should be APPROVED")
+
+	// Signed per-account sum over origin and reversal: credits add, debits subtract.
+	rows, err := db.QueryContext(ctx, `
+		SELECT account_alias,
+		       COUNT(*) FILTER (WHERE transaction_id = $2 AND type = 'DEBIT'),
+		       COUNT(*) FILTER (WHERE transaction_id = $2 AND type = 'CREDIT'),
+		       SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END)::TEXT
+		  FROM operation
+		 WHERE transaction_id IN ($1, $2)
+		 GROUP BY account_alias`, originID, revertID)
+	require.NoError(t, err)
+
+	defer rows.Close()
+
+	net := map[string]string{}
+	revertLegs := map[string][2]int{}
+
+	for rows.Next() {
+		var (
+			alias          string
+			debits, credit int
+			sum            string
+		)
+
+		require.NoError(t, rows.Scan(&alias, &debits, &credit, &sum))
+
+		net[alias] = sum
+		revertLegs[alias] = [2]int{debits, credit}
+	}
+
+	require.NoError(t, rows.Err())
+
+	assert.Equal(t, map[string]string{"@payer": "0", "@payee": "0"}, net,
+		"every account's operations across origin and reversal must net to zero")
+	assert.Equal(t, [2]int{1, 1}, revertLegs["@payer"], "the reversal must carry @payer on both sides")
+	assert.Equal(t, [2]int{1, 0}, revertLegs["@payee"], "the reversal must debit @payee")
+
+	// The balances move by exactly the reversal of the persisted operations: @payee gives
+	// back its 60 and @payer receives a net 60. @other keeps the 40 the rewrite hid from
+	// the history, which is the drift a rewritten row leaves and not the reversal's doing.
+	requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, db, payerID), "@payer after the reversal")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, db, payeeID), "@payee after the reversal")
+	requireDecimalEqual(t, decimal.NewFromInt(40), postgrestestutil.GetBalanceAvailable(t, db, otherID), "@other untouched by the reversal")
 }
 
 // =============================================================================
