@@ -104,8 +104,6 @@ func (r *Repository) Apply(ctx context.Context, record command.FeeDebtRecord) er
 			return err
 		}
 
-		_, spanUpsert := tracer.Start(ctx, "repository.fee_debt.apply.upsert")
-
 		// The seed filters on _id alone, so a racing insert of the same debt is the only
 		// duplicate key it can meet: MongoDB retries it itself, DocumentDB does not, and
 		// one retry finds the debt and turns the seed into a no-op.
@@ -121,13 +119,10 @@ func (r *Repository) Apply(ctx context.Context, record command.FeeDebtRecord) er
 		}
 
 		if err != nil {
-			libOpentelemetry.HandleSpanError(spanUpsert, "Failed to record fee debt change", err)
-			spanUpsert.End()
+			libOpentelemetry.HandleSpanError(span, "Failed to record fee debt change", err)
 
 			return fmt.Errorf("record fee debt change: %w", err)
 		}
-
-		spanUpsert.End()
 	}
 
 	return nil
@@ -153,9 +148,6 @@ func (r *Repository) FindByID(ctx context.Context, organizationID, ledgerID uuid
 		return nil, err
 	}
 
-	_, spanFind := tracer.Start(ctx, "repository.fee_debt.find_by_id.find_one")
-	defer spanFind.End()
-
 	var debt model.FeeDebt
 
 	err = coll.FindOne(ctx, bson.D{
@@ -165,9 +157,9 @@ func (r *Repository) FindByID(ctx context.Context, organizationID, ledgerID uuid
 	}).Decode(&debt)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFind, "Fee debt not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Fee debt not found", err)
 		} else {
-			libOpentelemetry.HandleSpanError(spanFind, "Failed to find fee debt", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to find fee debt", err)
 		}
 
 		return nil, err
@@ -197,23 +189,20 @@ func (r *Repository) Settled(ctx context.Context, organizationID, ledgerID uuid.
 		return nil, err
 	}
 
-	_, spanFind := tracer.Start(ctx, "repository.fee_debt.settled.find")
-	defer spanFind.End()
-
 	cur, err := coll.Find(ctx, bson.D{
 		{Key: "_id", Value: bson.D{{Key: "$in", Value: debtIDs}}},
 		{Key: "organization_id", Value: organizationID.String()},
 		{Key: "ledger_id", Value: ledgerID.String()},
 	}, options.Find().SetProjection(bson.D{{Key: "entries", Value: 1}}))
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find fee debts", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find fee debts", err)
 
 		return nil, err
 	}
 
 	var debts []model.FeeDebt
 	if err := cur.All(ctx, &debts); err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to decode fee debts", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to decode fee debts", err)
 
 		return nil, err
 	}
@@ -226,7 +215,7 @@ func (r *Repository) Settled(ctx context.Context, organizationID, ledgerID uuid.
 		for _, entry := range debt.Entries {
 			amount, err := decimal.NewFromString(entry.Amount)
 			if err != nil {
-				libOpentelemetry.HandleSpanError(spanFind, "Invalid fee debt entry amount", err)
+				libOpentelemetry.HandleSpanError(span, "Invalid fee debt entry amount", err)
 
 				return nil, fmt.Errorf("decode fee debt entry amount: %w", err)
 			}
@@ -284,19 +273,16 @@ func (r *Repository) FindAll(ctx context.Context, organizationID, ledgerID uuid.
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	_, spanFind := tracer.Start(ctx, "repository.fee_debt.find_all.find")
-	defer spanFind.End()
-
 	cur, err := coll.Find(ctx, filter, options.Find().SetSort(bson.D{{Key: key, Value: sortOrder}}).SetLimit(int64(query.Limit)+1))
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to list fee debts", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to list fee debts", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	var debts []*model.FeeDebt
 	if err := cur.All(ctx, &debts); err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to decode fee debts", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to decode fee debts", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -341,9 +327,6 @@ func (r *Repository) OpenTotal(ctx context.Context, organizationID, ledgerID uui
 		return decimal.Zero, err
 	}
 
-	_, spanAggregate := tracer.Start(ctx, "repository.fee_debt.open_total.aggregate")
-	defer spanAggregate.End()
-
 	match, _ := listFilter(organizationID, ledgerID, ListQuery{DebtorBalanceRef: debtorBalanceRef, Status: StatusOpen})
 
 	cur, err := coll.Aggregate(ctx, mongo.Pipeline{
@@ -351,7 +334,7 @@ func (r *Repository) OpenTotal(ctx context.Context, organizationID, ledgerID uui
 		{{Key: "$group", Value: bson.D{{Key: "_id", Value: nil}, {Key: "total", Value: bson.D{{Key: "$sum", Value: bson.D{{Key: "$min", Value: bson.A{"$remaining", "$opened_amount"}}}}}}}}},
 	})
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanAggregate, "Failed to sum open fee debts", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to sum open fee debts", err)
 
 		return decimal.Zero, err
 	}
@@ -361,7 +344,7 @@ func (r *Repository) OpenTotal(ctx context.Context, organizationID, ledgerID uui
 	}
 
 	if err := cur.All(ctx, &totals); err != nil {
-		libOpentelemetry.HandleSpanError(spanAggregate, "Failed to decode the open fee debt total", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to decode the open fee debt total", err)
 
 		return decimal.Zero, err
 	}
@@ -392,9 +375,6 @@ func (r *Repository) HasOpenCreditor(ctx context.Context, organizationID, ledger
 		return false, err
 	}
 
-	_, spanFind := tracer.Start(ctx, "repository.fee_debt.has_open_creditor.find_one")
-	defer spanFind.End()
-
 	err = coll.FindOne(ctx, bson.D{
 		{Key: "organization_id", Value: organizationID.String()},
 		{Key: "ledger_id", Value: ledgerID.String()},
@@ -406,7 +386,7 @@ func (r *Repository) HasOpenCreditor(ctx context.Context, organizationID, ledger
 	}
 
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find an open fee debt by creditor", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find an open fee debt by creditor", err)
 
 		return false, err
 	}
