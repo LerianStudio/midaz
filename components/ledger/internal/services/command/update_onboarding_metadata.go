@@ -19,7 +19,7 @@ import (
 func (uc *UseCase) UpdateOnboardingMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.update_metadata")
+	ctx, span := tracer.Start(ctx, "command.update_onboarding_metadata")
 	defer span.End()
 
 	existingMetadata, err := uc.OnboardingMetadataRepo.FindByEntity(ctx, entityName, entityID)

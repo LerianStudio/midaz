@@ -1150,7 +1150,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction_by_parent_id")
 	defer span.End()
 
 	db, release, err := r.acquireRead(ctx)

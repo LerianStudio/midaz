@@ -886,7 +886,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
+	ctx, span := tracer.Start(ctx, "postgres.find_operation_by_account")
 	defer span.End()
 
 	db, err := r.getDB(ctx)
