@@ -41,6 +41,18 @@ Current driver coverage in this repo:
 
 ---
 
+## T2.1 — Internal steps only on error
+
+**Rule:** A step without I/O inside a use case (validation, composition of operations, aggregation, per-item computation) MUST NOT open a span of its own. When the step fails, the span that contains it MUST receive an event named after the step, taken through `trace.SpanFromContext(ctx)`: `HandleSpanBusinessErrorEvent` for a business error, `HandleSpanError` for a technical one (T5). A step that iterates a batch MUST record a count attribute (`app.request.<items>_count`) on the containing span instead of one span per item. A thin wrapper over one driver command that is already instrumented (Redis, PostgreSQL; see T2) MUST NOT open a span either: it records its technical failure on the caller's span and returns, and the caller does not record the same error again (T8).
+
+**Rationale:** A span for a CPU-only step or for a one-command wrapper repeats what the enclosing use-case span or the driver span already says, and multiplies span volume on the hottest paths without adding a fact. What the step contributes is only its failure, so the failure is what reaches the trace: as an event named after the step, the trace still says "step X of command Y failed", and the status class still follows T5. `trace.SpanFromContext` returns a no-op span when the context carries none, so the step stays safe outside a request.
+
+**Canonical example:** [`pkg/mtransaction/validations.go:477`](../../pkg/mtransaction/validations.go) — `ValidateSendSourceAndDistribute` opens no span; on a rejection it records `HandleSpanBusinessErrorEvent(trace.SpanFromContext(ctx), validateSendSourceAndDistributeStep, err)` (line 482) on the calling command's span. Batch count: [`components/ledger/internal/services/command/update_balance.go:39`](../../components/ledger/internal/services/command/update_balance.go) — `app.request.balances_count` on `command.update_balances_new` instead of one span per balance. One-command wrapper: [`components/ledger/internal/adapters/redis/transaction/consumer.redis.go:1620`](../../components/ledger/internal/adapters/redis/transaction/consumer.redis.go) — `GetBytes` records on `trace.SpanFromContext(ctx)` (line 1623) and opens no span.
+
+**Enforcement:** `contract-test` — span tests assert the step's span is absent and its event is present only on failure; `review-only` for new steps.
+
+---
+
 ## T3 — Span lifecycle and context binding
 
 **Rule:** `defer span.End()` MUST immediately follow `tracer.Start`. Child I/O spans MUST use the non-rebinding form `_, spanX := tracer.Start(ctx, ...)`. The parent `ctx` MAY be rebound (`ctx, spanX := ...`) ONLY for genuinely sequential nesting, or for a deliberate `context.WithoutCancel` detach — and in either case an intent comment MUST state why.
@@ -78,6 +90,8 @@ Current driver coverage in this repo:
 **Rationale:** Recording every 4xx via `HandleSpanError` flips spans red on expected business outcomes (validation failures, not-found, conflicts), inflating error-rate SLOs and burying real infrastructure failures. The audit found CRM using `HandleSpanError` exclusively (0 business events) and fees crossing over mid-file. A single predicate keyed on error class makes the choice mechanical and consistent across services.
 
 **Canonical example:** [`pkg/errors.go:357`](../../pkg/errors.go) — `pkg.IsBusinessError(err error) bool`, the `errors.As`-based class predicate that lives beside the typed structs it inspects.
+
+**Cache miss:** a cache read that finds no key (`redis.Nil`) is a miss, not an error: it MUST NOT be recorded on any span; the miss is returned for the caller to fall back to the source of truth, and only an unavailable cache is a technical error. Canonical example: [`components/ledger/internal/adapters/redis/transaction/consumer.redis.go:1640`](../../components/ledger/internal/adapters/redis/transaction/consumer.redis.go) — `GetBytes` skips `HandleSpanError` when `errors.Is(err, redis.Nil)` and still returns the error.
 
 **Enforcement:** `contract-test` — a per-path test asserting that an induced validation failure leaves span status UNSET with a business event, and an induced infra failure sets status Error. (`review-only` for the predicate-selection wiring at each call site.)
 
@@ -149,7 +163,9 @@ Per-request `Initiating...` / `Retrieving...` / `Successfully...` lines MUST NOT
 
 **Rationale:** A bare `context.Background()` severs the goroutine's work from the request trace, making async side-effects (idempotency writes, audit emits) invisible in the parent trace and unattributable when they fail. `WithoutCancel` preserves trace and values while correctly detaching the request's cancellation.
 
-**Counter-example (forbidden bare Background):** [`components/ledger/internal/services/command/create_transaction_steps.go`](../../components/ledger/internal/services/command/create_transaction_steps.go) — `context.Background()` (wrapped only with the tenant ID) seeds the idempotency and audit goroutines at the end of `finalizeCreatedTransaction`, dropping the trace.
+**Counter-example (forbidden bare Background):** `context.Background()`, wrapped only with the tenant ID, used as the seed of a goroutine started at the end of a command, which drops the trace.
+
+**Canonical example:** [`components/ledger/internal/services/command/create_transaction_steps.go:352`](../../components/ledger/internal/services/command/create_transaction_steps.go) — the idempotency and audit goroutines at the end of `finalizeCreatedTransaction` derive from `context.WithoutCancel(ctx)`, with the tenant set again on top. This was the counter-example above until it was fixed; the same applies to `create_transaction_engine.go` and `transition_pending_engine.go`.
 
 **Enforcement:** `custom-lint` — flag `context.Background()` used as the seed for a `go` statement's context; broker inject/extract presence is `review-only`.
 
