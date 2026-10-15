@@ -73,6 +73,8 @@ type RedisQueueConsumer struct {
 	appliedTransactionCompleter command.AppliedTransactionCompleter
 	tenantMongo                 recoveryMongoResolver
 	recoveryClock               func() time.Time
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer trace.Tracer
 }
 
 type recoveryMongoResolver interface {
@@ -208,6 +210,18 @@ func (r *RedisQueueConsumer) WithMetricsFactory(factory *metrics.MetricsFactory)
 	return r
 }
 
+// WithServiceTracer sets the tracer the runner's spans are opened with, so they carry the
+// ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (r *RedisQueueConsumer) WithServiceTracer(tracer trace.Tracer) *RedisQueueConsumer {
+	if r == nil {
+		return nil
+	}
+
+	r.tracer = tracer
+
+	return r
+}
+
 // NewRedisQueueConsumerMultiTenant creates a RedisQueueConsumer with multi-tenant fields populated.
 // When multiTenantEnabled is true, both tenantCache and pgManager must be non-nil for the consumer
 // to be considered ready (isMultiTenantReady). The consumer reads tenant IDs from the shared
@@ -248,7 +262,7 @@ func (r *RedisQueueConsumer) Run(_ *libCommons.Launcher) error {
 // runSingleTenant runs the Redis queue consumer using the default (shared) database connection.
 // This is the original Run() behavior preserved for backward compatibility.
 func (r *RedisQueueConsumer) runSingleTenant() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(r.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	ticker := time.NewTicker(CronTimeToRun)
@@ -288,7 +302,7 @@ func (r *RedisQueueConsumer) executeCycle(ctx context.Context) {
 // with an enriched context containing the per-tenant PostgreSQL connection.
 // If a tenant's connection fails, it logs and skips that tenant without affecting others.
 func (r *RedisQueueConsumer) runMultiTenant() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(r.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	ticker := time.NewTicker(CronTimeToRun)
@@ -1047,4 +1061,9 @@ func (r *RedisQueueConsumer) emitReplayRecomputedBalancesAfterMetric(ctx context
 	if addErr := counter.AddOne(ctx); addErr != nil {
 		logger.Log(ctx, libLog.LevelDebug, "Failed to emit replay recomputed-balances-after counter", libLog.Err(addErr))
 	}
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (r *RedisQueueConsumer) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), r.tracer)
 }

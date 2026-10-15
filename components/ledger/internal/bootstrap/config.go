@@ -1343,17 +1343,24 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.
+	// Workers, crons and consumers start from context.Background(); the service tracer on
+	// their root context keeps their spans under the ledger's instrumentation scope.
+	workerTracer := serviceTracer(telemetry)
+
 	redisConsumer.
 		WithQuarantineRepository(txnPG.quarantineRepo).
-		WithMetricsFactory(metricsFactory)
+		WithMetricsFactory(metricsFactory).
+		WithServiceTracer(workerTracer)
 
-	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory)
+	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory).
+		WithServiceTracer(workerTracer)
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
-	balanceSyncWorker.WithMetricsFactory(metricsFactory)
+	balanceSyncWorker.WithMetricsFactory(metricsFactory).WithServiceTracer(workerTracer)
 
-	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, tenantClient, tenantServiceName, metricsFactory)
+	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, tenantClient, tenantServiceName, metricsFactory).
+		WithServiceTracer(workerTracer)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
 	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.
@@ -1361,7 +1368,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BatchSize:      cfg.BalanceSyncBatchSize,
 		FlushTimeoutMs: 2000,
 		PollIntervalMs: 1000,
-	})
+	}).WithServiceTracer(workerTracer)
 
 	// SaaS TLS gate for the RI declaration publisher's IdP dial. Placed before the
 	// success log so an explicit http:// IDP_HOST under DEPLOYMENT_MODE=saas refuses

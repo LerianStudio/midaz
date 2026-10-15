@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -424,7 +425,7 @@ func (r *OperationPostgreSQLRepository) createBulkInternal(
 
 		chunkResult, err := r.insertOperationChunk(ctx, db, operations[i:end], recordedAt)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to insert operation chunk", err)
+			// Already recorded on this span by insertOperationChunk, with the failing step.
 			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
 			return result, err
 		}
@@ -454,10 +455,12 @@ type operationChunkInsertResult struct {
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
 // Returns the count of inserted rows and their IDs for downstream filtering.
 func (r *OperationPostgreSQLRepository) insertOperationChunk(ctx context.Context, db repository.DBExecutor, operations []*Operation, recordedAt time.Time) (*operationChunkInsertResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.insert_operation_chunk")
-	defer span.End()
+	// One chunk is one INSERT the driver already traces, so it opens no span of its
+	// own: every failure is recorded, with the step that failed, on the enclosing
+	// create_bulk_* span, and the caller does not record it again.
+	span := trace.SpanFromContext(ctx)
 
 	logger.Log(ctx, libLog.LevelDebug, "Inserting chunk of operations", libLog.Int("count", len(operations)))
 
@@ -1009,7 +1012,7 @@ func (r *OperationPostgreSQLRepository) Find(ctx context.Context, organizationID
 func (r *OperationPostgreSQLRepository) FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_all_operations_by_account")
+	ctx, span := tracer.Start(ctx, "postgres.find_operation_by_account")
 	defer span.End()
 
 	db, err := r.getDB(ctx)

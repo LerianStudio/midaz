@@ -224,7 +224,7 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransitionRun) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.transition_pending_transaction")
+	ctx, span := tracer.Start(ctx, "command.transition_pending_transaction_v2")
 	defer span.End()
 
 	unlock, err := uc.lockPendingTransaction(ctx, span, logger, run)

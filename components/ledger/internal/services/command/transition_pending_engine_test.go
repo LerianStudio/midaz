@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -1002,7 +1003,7 @@ func TestPendingTransitionUnknownTransactionIsNotFoundBeforeLock(t *testing.T) {
 				TransactionReader:    &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}},
 				TransactionRedisRepo: redisRepo, Engine: executor,
 			}
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			_, err := test.call(uc, ctx, in)
 

@@ -55,8 +55,7 @@ func (uc *UseCase) GetOrCreateTransactionRouteCache(ctx context.Context, organiz
 
 	cachedValue, err := uc.TransactionRedisRepo.GetBytes(ctx, internalKey)
 	if err != nil && !errors.Is(err, redis.Nil) {
-		libOpentelemetry.HandleSpanError(span, "Failed to read transaction route cache, falling back to database", err)
-
+		// GetBytes already recorded the failure on this span (T8); the use case only logs it.
 		logger.Log(ctx, libLog.LevelWarn, "Failed to read transaction route cache, falling back to database", libLog.Err(err))
 	}
 

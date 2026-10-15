@@ -19,6 +19,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -54,7 +55,7 @@ func accountFindErrorCases() []accountFindErrorCase {
 
 // accountFindErrorContext wires a span recorder and a capturing logger into the tracking context.
 func accountFindErrorContext() (context.Context, *tracetest.SpanRecorder, *capturingLogger) {
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 	logger := &capturingLogger{}
 
 	return libObservability.ContextWithLogger(ctx, logger), recorder, logger
@@ -63,11 +64,11 @@ func accountFindErrorContext() (context.Context, *tracetest.SpanRecorder, *captu
 func assertAccountFindErrorRecorded(t *testing.T, recorder *tracetest.SpanRecorder, logger *capturingLogger, spanName string, tc accountFindErrorCase) {
 	t.Helper()
 
-	span := findSpan(t, recorder, spanName)
+	span := spantest.FindSpan(t, recorder, spanName)
 	assert.Equal(t, tc.wantStatus, span.Status().Code)
 
 	if tc.business {
-		_, ok := findEvent(span, accountFindErrorMessage)
+		_, ok := spantest.FindEvent(span, accountFindErrorMessage)
 		assert.True(t, ok, "business event must be recorded on the span")
 		assert.Empty(t, logger.snapshot(), "a business error must not be logged")
 

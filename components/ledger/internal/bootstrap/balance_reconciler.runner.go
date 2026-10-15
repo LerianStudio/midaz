@@ -116,6 +116,8 @@ type BalanceReconcilerRunner struct {
 	rotation int
 	// scans holds each tenant's scan in progress, keyed by tenant id ("" in single-tenant).
 	scans map[string]*balanceReconcilerScan
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer oteltrace.Tracer
 }
 
 // NewBalanceReconcilerRunner builds a single-tenant runner. Any non-positive value
@@ -266,6 +268,18 @@ func (r *BalanceReconcilerRunner) WithMetricsFactory(factory *metrics.MetricsFac
 	return r
 }
 
+// WithServiceTracer sets the tracer the runner's spans are opened with, so they carry the
+// ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (r *BalanceReconcilerRunner) WithServiceTracer(tracer oteltrace.Tracer) *BalanceReconcilerRunner {
+	if r == nil {
+		return nil
+	}
+
+	r.tracer = tracer
+
+	return r
+}
+
 // WithClock injects the clock that drives the grace window, the pass budget and
 // the scan timestamps. A nil clock leaves the existing clock unchanged.
 func (r *BalanceReconcilerRunner) WithClock(clock func() time.Time) *BalanceReconcilerRunner {
@@ -279,7 +293,7 @@ func (r *BalanceReconcilerRunner) WithClock(clock func() time.Time) *BalanceReco
 // Run executes a pass immediately and then one per tick until SIGTERM/SIGINT.
 // The Launcher parameter is unused, as for the other Midaz workers.
 func (r *BalanceReconcilerRunner) Run(_ *libCommons.Launcher) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(r.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	r.logger.Log(ctx, libLog.LevelInfo, "Balance reconciler runner started",
@@ -688,4 +702,9 @@ func (r *BalanceReconcilerRunner) setGauge(ctx context.Context, metric metrics.M
 	if err := gauge.WithLabels(labels).Set(ctx, value); err != nil {
 		r.logger.Log(ctx, libLog.LevelDebug, "Failed to emit balance reconciler gauge", libLog.String("metric", metric.Name), libLog.Err(err))
 	}
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (r *BalanceReconcilerRunner) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), r.tracer)
 }

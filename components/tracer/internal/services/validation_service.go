@@ -684,7 +684,7 @@ func (s *ValidationService) persistTransactionValidation(ctx context.Context, re
 	defer cancel()
 
 	// Create span for tracing
-	persistCtx, span := tracer.Start(persistCtx, "transaction-validation.persist")
+	persistCtx, span := tracer.Start(persistCtx, "service.transaction_validation.persist")
 	defer span.End()
 
 	logger = logging.WithTrace(persistCtx, logger)

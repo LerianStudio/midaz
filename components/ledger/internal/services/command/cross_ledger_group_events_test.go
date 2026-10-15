@@ -27,6 +27,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactiongroup"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -176,7 +177,7 @@ func collectGroupLedgerHistogram(t *testing.T, reader *sdkmetric.ManualReader) m
 func TestCreateCrossLedgerTransactionV2_PublishesOneGroupPostedEvent(t *testing.T) {
 	emitter := pkgStreaming.NewMockEmitter()
 	reader, factory := newReaderFactory(t)
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 	origin := crossLedgerGroupEventMember(groupEventLedgerA, groupEventGroupID, constant.CREATED, []string{"@debit"}, []string{"@external/BRL"})
 	destination := crossLedgerGroupEventMember(groupEventLedgerB, groupEventGroupID, constant.CREATED, []string{"@external/BRL"}, []string{"@credit"})
 
@@ -210,7 +211,7 @@ func TestCreateCrossLedgerTransactionV2_PublishesOneGroupPostedEvent(t *testing.
 		Role: events.TransactionGroupRoleDestination, Status: constant.APPROVED,
 	}, payload.Parts[1])
 
-	span := findSpan(t, recorder, "command.create_cross_ledger_transaction_v2")
+	span := spantest.FindSpan(t, recorder, "command.create_cross_ledger_transaction_v2")
 	requireSpanAttributes(t, span, map[string]any{
 		"app.request.action":       constant.ActionDirect,
 		"app.request.part_count":   2,
@@ -250,7 +251,7 @@ func TestCreateCrossLedgerTransactionV2_ReplayPublishesNoGroupEvent(t *testing.T
 func TestCreateCrossLedgerTransactionV2_RejectionPublishesNothingAndCountsBusinessError(t *testing.T) {
 	emitter := pkgStreaming.NewMockEmitter()
 	reader, factory := newReaderFactory(t)
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 	executed := false
 	uc := &UseCase{
 		Streaming:       emitter,
@@ -271,7 +272,7 @@ func TestCreateCrossLedgerTransactionV2_RejectionPublishesNothingAndCountsBusine
 	assert.False(t, executed, "a rejected decomposition never reaches the batch")
 	requireNoGroupEvent(t, emitter)
 
-	span := findSpan(t, recorder, "command.create_cross_ledger_transaction_v2")
+	span := spantest.FindSpan(t, recorder, "command.create_cross_ledger_transaction_v2")
 	assert.NotEqual(t, "Error", span.Status().Code.String(), "a business rejection keeps the span green")
 
 	totals := collectDomainCounters(t, reader)
@@ -283,7 +284,7 @@ func TestCreateCrossLedgerHoldV2_PublishesNoGroupEventButMeasuresTheGroup(t *tes
 	repo := transactiongroup.NewMockRepository(ctrl)
 	emitter := pkgStreaming.NewMockEmitter()
 	reader, factory := newReaderFactory(t)
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 	settings := mmodel.LedgerSettings{CrossLedger: mmodel.CrossLedgerSettings{Enabled: true}}
 	origin := crossLedgerGroupEventMember(groupEventLedgerA, groupEventGroupID, constant.PENDING, []string{"@debit"}, []string{"@external/BRL"})
 
@@ -307,7 +308,7 @@ func TestCreateCrossLedgerHoldV2_PublishesNoGroupEventButMeasuresTheGroup(t *tes
 	require.NoError(t, err)
 	requireNoGroupEvent(t, emitter)
 
-	span := findSpan(t, recorder, "command.create_cross_ledger_hold_v2")
+	span := spantest.FindSpan(t, recorder, "command.create_cross_ledger_hold_v2")
 	requireSpanAttributes(t, span, map[string]any{
 		"app.request.action":       constant.ActionHold,
 		"app.request.part_count":   2,
@@ -341,7 +342,7 @@ func TestTransitionCrossLedgerGroupV2_PublishesTheTerminalGroupEvent(t *testing.
 			reader, factory := newReaderFactory(t)
 			uc.Streaming = emitter
 			uc.MetricsFactory = factory
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			repo.EXPECT().FindByID(gomock.Any(), group.ID).Return(group, nil)
 			repo.EXPECT().UpdateStatus(gomock.Any(), group.ID, constant.PENDING, test.status).Return(true, nil)
@@ -363,7 +364,7 @@ func TestTransitionCrossLedgerGroupV2_PublishesTheTerminalGroupEvent(t *testing.
 				assert.Equal(t, 2, payload.LedgerCount)
 			}
 
-			span := findSpan(t, recorder, "command.transition_cross_ledger_group_v2")
+			span := spantest.FindSpan(t, recorder, "command.transition_cross_ledger_group_v2")
 			requireSpanAttributes(t, span, map[string]any{
 				"app.request.action":       test.action,
 				"app.request.group_id":     group.ID.String(),
@@ -444,7 +445,7 @@ func TestRevertCrossLedgerGroupV2_IncompleteGroupCountsBusinessError(t *testing.
 	uc := newRevertUseCase(t, reader)
 	metricsReader, factory := newReaderFactory(t)
 	uc.MetricsFactory = factory
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 
 	_, _, err := uc.RevertCrossLedgerGroupV2(ctx, RevertTransactionInput{
 		OrganizationID: uuid.MustParse(origin.OrganizationID),
@@ -453,7 +454,7 @@ func TestRevertCrossLedgerGroupV2_IncompleteGroupCountsBusinessError(t *testing.
 	})
 	require.Error(t, err)
 
-	span := findSpan(t, recorder, "command.revert_cross_ledger_group")
+	span := spantest.FindSpan(t, recorder, "command.revert_cross_ledger_group")
 	requireSpanAttributes(t, span, map[string]any{
 		"app.request.action":   constant.ActionRevert,
 		"app.request.group_id": groupID,

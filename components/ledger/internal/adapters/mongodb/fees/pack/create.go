@@ -47,14 +47,9 @@ func (pm *PackageMongoDBRepository) Create(ctx context.Context, p *Package, orga
 		return nil, err
 	}
 
-	_, spanInsert := tracer.Start(ctx, "repository.package.create.insert")
-	defer spanInsert.End()
-
-	spanInsert.SetAttributes(attributes...)
-
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to insert pack", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to insert pack", err)
 
 		return nil, err
 	}

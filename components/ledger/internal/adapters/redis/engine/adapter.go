@@ -114,10 +114,17 @@ func technical(code string, uncertain bool, err error) error {
 // Execute uses the provider's standalone client and disables retransmission on
 // each mutating command. Only confirmed NOSCRIPT permits fallback.
 func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (result *accounting.ExecutionResult, err error) {
-	logger, _, _, factory := libObservability.NewTrackingFromContext(ctx)
+	logger, tracer, _, factory := libObservability.NewTrackingFromContext(ctx)
+
+	// Sequential nesting (T3): the accounting script and any limit repair run under this
+	// span, so their driver commands become its children. The span only observes the
+	// invocation; it is classified after the invocation returned.
+	ctx, span := tracer.Start(ctx, executeAccountingSpanName)
+	defer span.End()
 
 	started := time.Now()
 	defer func() { recordExecutionOutcome(ctx, factory, logger, time.Since(started), input.Execution, err) }()
+	defer func() { recordExecutionSpan(span, input.Execution, err) }()
 
 	if err := ctx.Err(); err != nil {
 		return nil, technical("context_canceled", false, err)

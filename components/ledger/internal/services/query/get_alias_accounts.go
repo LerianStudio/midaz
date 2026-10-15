@@ -21,7 +21,7 @@ import (
 func (uc *UseCase) ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.ListAccountsByAlias")
+	ctx, span := tracer.Start(ctx, "query.list_accounts_by_alias")
 	defer span.End()
 
 	accounts, err := uc.AccountRepo.ListAccountsByAlias(ctx, organizationID, ledgerID, aliases)

@@ -47,21 +47,16 @@ func (r *BillingPackageMongoDBRepository) Create(ctx context.Context, bp *model.
 	record := &BillingPackageMongoDBModel{}
 	record.FromEntity(bp)
 
-	_, spanInsert := tracer.Start(ctx, "repository.billing_package.create.insert")
-	defer spanInsert.End()
-
-	spanInsert.SetAttributes(attributes...)
-
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to insert billing package", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to insert billing package", err)
 
 		return nil, err
 	}
 
 	entity, err := record.ToEntity()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to convert billing package record to entity", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert billing package record to entity", err)
 
 		return nil, err
 	}
