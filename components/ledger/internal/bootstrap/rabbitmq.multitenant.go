@@ -13,6 +13,7 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	tmconsumer "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/consumer"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -22,6 +23,7 @@ import (
 type multiTenantConsumerRunnable struct {
 	consumer       *tmconsumer.MultiTenantConsumer
 	metricsFactory *metrics.MetricsFactory // nil when telemetry disabled; used for tenant_consumers_active gauge
+	tracer         trace.Tracer            // service tracer for the consumer's spans; nil keeps the default scope
 }
 
 // Run implements mbootstrap.Runnable.
@@ -34,7 +36,7 @@ func (r *multiTenantConsumerRunnable) Run(_ *libCommons.Launcher) error {
 		return nil
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(r.rootContext(), os.Interrupt, syscall.SIGTERM)
 
 	if err := r.consumer.Run(ctx); err != nil {
 		_ = r.consumer.Close()
@@ -62,4 +64,9 @@ func (r *multiTenantConsumerRunnable) Run(_ *libCommons.Launcher) error {
 	}
 
 	return r.consumer.Close()
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (r *multiTenantConsumerRunnable) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), r.tracer)
 }

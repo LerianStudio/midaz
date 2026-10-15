@@ -24,6 +24,7 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -91,6 +92,8 @@ type BalanceSyncWorker struct {
 	// flushBatchFn is the flush body the collectors call. It defaults to
 	// flushBatch; tests replace it to observe the context a flush receives.
 	flushBatchFn func(ctx context.Context, keys []redisTransaction.SyncKey) bool
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer trace.Tracer
 }
 
 // tenantCollector tracks a running BalanceSyncCollector goroutine for a specific tenant.
@@ -215,6 +218,18 @@ func NewBalanceSyncWorkerMT(
 	if pgManager != nil {
 		w.pgResolver = pgManager
 	}
+
+	return w
+}
+
+// WithServiceTracer sets the tracer the worker's spans are opened with, so they carry the
+// ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (w *BalanceSyncWorker) WithServiceTracer(tracer trace.Tracer) *BalanceSyncWorker {
+	if w == nil {
+		return nil
+	}
+
+	w.tracer = tracer
 
 	return w
 }
@@ -414,7 +429,7 @@ func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 // runWorker runs the default balance sync loop using the shared database connection.
 // Uses the dual-trigger collector (size OR timeout) for near-real-time balance persistence.
 func (w *BalanceSyncWorker) runWorker() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(w.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	w.logger.Log(
@@ -462,7 +477,7 @@ func (w *BalanceSyncWorker) runWorker() error {
 // collector as a goroutine. When the parent context is cancelled (SIGTERM/SIGINT),
 // all tenant collectors are stopped and their remaining buffers are flushed.
 func (w *BalanceSyncWorker) runWorkerMT() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(w.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	w.logger.Log(
@@ -1080,6 +1095,20 @@ type LegacyBalanceSyncDrainer struct {
 	idleWait time.Duration
 	useCase  *command.UseCase
 	syncCfg  BalanceSyncConfig
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer trace.Tracer
+}
+
+// WithServiceTracer sets the tracer the drainer's spans are opened with, so they carry
+// the ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (d *LegacyBalanceSyncDrainer) WithServiceTracer(tracer trace.Tracer) *LegacyBalanceSyncDrainer {
+	if d == nil {
+		return nil
+	}
+
+	d.tracer = tracer
+
+	return d
 }
 
 // NewLegacyBalanceSyncDrainer creates a drainer for the pre-v3.6.2 balance-sync ZSET.
@@ -1112,7 +1141,7 @@ func (d *LegacyBalanceSyncDrainer) fetchLegacySyncKeys(ctx context.Context, limi
 
 // Run implements the Launcher interface for the legacy drainer.
 func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(d.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	d.logger.Log(ctx, libLog.LevelInfo, "LegacyBalanceSyncDrainer started — draining balance-sync (pre-v3.6.2)")
@@ -1143,4 +1172,14 @@ func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 	d.logger.Log(ctx, libLog.LevelInfo, "LegacyBalanceSyncDrainer: shutting down...")
 
 	return nil
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (w *BalanceSyncWorker) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), w.tracer)
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (d *LegacyBalanceSyncDrainer) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), d.tracer)
 }
