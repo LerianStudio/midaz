@@ -540,8 +540,9 @@ flags retain 0/1 and legacy Version retains its compatible numeric representatio
 
 During dual writing, legacy CamelCase fields win whenever present, regardless of
 SchemaVersion. New lowerCamel fields are authoritative only in a new-only blob.
-Every dual writer updates both representations of what it writes; the engine
-leaves a configuration family it does not copy exactly as the blob had it (see
+Every dual writer updates both representations of what it writes. The engine
+writes no configuration field into a blob that exists, so every configuration
+field stays exactly as the blob had it, in whichever representations it has (see
 [Configuration keys](#configuration-keys)). An old writer may mutate only
 the legacy fields while preserving stale lowerCamel fields, so selecting fields
 by schema version would read stale money. Readers must also accept new-only
@@ -551,10 +552,10 @@ A configuration PATCH writes the configuration keys (see
 [Configuration keys](#configuration-keys)) and then confirms the configuration
 copy in the blob. The copy replaces only the configuration family and its
 version, in the representations the blob already uses, and carries every other
-byte over unchanged; Lua performs the exact-raw-byte CAS. The operation observes
-at most three attempts: only a confirmed CAS conflict is retryable, a missing
-cache key has nothing to confirm, and a successful copy refreshes the unchanged
-24-hour balance TTL.
+byte over unchanged; Lua performs the exact-raw-byte CAS. The copy makes up to
+8 attempts, with a jittered pause of 0 to 16 ms after each lost one: only a
+confirmed CAS conflict is retryable, a missing cache key has nothing to confirm,
+and a successful copy refreshes the unchanged 24-hour balance TTL.
 
 The writer inventory includes cold seeds, accounting mutations, settings PATCH,
 conditional limit repair, and any recovery rehydration. Settings writers change
@@ -815,10 +816,23 @@ a blob that exists, and it confirms the copy before answering, through a
 compare-and-set on the exact bytes it read: an execution that commits between
 the PATCH's read and its write makes it lose, and the PATCH reads the blob again,
 so it never writes over newer money. It makes up to 8 attempts, with a
-full-jitter pause after each lost one (an exponential step from 1 ms capped at
-16 ms, so at most about 63 ms of pauses). On a balance whose executions keep
-Redis busy enough to win every attempt, the PATCH answers a technical error,
-which the client's retry completes.
+full-jitter pause after each lost one: a random share, from 0 up to a step that
+starts at 1 ms, doubles, and is capped at 16 ms, so one PATCH pauses less than
+63 ms in all. On a balance whose executions keep Redis busy enough to win every
+attempt, the PATCH answers a technical error, which the client's retry
+completes.
+
+The PATCH fails closed: it never answers with success before the key is written
+and the copy confirmed. A PATCH that answers a technical error has already
+committed the new configuration in PostgreSQL, and retrying it is safe. If the
+key write failed, current pods keep the previous configuration until the retry,
+a seed from a cache miss, or the key's expiry within one hour. If the key was
+written and only the copy failed, current pods already enforce the new
+configuration, while the balance read (which shows the blob's settings) and a
+rollback to an earlier release keep the previous one until the client's retry
+confirms the copy. The rollback guarantee (see
+[Configuration keys beside earlier releases](#configuration-keys-beside-earlier-releases))
+covers the PATCHes that answered with success.
 
 ## Single execution, transport, and error classification
 
@@ -1426,13 +1440,23 @@ cases below. The earlier release reads the blob copy and preserves the version
 fields it does not know. Every configuration PATCH that answered with success
 stays in the blob until a later PATCH overwrites it, whichever release served
 it: a current pod confirmed its copy before answering, and the blob write of an
-earlier pod is never undone by a current one. The configuration keys left behind
-expire within one hour; after a new rollout, a key that outlived the rollback is
-honored for at most that hour.
+earlier pod is never undone by a current one. A PATCH that answered a technical
+error is not covered: its copy may still be missing, and the earlier release
+obeys the previous configuration until the client retries the PATCH. The
+configuration keys left behind expire within one hour; after a new rollout, a
+key that outlived the rollback is honored for at most that hour.
 
 These cases stay outside that guarantee, until the next PATCH on the balance or
 account:
 
+- A configuration PATCH a current pod served while a balance's blob was not in
+  the cache has no copy to confirm for that balance. While earlier and current
+  pods run side by side, a transaction an earlier pod served that read the
+  configuration before that PATCH committed, or read it from a replica that has
+  not applied it yet, can then seed the blob with the earlier configuration, and
+  the current engine never rewrites the copy of that blob. The same race exists
+  within the earlier release itself, whose PATCH also has nothing to update when
+  the blob is absent.
 - A blob whose copy already disagreed with PostgreSQL before this release, or
   that a PATCH an earlier pod served answered with success without updating (the
   defect this release fixes, still present in earlier pods). The engine keeps
