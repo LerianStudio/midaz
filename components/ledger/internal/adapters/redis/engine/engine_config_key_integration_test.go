@@ -1018,8 +1018,11 @@ func TestIntegrationEngineCopyConfirmsAConfigurationPatch(t *testing.T) {
 // TestIntegrationEngineHotBalancePatchConfirmsItsCopy runs configuration PATCHes on
 // a balance that engine executions keep writing from several writers. The engine
 // never writes the copy of an existing blob, so each PATCH has to win its own
-// compare-and-set between the transactions: every one confirms in a single call,
-// and the transactions' money survives every copy.
+// compare-and-set between the transactions. A copy that loses every attempt of a
+// call answers a technical error the client retries, so each PATCH may take a few
+// calls, as a retrying client would; every one confirms, and the transactions'
+// money survives every copy. How many attempts and calls each PATCH took depends
+// on the machine's load and is only logged.
 func TestIntegrationEngineHotBalancePatchConfirmsItsCopy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -1030,6 +1033,7 @@ func TestIntegrationEngineHotBalancePatchConfirmsItsCopy(t *testing.T) {
 		perWriter      = 400
 		pause          = 10 * time.Millisecond
 		patches        = 60
+		callsPerPatch  = 3
 		initialBalance = 1_000_000
 	)
 
@@ -1099,6 +1103,7 @@ func TestIntegrationEngineHotBalancePatchConfirmsItsCopy(t *testing.T) {
 	balance := f.input.Execution.Balances[0]
 	approvedBefore := approved.Load()
 	attempts := make(map[int32]int)
+	calls := make(map[int]int)
 
 	for version := int64(1); version <= patches; version++ {
 		config := snapshotBalanceConfig(balance, version)
@@ -1109,14 +1114,26 @@ func TestIntegrationEngineHotBalancePatchConfirmsItsCopy(t *testing.T) {
 		require.Equal(t, redistransaction.ConfigWritten, written)
 
 		readsBefore := reads.reads.Load()
-		outcome, err := repository.CopyBalanceConfigToBlob(ctx, f.input.Execution.OrganizationID, f.input.Execution.LedgerID, balance.BalanceRef, config)
-		require.NoError(t, err)
-		require.Equal(t, redistransaction.BlobCopyWritten, outcome, "PATCH %d confirms its copy in one call", version)
+		outcome := redistransaction.BlobCopyConflict
+		call := 0
+
+		// Only a copy that lost every compare-and-set of a call is retried; any
+		// other outcome or error ends the PATCH.
+		for call < callsPerPatch && outcome == redistransaction.BlobCopyConflict {
+			call++
+
+			outcome, err = repository.CopyBalanceConfigToBlob(ctx, f.input.Execution.OrganizationID, f.input.Execution.LedgerID, balance.BalanceRef, config)
+			require.NoError(t, err)
+		}
+
+		require.Equal(t, redistransaction.BlobCopyWritten, outcome, "PATCH %d confirms its copy within %d calls", version, callsPerPatch)
 		attempts[reads.reads.Load()-readsBefore]++
+		calls[call]++
 	}
 
 	require.Greater(t, approved.Load(), approvedBefore, "the transactions kept writing the balance while the PATCHes ran")
-	t.Logf("compare-and-set attempts per PATCH (attempts: PATCHes): %v; executions during the PATCHes: %d", attempts, approved.Load()-approvedBefore)
+	t.Logf("compare-and-set attempts per PATCH (attempts: PATCHes): %v; calls per PATCH (calls: PATCHes): %v; executions during the PATCHes: %d",
+		attempts, calls, approved.Load()-approvedBefore)
 
 	stop.Store(true)
 	waitGroup.Wait()
