@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
@@ -341,6 +342,99 @@ func TestBalanceReconcilerRunnerContinuesPastATenantWhosePoolFailsAndRotates(t *
 		"the next pass starts one tenant later")
 }
 
+func TestBalanceReconcilerRunnerScansTheTenantsTheTenantManagerLists(t *testing.T) {
+	fixture := newReconcilerFixture(t, BalanceReconcilerConfig{PageSize: 10})
+	resolver := &fakeTenantPG{}
+	lister := &fakeTenantLister{tenants: []*tmclient.TenantSummary{{ID: "tenant-b"}, {ID: "tenant-a"}, nil}}
+	fixture.runner.WithTenants(staticTenants{"cached-only"}, resolver).WithActiveTenantLister(lister, "ledger")
+
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 10).
+		Return(nil, uuid.Nil, nil).Times(2)
+
+	fixture.runner.pass(t.Context())
+
+	assert.Equal(t, []string{"tenant-a", "tenant-b"}, resolver.resolved,
+		"the pass covers every tenant the tenant manager lists, cached or not")
+}
+
+func TestBalanceReconcilerRunnerFallsBackToTheCacheWhenTheTenantListingFails(t *testing.T) {
+	fixture := newReconcilerFixture(t, BalanceReconcilerConfig{PageSize: 10})
+	resolver := &fakeTenantPG{}
+	lister := &fakeTenantLister{err: errors.New("tenant manager unavailable")}
+	fixture.runner.WithTenants(staticTenants{"cached-only"}, resolver).WithActiveTenantLister(lister, "ledger")
+
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 10).
+		Return(nil, uuid.Nil, nil).Times(1)
+
+	fixture.runner.pass(t.Context())
+
+	assert.Equal(t, []string{"cached-only"}, resolver.resolved)
+	assert.Equal(t, map[string]int64{"reason=tenant_list,tenant_id=": 1},
+		reconcilerMetricPoints(t, fixture.reader, utils.BalanceReconcilerPassFailures.Name))
+	assert.NotEmpty(t, fixture.logger.at(libLog.LevelWarn))
+}
+
+func TestBalanceReconcilerRunnerKeepsAnUnfinishedScanWhenTheTenantListingFails(t *testing.T) {
+	fixture := newReconcilerFixture(t, BalanceReconcilerConfig{PageSize: 2, PassBudgetMs: 1000})
+	resolver := &fakeTenantPG{}
+	lister := &fakeTenantLister{tenants: []*tmclient.TenantSummary{{ID: "tenant-a"}, {ID: "tenant-b"}}}
+	fixture.runner.WithTenants(staticTenants{"tenant-b"}, resolver).WithActiveTenantLister(lister, "ledger")
+
+	first, second := reconcilerPair(balanceID(1), 1), reconcilerPair(balanceID(2), 1)
+
+	// Pass 1: tenant-a's full page spends the budget, so its scan stays open with a cursor.
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 2).
+		DoAndReturn(func(ctx context.Context, _ uuid.UUID, _ int) ([]mmodel.BalanceTrailPair, uuid.UUID, error) {
+			assert.Equal(t, "tenant-a", tmcore.GetTenantIDContext(ctx))
+			fixture.clock.advance(time.Second)
+
+			return []mmodel.BalanceTrailPair{first, second}, second.BalanceID, nil
+		})
+
+	fixture.runner.pass(t.Context())
+
+	require.Contains(t, fixture.runner.scans, "tenant-a")
+
+	// Pass 2: the listing fails and the cache knows only tenant-b, which is scanned to the end.
+	lister.err = errors.New("tenant manager unavailable")
+
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 2).
+		DoAndReturn(func(ctx context.Context, _ uuid.UUID, _ int) ([]mmodel.BalanceTrailPair, uuid.UUID, error) {
+			assert.Equal(t, "tenant-b", tmcore.GetTenantIDContext(ctx))
+
+			return nil, uuid.Nil, nil
+		})
+
+	fixture.runner.pass(t.Context())
+
+	require.Contains(t, fixture.runner.scans, "tenant-a",
+		"a tenant missing from the fallback list is not known to be gone: its scan must survive")
+	assert.Equal(t, second.BalanceID, fixture.runner.scans["tenant-a"].cursor)
+
+	// Pass 3: the listing works again and tenant-a resumes from its cursor.
+	lister.err = nil
+
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), second.BalanceID, 2).Return(nil, second.BalanceID, nil)
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 2).Return(nil, uuid.Nil, nil)
+
+	fixture.runner.pass(t.Context())
+
+	assert.Empty(t, fixture.runner.scans)
+}
+
+func TestBalanceReconcilerRunnerKeepsCachedTenantsWithoutALister(t *testing.T) {
+	fixture := newReconcilerFixture(t, BalanceReconcilerConfig{PageSize: 10})
+	resolver := &fakeTenantPG{}
+	fixture.runner.WithTenants(staticTenants{"cached-only"}, resolver).WithActiveTenantLister(nil, "ledger")
+
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 10).
+		Return(nil, uuid.Nil, nil).Times(1)
+
+	fixture.runner.pass(t.Context())
+
+	assert.Equal(t, []string{"cached-only"}, resolver.resolved)
+}
+
 func TestBalanceReconcilerRunnerRecoversAPanickingPage(t *testing.T) {
 	fixture := newReconcilerFixture(t, BalanceReconcilerConfig{PageSize: 10})
 
@@ -404,12 +498,12 @@ func TestBalanceReconcilerLauncherInitHonorsTheEnabledFlag(t *testing.T) {
 	t.Parallel()
 
 	disabled := initBalanceReconcilerRunner(&Config{BalanceReconcilerEnabled: false}, libLog.NewNop(),
-		&query.UseCase{}, nil, false, nil, nil, nil)
+		&query.UseCase{}, nil, false, nil, nil, nil, "", nil)
 	assert.Nil(t, disabled)
 
 	// Without a Redis client no lock manager can be built, so there is no runner.
 	missingLock := initBalanceReconcilerRunner(&Config{BalanceReconcilerEnabled: true}, libLog.NewNop(),
-		&query.UseCase{}, nil, false, nil, nil, nil)
+		&query.UseCase{}, nil, false, nil, nil, nil, "", nil)
 	assert.Nil(t, missingLock)
 }
 
