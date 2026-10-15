@@ -374,6 +374,54 @@ func TestBalanceReconcilerRunnerFallsBackToTheCacheWhenTheTenantListingFails(t *
 	assert.NotEmpty(t, fixture.logger.at(libLog.LevelWarn))
 }
 
+func TestBalanceReconcilerRunnerKeepsAnUnfinishedScanWhenTheTenantListingFails(t *testing.T) {
+	fixture := newReconcilerFixture(t, BalanceReconcilerConfig{PageSize: 2, PassBudgetMs: 1000})
+	resolver := &fakeTenantPG{}
+	lister := &fakeTenantLister{tenants: []*tmclient.TenantSummary{{ID: "tenant-a"}, {ID: "tenant-b"}}}
+	fixture.runner.WithTenants(staticTenants{"tenant-b"}, resolver).WithActiveTenantLister(lister, "ledger")
+
+	first, second := reconcilerPair(balanceID(1), 1), reconcilerPair(balanceID(2), 1)
+
+	// Pass 1: tenant-a's full page spends the budget, so its scan stays open with a cursor.
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 2).
+		DoAndReturn(func(ctx context.Context, _ uuid.UUID, _ int) ([]mmodel.BalanceTrailPair, uuid.UUID, error) {
+			assert.Equal(t, "tenant-a", tmcore.GetTenantIDContext(ctx))
+			fixture.clock.advance(time.Second)
+
+			return []mmodel.BalanceTrailPair{first, second}, second.BalanceID, nil
+		})
+
+	fixture.runner.pass(t.Context())
+
+	require.Contains(t, fixture.runner.scans, "tenant-a")
+
+	// Pass 2: the listing fails and the cache knows only tenant-b, which is scanned to the end.
+	lister.err = errors.New("tenant manager unavailable")
+
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 2).
+		DoAndReturn(func(ctx context.Context, _ uuid.UUID, _ int) ([]mmodel.BalanceTrailPair, uuid.UUID, error) {
+			assert.Equal(t, "tenant-b", tmcore.GetTenantIDContext(ctx))
+
+			return nil, uuid.Nil, nil
+		})
+
+	fixture.runner.pass(t.Context())
+
+	require.Contains(t, fixture.runner.scans, "tenant-a",
+		"a tenant missing from the fallback list is not known to be gone: its scan must survive")
+	assert.Equal(t, second.BalanceID, fixture.runner.scans["tenant-a"].cursor)
+
+	// Pass 3: the listing works again and tenant-a resumes from its cursor.
+	lister.err = nil
+
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), second.BalanceID, 2).Return(nil, second.BalanceID, nil)
+	fixture.repo.EXPECT().ListBalanceTrailPairs(gomock.Any(), uuid.Nil, 2).Return(nil, uuid.Nil, nil)
+
+	fixture.runner.pass(t.Context())
+
+	assert.Empty(t, fixture.runner.scans)
+}
+
 func TestBalanceReconcilerRunnerKeepsCachedTenantsWithoutALister(t *testing.T) {
 	fixture := newReconcilerFixture(t, BalanceReconcilerConfig{PageSize: 10})
 	resolver := &fakeTenantPG{}
