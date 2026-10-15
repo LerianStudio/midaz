@@ -59,6 +59,12 @@ type Repository interface {
 	Find(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID) (*Operation, error)
 	FindByAccount(ctx context.Context, organizationID, ledgerID, accountID, id uuid.UUID) (*Operation, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Operation, error)
+	// ListByTransactionPrimary returns every non-deleted operation of one
+	// transaction, ordered by ID. The read always targets the primary and never
+	// falls back to a replica: its caller decides from the result which legs are
+	// already persisted, and a lagging replica would hide a written leg and let
+	// it be written again.
+	ListByTransactionPrimary(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) ([]*Operation, error)
 	Update(ctx context.Context, organizationID, ledgerID, transactionID, id uuid.UUID, operation *Operation) (*Operation, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	// Point-in-time balance queries
@@ -786,6 +792,126 @@ func (r *OperationPostgreSQLRepository) ListByIDs(ctx context.Context, organizat
 		libOpentelemetry.HandleSpanError(span, "Failed to get rows", err)
 
 		return nil, err
+	}
+
+	return operations, nil
+}
+
+// ListByTransactionPrimary reads the operations of one transaction from the
+// primary inside a read-only transaction, which is what makes dbresolver target
+// it. Opening that transaction is fail-closed: there is no replica fallback.
+func (r *OperationPostgreSQLRepository) ListByTransactionPrimary(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) (operations []*Operation, err error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "postgres.list_operations_by_transaction_primary")
+	defer span.End()
+
+	db, err := r.getDB(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
+
+		return nil, err
+	}
+
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to open read-only primary transaction", err)
+
+		return nil, fmt.Errorf("open read-only primary transaction for transaction operations: %w", err)
+	}
+
+	defer func() {
+		if err != nil {
+			if rollbackErr := tx.Rollback(); rollbackErr != nil {
+				err = errors.Join(err, fmt.Errorf("rollback read-only primary transaction for transaction operations: %w", rollbackErr))
+			}
+
+			return
+		}
+
+		if commitErr := tx.Commit(); commitErr != nil {
+			err = fmt.Errorf("close read-only primary transaction for transaction operations: %w", commitErr)
+		}
+	}()
+
+	query, args, err := squirrel.Select(operationColumns).
+		From(r.tableName).
+		Where(squirrel.Eq{"organization_id": organizationID}).
+		Where(squirrel.Eq{"ledger_id": ledgerID}).
+		Where(squirrel.Eq{"transaction_id": transactionID}).
+		Where(squirrel.Eq{"deleted_at": nil}).
+		OrderBy("id").
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
+
+		return nil, fmt.Errorf("build transaction operations query: %w", err)
+	}
+
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to query transaction operations", err)
+
+		return nil, fmt.Errorf("query transaction operations: %w", err)
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			operation OperationPostgreSQLModel
+			direction sql.NullString
+		)
+
+		if err = rows.Scan(
+			&operation.ID,
+			&operation.TransactionID,
+			&operation.Description,
+			&operation.Type,
+			&operation.AssetCode,
+			&operation.Amount,
+			&operation.AvailableBalance,
+			&operation.OnHoldBalance,
+			&operation.AvailableBalanceAfter,
+			&operation.OnHoldBalanceAfter,
+			&operation.Status,
+			&operation.StatusDescription,
+			&operation.AccountID,
+			&operation.AccountAlias,
+			&operation.BalanceID,
+			&operation.ChartOfAccounts,
+			&operation.OrganizationID,
+			&operation.LedgerID,
+			&operation.CreatedAt,
+			&operation.UpdatedAt,
+			&operation.DeletedAt,
+			&operation.Route,
+			&operation.BalanceAffected,
+			&operation.BalanceKey,
+			&operation.VersionBalance,
+			&operation.VersionBalanceAfter,
+			&direction,
+			&operation.RouteID,
+			&operation.RouteCode,
+			&operation.RouteDescription,
+			&operation.Snapshot,
+			&operation.RecordedAt,
+		); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
+
+			return nil, fmt.Errorf("scan transaction operation: %w", err)
+		}
+
+		operation.Direction = direction.String
+
+		operations = append(operations, operation.ToEntity())
+	}
+
+	if err = rows.Err(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
+
+		return nil, fmt.Errorf("iterate transaction operations: %w", err)
 	}
 
 	return operations, nil

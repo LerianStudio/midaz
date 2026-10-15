@@ -1037,6 +1037,38 @@ Malformed legacy records enter quarantine only when their canonical physical
 field matches the authenticated tenant scope. Untrusted fields remain untouched.
 Invalid version-2 records are retained rather than passed to legacy processing.
 
+A legacy record that carries its operations replays them as recorded, and the
+write path deduplicates them by ID. A record without operations rebuilds them
+from its balance snapshots, which mints new IDs, so the rebuilt legs are first
+reconciled with the operations already persisted for the same transaction, read
+from the primary. Legs are compared only by exact key: transaction, balance,
+balance key, operation type, starting version, and decimal amount, with
+multiplicity. A rebuilt leg with a persisted exact match takes the persisted ID;
+a rebuilt leg with no persisted leg on its key is written. Any ambiguity (a
+different count for one key, a persisted leg left unpaired on the balance and
+starting version of a rebuilt leg, or a rebuilt leg without type, version, or
+amount) writes nothing and counts toward quarantine as
+`persisted_operations_mismatch`. A failed primary read leaves the record for the
+next cycle without counting an attempt. After reconciliation, the final IDs are
+stored in the record by compare-and-set against the exact value read, replacing
+only its `operations` key, before anything reaches PostgreSQL. Every later replay
+of that record then takes the materialized path with the same IDs. A record
+removed or rewritten since it was read, or a Redis failure, writes nothing and
+counts no attempt.
+
+The physical field of a legacy record is already tenant-scoped in multi-tenant
+operation, so record replacement and quarantine removal use it exactly as read
+and namespace only the hash. After a durable quarantine insert, the record is
+removed only while it still holds the quarantined payload; a record rewritten in
+between stays for its own replay.
+
+A field holds one record per transaction, but a later lifecycle stage or a
+rewrite can replace it with a different payload. The legacy quarantine key
+therefore combines the field with the SHA-256 digest of the payload, as engine
+recovery does: every distinct payload gets its own row, and the same payload
+quarantined again stays one row. A key that already holds a different payload
+is refused rather than treated as stored, so that record stays in Redis.
+
 The engine recovery consumer reads only `engine:{transactions}:recover` and
 accepts only a strictly validated version-two envelope;
 unversioned, malformed, and unsupported records remain there and never enter the
