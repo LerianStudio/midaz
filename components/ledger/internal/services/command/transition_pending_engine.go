@@ -509,7 +509,13 @@ func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLo
 		}
 	}
 
-	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
+	// T10: the background writes derive from the request context without its
+	// cancellation and deadline, the reason this used to be context.Background():
+	// a client that disconnects after the response must not cancel them. Its values
+	// (tenant, logger, tracer and the command span) are kept, so the writes stay in
+	// the request trace under the service scope. The tenant is set again explicitly
+	// so the writes do not depend on how it was placed on ctx.
+	tenantCtx := tmcore.ContextWithTenantID(context.WithoutCancel(ctx), tmcore.GetTenantIDContext(ctx))
 	if shouldEmitEngineWriteBehindAudit(dispatched, projected) {
 		uc.sendLogTransactionAuditQueueAsync(tenantCtx, tran.Operations, record.OrganizationID, record.LedgerID, record.TransactionID)
 	}
