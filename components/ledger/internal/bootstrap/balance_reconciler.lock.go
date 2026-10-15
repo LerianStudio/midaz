@@ -11,8 +11,6 @@ import (
 
 	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // errReconcilerLeaseNotExtendable reports a lock handle without the renewal
@@ -47,14 +45,16 @@ type reconcilerLeaseHandle interface {
 type redisReconcilerLease struct {
 	manager reconcilerLockManager
 	logger  libLog.Logger
+	lockKey string
 	expiry  time.Duration
 	handle  reconcilerLeaseHandle
 }
 
-// newRedisReconcilerLease builds a lease whose lock lives for expiry after each
-// acquisition or renewal.
-func newRedisReconcilerLease(manager reconcilerLockManager, logger libLog.Logger, expiry time.Duration) reconcilerLease {
-	return &redisReconcilerLease{manager: manager, logger: logger, expiry: expiry}
+// newRedisReconcilerLease builds a lease over lockKey whose lock lives for
+// expiry after each acquisition or renewal. Each leader-only worker passes its
+// own key, so leadership of one never implies leadership of another.
+func newRedisReconcilerLease(manager reconcilerLockManager, logger libLog.Logger, lockKey string, expiry time.Duration) reconcilerLease {
+	return &redisReconcilerLease{manager: manager, logger: logger, lockKey: lockKey, expiry: expiry}
 }
 
 // balanceReconcilerLeaseExpiry is how long the leader lock survives without a
@@ -90,7 +90,7 @@ func (l *redisReconcilerLease) Hold(ctx context.Context) (bool, bool, error) {
 	opts.Expiry = l.expiry
 	opts.Tries = 1
 
-	handle, acquired, err := l.manager.TryLockWithOptions(ctx, utils.BalanceReconcilerLockKey(), opts)
+	handle, acquired, err := l.manager.TryLockWithOptions(ctx, l.lockKey, opts)
 	if err != nil {
 		return false, false, err
 	}
@@ -124,6 +124,6 @@ func (l *redisReconcilerLease) Release(ctx context.Context) {
 func (l *redisReconcilerLease) unlock(ctx context.Context, handle libRedis.LockHandle) {
 	releaseCtx := context.WithoutCancel(ctx)
 	if err := handle.Unlock(releaseCtx); err != nil {
-		l.logger.Log(releaseCtx, libLog.LevelWarn, "Failed to release balance reconciler lease", libLog.Err(err))
+		l.logger.Log(releaseCtx, libLog.LevelWarn, "Failed to release leader lease", libLog.String("lock_key", l.lockKey), libLog.Err(err))
 	}
 }

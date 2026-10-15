@@ -201,7 +201,7 @@ func initBalanceReconcilerRunner(
 		PageSize:     cfg.BalanceReconcilerPageSize,
 		PassBudgetMs: cfg.BalanceReconcilerPassBudgetMs,
 	})
-	lease := newRedisReconcilerLease(lockManager, logger, balanceReconcilerLeaseExpiry(reconcilerCfg))
+	lease := newRedisReconcilerLease(lockManager, logger, utils.BalanceReconcilerLockKey(), balanceReconcilerLeaseExpiry(reconcilerCfg))
 
 	runner := NewBalanceReconcilerRunner(logger, queryUC, lease, reconcilerCfg).WithMetricsFactory(metricsFactory)
 
