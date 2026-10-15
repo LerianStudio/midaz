@@ -612,6 +612,39 @@ func TestIntegration_EngineConfig_ColdBalanceDecidesWithARowNewerThanTheLiveKey(
 		assert.Equal(t, accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: true}, keys.Accounts[accountID])
 	})
 
+	t.Run("uncached balances of different accounts each take their own account row", func(t *testing.T) {
+		ctx := context.Background()
+		openAccountID, _, openAlias := infra.seedBalance(t, "cfg-cold-open-account", decimal.NewFromInt(100), 0)
+		blockedAccountID, _, blockedAlias := infra.seedBalance(t, "cfg-cold-blocked-account", decimal.NewFromInt(100), 0)
+		openRef := openAlias + "#" + constant.DefaultBalanceKey
+		blockedRef := blockedAlias + "#" + constant.DefaultBalanceKey
+
+		// One account stays open at version 0, the other is blocked at version 1, and
+		// neither has an account key: each balance can only take its account's state
+		// from the row the load read for that account.
+		_, err := infra.onboardingDB.DB.Exec(`UPDATE account SET blocked = true WHERE id = $1`, blockedAccountID)
+		require.NoError(t, err)
+
+		_, accounts := spy(t)
+
+		_, execution, err := infra.uc.GetEngineBalances(ctx, infra.orgID, infra.ledgerID, []string{openRef, blockedRef})
+		require.NoError(t, err)
+
+		open := engineBalanceByRef(t, execution, openRef)
+		assert.False(t, open.Blocked, "the open account's balance stays open")
+		assert.Equal(t, int64(0), open.AccountConfigVersion)
+
+		blocked := engineBalanceByRef(t, execution, blockedRef)
+		assert.True(t, blocked.Blocked, "the blocked account's balance is blocked")
+		assert.Equal(t, int64(1), blocked.AccountConfigVersion)
+
+		assert.Equal(t, int32(1), accounts.listByIDs.Load(), "one account read serves both balances")
+
+		keys := infra.readKeys(t, ctx, nil, []uuid.UUID{openAccountID, blockedAccountID})
+		assert.Equal(t, accounting.AccountConfig{AccountID: openAccountID, Version: 0, Blocked: false}, keys.Accounts[openAccountID])
+		assert.Equal(t, accounting.AccountConfig{AccountID: blockedAccountID, Version: 1, Blocked: true}, keys.Accounts[blockedAccountID])
+	})
+
 	t.Run("an equal version keeps the key", func(t *testing.T) {
 		ctx := context.Background()
 		accountID, _, alias := infra.seedBalance(t, "cfg-cold-equal", decimal.NewFromInt(100), 0)
