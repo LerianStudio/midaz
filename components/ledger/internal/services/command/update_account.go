@@ -55,8 +55,7 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	// no such column, so it proceeds and completes.
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, holderPolicy)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to find account by id", err)
 
 		return nil, err
 	}
@@ -80,15 +79,9 @@ func (uc *UseCase) UpdateAccount(ctx context.Context, organizationID, ledgerID u
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
-
-			logger.Log(ctx, libLog.LevelWarn, "Account ID not found on update", libLog.String("account_id", id.String()))
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account on repo by id", err)
-
-			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to update account on repo by id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to update account on repo by id", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to update account on repo by id", err)
 
 		return nil, err
 	}

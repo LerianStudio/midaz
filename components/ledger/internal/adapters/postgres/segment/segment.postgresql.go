@@ -17,7 +17,6 @@ import (
 	libPostgres "github.com/LerianStudio/lib-commons/v7/commons/postgres"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/Masterminds/squirrel"
 	"github.com/bxcodec/dbresolver/v2"
@@ -332,7 +331,7 @@ func (p *SegmentPostgreSQLRepository) FindAll(ctx context.Context, organizationI
 }
 
 func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*mmodel.Segment, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.find_segment")
 	defer span.End()
@@ -374,7 +373,7 @@ func (p *SegmentPostgreSQLRepository) Find(ctx context.Context, organizationID, 
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Failed to scan row", libLog.Err(err), libLog.String("segment_id", id.String()))
+		libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
 		return nil, err
 	}

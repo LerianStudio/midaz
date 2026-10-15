@@ -9,16 +9,13 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	// CountOrganizations returns the total count of organizations
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// CountOrganizations returns the total count of organizations
 func (uc *UseCase) CountOrganizations(ctx context.Context) (int64, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -27,19 +24,11 @@ func (uc *UseCase) CountOrganizations(ctx context.Context) (int64, error) {
 
 	count, err := uc.OrganizationRepo.Count(ctx)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error counting organizations on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoOrganizationsFound, constant.EntityOrganization)
-
-			logger.Log(ctx, libLog.LevelWarn, "No organizations found")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count organizations on repo", err)
-
-			return 0, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count organizations on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to count organizations on repo", err)
 
 		return 0, err
 	}

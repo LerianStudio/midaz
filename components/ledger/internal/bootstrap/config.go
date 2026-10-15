@@ -309,6 +309,18 @@ type Config struct {
 	// resolved by the worker, which never fails to start on this knob.
 	BalanceSyncTTLKeepaliveIntervalMs int `env:"BALANCE_SYNC_TTL_KEEPALIVE_INTERVAL_MS"`
 
+	// --- Balance reconciler (balance row vs. operation trail) ---
+	// BalanceReconcilerEnabled turns the periodic reconciler on; unset or empty means true.
+	BalanceReconcilerEnabled bool `env:"BALANCE_RECONCILER_ENABLED"`
+	// BalanceReconcilerIntervalMs is the time between two reconciler passes.
+	BalanceReconcilerIntervalMs int `env:"BALANCE_RECONCILER_INTERVAL_MS"`
+	// BalanceReconcilerGraceMs skips balances updated more recently than this window.
+	BalanceReconcilerGraceMs int `env:"BALANCE_RECONCILER_GRACE_MS"`
+	// BalanceReconcilerPageSize is how many balances one keyset page reads.
+	BalanceReconcilerPageSize int `env:"BALANCE_RECONCILER_PAGE_SIZE"`
+	// BalanceReconcilerPassBudgetMs caps the wall time of one pass, shared by every tenant it visits.
+	BalanceReconcilerPassBudgetMs int `env:"BALANCE_RECONCILER_PASS_BUDGET_MS"`
+
 	// --- Streaming (lib-streaming producer) ---
 	// Default for all streaming knobs is OFF — a service with
 	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
@@ -540,7 +552,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// Logged after ApplyGlobals so the warning also reaches the OTLP log exporter.
 	if authWarning != "" {
-		logger.Log(context.Background(), libLog.LevelWarn, authWarning,
+		logger.Log(
+			context.Background(), libLog.LevelWarn, authWarning,
 			libLog.String("config", "PLUGIN_AUTH_ENABLED"),
 			libLog.String("deployment_mode", ResolveDeploymentMode(cfg.DeploymentMode)),
 		)
@@ -1340,6 +1353,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 	balanceSyncWorker.WithMetricsFactory(metricsFactory)
 
+	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, metricsFactory)
+
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
 	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.
 	legacyDrainer := NewLegacyBalanceSyncDrainer(logger, commandUseCase, BalanceSyncConfig{
@@ -1394,6 +1409,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RedisQueueConsumer:       redisConsumer,
 		EngineRecoveryCleanup:    engineRecoveryCleanup,
 		BalanceSyncWorker:        balanceSyncWorker,
+		BalanceReconciler:        balanceReconciler,
 		LegacyBalanceSyncDrainer: legacyDrainer,
 		EventListener:            eventListener,
 		CircuitBreakerManager:    rmq.circuitBreakerManager,
@@ -2231,6 +2247,18 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
 	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
+
+	// Balance reconciler defaults
+	// BalanceReconcilerEnabled defaults to true when the env var is not set or empty,
+	// following BULK_RECORDER_ENABLED. Explicit "false" is the opt-out.
+	if os.Getenv("BALANCE_RECONCILER_ENABLED") == "" {
+		cfg.BalanceReconcilerEnabled = true
+	}
+
+	intDefault(&cfg.BalanceReconcilerIntervalMs, defaultBalanceReconcilerIntervalMs)
+	intDefault(&cfg.BalanceReconcilerGraceMs, defaultBalanceReconcilerGraceMs)
+	intDefault(&cfg.BalanceReconcilerPageSize, defaultBalanceReconcilerPageSize)
+	intDefault(&cfg.BalanceReconcilerPassBudgetMs, defaultBalanceReconcilerPassBudgetMs)
 
 	// OtelServiceName defaults to the roster name so /version, the OTel resource
 	// and the streaming manifest name the same process even with no OTEL_* env.

@@ -10,8 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -33,17 +31,9 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoAccountTypesFound, constant.EntityAccountType)
-
-			logger.Log(ctx, libLog.LevelWarn, "No account types found")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account types on repo", err)
-
-			return nil, libHTTP.CursorPagination{}, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get account types on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting account types on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get account types on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -56,8 +46,7 @@ func (uc *UseCase) GetAllAccountType(ctx context.Context, organizationID, ledger
 
 		metadata, err := uc.OnboardingMetadataRepo.FindList(ctx, constant.EntityAccountType, metadataFilter)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb account type", err)
-			logger.Log(ctx, libLog.LevelError, "Error getting account type metadata on repo", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb account type", err)
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

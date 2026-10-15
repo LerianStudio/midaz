@@ -60,7 +60,7 @@ func (handler *OperationHandler) getAllOperationsByAccount(ctx context.Context, 
 
 		trans, cur, err := handler.Query.GetAllMetadataOperations(ctx, organizationID, ledgerID, accountID, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account and metadata", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all Operations by account and metadata", err)
 
 			return http.Pagination{}, err
 		}
@@ -75,7 +75,7 @@ func (handler *OperationHandler) getAllOperationsByAccount(ctx context.Context, 
 
 	operations, cur, err := handler.Query.GetAllOperationsByAccount(ctx, organizationID, ledgerID, accountID, *headerParams)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all Operations by account", err)
+		handleSpanByErrorClass(span, "Failed to retrieve all Operations by account", err)
 
 		return http.Pagination{}, err
 	}

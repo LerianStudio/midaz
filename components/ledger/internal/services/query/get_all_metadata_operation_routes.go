@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -18,8 +17,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // GetAllMetadataOperationRoutes lists the organization's operation routes matching the metadata filter.
@@ -31,14 +28,16 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 	defer span.End()
 
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperationRoute, filter)
-	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo by metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operation routes on repo by metadata", libLog.Err(err))
+	if err != nil {
+		recordQueryError(ctx, span, logger, "Failed to get operation route metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if len(metadata) == 0 {
+		span.AddEvent("No metadata matched the filter")
+
+		return []*mmodel.OperationRoute{}, libHTTP.CursorPagination{}, nil
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -49,24 +48,16 @@ func (uc *UseCase) GetAllMetadataOperationRoutes(ctx context.Context, organizati
 
 	allOperationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting operation routes on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting operation routes on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get operation routes on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	var filteredOperationRoutes []*mmodel.OperationRoute
+	filteredOperationRoutes := make([]*mmodel.OperationRoute, 0, len(allOperationRoutes))
 
 	for _, operationRoute := range allOperationRoutes {
 		if data, ok := metadataMap[operationRoute.ID.String()]; ok {

@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -34,7 +34,7 @@ import (
 // When the part's ledger does not validate routes this is a no-op and the
 // returned cache is nil.
 func (uc *UseCase) ValidateGroupPartAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_group_part_accounting_rules")
 	defer span.End()
@@ -48,15 +48,14 @@ func (uc *UseCase) ValidateGroupPartAccountingRules(ctx context.Context, organiz
 
 	actionRoutes, err := resolveActionRoutes(transactionRouteCache, action)
 	if err != nil {
+		span.SetAttributes(attribute.String("app.request.accounting_action", action))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve action routes", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve action routes", libLog.String("action", action), libLog.Err(err))
 
 		return nil, err
 	}
 
 	if err := validateOperationRouteIDs(validate, actionRoutes.isSourceOnly); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing operation route ID", err)
-		logger.Log(ctx, libLog.LevelWarn, "Missing operation route ID", libLog.Err(err))
 
 		return nil, err
 	}
@@ -101,7 +100,7 @@ func (uc *UseCase) ValidateGroupPartAccountingRules(ctx context.Context, organiz
 // and a take-back voids the count. Cancel is source-only and, as for a single
 // transaction, has no group-wide rule.
 func (uc *UseCase) ValidateGroupAccountingRoutes(ctx context.Context, organizationID uuid.UUID, transactionRoute string, uses []mmodel.AccountingRouteUse, action string) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_group_accounting_routes")
 	defer span.End()
@@ -113,8 +112,8 @@ func (uc *UseCase) ValidateGroupAccountingRoutes(ctx context.Context, organizati
 
 	actionRoutes, err := resolveActionRoutes(transactionRouteCache, action)
 	if err != nil {
+		span.SetAttributes(attribute.String("app.request.accounting_action", action))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve action routes", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve action routes", libLog.String("action", action), libLog.Err(err))
 
 		return err
 	}
@@ -134,15 +133,15 @@ func (uc *UseCase) ValidateGroupAccountingRoutes(ctx context.Context, organizati
 	}
 
 	if err := validateGroupRouteMembership(actionRoutes, clientUses); err != nil {
+		span.SetAttributes(attribute.String("app.request.accounting_action", action))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route not found", err)
-		logger.Log(ctx, libLog.LevelWarn, "Group leg route not found in the action's routes", libLog.String("action", action))
 
 		return err
 	}
 
 	if err := validateGroupRouteCountAndCounterparts(actionRoutes, clientUses, takesBack); err != nil {
+		span.SetAttributes(attribute.String("app.request.accounting_action", action))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Group route count or counterpart validation failed", err)
-		logger.Log(ctx, libLog.LevelWarn, "Group route count or counterpart validation failed", libLog.String("action", action), libLog.Err(err))
 
 		return err
 	}
@@ -172,7 +171,7 @@ func splitCrossLedgerBridgeOperations(cache mmodel.TransactionRouteCache, valida
 // bridge legs: the crossLedger entry of the bridge route must carry the rubric
 // for the direction posted, or the leg would post with no classification.
 func validateCrossLedgerBridgeRoutes(ctx context.Context, cache mmodel.TransactionRouteCache, validate *mtransaction.Responses, bridgeOperations []mmodel.BalanceOperation) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_cross_ledger_bridge_routes")
 	defer span.End()
@@ -184,11 +183,12 @@ func validateCrossLedgerBridgeRoutes(ctx context.Context, cache mmodel.Transacti
 		}
 
 		err := pkg.ValidateBusinessError(constant.ErrCrossLedgerRouteNotConfigured, constant.EntityTransactionRoute)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger route not configured", err)
 
-		logger.Log(ctx, libLog.LevelWarn, "Bridge route lacks the crossLedger rubric for the posted direction",
-			libLog.String("route_id", routeID),
-			libLog.String("direction", operation.Amount.Direction))
+		span.SetAttributes(
+			attribute.String("app.request.operation_route_id", routeID),
+			attribute.String("app.request.operation_direction", operation.Amount.Direction),
+		)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Cross-ledger route not configured", err)
 
 		return err
 	}

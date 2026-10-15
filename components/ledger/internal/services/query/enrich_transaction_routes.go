@@ -9,7 +9,6 @@ import (
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -42,9 +41,7 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 	// Step 2: Batch query junction table
 	junctionMap, err := uc.TransactionRouteRepo.FindOperationRouteLinksByTransactionRouteIDs(ctx, trIDs)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to fetch operation route IDs from junction table", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to fetch operation route IDs from junction table", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to fetch operation route IDs from junction table", err)
 
 		return err
 	}
@@ -73,9 +70,7 @@ func (uc *UseCase) enrichTransactionRoutesWithOperationRoutes(ctx context.Contex
 
 		opRoutes, err := uc.OperationRouteRepo.FindByIDs(ctx, orgID, orIDSlice)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to batch fetch operation routes", err)
-
-			logger.Log(ctx, libLog.LevelError, "Failed to batch fetch operation routes", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to batch fetch operation routes", err)
 
 			return err
 		}

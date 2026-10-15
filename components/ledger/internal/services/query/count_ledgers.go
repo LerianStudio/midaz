@@ -9,8 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -27,19 +25,11 @@ func (uc *UseCase) CountLedgers(ctx context.Context, organizationID uuid.UUID) (
 
 	count, err := uc.LedgerRepo.Count(ctx, organizationID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error counting ledgers on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoLedgersFound, constant.EntityLedger)
-
-			logger.Log(ctx, libLog.LevelWarn, "No ledgers found for organization")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count ledgers on repo", err)
-
-			return 0, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count ledgers on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to count ledgers on repo", err)
 
 		return 0, err
 	}

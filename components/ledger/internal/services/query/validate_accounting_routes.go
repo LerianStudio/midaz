@@ -15,8 +15,10 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -70,7 +72,7 @@ import (
 //
 // FeeDebtLegs name fee-debt take-backs, which match no transaction route and void the route count.
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
@@ -84,15 +86,14 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	actionRoutes, err := resolveActionRoutes(transactionRouteCache, action)
 	if err != nil {
+		span.SetAttributes(attribute.String("app.request.accounting_action", action))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve action routes", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve action routes", libLog.String("action", action), libLog.Err(err))
 
 		return nil, err
 	}
 
 	if err := validateOperationRouteIDs(validate, actionRoutes.isSourceOnly); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing operation route ID", err)
-		logger.Log(ctx, libLog.LevelWarn, "Missing operation route ID", libLog.Err(err))
 
 		return nil, err
 	}
@@ -101,7 +102,6 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	if !actionRoutes.isSourceOnly {
 		if err := validateRouteCountAndCounterparts(validate, actionRoutes, operations); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Route count or counterpart validation failed", err)
-			logger.Log(ctx, libLog.LevelWarn, "Route count or counterpart validation failed", libLog.Err(err))
 
 			return nil, err
 		}
@@ -138,8 +138,8 @@ func (uc *UseCase) loadValidatedTransactionRoute(ctx context.Context, span trace
 
 	ledgerSettings, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+		// logged once by GetLedgerSettings; record on this span only
+		spanattr.HandleSpanByErrorClass(span, "Failed to get ledger settings", err)
 
 		return mmodel.TransactionRouteCache{}, false, err
 	}
@@ -163,12 +163,9 @@ func (uc *UseCase) loadValidatedTransactionRoute(ctx context.Context, span trace
 // loadTransactionRouteCache resolves the transaction route named by validate
 // within the organization and returns its cached accounting view.
 func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Span, organizationID uuid.UUID, validate *mtransaction.Responses) (mmodel.TransactionRouteCache, error) {
-	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
-
 	transactionRouteID, err := resolveTransactionRouteID(validate)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve transaction route ID", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve transaction route ID", libLog.Err(err))
 
 		return mmodel.TransactionRouteCache{}, err
 	}
@@ -177,13 +174,12 @@ func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Spa
 	if err != nil {
 		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found in the organization", err)
-			logger.Log(ctx, libLog.LevelWarn, "Transaction route not found in the organization", libLog.String("transaction_route_id", transactionRouteID.String()))
 
 			return mmodel.TransactionRouteCache{}, err
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to load transaction route cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to load transaction route cache", libLog.Err(err))
+		// logged once by GetOrCreateTransactionRouteCache; record on this span only
+		spanattr.HandleSpanByErrorClass(span, "Failed to load transaction route cache", err)
 
 		return mmodel.TransactionRouteCache{}, err
 	}
@@ -204,7 +200,7 @@ func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Spa
 // rejects with ErrOverdraftRouteNotConfigured instead. Non-overdraft
 // transactions never enter the per-companion loop, so behavior is unchanged.
 func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_overdraft_routes")
 	defer span.End()
@@ -227,12 +223,12 @@ func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteC
 
 		if !overdraftRubricConfigured(cache, routeID, op.Amount.Direction) {
 			err := pkg.ValidateBusinessError(constant.ErrOverdraftRouteNotConfigured, constant.EntityOperationRoute)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft route not configured", err)
 
-			logger.Log(ctx, libLog.LevelWarn, "Overdraft companion route lacks a valid overdraft accounting entry",
-				libLog.String("route_id", routeID),
-				libLog.String("alias", op.Alias),
-				libLog.String("direction", op.Amount.Direction))
+			span.SetAttributes(
+				attribute.String("app.request.operation_route_id", routeID),
+				attribute.String("app.request.operation_direction", op.Amount.Direction),
+			)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft route not configured", err)
 
 			return err
 		}
@@ -506,7 +502,7 @@ func resolveTransactionRouteID(validate *mtransaction.Responses) (uuid.UUID, err
 // Route existence, direction matching, and account rules (alias/account_type) are
 // always enforced when validateRoutes is active.
 func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
 	defer span.End()
@@ -543,21 +539,18 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 
 		if !found {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, constant.EntityOperationRoute, routeID, operation.Alias)
+			span.SetAttributes(attribute.String("app.request.operation_route_id", routeID))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route not found", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Route ID not found in cache for operation",
-				libLog.String("route_id", routeID), libLog.String("alias", operation.Alias))
 
 			return err
 		}
 
 		if err := validateDirectionRouteMatch(operation, cacheRule); err != nil {
+			span.SetAttributes(
+				attribute.String("app.request.operation_direction", operation.Amount.Direction),
+				attribute.String("app.request.operation_route_type", cacheRule.OperationType),
+			)
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direction does not match route operation type", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Operation direction does not match route operation type",
-				libLog.String("alias", operation.Alias),
-				libLog.String("direction", operation.Amount.Direction),
-				libLog.String("route_type", cacheRule.OperationType))
 
 			return err
 		}
@@ -568,9 +561,6 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 		if cacheRule.Account != nil {
 			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
 				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation failed validation against route rules", err)
-
-				logger.Log(ctx, libLog.LevelWarn, "Operation failed validation against route rules",
-					libLog.String("alias", operation.Alias), libLog.Err(err))
 
 				return err
 			}
