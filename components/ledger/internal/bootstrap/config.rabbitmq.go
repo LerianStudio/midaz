@@ -166,7 +166,7 @@ func initMultiTenantRabbitMQ(
 		return nil, fmt.Errorf("failed to initialize multi-tenant consumer: %w", err)
 	}
 
-	producer := rabbitmq.NewMultiTenantProducer(tenantRabbitMQ, logger)
+	producer := rabbitmq.NewMultiTenantProducer(tenantRabbitMQ, logger, rabbitmq.WithPublishConfirmTimeout(rabbitMQPublishConfirmTimeout(cfg)))
 
 	queueName := cfg.RabbitMQTransactionBalanceOperationQueue
 	if queueName == "" {
@@ -180,7 +180,7 @@ func initMultiTenantRabbitMQ(
 			tenantRabbitMQ,
 			cfg.RabbitMQTransactionBalanceOperationExchange,
 			cfg.RabbitMQTransactionBalanceOperationKey,
-			defaultEngineWriteBehindPublishTimeout(cfg),
+			rabbitMQPublishConfirmTimeout(cfg),
 		)
 		if err != nil {
 			return nil, err
@@ -342,7 +342,7 @@ func initSingleTenantRabbitMQ(
 		Logger:                 logger,
 	}
 
-	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection)
+	rawProducerRabbitMQ, err := rabbitmq.NewProducerRabbitMQ(rabbitMQConnection, rabbitmq.WithPublishConfirmTimeout(rabbitMQPublishConfirmTimeout(cfg)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RabbitMQ producer: %w", err)
 	}
@@ -370,14 +370,6 @@ func initSingleTenantRabbitMQ(
 	}
 
 	// Circuit breaker configuration with safe defaults
-	operationTimeout := rabbitmq.DefaultOperationTimeout
-
-	if cfg.RabbitMQOperationTimeout != "" {
-		if parsed, err := time.ParseDuration(cfg.RabbitMQOperationTimeout); err == nil && parsed > 0 {
-			operationTimeout = parsed
-		}
-	}
-
 	cbConfig := rabbitmq.CircuitBreakerConfig{
 		ConsecutiveFailures: utils.GetUint32FromIntWithDefault(cfg.RabbitMQCircuitBreakerConsecutiveFailures, 15),
 		FailureRatio:        utils.GetFloat64FromIntPercentWithDefault(cfg.RabbitMQCircuitBreakerFailureRatio, 0.5),
@@ -387,7 +379,6 @@ func initSingleTenantRabbitMQ(
 		Timeout:             utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerTimeout, 30*time.Second),
 		HealthCheckInterval: utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckInterval, 30*time.Second),
 		HealthCheckTimeout:  utils.GetDurationSecondsWithDefault(cfg.RabbitMQCircuitBreakerHealthCheckTimeout, 10*time.Second),
-		OperationTimeout:    operationTimeout,
 	}
 
 	circuitBreakerManager, err := NewCircuitBreakerManager(logger, rabbitMQConnection, cbConfig, stateListener)
@@ -403,7 +394,6 @@ func initSingleTenantRabbitMQ(
 		rawProducerRabbitMQ,
 		circuitBreakerManager.Manager,
 		logger,
-		cbConfig.OperationTimeout,
 	)
 	if err != nil {
 		if closeErr := rawProducerRabbitMQ.Close(); closeErr != nil {
@@ -434,7 +424,7 @@ func initSingleTenantRabbitMQ(
 			engineConnection,
 			cfg.RabbitMQTransactionBalanceOperationExchange,
 			cfg.RabbitMQTransactionBalanceOperationKey,
-			defaultEngineWriteBehindPublishTimeout(cfg),
+			rabbitMQPublishConfirmTimeout(cfg),
 		)
 		if engineErr != nil {
 			return nil, engineErr
@@ -504,7 +494,9 @@ func initSingleTenantRabbitMQ(
 	return rmq, nil
 }
 
-func defaultEngineWriteBehindPublishTimeout(cfg *Config) time.Duration {
+// rabbitMQPublishConfirmTimeout is the ceiling on every confirmed publish:
+// the engine write-behind and ProducerDefault.
+func rabbitMQPublishConfirmTimeout(cfg *Config) time.Duration {
 	if cfg == nil || cfg.RabbitMQOperationTimeout == "" {
 		return 5 * time.Second
 	}

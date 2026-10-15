@@ -1,0 +1,22 @@
+-- ============================================
+-- Migration: 000032_drop_transaction_validations_transaction_type_idx
+-- Description: Drop the index over the bare transaction_type column, which
+--              no read uses any more.
+-- Date: 2026-10-06
+-- ============================================
+--
+-- Every filter on the payment scheme goes through
+-- transaction_validation_scheme(scheme, transaction_type), which only
+-- idx_transaction_validations_scheme (000029) serves, and nothing filters or
+-- sorts on transaction_type alone. A row written with scheme alone stores a
+-- NULL transaction_type, so this index would also answer the wrong question
+-- for it. Keeping it would cost every validation insert one more B-tree entry
+-- for nothing.
+--
+-- CONCURRENTLY: a plain DROP INDEX takes an ACCESS EXCLUSIVE lock on
+-- transaction_validations and would stall the validate hot path. This file
+-- holds exactly one statement so the runner does not wrap it in an implicit
+-- transaction. IF EXISTS keeps a replay a clean no-op (Migration Renumbering
+-- Invariant, docs/tracer/INVARIANTS.md).
+
+DROP INDEX CONCURRENTLY IF EXISTS idx_transaction_validations_transaction_type;

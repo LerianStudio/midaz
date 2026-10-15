@@ -26,6 +26,12 @@ func (uc *UseCase) PublishAppliedTransactionEvents(ctx context.Context, tran *tr
 }
 
 func (uc *UseCase) dispatchTransactionEvents(ctx context.Context, tran *transaction.Transaction, phase string) {
+	// A noop completion persisted no operation: the completion that wrote them
+	// already published, so a replay must stay silent on every channel.
+	if phase == TransactionLifecyclePhaseNoop {
+		return
+	}
+
 	// Send events asynchronously with context that preserves trace but survives parent cancellation.
 	// Each emitter gets its own timeout budget so a slow earlier emitter cannot starve later ones.
 	go func() {

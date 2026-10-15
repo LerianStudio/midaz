@@ -605,8 +605,8 @@ func TestLimitHandler_ListLimits(t *testing.T) {
 			},
 		},
 		{
-			name:        "invalid transactionType enum in scope filter returns validation error",
-			queryParams: "?transaction_type=INVALID_TYPE",
+			name:        "invalid transactionType in scope filter returns validation error",
+			queryParams: "?transaction_type=bad%20value!",
 			mockSetup: func(ctrl *gomock.Controller) *MockLimitService {
 				return NewMockLimitService(ctrl)
 			},
@@ -1599,7 +1599,7 @@ func TestValidateScopeFieldErrors(t *testing.T) {
 				Scopes: []model.Scope{
 					{
 						TransactionType: func() *model.TransactionType {
-							t := model.TransactionType("INVALID_TX_TYPE")
+							t := model.TransactionType("bad value!")
 							return &t
 						}(),
 					},

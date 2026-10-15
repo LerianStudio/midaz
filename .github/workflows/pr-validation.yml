@@ -36,8 +36,8 @@ jobs:
         docs
         tests
         release
-      go_version: "1.27.0"
-      golangci_lint_version: "v2.13.2"
+      go_version: "1.27.2"
+      golangci_lint_version: "v2.14.0"
       app_name_prefix: "midaz"
       filter_paths: |
         components/ledger
@@ -65,7 +65,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.0'
+          go-version: '1.27.2'
           cache: true
 
       - name: Verify protobuf stubs are up to date
@@ -99,7 +99,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.0'
+          go-version: '1.27.2'
           cache: true
 
       - name: Install test reporter

@@ -20,6 +20,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -127,7 +128,7 @@ func TestGetAllOperations(t *testing.T) {
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 
-	t.Run("Error in FindList metadata", func(t *testing.T) {
+	t.Run("Error in metadata lookup is returned as a technical error", func(t *testing.T) {
 		operations := []*operation.Operation{{ID: uuid.Must(libCommons.GenerateUUIDv7()).String()}}
 
 		mockOperationRepo.
@@ -136,15 +137,21 @@ func TestGetAllOperations(t *testing.T) {
 			Return(operations, mockCur, nil).
 			Times(1)
 
+		metadataErr := errors.New("metadata error")
+
 		mockMetadataRepo.
 			EXPECT().
 			FindByEntityIDs(gomock.Any(), constant.EntityOperation, gomock.Any()).
-			Return(nil, errors.New("metadata error")).
+			Return(nil, metadataErr).
 			Times(1)
 
 		result, cur, err := uc.GetAllOperations(context.TODO(), organizationID, ledgerID, transactionID, filter)
 
 		assert.Error(t, err)
+		assert.ErrorIs(t, err, metadataErr)
+
+		var nf pkg.EntityNotFoundError
+		assert.False(t, errors.As(err, &nf))
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})

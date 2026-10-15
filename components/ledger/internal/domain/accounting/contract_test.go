@@ -177,6 +177,7 @@ func TestFailureContract(t *testing.T) {
 		FailureOverdraftLimitExceeded:       "overdraft_limit_exceeded",
 		FailureOverdraftNotEligible:         "overdraft_not_eligible",
 		FailureOverdraftCompanionMissing:    "overdraft_companion_missing",
+		FailureOverdraftRepayRouteDenied:    "overdraft_repay_route_denied",
 		FailureBalanceDeleted:               "balance_deleted",
 		FailureAccountBlocked:               "account_blocked",
 		FailureOnHoldUnderflow:              "onhold_underflow",
@@ -187,7 +188,7 @@ func TestFailureContract(t *testing.T) {
 		FailureExternalHoldNotAllowed:       "external_hold_not_allowed",
 		FailureAccountBlockExceptionInvalid: "account_block_exception_invalid",
 	}
-	if len(codes) != 13 {
+	if len(codes) != 14 {
 		t.Fatal("failure codes must remain distinct")
 	}
 	for code, want := range codes {
@@ -251,6 +252,9 @@ func TestFeeDebtRequestContractShape(t *testing.T) {
 
 	plain := Posting{Ref: "debit", BalanceRef: "@payer#default", Type: PostingDebit, Amount: decimal.NewFromInt(1), DrawPolicy: DrawAllowed}
 	assertContractJSON(t, plain, `{"ref":"debit","balanceRef":"@payer#default","type":"debit","amount":"1","drawPolicy":"allowed","overdraftAmount":"0"}`)
+
+	denied := Posting{Ref: "credit", BalanceRef: "@payee#default", Type: PostingCredit, Amount: decimal.NewFromInt(1), DrawPolicy: DrawForbidden, RepayRouteDenied: true}
+	assertContractJSON(t, denied, `{"ref":"credit","balanceRef":"@payee#default","type":"credit","amount":"1","drawPolicy":"forbidden","overdraftAmount":"0","repayRouteDenied":true}`)
 }
 
 func TestFeeDebtResultContractShape(t *testing.T) {

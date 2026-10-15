@@ -26,7 +26,9 @@ type Service struct {
 	MultiQueueConsumer       *MultiQueueConsumer
 	MultiTenantConsumer      *tmconsumer.MultiTenantConsumer
 	RedisQueueConsumer       *RedisQueueConsumer
+	EngineRecoveryCleanup    *EngineRecoveryCleanupRunner
 	BalanceSyncWorker        *BalanceSyncWorker
+	BalanceReconciler        *BalanceReconcilerRunner
 	LegacyBalanceSyncDrainer *LegacyBalanceSyncDrainer
 	EventListener            *tmevent.TenantEventListener
 	CircuitBreakerManager    *CircuitBreakerManager
@@ -130,7 +132,7 @@ func (s *Service) launcherApps() []launcherApp {
 	if s.MultiTenantConsumer != nil {
 		apps = append(apps, launcherApp{
 			"Multi-Tenant RabbitMQ Consumer",
-			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory},
+			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory, tracer: serviceTracer(s.Telemetry)},
 		})
 	}
 
@@ -139,9 +141,18 @@ func (s *Service) launcherApps() []launcherApp {
 		apps = append(apps, launcherApp{"Redis Recovery Runner", s.RedisQueueConsumer})
 	}
 
+	if s.EngineRecoveryCleanup != nil {
+		apps = append(apps, launcherApp{"Engine Recovery Cleanup", s.EngineRecoveryCleanup})
+	}
+
 	// Balance sync worker (optional, started when configured)
 	if s.BalanceSyncWorker != nil {
 		apps = append(apps, launcherApp{"Balance Sync Worker", s.BalanceSyncWorker})
+	}
+
+	// Balance reconciler (optional, started when enabled)
+	if s.BalanceReconciler != nil {
+		apps = append(apps, launcherApp{"Balance Reconciler", s.BalanceReconciler})
 	}
 
 	// Legacy balance sync drainer — drains pre-v3.6.2 ZSET entries

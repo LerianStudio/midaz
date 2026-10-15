@@ -70,7 +70,7 @@ Copy `.env.example` to `.env` (or run `make set-env` at the repo root) before st
 ## Documentation
 
 For the bigger picture — architecture, coding rules, and the components that consume this
-infrastructure — see the repo-root [`CLAUDE.md`](../../CLAUDE.md), [`AGENTS.md`](../../AGENTS.md),
+infrastructure — see the repo-root [`docs/AGENTS-REFERENCE.md`](../../docs/AGENTS-REFERENCE.md), [`AGENTS.md`](../../AGENTS.md),
 and [`docs/PROJECT_RULES.md`](../../docs/PROJECT_RULES.md).
 
 ---

@@ -15,12 +15,22 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+)
+
+// Step names of the validation steps without I/O inside ValidateAccountingRules. They
+// open no span of their own; a failure is a business event named after the step on the
+// usecase.validate_accounting_rules span, with the detail in the event's error attribute.
+const (
+	validateAccountRulesStep    = "usecase.validate_account_rules"
+	validateOverdraftRoutesStep = "usecase.validate_overdraft_routes"
 )
 
 // ValidateAccountingRules validates the accounting rules for the given operations.
@@ -70,7 +80,7 @@ import (
 //
 // FeeDebtLegs name fee-debt take-backs, which match no transaction route and void the route count.
 func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, ledgerID uuid.UUID, operations []mmodel.BalanceOperation, validate *mtransaction.Responses, action string) (*mmodel.TransactionRouteCache, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "usecase.validate_accounting_rules")
 	defer span.End()
@@ -84,15 +94,14 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 
 	actionRoutes, err := resolveActionRoutes(transactionRouteCache, action)
 	if err != nil {
+		span.SetAttributes(attribute.String("app.request.accounting_action", action))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve action routes", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve action routes", libLog.String("action", action), libLog.Err(err))
 
 		return nil, err
 	}
 
 	if err := validateOperationRouteIDs(validate, actionRoutes.isSourceOnly); err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Missing operation route ID", err)
-		logger.Log(ctx, libLog.LevelWarn, "Missing operation route ID", libLog.Err(err))
 
 		return nil, err
 	}
@@ -101,7 +110,6 @@ func (uc *UseCase) ValidateAccountingRules(ctx context.Context, organizationID, 
 	if !actionRoutes.isSourceOnly {
 		if err := validateRouteCountAndCounterparts(validate, actionRoutes, operations); err != nil {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Route count or counterpart validation failed", err)
-			logger.Log(ctx, libLog.LevelWarn, "Route count or counterpart validation failed", libLog.Err(err))
 
 			return nil, err
 		}
@@ -138,8 +146,8 @@ func (uc *UseCase) loadValidatedTransactionRoute(ctx context.Context, span trace
 
 	ledgerSettings, err := uc.GetParsedLedgerSettings(ctx, organizationID, ledgerID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get ledger settings", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get ledger settings", libLog.Err(err))
+		// logged once by GetLedgerSettings; record on this span only
+		spanattr.HandleSpanByErrorClass(span, "Failed to get ledger settings", err)
 
 		return mmodel.TransactionRouteCache{}, false, err
 	}
@@ -163,12 +171,9 @@ func (uc *UseCase) loadValidatedTransactionRoute(ctx context.Context, span trace
 // loadTransactionRouteCache resolves the transaction route named by validate
 // within the organization and returns its cached accounting view.
 func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Span, organizationID uuid.UUID, validate *mtransaction.Responses) (mmodel.TransactionRouteCache, error) {
-	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
-
 	transactionRouteID, err := resolveTransactionRouteID(validate)
 	if err != nil {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to resolve transaction route ID", err)
-		logger.Log(ctx, libLog.LevelWarn, "Failed to resolve transaction route ID", libLog.Err(err))
 
 		return mmodel.TransactionRouteCache{}, err
 	}
@@ -177,13 +182,12 @@ func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Spa
 	if err != nil {
 		if pkg.IsBusinessError(err) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Transaction route not found in the organization", err)
-			logger.Log(ctx, libLog.LevelWarn, "Transaction route not found in the organization", libLog.String("transaction_route_id", transactionRouteID.String()))
 
 			return mmodel.TransactionRouteCache{}, err
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to load transaction route cache", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to load transaction route cache", libLog.Err(err))
+		// logged once by GetOrCreateTransactionRouteCache; record on this span only
+		spanattr.HandleSpanByErrorClass(span, "Failed to load transaction route cache", err)
 
 		return mmodel.TransactionRouteCache{}, err
 	}
@@ -203,11 +207,11 @@ func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Spa
 // overdraft rubric, the leg would post with no GL classification — so this
 // rejects with ErrOverdraftRouteNotConfigured instead. Non-overdraft
 // transactions never enter the per-companion loop, so behavior is unchanged.
+//
+// It is a step without I/O, so it opens no span of its own: a failure is recorded
+// on the caller's usecase.validate_accounting_rules span through the context.
 func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "usecase.validate_overdraft_routes")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	for _, op := range operations {
 		if op.Balance == nil || op.Balance.Key != constant.OverdraftBalanceKey {
@@ -227,12 +231,12 @@ func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteC
 
 		if !overdraftRubricConfigured(cache, routeID, op.Amount.Direction) {
 			err := pkg.ValidateBusinessError(constant.ErrOverdraftRouteNotConfigured, constant.EntityOperationRoute)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft route not configured", err)
 
-			logger.Log(ctx, libLog.LevelWarn, "Overdraft companion route lacks a valid overdraft accounting entry",
-				libLog.String("route_id", routeID),
-				libLog.String("alias", op.Alias),
-				libLog.String("direction", op.Amount.Direction))
+			span.SetAttributes(
+				attribute.String("app.request.operation_route_id", routeID),
+				attribute.String("app.request.operation_direction", op.Amount.Direction),
+			)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateOverdraftRoutesStep, err)
 
 			return err
 		}
@@ -277,13 +281,18 @@ func overdraftRubricConfigured(cache mmodel.TransactionRouteCache, routeID, dire
 // routes used matches the expected count from the route cache, and that every
 // bidirectional route shared between from and to sides has both a debit and a
 // credit counterpart.
+//
+// Optional links of the action's template are left out of both sides of the
+// count: a transaction may leave them unused, and a leg that uses one is still
+// held to the template by validateAccountRules. With no optional link the count
+// is the plain template count.
 func validateRouteCountAndCounterparts(validate *mtransaction.Responses, routes actionRoutesResult, operations []mmodel.BalanceOperation) error {
-	uniqueFromCount := uniqueValues(validate.OperationRoutesFrom)
-	uniqueToCount := uniqueValues(validate.OperationRoutesTo)
+	uniqueFromCount := routes.uniqueRequiredValues(validate.OperationRoutesFrom)
+	uniqueToCount := routes.uniqueRequiredValues(validate.OperationRoutesTo)
 
-	sourceCount := len(routes.source)
-	destinationCount := len(routes.destination)
-	bidirectionalCount := len(routes.bidirectional)
+	sourceCount := requiredRouteCount(routes.source)
+	destinationCount := requiredRouteCount(routes.destination)
+	bidirectionalCount := requiredRouteCount(routes.bidirectional)
 
 	// Identify bidirectional routes that appear on both from and to sides.
 	// These are counted once in uniqueFrom and once in uniqueTo, so we must
@@ -305,7 +314,7 @@ func validateRouteCountAndCounterparts(validate *mtransaction.Responses, routes 
 	}
 
 	totalCacheRoutes := sourceCount + destinationCount + bidirectionalCount
-	totalUsedRoutes := uniqueFromCount + uniqueToCount - len(sharedBidirectionalRoutes)
+	totalUsedRoutes := uniqueFromCount + uniqueToCount - routes.requiredCount(sharedBidirectionalRoutes)
 
 	if len(validate.FeeDebtLegs) == 0 && (totalUsedRoutes != totalCacheRoutes || uniqueFromCount < sourceCount || uniqueToCount < destinationCount) {
 		return pkg.ValidateBusinessError(constant.ErrAccountingRouteCountMismatch, constant.EntityTransactionRoute, uniqueFromCount, uniqueToCount, sourceCount, destinationCount, bidirectionalCount)
@@ -391,6 +400,59 @@ type actionRoutesResult struct {
 	isSourceOnly  bool
 }
 
+// isOptional reports whether routeID is an optional link of the action's
+// template. A route outside the template is not optional.
+func (r actionRoutesResult) isOptional(routeID string) bool {
+	for _, routes := range []map[string]mmodel.OperationRouteCache{r.source, r.destination, r.bidirectional} {
+		if route, ok := routes[routeID]; ok && route.Optional {
+			return true
+		}
+	}
+
+	return false
+}
+
+// uniqueRequiredValues counts the distinct route IDs in m that are not optional
+// links of the action's template.
+func (r actionRoutesResult) uniqueRequiredValues(m map[string]string) int {
+	seen := make(map[string]struct{}, len(m))
+
+	for _, routeID := range m {
+		if !r.isOptional(routeID) {
+			seen[routeID] = struct{}{}
+		}
+	}
+
+	return len(seen)
+}
+
+// requiredCount counts the route IDs of the set that are not optional links of
+// the action's template.
+func (r actionRoutesResult) requiredCount(routeIDs map[string]bool) int {
+	count := 0
+
+	for routeID := range routeIDs {
+		if !r.isOptional(routeID) {
+			count++
+		}
+	}
+
+	return count
+}
+
+// requiredRouteCount counts the required links among routes.
+func requiredRouteCount(routes map[string]mmodel.OperationRouteCache) int {
+	count := 0
+
+	for _, route := range routes {
+		if !route.Optional {
+			count++
+		}
+	}
+
+	return count
+}
+
 // resolveActionRoutes looks up the route maps for the given action in the
 // transaction route cache. For "hold" actions, destination routes come from
 // the "commit" action. For "cancel", only source routes apply.
@@ -447,11 +509,11 @@ func resolveTransactionRouteID(validate *mtransaction.Responses) (uuid.UUID, err
 // validateAccountRules validates each operation against its corresponding route rule.
 // Route existence, direction matching, and account rules (alias/account_type) are
 // always enforced when validateRoutes is active.
+//
+// It is a step without I/O, so it opens no span of its own: a failure is recorded
+// on the caller's usecase.validate_accounting_rules span through the context.
 func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	for _, operation := range operations {
 		// Get route ID and determine if operation is source or destination
@@ -485,21 +547,18 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 
 		if !found {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, constant.EntityOperationRoute, routeID, operation.Alias)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route not found", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Route ID not found in cache for operation",
-				libLog.String("route_id", routeID), libLog.String("alias", operation.Alias))
+			span.SetAttributes(attribute.String("app.request.operation_route_id", routeID))
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRulesStep, err)
 
 			return err
 		}
 
 		if err := validateDirectionRouteMatch(operation, cacheRule); err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direction does not match route operation type", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Operation direction does not match route operation type",
-				libLog.String("alias", operation.Alias),
-				libLog.String("direction", operation.Amount.Direction),
-				libLog.String("route_type", cacheRule.OperationType))
+			span.SetAttributes(
+				attribute.String("app.request.operation_direction", operation.Amount.Direction),
+				attribute.String("app.request.operation_route_type", cacheRule.OperationType),
+			)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRulesStep, err)
 
 			return err
 		}
@@ -509,10 +568,7 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 		// creation/update validation only, not the transactional route rules.
 		if cacheRule.Account != nil {
 			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation failed validation against route rules", err)
-
-				logger.Log(ctx, libLog.LevelWarn, "Operation failed validation against route rules",
-					libLog.String("alias", operation.Alias), libLog.Err(err))
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRulesStep, err)
 
 				return err
 			}
@@ -564,24 +620,6 @@ func validateSingleOperationRule(op mmodel.BalanceOperation, account *mmodel.Acc
 	}
 
 	return nil
-}
-
-// uniqueValues counts the number of unique values in a map
-func uniqueValues(m map[string]string) int {
-	if len(m) == 0 {
-		return 0
-	}
-
-	if len(m) == 1 {
-		return 1
-	}
-
-	seen := make(map[string]struct{}, len(m))
-	for _, value := range m {
-		seen[value] = struct{}{}
-	}
-
-	return len(seen)
 }
 
 // validateDirectionRouteMatch validates that an operation's direction is compatible with the route's operation type.

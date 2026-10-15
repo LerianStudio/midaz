@@ -15,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -53,7 +54,7 @@ func TestSyncBalancesBatch_SpanCarriesScope(t *testing.T) {
 				Return(int64(1), nil).
 				Times(1)
 
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 			if tt.tenantID != "" {
 				ctx = tmcore.ContextWithTenantID(ctx, tt.tenantID)
 			}
@@ -63,7 +64,7 @@ func TestSyncBalancesBatch_SpanCarriesScope(t *testing.T) {
 			_, err := uc.SyncBalancesBatch(ctx, organizationID, ledgerID, toSyncKeys(keys))
 			require.NoError(t, err)
 
-			span := findSpan(t, recorder, "command.sync_balances_batch")
+			span := spantest.FindSpan(t, recorder, "command.sync_balances_batch")
 
 			attrs := make(map[string]string, len(span.Attributes()))
 			ints := make(map[string]int64, len(span.Attributes()))

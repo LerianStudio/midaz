@@ -79,8 +79,8 @@ func TestGetAllTransactionRoutes_OperationRoutesPopulated(t *testing.T) {
 		trID2: {orID3},
 	}
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.InAnyOrder([]uuid.UUID{trID1, trID2})).
-		Return(junctionMap, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.InAnyOrder([]uuid.UUID{trID1, trID2})).
+		Return(requiredLinkMap(junctionMap), nil)
 
 	// Batch fetch operation routes
 	opRoutes := []*mmodel.OperationRoute{
@@ -152,8 +152,8 @@ func TestGetAllTransactionRoutes_EmptyOperationRoutesNotNil(t *testing.T) {
 
 	// Junction returns empty map — this route has no linked operation routes
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
-		Return(map[uuid.UUID][]uuid.UUID{}, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
+		Return(requiredLinkMap(map[uuid.UUID][]uuid.UUID{}), nil)
 
 	// FindByIDs should NOT be called when there are no operation route IDs
 	// (no expectation set — gomock will fail if it's called)
@@ -198,7 +198,7 @@ func TestGetAllTransactionRoutes_EmptyResultNoExtraDBCalls(t *testing.T) {
 		FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 		Return(nil, cursor, nil)
 
-	// No calls to FindOperationRouteIDsByTransactionRouteIDs or FindByIDs expected
+	// No calls to FindOperationRouteLinksByTransactionRouteIDs or FindByIDs expected
 	// gomock will fail if they are called
 
 	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
@@ -250,7 +250,7 @@ func TestGetAllTransactionRoutes_JunctionQueryError(t *testing.T) {
 	// Junction table query returns error
 	junctionErr := errors.New("junction table connection refused")
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
 		Return(nil, junctionErr)
 
 	result, curResult, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)
@@ -309,8 +309,8 @@ func TestGetAllTransactionRoutes_FindByIDsError(t *testing.T) {
 		trID1: {orID1},
 	}
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
-		Return(junctionMap, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), []uuid.UUID{trID1}).
+		Return(requiredLinkMap(junctionMap), nil)
 
 	// FindByIDs returns error
 	findByIDsErr := errors.New("operation route batch fetch timeout")
@@ -380,8 +380,8 @@ func TestGetAllTransactionRoutes_MixedLinksAndNoLinks(t *testing.T) {
 		trID3: {},
 	}
 	mockTRRepo.EXPECT().
-		FindOperationRouteIDsByTransactionRouteIDs(gomock.Any(), gomock.Any()).
-		Return(junctionMap, nil)
+		FindOperationRouteLinksByTransactionRouteIDs(gomock.Any(), gomock.Any()).
+		Return(requiredLinkMap(junctionMap), nil)
 
 	opRoutes := []*mmodel.OperationRoute{
 		{ID: orID1, OrganizationID: organizationID, LedgerID: &ledgerID, Title: "op1", OperationType: "source"},
@@ -447,7 +447,7 @@ func TestGetAllTransactionRoutes_EmptyTransactionRoutesSlice(t *testing.T) {
 		FindList(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
 		Return([]*mongodb.Metadata{}, nil)
 
-	// No calls to FindOperationRouteIDsByTransactionRouteIDs or FindByIDs expected
+	// No calls to FindOperationRouteLinksByTransactionRouteIDs or FindByIDs expected
 	// since the enrichment function returns early for an empty slice
 
 	result, _, err := uc.GetAllTransactionRoutes(context.Background(), organizationID, &ledgerID, filter)

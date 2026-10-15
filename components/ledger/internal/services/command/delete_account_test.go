@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -31,10 +32,13 @@ func TestDeleteAccountByID(t *testing.T) {
 	// Mocks
 	mockAccountRepo := account.NewMockRepository(ctrl)
 	mockBalanceRepo := balance.NewMockRepository(ctrl)
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
 
 	uc := &UseCase{
-		AccountRepo: mockAccountRepo,
-		BalanceRepo: mockBalanceRepo,
+		AccountRepo:            mockAccountRepo,
+		BalanceRepo:            mockBalanceRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
 	}
 
 	ctx := context.Background()
@@ -68,6 +72,36 @@ func TestDeleteAccountByID(t *testing.T) {
 					Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, accountID).
 					Return(nil).
 					Times(1)
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAccount, accountID.String()).
+					Return(nil).
+					Times(1)
+			},
+			expectedErr: nil,
+		},
+		{
+			name:        "success - metadata soft delete failure does not fail the delete",
+			portfolioID: &portfolioID,
+			setupMocks: func() {
+				mockAccountRepo.EXPECT().
+					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
+					Return(&mmodel.Account{ID: accountID.String()}, nil).
+					Times(1)
+
+				mockBalanceRepo.EXPECT().
+					ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
+					Return([]*mmodel.Balance{}, nil).
+					Times(1)
+
+				mockAccountRepo.EXPECT().
+					Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, accountID).
+					Return(nil).
+					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAccount, accountID.String()).
+					Return(errors.New("mongo unavailable")).
+					Times(3)
 			},
 			expectedErr: nil,
 		},
@@ -79,6 +113,10 @@ func TestDeleteAccountByID(t *testing.T) {
 					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAccount, accountID.String()).
+					Times(0)
 			},
 			expectedErr: errors.New("errDatabaseItemNotFound"),
 		},
@@ -90,6 +128,10 @@ func TestDeleteAccountByID(t *testing.T) {
 					Find(gomock.Any(), organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1).
 					Return(&mmodel.Account{ID: accountID.String(), Type: "external"}, nil).
 					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAccount, accountID.String()).
+					Times(0)
 			},
 			expectedErr: errors.New("0074 - Accounts of type 'external' cannot be deleted or modified as they are used for traceability with external systems. Please review your request and ensure operations are only performed on internal accounts."),
 		},
@@ -112,6 +154,10 @@ func TestDeleteAccountByID(t *testing.T) {
 					Delete(gomock.Any(), organizationID, ledgerID, &portfolioID, accountID).
 					Return(errors.New("delete error")).
 					Times(1)
+
+				mockMetadataRepo.EXPECT().
+					Delete(gomock.Any(), constant.EntityAccount, accountID.String()).
+					Times(0)
 			},
 			expectedErr: errors.New("delete error"),
 		},
@@ -408,16 +454,29 @@ func TestDeleteAccountByID_Cascade(t *testing.T) {
 					Times(1)
 			}
 
+			mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+			metadataDeletes := 0
+
 			if tt.wantRowDelete {
 				mockAccountRepo.EXPECT().
 					Delete(gomock.Any(), organizationID, ledgerID, nil, accountID).
 					Return(nil).
 					Times(1)
+
+				metadataDeletes = 1
 			}
 
+			// The metadata is soft-deleted only once the row is.
+			mockMetadataRepo.EXPECT().
+				Delete(gomock.Any(), constant.EntityAccount, accountID.String()).
+				Return(nil).
+				Times(metadataDeletes)
+
 			uc := &UseCase{
-				AccountRepo: mockAccountRepo,
-				BalanceRepo: mockBalanceRepo,
+				AccountRepo:            mockAccountRepo,
+				BalanceRepo:            mockBalanceRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
+				metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
 			}
 
 			cascader := &stubInstrumentCascader{cascaded: tt.cascaded, err: tt.cascadeErr}

@@ -69,3 +69,24 @@ jobs:
       gitops_yaml_key_mappings: '{"midaz-ledger.tag": ".ledger.image.tag", "midaz-tracer.tag": ".tracer.image.tag", "midaz-ledger-migrations.tag": ".ledger.migrations.image.tag", "midaz-tracer-migrations.tag": ".tracer.migrations.image.tag"}'
       s3_uploads: '[{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/*.sql","s3_prefix":"ledger/onboarding/postgresql","strip_prefix":"components/ledger/migrations/onboarding","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/*.sql","s3_prefix":"ledger/transaction/postgresql","strip_prefix":"components/ledger/migrations/transaction","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/onboarding/mongodb/*.json","s3_prefix":"ledger/onboarding/mongodb","strip_prefix":"components/ledger/migrations/onboarding/mongodb","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/ledger/migrations/transaction/mongodb/*.json","s3_prefix":"ledger/transaction/mongodb","strip_prefix":"components/ledger/migrations/transaction/mongodb","flatten":false},{"s3_bucket":"lerian-migration-files","file_pattern":"components/tracer/migrations/*.sql","s3_prefix":"tracer/tracer-api/postgresql","strip_prefix":"components/tracer/migrations","flatten":false}]'
     secrets: inherit
+
+  # The consignado estate's tenant-manager bucket takes ledger Postgres migrations
+  # only from the protected branches: main -> production/, release-candidate -> staging/.
+  consignado_tenant_migrations:
+    if: github.repository == 'LerianStudio/midaz' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release-candidate')
+    strategy:
+      matrix:
+        module: [onboarding, transaction]
+    permissions:
+      id-token: write
+      contents: read
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@bdf1d46b1f6dbb79356dd7895cda7126ebf4b637 # v1.76.0
+    with:
+      s3_bucket: tenant-manager-prd-migrations-862902859103
+      file_pattern: components/ledger/migrations/${{ matrix.module }}/*.sql
+      s3_prefix: ledger/${{ matrix.module }}/postgresql
+      strip_prefix: components/ledger/migrations/${{ matrix.module }}
+      flatten: false
+      aws_region: sa-east-1
+    secrets:
+      AWS_ROLE_ARN: arn:aws:iam::862902859103:role/consignado-midaz-github-oidc-s3-upload

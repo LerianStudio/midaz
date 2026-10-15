@@ -236,3 +236,16 @@ func TestGetDatabase_StaticConnection_ReturnsErrorWithPlaceholder(t *testing.T) 
 	require.Error(t, dbErr, "getDatabase should return error when static connection has no active client")
 	assert.Nil(t, db, "database should be nil when static connection is not connected")
 }
+
+func TestPurge_StaticConnection_ReturnsErrorWithPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	repo := &MetadataMongoDBRepository{
+		connection: newPlaceholderConnection("MyDatabase"),
+		Database:   "MyDatabase",
+	}
+
+	err := repo.Purge(context.Background(), "account", "entity-1")
+
+	require.Error(t, err, "Purge should surface the database resolution error")
+}

@@ -8,10 +8,14 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -102,54 +106,70 @@ func (c *slowChecker) Check(ctx context.Context) DependencyCheck {
 func TestRabbitMQChecker_CircuitBreakerClosed(t *testing.T) {
 	t.Parallel()
 
-	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateClosed}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
+	assertRabbitMQBreakerIsDiagnostic(t, libCircuitBreaker.StateClosed, "closed")
 
-	result := checker.Check(context.Background())
+	t.Run("empty_url_is_skipped_with_breaker_state", func(t *testing.T) {
+		t.Parallel()
 
-	// With closed circuit breaker and no health URL, should be skipped (not degraded)
-	assert.Equal(t, StatusSkipped, result.Status)
-	assert.Equal(t, "closed", result.BreakerState)
-	assert.Contains(t, result.Reason, "RABBITMQ_HEALTH_CHECK_URL not configured")
+		cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateClosed}
+		checker := NewRabbitMQChecker("rabbitmq", "", "", testRabbitMQUser, testRabbitMQPass, cbManager)
+
+		result := checker.Check(context.Background())
+
+		assert.Equal(t, StatusSkipped, result.Status)
+		assert.Equal(t, "closed", result.BreakerState)
+		assert.Equal(t, "RABBITMQ_HEALTH_CHECK_URL not configured", result.Reason)
+	})
 }
 
 func TestRabbitMQChecker_CircuitBreakerOpen(t *testing.T) {
 	t.Parallel()
 
-	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
-
-	result := checker.Check(context.Background())
-
-	assert.Equal(t, StatusDegraded, result.Status)
-	assert.Equal(t, "open", result.BreakerState)
-	assert.Equal(t, "circuit breaker is open", result.Reason)
+	assertRabbitMQBreakerIsDiagnostic(t, libCircuitBreaker.StateOpen, "open")
 }
 
 func TestRabbitMQChecker_CircuitBreakerHalfOpen(t *testing.T) {
 	t.Parallel()
 
-	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateHalfOpen}
-	checker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
-
-	result := checker.Check(context.Background())
-
-	assert.Equal(t, StatusDegraded, result.Status)
-	assert.Equal(t, "half-open", result.BreakerState)
-	assert.Equal(t, "circuit breaker is half-open", result.Reason)
+	assertRabbitMQBreakerIsDiagnostic(t, libCircuitBreaker.StateHalfOpen, "half-open")
 }
 
 func TestRabbitMQChecker_NilCircuitBreakerManager(t *testing.T) {
 	t.Parallel()
 
-	// When cbManager is nil, should not panic and should check health URL
-	checker := NewRabbitMQChecker("rabbitmq", "", "", nil)
+	tests := []struct {
+		name        string
+		probeStatus int
+		wantStatus  DependencyStatus
+	}{
+		{"healthy_probe_is_up", http.StatusOK, StatusUp},
+		{"failing_probe_is_down", http.StatusServiceUnavailable, StatusDown},
+	}
 
-	result := checker.Check(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Without health URL and no circuit breaker, should be skipped
-	assert.Equal(t, StatusSkipped, result.Status)
-	assert.Empty(t, result.BreakerState)
+			srv, _ := newRabbitMQProbeServer(t, tt.probeStatus)
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, tt.wantStatus, result.Status)
+			assert.Empty(t, result.BreakerState)
+		})
+	}
+
+	t.Run("empty_url_is_skipped_without_breaker_state", func(t *testing.T) {
+		t.Parallel()
+
+		checker := NewRabbitMQChecker("rabbitmq", "", "", testRabbitMQUser, testRabbitMQPass, nil)
+
+		result := checker.Check(context.Background())
+
+		assert.Equal(t, StatusSkipped, result.Status)
+		assert.Empty(t, result.BreakerState)
+	})
 }
 
 func TestMapCircuitBreakerState(t *testing.T) {
@@ -175,16 +195,15 @@ func TestMapCircuitBreakerState(t *testing.T) {
 	}
 }
 
-func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
+func TestRabbitMQChecker_OpenBreakerWithHealthyProbeKeepsGlobalHealth(t *testing.T) {
 	t.Parallel()
 
-	// Create a checker that will report degraded status
+	srv, _ := newRabbitMQProbeServer(t, http.StatusOK)
 	cbManager := &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen}
-	degradedChecker := NewRabbitMQChecker("rabbitmq", "", "", cbManager)
+	rabbitChecker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, cbManager)
 
 	latency := int64(5)
 
-	// Healthy checker
 	healthyChecker := &mockChecker{
 		name:       "redis",
 		tlsEnabled: false,
@@ -193,26 +212,600 @@ func TestRabbitMQChecker_DegradedAffectsGlobalHealth(t *testing.T) {
 
 	handler := newReadyHandler(ReadyzHandlerConfig{
 		Logger:         libLog.NewNop(),
-		Checkers:       []DependencyChecker{healthyChecker, degradedChecker},
+		Checkers:       []DependencyChecker{healthyChecker, rabbitChecker},
 		DeploymentMode: "local",
 	})
 
-	// Simulate handling the request
-	checks := make(map[string]DependencyCheck)
-	allHealthy := true
+	app := fiber.New()
+	app.Get("/readyz", handler.HandleReadyz)
 
-	for _, checker := range handler.checkers {
-		check := checker.Check(context.Background())
-		checks[checker.Name()] = check
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
 
-		if check.Status == StatusDown || check.Status == StatusDegraded {
-			allHealthy = false
-		}
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var response ReadyzResponse
+	require.NoError(t, json.Unmarshal(body, &response))
+
+	assert.Equal(t, "healthy", response.Status)
+	assert.Equal(t, StatusUp, response.Checks["rabbitmq"].Status)
+	assert.Equal(t, "open", response.Checks["rabbitmq"].BreakerState)
+	assert.Empty(t, response.Checks["rabbitmq"].Reason)
+	assert.Equal(t, StatusUp, response.Checks["redis"].Status)
+}
+
+// =============================================================================
+// RabbitMQ Probe Tests
+// =============================================================================
+
+func TestNormalizeRabbitMQHealthURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"root", "http://rabbitmq:15672", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"root_with_trailing_slash", "http://rabbitmq:15672/", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"https_root", "https://rabbitmq:15671", "https://rabbitmq:15671/api/health/checks/alarms"},
+		{"already_alarms", "http://rabbitmq:15672/api/health/checks/alarms", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"already_alarms_with_trailing_slash", "http://rabbitmq:15672/api/health/checks/alarms/", "http://rabbitmq:15672/api/health/checks/alarms"},
+		{"already_local_alarms", "http://rabbitmq:15672/api/health/checks/local-alarms", "http://rabbitmq:15672/api/health/checks/local-alarms"},
+		{"already_local_alarms_with_trailing_slash", "http://rabbitmq:15672/api/health/checks/local-alarms/", "http://rabbitmq:15672/api/health/checks/local-alarms"},
+		{"empty", "", ""},
 	}
 
-	assert.False(t, allHealthy, "degraded should affect overall health")
-	assert.Equal(t, StatusDegraded, checks["rabbitmq"].Status)
-	assert.Equal(t, StatusUp, checks["redis"].Status)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, normalizeRabbitMQHealthURL(tt.raw))
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeRootURLUsesAlarmsPathWithBasicAuth(t *testing.T) {
+	t.Parallel()
+
+	srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL+"/", "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusUp, result.Status)
+	assert.NotNil(t, result.LatencyMs)
+	assert.Empty(t, result.Error)
+
+	got := lastRequest()
+	assert.Equal(t, "/api/health/checks/alarms", got.path)
+	assert.Equal(t, basicAuthHeader(testRabbitMQUser, testRabbitMQPass), got.authorization)
+}
+
+func TestRabbitMQChecker_ProbeFullURLKeptAsIs(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"alarms", "/api/health/checks/alarms"},
+		{"local_alarms", "/api/health/checks/local-alarms"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL+tt.path, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, StatusUp, result.Status)
+			assert.Equal(t, tt.path, lastRequest().path)
+			assert.Equal(t, basicAuthHeader(testRabbitMQUser, testRabbitMQPass), lastRequest().authorization)
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeEmptyCredentialsStillSendsRequest(t *testing.T) {
+	t.Parallel()
+
+	srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", "", "", nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusUp, result.Status)
+	assert.Equal(t, "/api/health/checks/alarms", lastRequest().path)
+	assert.Equal(t, basicAuthHeader("", ""), lastRequest().authorization)
+}
+
+func TestRabbitMQChecker_ProbeNonSuccessStatusIsDown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		status int
+	}{
+		{"unauthorized", http.StatusUnauthorized},
+		{"forbidden", http.StatusForbidden},
+		{"resource_alarm", http.StatusServiceUnavailable},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, _ := newRabbitMQProbeServer(t, tt.status)
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, StatusDown, result.Status)
+			assert.NotNil(t, result.LatencyMs)
+			assert.Equal(t, fmt.Sprintf("health check returned status %d", tt.status), result.Error)
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeConnectionRefusedIsDown(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	closedURL := srv.URL
+	srv.Close()
+
+	checker := NewRabbitMQChecker("rabbitmq", closedURL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusDown, result.Status)
+	assert.NotNil(t, result.LatencyMs)
+	assert.True(t, strings.HasPrefix(result.Error, "health check request failed: "), result.Error)
+}
+
+func TestRabbitMQChecker_ProbeContextCanceledIsDown(t *testing.T) {
+	t.Parallel()
+
+	srv, _ := newRabbitMQProbeServer(t, http.StatusOK)
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	result := checker.Check(ctx)
+
+	assert.Equal(t, StatusDown, result.Status)
+	assert.True(t, strings.HasPrefix(result.Error, "health check request failed: "), result.Error)
+	assert.Contains(t, result.Error, context.Canceled.Error())
+}
+
+func TestRabbitMQChecker_ProbeContextDeadlineIsDown(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+
+	checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	result := checker.Check(ctx)
+
+	assert.Equal(t, StatusDown, result.Status)
+	assert.True(t, strings.HasPrefix(result.Error, "health check request failed: "), result.Error)
+	assert.Contains(t, result.Error, context.DeadlineExceeded.Error())
+}
+
+func TestRabbitMQChecker_ProbeEmptyURLIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	checker := NewRabbitMQChecker("rabbitmq", "", "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusSkipped, result.Status)
+	assert.Equal(t, "RABBITMQ_HEALTH_CHECK_URL not configured", result.Reason)
+	assert.Empty(t, result.Error)
+	assert.Nil(t, result.LatencyMs)
+}
+
+func TestRabbitMQChecker_ProbeDoesNotExposeCredentials(t *testing.T) {
+	t.Parallel()
+
+	unauthorized, _ := newRabbitMQProbeServer(t, http.StatusUnauthorized)
+
+	refused := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	refusedURL := refused.URL
+	refused.Close()
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{"rejected_credentials", unauthorized.URL},
+		{"connection_refused", refusedURL},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checker := NewRabbitMQChecker("rabbitmq", tt.url, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+			result := checker.Check(context.Background())
+			require.Equal(t, StatusDown, result.Status)
+
+			body, err := json.Marshal(result)
+			require.NoError(t, err)
+
+			secrets := []struct{ name, value string }{
+				{"configured user", testRabbitMQUser},
+				{"configured password", testRabbitMQPass},
+				{"basic auth header", basicAuthHeader(testRabbitMQUser, testRabbitMQPass)},
+			}
+
+			for _, secret := range secrets {
+				assert.False(t, strings.Contains(checker.healthCheckURL, secret.value), "probed URL must not contain the %s", secret.name)
+				assert.False(t, strings.Contains(result.Error, secret.value), "error must not contain the %s", secret.name)
+				assert.False(t, strings.Contains(string(body), secret.value), "check JSON must not contain the %s", secret.name)
+			}
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeInvalidURLDoesNotExposeCredentials(t *testing.T) {
+	t.Parallel()
+
+	const (
+		embeddedUser = "embedded-url-user"
+		embeddedPass = "embedded-url-pass"
+	)
+
+	rawURL := "http://" + embeddedUser + ":" + embeddedPass + "@rabbitmq:bad port/"
+
+	tests := []struct {
+		name      string
+		checker   *RabbitMQChecker
+		wantError string
+	}{
+		{
+			name:      "rejected_at_construction",
+			checker:   NewRabbitMQChecker("rabbitmq", rawURL, "", testRabbitMQUser, testRabbitMQPass, nil),
+			wantError: "invalid health check URL: malformed url",
+		},
+		{
+			name: "rejected_when_building_the_request",
+			checker: &RabbitMQChecker{
+				name:           "rabbitmq",
+				healthCheckURL: rawURL,
+				user:           testRabbitMQUser,
+				pass:           testRabbitMQPass,
+				httpClient:     &http.Client{},
+			},
+			wantError: "failed to create request: invalid health check URL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := tt.checker.Check(context.Background())
+
+			require.Equal(t, StatusDown, result.Status)
+			assert.True(t, result.Error == tt.wantError, "error must be %q", tt.wantError)
+
+			body, err := json.Marshal(result)
+			require.NoError(t, err)
+
+			secrets := []struct{ name, value string }{
+				{"embedded user", embeddedUser},
+				{"embedded password", embeddedPass},
+				{"raw credentialed URL", rawURL},
+				{"configured user", testRabbitMQUser},
+				{"configured password", testRabbitMQPass},
+			}
+
+			for _, secret := range secrets {
+				assert.False(t, strings.Contains(result.Error, secret.value), "error must not contain the %s", secret.name)
+				assert.False(t, strings.Contains(string(body), secret.value), "check JSON must not contain the %s", secret.name)
+			}
+		})
+	}
+}
+
+func TestParseRabbitMQHealthURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		raw             string
+		wantURL         string
+		wantHasUserinfo bool
+		wantErr         error
+	}{
+		{name: "empty", raw: ""},
+		{name: "root", raw: "http://rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "root_with_trailing_slash", raw: "http://rabbitmq:15672/", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "https_root", raw: "https://rabbitmq:15671", wantURL: "https://rabbitmq:15671/api/health/checks/alarms"},
+		{name: "upper_case_scheme", raw: "HTTP://rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "already_alarms", raw: "http://rabbitmq:15672/api/health/checks/alarms", wantURL: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "already_local_alarms", raw: "http://rabbitmq:15672/api/health/checks/local-alarms", wantURL: "http://rabbitmq:15672/api/health/checks/local-alarms"},
+		{name: "userinfo_is_stripped", raw: "http://embedded-user:embedded-pass@rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms", wantHasUserinfo: true},
+		{name: "user_only_is_stripped", raw: "http://embedded-user@rabbitmq:15672", wantURL: "http://rabbitmq:15672/api/health/checks/alarms", wantHasUserinfo: true},
+		{name: "no_scheme", raw: "midaz-rabbitmq:3004", wantErr: errRabbitMQHealthURLUnsupportedScheme},
+		{name: "ftp_scheme", raw: "ftp://rabbitmq:21", wantErr: errRabbitMQHealthURLUnsupportedScheme},
+		{name: "missing_host", raw: "http://", wantErr: errRabbitMQHealthURLMissingHost},
+		{name: "port_without_host", raw: "http://:15672", wantErr: errRabbitMQHealthURLMissingHost},
+		{name: "userinfo_with_missing_host", raw: "http://user@/path", wantErr: errRabbitMQHealthURLMissingHost},
+		{name: "malformed_port", raw: "http://embedded-user:embedded-pass@rabbitmq:bad port/", wantErr: errRabbitMQHealthURLMalformed},
+		{name: "control_character", raw: "http://rabbitmq:15672/\x7f", wantErr: errRabbitMQHealthURLMalformed},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotURL, gotHasUserinfo, err := parseRabbitMQHealthURL(tt.raw)
+
+			if tt.wantErr != nil {
+				require.True(t, errors.Is(err, tt.wantErr), "error must be %q", tt.wantErr)
+				assert.True(t, gotURL == "", "URL must be empty on error")
+				assert.False(t, strings.Contains(err.Error(), tt.raw), "error must not contain the raw URL")
+				assert.False(t, strings.Contains(err.Error(), "embedded"), "error must not contain the embedded credential")
+				assert.False(t, strings.Contains(err.Error(), "user"), "error must not contain the embedded user")
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.True(t, gotURL == tt.wantURL, "normalized URL must be %q", tt.wantURL)
+			assert.Equal(t, tt.wantHasUserinfo, gotHasUserinfo)
+			assert.False(t, strings.Contains(gotURL, "embedded"), "normalized URL must not contain the embedded credential")
+		})
+	}
+}
+
+func TestRabbitMQChecker_InvalidHealthURLIsDownWithoutRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		raw              string
+		cbManager        libCircuitBreaker.Manager
+		wantError        string
+		wantBreakerState string
+	}{
+		{
+			name:      "no_scheme_without_breaker",
+			raw:       "midaz-rabbitmq:3004",
+			wantError: "invalid health check URL: unsupported scheme",
+		},
+		{
+			name:             "ftp_scheme_with_open_breaker",
+			raw:              "ftp://rabbitmq:21",
+			cbManager:        &mockCircuitBreakerManager{state: libCircuitBreaker.StateOpen},
+			wantError:        "invalid health check URL: unsupported scheme",
+			wantBreakerState: "open",
+		},
+		{
+			name:             "missing_host_with_closed_breaker",
+			raw:              "http://",
+			cbManager:        &mockCircuitBreakerManager{state: libCircuitBreaker.StateClosed},
+			wantError:        "invalid health check URL: missing host",
+			wantBreakerState: "closed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checker := NewRabbitMQChecker("rabbitmq", tt.raw, "", testRabbitMQUser, testRabbitMQPass, tt.cbManager)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, StatusDown, result.Status)
+			assert.Equal(t, tt.wantError, result.Error)
+			assert.Equal(t, tt.wantBreakerState, result.BreakerState)
+			assert.Nil(t, result.LatencyMs, "no request is attempted for an invalid URL")
+		})
+	}
+}
+
+func TestRabbitMQChecker_ProbeIgnoresCredentialsEmbeddedInURL(t *testing.T) {
+	t.Parallel()
+
+	srv, lastRequest := newRabbitMQProbeServer(t, http.StatusOK)
+	embeddedURL := strings.Replace(srv.URL, "http://", "http://embedded-user:embedded-pass@", 1)
+	checker := NewRabbitMQChecker("rabbitmq", embeddedURL, "", testRabbitMQUser, testRabbitMQPass, nil)
+
+	result := checker.Check(context.Background())
+
+	assert.Equal(t, StatusUp, result.Status)
+	assert.Equal(t, "/api/health/checks/alarms", lastRequest().path)
+	assert.True(t, lastRequest().authorization == basicAuthHeader(testRabbitMQUser, testRabbitMQPass),
+		"Authorization must carry the configured credentials, not the embedded ones")
+	assert.False(t, strings.Contains(checker.healthCheckURL, "embedded"), "probed URL must not contain the embedded credential")
+	assert.False(t, strings.Contains(checker.healthCheckURL, "@"), "probed URL must not carry userinfo")
+}
+
+func TestWarnRabbitMQHealthURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		raw        string
+		wantWarns  int
+		wantReason string
+	}{
+		{name: "empty", raw: ""},
+		{name: "root", raw: "http://rabbitmq:15672"},
+		{name: "root_with_trailing_slash", raw: "http://rabbitmq:15672/"},
+		{name: "https_root", raw: "https://rabbitmq:15671"},
+		{name: "already_alarms", raw: "http://rabbitmq:15672/api/health/checks/alarms"},
+		{name: "no_scheme", raw: "midaz-rabbitmq:3004", wantWarns: 1, wantReason: "unsupported scheme"},
+		{name: "ftp_scheme", raw: "ftp://rabbitmq:21", wantWarns: 1, wantReason: "unsupported scheme"},
+		{name: "missing_host", raw: "http://", wantWarns: 1, wantReason: "missing host"},
+		{name: "malformed_with_credentials", raw: "http://leaky-user:leaky-pass@rabbitmq:bad port/", wantWarns: 1, wantReason: "malformed url"},
+		{name: "embedded_credentials", raw: "http://leaky-user:leaky-pass@rabbitmq:15672", wantWarns: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := &cleanupCapturingLogger{Logger: libLog.NewNop()}
+
+			warnRabbitMQHealthURL(context.Background(), logger, tt.raw)
+
+			warnings := logger.at(libLog.LevelWarn)
+			require.Len(t, warnings, tt.wantWarns)
+
+			for _, warning := range warnings {
+				assert.Equal(t, "RABBITMQ_HEALTH_CHECK_URL", warning.fields["variable"])
+				assert.Contains(t, warning.msg, "RabbitMQ health check URL")
+				assert.False(t, strings.Contains(warning.msg, "leaky"), "Warn message must not contain the embedded credential")
+
+				if tt.wantReason != "" {
+					assert.Equal(t, tt.wantReason, warning.fields["reason"])
+				}
+
+				for _, value := range warning.fields {
+					assert.False(t, strings.Contains(fmt.Sprint(value), "leaky"), "Warn field must not contain the embedded credential")
+					assert.False(t, fmt.Sprint(value) == tt.raw, "Warn field must not reproduce the configured URL")
+				}
+			}
+		})
+	}
+}
+
+func TestBuildReadyzHandler_InvalidRabbitMQHealthURLStillBuilds(t *testing.T) {
+	t.Parallel()
+
+	cfg := &Config{
+		DeploymentMode:         DeploymentModeLocal,
+		CrmPrefixedMongoURI:    "mongodb://localhost:27017",
+		RabbitMQHealthCheckURL: "midaz-rabbitmq:3004",
+		RabbitMQUser:           testRabbitMQUser,
+		RabbitMQPass:           testRabbitMQPass,
+	}
+	logger := &cleanupCapturingLogger{Logger: libLog.NewNop()}
+
+	handler, err := buildReadyzHandler(cfg, logger, nil,
+		&onboardingPostgresComponents{}, &transactionPostgresComponents{},
+		&onboardingMongoComponents{}, &transactionMongoComponents{},
+		&crmComponents{}, nil, nil, nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+
+	warnings := logger.at(libLog.LevelWarn)
+	require.Len(t, warnings, 1)
+	assert.Equal(t, "unsupported scheme", warnings[0].fields["reason"])
+
+	require.Len(t, handler.checkers, 1)
+	result := handler.checkers[0].Check(context.Background())
+	assert.Equal(t, "rabbitmq", handler.checkers[0].Name())
+	assert.Equal(t, StatusDown, result.Status)
+	assert.Equal(t, "invalid health check URL: unsupported scheme", result.Error)
+}
+
+// testRabbitMQUser and testRabbitMQPass are distinctive placeholders so that
+// leak assertions cannot match unrelated text.
+const (
+	testRabbitMQUser = "readyz-probe-user"
+	testRabbitMQPass = "readyz-probe-pass"
+)
+
+// rabbitMQProbeRequest captures what the fake management API received.
+type rabbitMQProbeRequest struct {
+	path          string
+	authorization string
+}
+
+// newRabbitMQProbeServer starts a fake management API that answers every
+// request with status and returns an accessor for the last request received.
+func newRabbitMQProbeServer(t *testing.T, status int) (*httptest.Server, func() rabbitMQProbeRequest) {
+	t.Helper()
+
+	var (
+		mu   sync.Mutex
+		last rabbitMQProbeRequest
+	)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		last = rabbitMQProbeRequest{path: r.URL.Path, authorization: r.Header.Get("Authorization")}
+		mu.Unlock()
+
+		w.WriteHeader(status)
+	}))
+	t.Cleanup(srv.Close)
+
+	return srv, func() rabbitMQProbeRequest {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return last
+	}
+}
+
+// assertRabbitMQBreakerIsDiagnostic asserts that the probe alone decides the
+// status while the breaker state is reported on every result.
+func assertRabbitMQBreakerIsDiagnostic(t *testing.T, state libCircuitBreaker.State, wantBreakerState string) {
+	t.Helper()
+
+	tests := []struct {
+		name        string
+		probeStatus int
+		wantStatus  DependencyStatus
+	}{
+		{"healthy_probe_is_up", http.StatusOK, StatusUp},
+		{"failing_probe_is_down", http.StatusServiceUnavailable, StatusDown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, _ := newRabbitMQProbeServer(t, tt.probeStatus)
+			cbManager := &mockCircuitBreakerManager{state: state}
+			checker := NewRabbitMQChecker("rabbitmq", srv.URL, "", testRabbitMQUser, testRabbitMQPass, cbManager)
+
+			result := checker.Check(context.Background())
+
+			assert.Equal(t, tt.wantStatus, result.Status)
+			assert.Equal(t, wantBreakerState, result.BreakerState)
+			assert.Empty(t, result.Reason)
+			assert.NotNil(t, result.LatencyMs)
+		})
+	}
+}
+
+func basicAuthHeader(user, pass string) string {
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(user+":"+pass))
 }
 
 // =============================================================================

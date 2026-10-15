@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -83,9 +84,17 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		return nil, err
 	}
 
+	ledgerUUID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to generate ledger ID", err)
+
+		return nil, err
+	}
+
 	now := time.Now()
 
 	ledger := &mmodel.Ledger{
+		ID:             ledgerUUID.String(),
 		OrganizationID: organizationID.String(),
 		Name:           cli.Name,
 		Status:         status,
@@ -94,23 +103,25 @@ func (uc *UseCase) CreateLedger(ctx context.Context, organizationID uuid.UUID, c
 		Settings:       settingsToPersist,
 	}
 
+	// Metadata is staged before the insert: a metadata failure leaves nothing in PostgreSQL,
+	// and an insert failure (a name conflict included) discards the staged document.
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityLedger, ledger.ID, cli.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create ledger metadata", err)
+
+		return nil, err
+	}
+
 	// Dual-class: span helper and log level are picked by error class.
 	led, err := uc.LedgerRepo.Create(ctx, ledger)
 	if err != nil {
+		uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntityLedger, ledger.ID, cli.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create ledger", err)
 
 		return nil, err
 	}
 
 	uc.emitLedgerCreatedEvent(ctx, span, logger, led)
-
-	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityLedger, led.ID, cli.Metadata)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to create ledger metadata", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to create ledger metadata", libLog.Err(err))
-
-		return nil, err
-	}
 
 	led.Metadata = metadata
 

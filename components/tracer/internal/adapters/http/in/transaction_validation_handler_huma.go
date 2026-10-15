@@ -67,7 +67,8 @@ type ListTransactionValidationsInputHuma struct {
 	ExceededLimitID string `query:"exceeded_limit_id" doc:"Filter by exceeded limit ID (UUID)"`
 	SegmentID       string `query:"segment_id" doc:"Filter by segment ID (UUID)"`
 	PortfolioID     string `query:"portfolio_id" doc:"Filter by portfolio ID (UUID)"`
-	TransactionType string `query:"transaction_type" doc:"Filter by transaction type (CARD, WIRE, PIX, CRYPTO)"`
+	TransactionType string `query:"transaction_type" deprecated:"true" doc:"Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"`
+	Scheme          string `query:"scheme" doc:"Filter by payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"`
 
 	// rawQuery is the request's parsed query, captured by Resolve. It is the
 	// binding source (NOT the struct-tag fields above), so present-but-empty keys
@@ -135,6 +136,7 @@ func (in *ListTransactionValidationsInputHuma) bindListTransactionValidationsInp
 	out.SegmentID = last("segment_id")
 	out.PortfolioID = last("portfolio_id")
 	out.TransactionType = last("transaction_type")
+	out.Scheme = last("scheme")
 
 	// limit is a *int: a present key (even empty) yields a non-nil pointer; an
 	// absent key leaves it nil (SetDefaults fills the default). Empty limit binds

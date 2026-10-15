@@ -9,8 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -29,17 +27,9 @@ func (uc *UseCase) CountAssets(ctx context.Context, organizationID, ledgerID uui
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)
-
-			logger.Log(ctx, libLog.LevelWarn, "No assets found for organization")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count assets on repo", err)
-
-			return 0, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Error counting assets on repo", libLog.Err(err))
-
-		libOpentelemetry.HandleSpanError(span, "Failed to count assets on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to count assets on repo", err)
 
 		return 0, err
 	}

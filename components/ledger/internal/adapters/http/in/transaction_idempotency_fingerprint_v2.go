@@ -18,15 +18,17 @@ import (
 
 const v2IdempotencyRequestFingerprintDomain = "midaz.transaction.request.v2\x00"
 
-// v2IdempotencyFingerprint identifies a singular v2 create request inside its
-// idempotency slot, so a reused X-Idempotency key replays only the request that
-// claimed it. It is canonical — whitespace and property order do not change it —
-// so an honest retry that re-serializes the same body still replays. The action
-// is folded in because the endpoint, not the body, carries it. The domain label
-// keeps it apart from the atomic batch and /v1 fingerprints.
+// v2IdempotencyFingerprint identifies a v2 create request — singular or
+// cross-ledger — inside its idempotency record, so a reused X-Idempotency key
+// replays only the request that claimed it. It is canonical — whitespace and
+// property order do not change it — so an honest retry that re-serializes the
+// same body still replays. The action is folded in because the endpoint, not
+// the body, carries it. The domain label keeps it apart from the atomic batch
+// and /v1 fingerprints.
 //
-// It never names the slot: the key a request without X-Idempotency lands on
-// stays derived from v2IdempotencyHashSource.
+// It never names the record: a request without X-Idempotency is keyed by
+// v2IdempotencyHashSource, and a cross-ledger request without one is also
+// identified by it.
 func v2IdempotencyFingerprint(rawBody []byte, pending bool, operationTypeOverride string) (string, error) {
 	canonical, err := canonicalV2IdempotencyRequest(rawBody)
 	if err != nil {

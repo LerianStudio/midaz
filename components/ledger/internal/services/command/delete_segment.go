@@ -53,6 +53,8 @@ func (uc *UseCase) DeleteSegmentByID(ctx context.Context, organizationID, ledger
 		return err
 	}
 
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntitySegment, id.String())
+
 	uc.emitSegmentDeletedEvent(ctx, span, logger, id.String(), organizationID.String(), ledgerID.String(), time.Now())
 
 	return nil

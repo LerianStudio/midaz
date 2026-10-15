@@ -81,6 +81,13 @@ That response is encrypted as one field (`RecordID` = the slot key, `FieldName` 
 `idempotency_replay`) and decrypted on replay, so the cached response holds no personal data in
 clear. The slot key embeds the caller's `X-Idempotency` value as sent; without one, it embeds the
 search-token keyed hash of the request body (`GenerateSearchToken`, field `idempotency_body`).
+A create that fails, on a business rule or a technical error, releases its slot before answering,
+so a retry runs the create again instead of meeting the in-flight conflict. The holder-account
+composition claims a slot only when `X-Idempotency` is sent, under
+`idempotency:crm:composition:{organization_id}:{ledger_id}:{holder_id}:{key}`, and stores the whole
+`HolderAccountResponse` sealed by the same `FieldEncryptor`, because the instrument carries personal
+data. A partial `201` (account persisted, instrument failed) is stored and replayed as answered,
+without retrying the instrument.
 
 ---
 

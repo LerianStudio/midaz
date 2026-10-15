@@ -113,9 +113,10 @@ type ReserveAccount struct {
 // valid asset code (1 to 100 uppercase letters), and a transaction_timestamp
 // that is not in the future. account.account_id is OPTIONAL on the relaxed
 // reserve path: an external-only source omits it and the tracer accepts the
-// accountless request. transaction_type is OPTIONAL too (the ledger has no
-// card-rail nature to honestly report; when empty the tracer matches
-// account-scoped limits without a transaction-type constraint).
+// accountless request. transaction_type is OPTIONAL too: it carries the
+// transaction's declared scheme, which must be a valid tracer transaction
+// type, and is empty when none was declared; an empty value matches only
+// limits and rules whose scope names no transaction type.
 type ReserveRequest struct {
 	TransactionID uuid.UUID
 	RequestID     string
@@ -125,8 +126,9 @@ type ReserveRequest struct {
 	SegmentID     string
 	PortfolioID   string
 	MerchantID    string
-	// TransactionType is optional on reserve. When set it must be a valid
-	// tracer transaction type; the ledger leaves it empty.
+	// TransactionType is optional on reserve. It carries the transaction's
+	// declared scheme, which must be a valid tracer transaction type, and is
+	// empty when none was declared.
 	TransactionType string
 	// TransactionTimestamp is RFC3339; the tracer rejects a future timestamp
 	// against its injected clock and does not bound its age on reserve.

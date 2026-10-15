@@ -777,6 +777,9 @@ func TestConfirmedPrecommitEngineFailureIsConservative(t *testing.T) {
 	}))
 	assert.True(t, confirmedPrecommitEngineFailure(request, financial))
 	assert.True(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{
+		Code: accounting.FailureOverdraftRepayRouteDenied, TransactionIndex: 0, PostingIndex: 0, BalanceRef: "@source#default",
+	}))
+	assert.True(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{
 		Code: accounting.FailureSendingNotAllowed, TransactionIndex: 0, PostingIndex: -1, BalanceRef: "@source#default",
 	}))
 	assert.True(t, confirmedPrecommitEngineFailure(request, &accounting.Failure{

@@ -23,7 +23,7 @@ import (
 )
 
 // =============================================================================
-// UpdateStatusFromPending (STATUS CAS) INTEGRATION TESTS
+// UpdateStatusFromPendingTx (STATUS CAS) INTEGRATION TESTS
 // =============================================================================
 // The compare-and-set is the DURABLE backstop of the commit/cancel transition:
 // the Redis cross-transition gate evaporates with its marker's TTL, this does
@@ -137,7 +137,7 @@ func TestIntegration_UpdateStatusFromPending_FlipsPendingRowOnce(t *testing.T) {
 	_, _, bodyIsNull := readStatusRow(t, infra, row.ID)
 	require.False(t, bodyIsNull, "a seeded PENDING row must carry the persisted body")
 
-	updated, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+	updated, transitioned, err := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 		infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, constant.APPROVED))
 
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestIntegration_UpdateStatusFromPending_FlipsPendingRowOnce(t *testing.T) {
 	// (b) The repetition, in both flavours: a resend of the same transition and
 	// the opposite one. Neither may land, and neither is an error.
 	for _, statusCode := range []string{constant.APPROVED, constant.CANCELED} {
-		again, transitionedAgain, againErr := infra.repo.UpdateStatusFromPending(ctx,
+		again, transitionedAgain, againErr := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 			infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, statusCode))
 
 		require.NoError(t, againErr, "a lost race is not an error: %s", statusCode)
@@ -186,7 +186,7 @@ func TestIntegration_UpdateStatusFromPending_TerminalRowIsNeverFlipped(t *testin
 			row := seedTransactionWithStatus(t, infra, seededStatus, nil)
 
 			for _, target := range []string{constant.APPROVED, constant.CANCELED} {
-				updated, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+				updated, transitioned, err := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 					infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, target))
 
 				require.NoError(t, err)
@@ -270,7 +270,7 @@ func TestIntegration_UpdateStatusFromPending_ConcurrentTransitionsElectOneWinner
 
 			<-start
 
-			updated, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+			updated, transitioned, err := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 				infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, target))
 
 			mu.Lock()
@@ -317,7 +317,7 @@ func TestIntegration_UpdateStatusFromPending_SoftDeletedRowIsNeverFlipped(t *tes
 	deletedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	row := seedTransactionWithStatus(t, infra, constant.PENDING, &deletedAt)
 
-	updated, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+	updated, transitioned, err := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 		infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, constant.APPROVED))
 
 	require.NoError(t, err)
@@ -351,7 +351,7 @@ func TestIntegration_UpdateStatusFromPending_WritesDescriptionAndPreservesSeeded
 		settling := transitionOf(row, constant.APPROVED)
 		settling.Description = "settled by the commit"
 
-		_, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+		_, transitioned, err := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 			infra.orgID, infra.ledgerID, parseID(t, row.ID), settling)
 
 		require.NoError(t, err)
@@ -370,7 +370,7 @@ func TestIntegration_UpdateStatusFromPending_WritesDescriptionAndPreservesSeeded
 		row := seedTransactionWithStatus(t, infra, constant.PENDING, nil)
 		require.NotEmpty(t, row.Description)
 
-		_, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+		_, transitioned, err := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 			infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, constant.CANCELED))
 
 		require.NoError(t, err)
@@ -416,7 +416,7 @@ func TestIntegration_UpdateStatusFromPending_PatchDoesNotDestroyThePendingBody(t
 
 	// The transition still works afterwards, which is the behaviour the stripped
 	// body used to break.
-	_, transitioned, err := infra.repo.UpdateStatusFromPending(ctx,
+	_, transitioned, err := infra.repo.UpdateStatusFromPendingTx(ctx, infra.pgContainer.DB,
 		infra.orgID, infra.ledgerID, parseID(t, row.ID), transitionOf(row, constant.APPROVED))
 
 	require.NoError(t, err)

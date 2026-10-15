@@ -11,6 +11,9 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -121,6 +124,40 @@ func recordExecutionOutcome(ctx context.Context, factory *metrics.MetricsFactory
 	logMetricError(ctx, logger, emitErr)
 }
 
+// executeAccountingSpanName names the span of one accounting adapter invocation.
+const executeAccountingSpanName = "redis.execute_accounting"
+
+// recordExecutionSpan classifies one invocation on its span with the same closed outcome
+// label the metrics use. The span only observes: it is recorded after the invocation has
+// returned and changes neither the error nor its outcome certainty. An accounting refusal
+// is a business answer and stays an event with the status unset (telemetry T5), as does a
+// caller cancellation; a technical failure, certain or indeterminate, marks the span as an
+// error.
+func recordExecutionSpan(span trace.Span, request accounting.Execution, err error) {
+	outcome, _ := executionOutcome(request, err)
+	span.SetAttributes(attribute.String("app.response.engine_outcome", outcome))
+
+	switch {
+	case outcome == "success":
+		return
+	case outcome == "refused":
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting execution refused", err)
+	case outcome != "indeterminate" && abandonedByCaller(err):
+		// A caller that cancels or times out before the outcome is decided is not an engine
+		// failure: client disconnects must not inflate the error-rate SLO. The span keeps an
+		// event and an unset status; the outcome attribute and the metric still say
+		// technical_error, so the count is unchanged. An indeterminate outcome stays an error.
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting execution abandoned by caller", err)
+	default:
+		libOpentelemetry.HandleSpanError(span, "Accounting execution failed", err)
+	}
+}
+
+// abandonedByCaller reports whether err is the caller's own cancellation or deadline.
+func abandonedByCaller(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 func recordAccountingDuration(
 	ctx context.Context,
 	factory *metrics.MetricsFactory,
@@ -180,6 +217,7 @@ func executionOutcome(request accounting.Execution, err error) (string, string) 
 		switch refusal.Code {
 		case accounting.FailureInsufficientFunds, accounting.FailureOverdraftLimitExceeded,
 			accounting.FailureOverdraftNotEligible, accounting.FailureOverdraftCompanionMissing,
+			accounting.FailureOverdraftRepayRouteDenied,
 			accounting.FailureBalanceDeleted, accounting.FailureOnHoldUnderflow,
 			accounting.FailureAccountBlocked,
 			accounting.FailureBalanceMissing, accounting.FailureAssetMismatch,

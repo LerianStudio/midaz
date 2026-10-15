@@ -262,6 +262,51 @@ func TestIntegrationFeeDebtDeferralOpensTheShortfall(t *testing.T) {
 	f.requireReplay(t, raw)
 }
 
+func TestIntegrationFeeDebtDeferralRepayRouteDenied(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires Valkey")
+	}
+
+	container := redistestutil.SetupReusableContainer(t)
+
+	t.Run("fully deferred fee repays nothing and passes", func(t *testing.T) {
+		f := newDeferralFixture(t, container.Client)
+		f.input.Execution.Balances[0].Available = decimal.NewFromInt(100)
+		f.input.Execution.Balances[1].OverdraftUsed = decimal.NewFromInt(50)
+		f.input.Execution.Transactions[0].Postings[1].RepayRouteDenied = true
+		f.addPoolBalance("@merchant", 0, nil)
+		fees := f.input.Execution.Transactions[0].Postings
+		f.input.Execution.Transactions[0].Postings = append([]accounting.Posting{
+			feePosting("main-debit", "@source#default", accounting.PostingDebit, "100"),
+			feePosting("main-credit", "@merchant#default", accounting.PostingCredit, "100"),
+		}, fees...)
+
+		raw, err := f.run(t)
+		require.NoError(t, err, "a zero funded credit cannot repay overdraft")
+		result, err := DecodeResult([]byte(raw), f.input.Execution)
+		require.NoError(t, err)
+		require.Len(t, result.FeeDebt, 1)
+		require.Equal(t, "100", result.FeeDebt[0].Amount.String())
+
+		for _, final := range result.Final {
+			if final.BalanceRef == "@fees#default" {
+				require.Equal(t, "50", final.OverdraftUsed.String(), "the fee account keeps its debt")
+			}
+		}
+	})
+
+	t.Run("partly funded fee would repay and refuses", func(t *testing.T) {
+		f := newDeferralFixture(t, container.Client)
+		f.input.Execution.Balances[1].OverdraftUsed = decimal.NewFromInt(50)
+		f.input.Execution.Transactions[0].Postings[1].RepayRouteDenied = true
+		before := f.capture(t)
+
+		_, err := f.run(t)
+		require.ErrorContains(t, err, `"code":"overdraft_repay_route_denied"`)
+		require.Equal(t, before, f.capture(t))
+	})
+}
+
 func TestIntegrationFeeDebtDeferralKeepsTheFeeRoutes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")

@@ -91,7 +91,7 @@ func TestLimitCreatedDefinition_Key(t *testing.T) {
 	assert.Equal(t, "limit.created", events.LimitCreatedDefinition.Key())
 	assert.Equal(t, "limit", events.LimitCreatedDefinition.ResourceType)
 	assert.Equal(t, "created", events.LimitCreatedDefinition.EventType)
-	assert.Equal(t, "1.1.0", events.LimitCreatedDefinition.SchemaVersion)
+	assert.Equal(t, "1.2.0", events.LimitCreatedDefinition.SchemaVersion)
 }
 
 func TestNewLimitCreated_MapsMinimalLimit(t *testing.T) {
@@ -136,6 +136,8 @@ func TestNewLimitCreated_MapsAllOptionalFields(t *testing.T) {
 	assert.Equal(t, scopeSegmentID.String(), *payload.Scopes[0].SegmentID)
 	require.NotNil(t, payload.Scopes[0].TransactionType)
 	assert.Equal(t, "CARD", *payload.Scopes[0].TransactionType)
+	require.NotNil(t, payload.Scopes[0].Scheme)
+	assert.Equal(t, "CARD", *payload.Scopes[0].Scheme)
 }
 
 // periodicLimitWithResetTime returns a DAILY limit whose periods start at the

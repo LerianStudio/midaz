@@ -18,9 +18,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	midazpkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -38,6 +40,9 @@ type protectionMocks struct {
 	balance *balance.MockRepository
 	account *account.MockRepository
 	redis   *redis.MockRedisRepository
+	// metadata has no expectation by default: a protection refusal answers before
+	// the account row is deleted, so its metadata is never touched.
+	metadata *onbMongo.MockRepository
 }
 
 func newProtectionMocks(t *testing.T) *protectionMocks {
@@ -46,19 +51,22 @@ func newProtectionMocks(t *testing.T) *protectionMocks {
 	ctrl := gomock.NewController(t)
 
 	mocks := &protectionMocks{
-		balance: balance.NewMockRepository(ctrl),
-		account: account.NewMockRepository(ctrl),
-		redis:   redis.NewMockRedisRepository(ctrl),
+		balance:  balance.NewMockRepository(ctrl),
+		account:  account.NewMockRepository(ctrl),
+		redis:    redis.NewMockRedisRepository(ctrl),
+		metadata: onbMongo.NewMockRepository(ctrl),
 	}
 
 	allowEmptyEngineRecovery(mocks.redis)
 
 	mocks.uc = &UseCase{
-		BalanceRepo:          mocks.balance,
-		AccountRepo:          mocks.account,
-		TransactionRedisRepo: mocks.redis,
-		TransactionReader:    &feeDebtReader{},
-		FeeDebts:             &owedFeeDebts{},
+		BalanceRepo:            mocks.balance,
+		AccountRepo:            mocks.account,
+		TransactionRedisRepo:   mocks.redis,
+		TransactionReader:      &feeDebtReader{},
+		FeeDebts:               &owedFeeDebts{},
+		OnboardingMetadataRepo: mocks.metadata,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
 	}
 
 	return mocks
@@ -167,7 +175,7 @@ func TestAdministrativeOperations_RefusedAsBusyByAHolderOtherThanAClosing(t *tes
 	for _, op := range administrativeOperations {
 		t.Run(op.name, func(t *testing.T) {
 			m := newProtectionMocks(t)
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID).
 				Return("", false, nil).Times(2)
@@ -181,7 +189,7 @@ func TestAdministrativeOperations_RefusedAsBusyByAHolderOtherThanAClosing(t *tes
 			var conflict midazpkg.EntityConflictError
 			require.True(t, errors.As(err, &conflict))
 			assert.Equal(t, constant.ErrAccountAdministrativeOperationInProgress.Error(), conflict.Code)
-			assert.Equal(t, codes.Unset, findSpan(t, recorder, op.span).Status().Code)
+			assert.Equal(t, codes.Unset, spantest.FindSpan(t, recorder, op.span).Status().Code)
 		})
 	}
 }
@@ -194,7 +202,7 @@ func TestAdministrativeOperations_RecordAnUnreadableProtectionAsTechnical(t *tes
 	for _, op := range administrativeOperations {
 		t.Run(op.name, func(t *testing.T) {
 			m := newProtectionMocks(t)
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID).
 				Return("", false, nil)
@@ -208,7 +216,7 @@ func TestAdministrativeOperations_RecordAnUnreadableProtectionAsTechnical(t *tes
 			var unavailable midazpkg.ServiceUnavailableError
 			require.True(t, errors.As(err, &unavailable))
 			assert.Equal(t, constant.ErrAccountClosingProtectionIndeterminate.Error(), unavailable.Code)
-			assert.Equal(t, codes.Error, findSpan(t, recorder, op.span).Status().Code)
+			assert.Equal(t, codes.Error, spantest.FindSpan(t, recorder, op.span).Status().Code)
 		})
 	}
 }

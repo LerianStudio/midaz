@@ -92,13 +92,13 @@ func TestReadyzHandler_HandleReadyz(t *testing.T) {
 		{
 			name: "degraded_returns_503",
 			checkers: []DependencyChecker{
-				&mockChecker{name: "rabbitmq", tlsEnabled: false, check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker half-open", BreakerState: "half-open"}},
+				&mockChecker{name: "redis", tlsEnabled: false, check: DependencyCheck{Status: StatusDegraded, Reason: "high latency"}},
 			},
 			deploymentMode: "local",
 			wantStatus:     http.StatusServiceUnavailable,
 			wantHealthy:    false,
 			wantChecks: map[string]DependencyStatus{
-				"rabbitmq": StatusDegraded,
+				"redis": StatusDegraded,
 			},
 		},
 		{
@@ -324,21 +324,24 @@ func TestReadyzHandler_DegradedStateAggregation(t *testing.T) {
 		checkers           []DependencyChecker
 		wantOverallHealthy bool
 		wantHTTPStatus     int
+		wantBreakerState   string
 	}{
 		{
 			name: "single_degraded_returns_503",
 			checkers: []DependencyChecker{
 				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
-				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker half-open", BreakerState: "half-open"}},
+				&mockChecker{name: "redis", check: DependencyCheck{Status: StatusDegraded, Reason: "high latency"}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency, BreakerState: "closed"}},
 			},
 			wantOverallHealthy: false,
 			wantHTTPStatus:     http.StatusServiceUnavailable,
+			wantBreakerState:   "closed",
 		},
 		{
 			name: "multiple_degraded_returns_503",
 			checkers: []DependencyChecker{
 				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusDegraded, Reason: "high latency"}},
-				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker open", BreakerState: "open"}},
+				&mockChecker{name: "mongo_transaction", check: DependencyCheck{Status: StatusDegraded, Reason: "high latency"}},
 				&mockChecker{name: "redis", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
 			},
 			wantOverallHealthy: false,
@@ -348,10 +351,41 @@ func TestReadyzHandler_DegradedStateAggregation(t *testing.T) {
 			name: "degraded_and_down_returns_503",
 			checkers: []DependencyChecker{
 				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusDown, Error: "connection refused"}},
-				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusDegraded, Reason: "circuit breaker open"}},
+				&mockChecker{name: "redis", check: DependencyCheck{Status: StatusDegraded, Reason: "high latency"}},
 			},
 			wantOverallHealthy: false,
 			wantHTTPStatus:     http.StatusServiceUnavailable,
+		},
+		{
+			name: "postgres_transaction_down_with_rabbitmq_up_returns_503",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres_transaction", check: DependencyCheck{Status: StatusDown, Error: "connection refused"}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency, BreakerState: "closed"}},
+			},
+			wantOverallHealthy: false,
+			wantHTTPStatus:     http.StatusServiceUnavailable,
+			wantBreakerState:   "closed",
+		},
+		{
+			name: "rabbitmq_up_with_open_breaker_returns_200",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "redis", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency, BreakerState: "open"}},
+			},
+			wantOverallHealthy: true,
+			wantHTTPStatus:     http.StatusOK,
+			wantBreakerState:   "open",
+		},
+		{
+			name: "rabbitmq_up_with_half_open_breaker_returns_200",
+			checkers: []DependencyChecker{
+				&mockChecker{name: "postgres", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency}},
+				&mockChecker{name: "rabbitmq", check: DependencyCheck{Status: StatusUp, LatencyMs: &latency, BreakerState: "half-open"}},
+			},
+			wantOverallHealthy: true,
+			wantHTTPStatus:     http.StatusOK,
+			wantBreakerState:   "half-open",
 		},
 		{
 			name: "all_up_with_skipped_returns_200",
@@ -415,6 +449,13 @@ func TestReadyzHandler_DegradedStateAggregation(t *testing.T) {
 				assert.Equal(t, "healthy", response.Status)
 			} else {
 				assert.Equal(t, "unhealthy", response.Status)
+			}
+
+			if tt.wantBreakerState != "" {
+				assert.Contains(t, string(body), `"breaker_state":"`+tt.wantBreakerState+`"`)
+				assert.Equal(t, StatusUp, response.Checks["rabbitmq"].Status)
+				assert.Equal(t, tt.wantBreakerState, response.Checks["rabbitmq"].BreakerState)
+				assert.Empty(t, response.Checks["rabbitmq"].Reason)
 			}
 		})
 	}

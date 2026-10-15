@@ -183,7 +183,7 @@ func (cr *ConsumerRoutes) RunConsumers() error {
 		return fmt.Errorf("rabbitmq consumers already running")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(cr.rootContext())
 	cr.cancel = cancel
 
 	for queueName, handler := range cr.routes {
@@ -783,4 +783,16 @@ func (cr *ConsumerRoutes) processIndividualMessage(
 	}
 
 	_ = msg.Ack(false)
+}
+
+// rootContext is the context the consumer loop starts from. context.Background() carries
+// no tracer, so the per-message spans would fall back to the lib-observability default
+// scope (observability.default); the service tracer keeps them under the ledger's scope.
+// Without a tracer provider the context stays empty and keeps that fallback.
+func (cr *ConsumerRoutes) rootContext() context.Context {
+	if cr.TracerProvider == nil {
+		return context.Background()
+	}
+
+	return libObservability.ContextWithTracer(context.Background(), cr.ServiceTracer())
 }

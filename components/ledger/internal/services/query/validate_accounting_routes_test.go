@@ -179,33 +179,48 @@ func TestExtractStringSlice(t *testing.T) {
 	})
 }
 
-func TestUniqueValues(t *testing.T) {
+func TestUniqueRequiredValues(t *testing.T) {
+	routes := actionRoutesResult{
+		source:      map[string]mmodel.OperationRouteCache{"value1": {}, "value2": {}},
+		destination: map[string]mmodel.OperationRouteCache{"value3": {}, "optional": {Optional: true}},
+	}
+
 	t.Run("Empty map returns 0", func(t *testing.T) {
-		result := uniqueValues(map[string]string{})
-		assert.Equal(t, 0, result)
+		assert.Equal(t, 0, routes.uniqueRequiredValues(map[string]string{}))
 	})
 
 	t.Run("Single item map returns 1", func(t *testing.T) {
-		result := uniqueValues(map[string]string{"key1": "value1"})
-		assert.Equal(t, 1, result)
+		assert.Equal(t, 1, routes.uniqueRequiredValues(map[string]string{"key1": "value1"}))
 	})
 
 	t.Run("Map with duplicate values returns correct count", func(t *testing.T) {
-		result := uniqueValues(map[string]string{
+		assert.Equal(t, 2, routes.uniqueRequiredValues(map[string]string{
 			"key1": "value1",
 			"key2": "value1",
 			"key3": "value2",
-		})
-		assert.Equal(t, 2, result)
+		}))
 	})
 
 	t.Run("Map with all unique values returns correct count", func(t *testing.T) {
-		result := uniqueValues(map[string]string{
+		assert.Equal(t, 3, routes.uniqueRequiredValues(map[string]string{
 			"key1": "value1",
 			"key2": "value2",
 			"key3": "value3",
-		})
-		assert.Equal(t, 3, result)
+		}))
+	})
+
+	t.Run("Optional links of the template are not counted", func(t *testing.T) {
+		assert.Equal(t, 1, routes.uniqueRequiredValues(map[string]string{
+			"key1": "value1",
+			"key2": "optional",
+		}))
+	})
+
+	t.Run("A route outside the template is counted", func(t *testing.T) {
+		assert.Equal(t, 2, routes.uniqueRequiredValues(map[string]string{
+			"key1": "value1",
+			"key2": "unlinked",
+		}))
 	})
 }
 

@@ -39,6 +39,7 @@ type HolderHandler struct {
 // + store) for an already-decoded payload, using an already-resolved client key +
 // TTL. It returns replayed=true when the response came from a cached idempotency
 // slot, so the handler can set the X-Idempotency-Replayed header.
+// A failed create releases the slot so a retry runs the create again.
 func (handler *HolderHandler) createHolder(ctx context.Context, organizationID uuid.UUID, payload *mmodel.CreateHolderInput, clientKey string, ttl time.Duration) (holder *mmodel.Holder, replayed bool, err error) {
 	logger, tracer, reqId, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -73,7 +74,7 @@ func (handler *HolderHandler) createHolder(ctx context.Context, organizationID u
 
 	result, err := handler.Service.CreateOrCheckCRMIdempotency(ctx, organizationID.String(), internalKey, token, ttl)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to claim holder idempotency", err)
+		handleSpanByErrorClass(span, "Failed to claim holder idempotency", err)
 
 		return nil, false, err
 	}
@@ -92,6 +93,8 @@ func (handler *HolderHandler) createHolder(ctx context.Context, organizationID u
 	out, err := handler.Service.CreateHolder(ctx, organizationID.String(), payload)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to create holder", err)
+
+		handler.Service.ReleaseCRMIdempotency(ctx, internalKey)
 
 		return nil, false, err
 	}

@@ -1,0 +1,21 @@
+-- ============================================
+-- Migration: 000031_drop_transaction_validations_dashboard_idx
+-- Description: Drop the covering index that 000030 supersedes.
+-- Date: 2026-10-06
+-- ============================================
+--
+-- idx_transaction_validations_dashboard_scheme (000030) has the same key and a
+-- superset of the INCLUDE columns of idx_transaction_validations_dashboard
+-- (000024), so every dashboard read the old index served is served index-only
+-- by the new one, and keeping both would cost the validate hot path a second
+-- covering-index insert per validation for nothing. The drop runs only after
+-- 000030 has built its replacement, so no read loses its index-only plan in
+-- between.
+--
+-- CONCURRENTLY: a plain DROP INDEX takes an ACCESS EXCLUSIVE lock on
+-- transaction_validations and would stall the validate hot path. This file
+-- holds exactly one statement so the runner does not wrap it in an implicit
+-- transaction. IF EXISTS keeps a replay a clean no-op (Migration Renumbering
+-- Invariant, docs/tracer/INVARIANTS.md).
+
+DROP INDEX CONCURRENTLY IF EXISTS idx_transaction_validations_dashboard;

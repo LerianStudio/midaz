@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -124,7 +125,7 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		scale := 2.0
 
 		entity := &AssetRate{
-			ID:             "should-be-overwritten",
+			ID:             "01928f6e-4c3a-7b1d-9e2f-0a1b2c3d4e5f",
 			OrganizationID: "org-456",
 			LedgerID:       "ledger-789",
 			ExternalID:     "ext-012",
@@ -142,8 +143,7 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		err := model.FromEntity(entity)
 		require.NoError(t, err)
 
-		assert.NotEmpty(t, model.ID, "ID should be generated")
-		assert.NotEqual(t, entity.ID, model.ID, "ID should be newly generated, not copied from entity")
+		assert.Equal(t, entity.ID, model.ID, "predefined ID should be preserved")
 		assert.Equal(t, entity.OrganizationID, model.OrganizationID)
 		assert.Equal(t, entity.LedgerID, model.LedgerID)
 		assert.Equal(t, entity.ExternalID, model.ExternalID)
@@ -177,7 +177,6 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		err := model.FromEntity(entity)
 		require.NoError(t, err)
 
-		assert.NotEmpty(t, model.ID, "ID should be generated")
 		assert.Equal(t, entity.OrganizationID, model.OrganizationID)
 		assert.Equal(t, entity.LedgerID, model.LedgerID)
 		assert.Empty(t, model.ExternalID)
@@ -189,7 +188,7 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		assert.Equal(t, 0, model.TTL)
 	})
 
-	t.Run("generates_uuid_v7", func(t *testing.T) {
+	t.Run("generates_uuid_v7_when_id_empty", func(t *testing.T) {
 		scale := 2.0
 
 		entity := &AssetRate{
@@ -215,6 +214,10 @@ func TestAssetRatePostgreSQLModel_FromEntity(t *testing.T) {
 		assert.NotEmpty(t, model2.ID)
 		assert.NotEqual(t, model1.ID, model2.ID, "Each call should generate a unique ID")
 		assert.Len(t, model1.ID, 36, "ID should be a valid UUID string (36 chars with hyphens)")
+
+		parsed, parseErr := uuid.Parse(model1.ID)
+		require.NoError(t, parseErr)
+		assert.Equal(t, uuid.Version(7), parsed.Version(), "generated ID should be a UUIDv7")
 	})
 
 	t.Run("returns_error_when_entity_is_nil", func(t *testing.T) {

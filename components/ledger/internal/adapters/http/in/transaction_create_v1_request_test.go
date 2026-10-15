@@ -13,6 +13,7 @@ import (
 
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	nethttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
 func TestCreateTransactionRequest_BuildTransaction(t *testing.T) {
@@ -453,14 +454,47 @@ func TestCreateTransactionOutflowRequestBody_BuildOutflowEntry(t *testing.T) {
 	}
 }
 
-// TestBuildEntries_CarryNoSkip locks the /v1 create inputs' contract: they name no skip
-// field, so the transactions they build carry none. The per-call control opt-outs exist
-// only on the /v2 input, because the controls they opt out of exist only on the /v2
-// contract; a /v1 body naming `skip` is an unknown field and is rejected by the decoder.
+// TestBuildEntries_CarryNoSkip locks the /v1 create inputs' contract: they name neither a
+// skip nor a scheme field, so the transactions they build carry none. Both exist only on
+// the /v2 input, because the controls they feed — the fee engine and the tracer
+// reservation — exist only on the /v2 contract; a /v1 body naming either is an unknown
+// field and is rejected by the decoder.
 func TestBuildEntries_CarryNoSkip(t *testing.T) {
 	t.Parallel()
 
 	assert.Nil(t, (&CreateTransactionRequest{}).BuildTransaction().Skip)
 	assert.Nil(t, (&CreateTransactionInflowRequestBody{}).BuildInflowEntry().Skip)
 	assert.Nil(t, (&CreateTransactionOutflowRequestBody{}).BuildOutflowEntry().Skip)
+
+	assert.Empty(t, (&CreateTransactionRequest{}).BuildTransaction().Scheme)
+	assert.Empty(t, (&CreateTransactionInflowRequestBody{}).BuildInflowEntry().Scheme)
+	assert.Empty(t, (&CreateTransactionOutflowRequestBody{}).BuildOutflowEntry().Scheme)
+}
+
+// TestV1CreateRequests_RejectScheme proves the lock above at the decode boundary: unknown
+// fields are refused before required tags are checked, so a body naming only `scheme` is
+// attributable to the field and not to the rest of the shape it leaves blank.
+func TestV1CreateRequests_RejectScheme(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		target func() any
+	}{
+		{name: "json create", target: func() any { return &CreateTransactionRequest{} }},
+		{name: "inflow create", target: func() any { return &CreateTransactionInflowRequestBody{} }},
+		{name: "outflow create", target: func() any { return &CreateTransactionOutflowRequestBody{} }},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := nethttp.DecodeAndValidate([]byte(`{"scheme":"PIX"}`), tt.target())
+			require.Error(t, err)
+
+			problem := requireV2BodyProblem(t, err)
+			assert.Equal(t, cn.ErrUnexpectedFieldsInTheRequest.Error(), problem.Code)
+		})
+	}
 }

@@ -8,8 +8,6 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 )
 
@@ -25,9 +23,7 @@ func (uc *UseCase) CountAccountsByHolderID(ctx context.Context, organizationID, 
 
 	count, err := uc.AccountRepo.CountByHolderID(ctx, organizationID, holderID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error counting accounts by holder on repo", libLog.Err(err))
-
-		libOpentelemetry.HandleSpanError(span, "Failed to count accounts by holder on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to count accounts by holder on repo", err)
 
 		return 0, err
 	}

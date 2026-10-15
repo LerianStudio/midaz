@@ -15,8 +15,8 @@ import (
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -45,13 +45,14 @@ func (uc *UseCase) BuildOperations(
 
 	var preBalances []*mmodel.Balance
 
-	logger, tracer, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, metricFactory := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "command.build_transaction_operations")
-	defer span.End()
-
+	// Building operations is a step without I/O, so it opens no span of its own: it
+	// annotates the caller's span (the transaction command, or the replay consumer's
+	// message span). Errors it returns are recorded there by the caller; a failed
+	// metric is only logged, so it never marks a successful transaction as an error.
 	if routeValidationEnabled {
-		span.SetAttributes(attribute.Bool("app.route_validation_enabled", true))
+		trace.SpanFromContext(ctx).SetAttributes(attribute.Bool("app.route_validation_enabled", true))
 	}
 
 	// Index Lua's authoritative post-mutation balances by `alias#key` so we
@@ -85,8 +86,6 @@ func (uc *UseCase) BuildOperations(
 
 				txBal, tErr := blc.ToTransactionBalance()
 				if tErr != nil {
-					libOpentelemetry.HandleSpanError(span, "Corrupted balance for validation", tErr)
-
 					logger.Log(ctx, libLog.LevelWarn, "Corrupted balance OverdraftLimit", libLog.Err(tErr))
 
 					return nil, nil, tErr
@@ -94,8 +93,6 @@ func (uc *UseCase) BuildOperations(
 
 				amt, bat, err := mtransaction.ValidateFromToOperation(fromTo[i], *validate, txBal)
 				if err != nil {
-					libOpentelemetry.HandleSpanError(span, "Failed to validate balances", err)
-
 					logger.Log(ctx, libLog.LevelWarn, "Failed to validate balance", libLog.Err(err))
 
 					return nil, nil, err
@@ -177,7 +174,7 @@ func (uc *UseCase) BuildOperations(
 							attribute.String("organization_id", tran.OrganizationID),
 							attribute.String("ledger_id", tran.LedgerID),
 						); err != nil {
-							libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+							logger.Log(ctx, libLog.LevelDebug, "Failed to record transaction processed metric", libLog.Err(err))
 						}
 					}
 
@@ -223,7 +220,7 @@ func (uc *UseCase) BuildOperations(
 					attribute.String("organization_id", tran.OrganizationID),
 					attribute.String("ledger_id", tran.LedgerID),
 				); err != nil {
-					libOpentelemetry.HandleSpanError(span, "Failed to record transaction processed metric", err)
+					logger.Log(ctx, libLog.LevelDebug, "Failed to record transaction processed metric", libLog.Err(err))
 				}
 			}
 		}
@@ -294,29 +291,7 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 		// op.Direction. The enrichment engine sets Direction="credit" on
 		// repayment companions so the resolver picks Overdraft.Credit
 		// without special-casing here.
-		resolvedAction := action
-
-		// Block/unblock operations carry the base action (direct) but a
-		// semantic OperationTypeOverride (BLOCK/UNBLOCK). When the route
-		// configures a dedicated Block/Unblock AccountingEntry, route the
-		// rubric lookup to it; otherwise leave resolvedAction unchanged so
-		// block/unblock keep resolving via the Direct rubric.
-		switch operationTypeOverride {
-		case constant.BLOCK:
-			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
-				return ae.Block != nil
-			}) {
-				resolvedAction = constant.ActionBlock
-			}
-		case constant.UNBLOCK:
-			if blockEntryConfigured(cache, action, *op.RouteID, func(ae *mmodel.AccountingEntries) bool {
-				return ae.Unblock != nil
-			}) {
-				resolvedAction = constant.ActionUnblock
-			}
-		}
-
-		resolvedAction = crossLedgerRubricAction(cache, *op.RouteID, resolvedAction)
+		resolvedAction := primaryRubricAction(cache, *op.RouteID, action, operationTypeOverride)
 
 		// The Overdraft BalanceKey override takes precedence: companion
 		// operations on the overdraft balance always resolve their rubric
@@ -353,6 +328,37 @@ func resolveRouteCodesFromCache(operations []*operation.Operation, cache *mmodel
 			}
 		}
 	}
+}
+
+// primaryRubricAction selects the accounting action whose rubric classifies a
+// primary operation of a transaction posted under the given base action.
+// Block/unblock operations carry the base action (direct) plus a semantic
+// OperationTypeOverride (BLOCK/UNBLOCK): when the route configures the
+// dedicated Block/Unblock AccountingEntry the rubric comes from it, otherwise
+// from the base action's entry. A cross-ledger bridge route keeps its
+// crossLedger entry over both. Overdraft companions are classified by the
+// Overdraft entry, not by this selection.
+func primaryRubricAction(cache *mmodel.TransactionRouteCache, routeID, action, operationTypeOverride string) string {
+	resolvedAction := action
+
+	if cache != nil && routeID != "" {
+		switch operationTypeOverride {
+		case constant.BLOCK:
+			if blockEntryConfigured(cache, action, routeID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Block != nil
+			}) {
+				resolvedAction = constant.ActionBlock
+			}
+		case constant.UNBLOCK:
+			if blockEntryConfigured(cache, action, routeID, func(ae *mmodel.AccountingEntries) bool {
+				return ae.Unblock != nil
+			}) {
+				resolvedAction = constant.ActionUnblock
+			}
+		}
+	}
+
+	return crossLedgerRubricAction(cache, routeID, resolvedAction)
 }
 
 // crossLedgerRubricAction selects the crossLedger entry for an operation posted
@@ -459,8 +465,11 @@ func resolveAccountingRubric(entries *mmodel.AccountingEntries, action, directio
 // Returns the smaller of the requested amount and the observed movement,
 // so a balance that somehow moves MORE than the requested amount (a bug
 // that should not exist) never retroactively inflates the Operation
-// amount — we keep the request as the upper bound and surface the anomaly
-// via the balance vs. operation divergence in downstream reconciliation.
+// amount — we keep the request as the upper bound. The clip changes only
+// the row's amount: its before/after states come from the same engine
+// movement as the balance, so the balance and its trail still agree. The
+// anomaly is visible only as a gap between the row's amount and the
+// difference of its before/after balances.
 func effectiveOperationAmount(
 	amt mtransaction.Amount,
 	beforeAvailable, afterAvailable, beforeOnHold, afterOnHold decimal.Decimal,
@@ -594,7 +603,7 @@ func zeroAnnotationBalances(balance, balanceAfter *operation.Balance) {
 // Op2: ONHOLD (credit direction) - increases OnHold only
 // This ensures proper double-entry where each operation affects a single balance field.
 func (uc *UseCase) buildDoubleEntryPendingOps(
-	ctx context.Context,
+	_ context.Context,
 	blc *mmodel.Balance,
 	ft mtransaction.FromTo,
 	amt mtransaction.Amount,
@@ -604,11 +613,6 @@ func (uc *UseCase) buildDoubleEntryPendingOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "command.build_double_entry_pending_ops")
-	defer span.End()
-
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
 		description = transactionInput.Description
@@ -741,7 +745,7 @@ func (uc *UseCase) buildDoubleEntryPendingOps(
 // Op2: CREDIT (credit direction) - increases Available only
 // This ensures proper double-entry where each operation affects a single balance field.
 func (uc *UseCase) buildDoubleEntryCanceledOps(
-	ctx context.Context,
+	_ context.Context,
 	blc *mmodel.Balance,
 	ft mtransaction.FromTo,
 	amt mtransaction.Amount,
@@ -751,11 +755,6 @@ func (uc *UseCase) buildDoubleEntryCanceledOps(
 	transactionDate time.Time,
 	isAnnotation bool,
 ) ([]*operation.Operation, error) {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "command.build_double_entry_canceled_ops")
-	defer span.End()
-
 	description := ft.Description
 	if libCommons.IsNilOrEmpty(&ft.Description) {
 		description = transactionInput.Description

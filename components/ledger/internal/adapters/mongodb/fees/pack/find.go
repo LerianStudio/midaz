@@ -98,18 +98,12 @@ func (pm *PackageMongoDBRepository) FindList(ctx context.Context, filters http.Q
 	skip := int64(filters.Page*filters.Limit - filters.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip)
 
-	_, spanFind := tracer.Start(ctx, "repository.package.find_list.find")
-
-	spanFind.SetAttributes(attributes...)
-
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find packages", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find packages", err)
 		return nil, err
 	}
 	defer cur.Close(ctx)
-
-	spanFind.End()
 
 	var results []*PackageMongoDBModel
 
@@ -161,21 +155,16 @@ func (pm *PackageMongoDBRepository) FindByID(ctx context.Context, id, organizati
 
 	var record *PackageMongoDBModel
 
-	_, spanFindOne := tracer.Start(ctx, "repository.package.find_by_entity.find_one")
-	defer spanFindOne.End()
-
-	spanFindOne.SetAttributes(attributes...)
-
 	if err = coll.
 		FindOne(ctx, packageScopeFilter(id, organizationID, ledgerID)).
 		Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFindOne, "Package not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Package not found", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to find package by entity", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find package by entity", err)
 
 		return nil, err
 	}
@@ -220,18 +209,12 @@ func (pm *PackageMongoDBRepository) FindByOrganizationIDAndLedgerID(ctx context.
 	queryFilter["deleted_at"] = bson.D{{Key: "$eq", Value: nil}}
 	queryFilter["enable"] = bson.D{{Key: "$eq", Value: true}}
 
-	_, spanFind := tracer.Start(ctx, "repository.package.find_by_org_and_ledger.find")
-
-	spanFind.SetAttributes(attributes...)
-
 	cur, err := coll.Find(ctx, queryFilter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, fmt.Sprintf("Failed to find packages by organizationID %v and ledgerId %v", organizationID, ledgerID), err)
+		libOpentelemetry.HandleSpanError(span, fmt.Sprintf("Failed to find packages by organizationID %v and ledgerId %v", organizationID, ledgerID), err)
 		return nil, err
 	}
 	defer cur.Close(ctx)
-
-	spanFind.End()
 
 	var results []*PackageMongoDBModel
 
@@ -290,20 +273,13 @@ func (pm *PackageMongoDBRepository) FindNotDeletedByOrganizationIDAndLedgerID(ct
 
 	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: 1}, {Key: "_id", Value: 1}})
 
-	_, spanFind := tracer.Start(ctx, "repository.package.find_not_deleted_by_org_and_ledger.find")
-
-	spanFind.SetAttributes(attributes...)
-
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find not deleted packages by organization and ledger", err)
-		spanFind.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to find not deleted packages by organization and ledger", err)
 
 		return nil, err
 	}
 	defer cur.Close(ctx)
-
-	spanFind.End()
 
 	var results []*PackageMongoDBModel
 
@@ -382,16 +358,11 @@ func (pm *PackageMongoDBRepository) FindFeesAndAmountDataByPackageID(ctx context
 		UpdatedAt        time.Time           `bson:"updated_at"`
 	}
 
-	_, spanFindOne := tracer.Start(ctx, "repository.package.find_fees_by_package_id.find_one")
-	defer spanFindOne.End()
-
-	spanFindOne.SetAttributes(attributes...)
-
 	err = coll.FindOne(ctx, filter, options.FindOne().SetProjection(projection)).Decode(&result)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", "Package")
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFindOne, "Package not found", bizErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Package not found", bizErr)
 
 			return nil, bizErr
 		}

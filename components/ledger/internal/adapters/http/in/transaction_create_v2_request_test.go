@@ -6,6 +6,7 @@ package in
 
 import (
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	nethttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 )
 
 // testOrgID and testLedgerID are the scope every leg of a valid test body names. They are
@@ -297,6 +299,31 @@ func TestCreateTransactionV2Request_Validation(t *testing.T) {
 				in.OperationRouteID = nil
 			},
 			wantErr: false,
+		},
+		{
+			name:    "scheme PIX passes (scheme tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "PIX" },
+			wantErr: false,
+		},
+		{
+			name:    "lower-case scheme passes (scheme tag normalizes case)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "pix" },
+			wantErr: false,
+		},
+		{
+			name:    "scheme outside the former closed set passes (scheme tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "TED" },
+			wantErr: false,
+		},
+		{
+			name:    "scheme with punctuation fails (scheme tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = "pix!" },
+			wantErr: true,
+		},
+		{
+			name:    "scheme over the length bound fails (scheme tag)",
+			mutate:  func(in *CreateTransactionV2Request) { in.Scheme = strings.Repeat("A", scheme.MaxLength+1) },
+			wantErr: true,
 		},
 	}
 
@@ -1070,4 +1097,127 @@ func TestCreateTransactionV2Request_TranslateSkip(t *testing.T) {
 			assert.NotSame(t, &skip, tran.Skip, "Translate must clone the skip block, not alias the input's pointer")
 		})
 	}
+}
+
+// TestCreateTransactionV2Request_DecodeScheme drives the scheme field through the real
+// singular decode pipeline (unmarshal -> unknown-field re-marshal -> struct tags), the
+// path a wire body takes before any normalizer runs. Any value the shared scheme rule
+// accepts decodes as sent; anything it refuses is a 400 at this boundary.
+func TestCreateTransactionV2Request_DecodeScheme(t *testing.T) {
+	t.Parallel()
+
+	legs := `"debits":[{"alias":"@person1",` + scopeJSON + `,"amount":"1000"}],` +
+		`"credits":[{"alias":"@person2",` + scopeJSON + `,"amount":"1000"}]`
+
+	tests := []struct {
+		name       string
+		scheme     string
+		wantScheme string
+		wantStatus int
+		wantHint   bool
+	}{
+		{name: "absent scheme decodes empty", scheme: "", wantScheme: ""},
+		{name: "CARD decodes as sent", scheme: "CARD", wantScheme: "CARD"},
+		{name: "PIX decodes as sent", scheme: "PIX", wantScheme: "PIX"},
+		{name: "lower-case pix decodes as sent", scheme: "pix", wantScheme: "pix"},
+		{name: "padded pix decodes as sent", scheme: " pix ", wantScheme: " pix "},
+		{name: "TED decodes as sent", scheme: "TED", wantScheme: "TED"},
+		{name: "punctuation is rejected", scheme: "pix!", wantStatus: http.StatusBadRequest, wantHint: true},
+		{name: "inner whitespace is rejected", scheme: "a b", wantStatus: http.StatusBadRequest},
+		{name: "one over the length bound is rejected", scheme: strings.Repeat("A", scheme.MaxLength+1), wantStatus: http.StatusBadRequest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			body := `{"asset":"BRL","amount":"1000",` + legs
+			if tt.scheme != "" {
+				body += `,"scheme":"` + tt.scheme + `"`
+			}
+
+			body += `}`
+
+			in, err := decodeCreateTransactionV2Body([]byte(body))
+			if tt.wantStatus != 0 {
+				require.Error(t, err)
+
+				problem := requireV2BodyProblem(t, err)
+				assert.Equal(t, tt.wantStatus, problem.Status)
+				assert.Empty(t, in.Scheme)
+
+				if tt.wantHint {
+					require.NotEmpty(t, problem.Errors)
+
+					msg := problem.Errors[0].Message
+					assert.Contains(t, msg, "scheme")
+					assert.Contains(t, msg, scheme.FormatHint)
+					assert.NotContains(t, msg, "Error:Field validation")
+				}
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantScheme, in.Scheme)
+		})
+	}
+}
+
+// TestCreateTransactionV2Request_TranslateScheme locks that both v2 normalizers carry the
+// declared scheme onto the canonical transaction in its normalized spelling: the singular
+// translator and the cross-ledger one, which builds its transaction through a separate
+// field list.
+func TestCreateTransactionV2Request_TranslateScheme(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		scheme     string
+		wantScheme string
+	}{
+		{name: "absent scheme stays empty", scheme: "", wantScheme: ""},
+		{name: "PIX reaches the transaction", scheme: "PIX", wantScheme: "PIX"},
+		{name: "CARD reaches the transaction", scheme: "CARD", wantScheme: "CARD"},
+		{name: "padded lower-case pix is normalized", scheme: " pix ", wantScheme: "PIX"},
+		{name: "ted is upper-cased", scheme: "ted", wantScheme: "TED"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			singular := validV2Input()
+			singular.Scheme = tt.scheme
+
+			tran, _, err := singular.Translate(false)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantScheme, tran.Scheme)
+
+			crossLedger := validV2Input()
+			crossLedger.Scheme = tt.scheme
+			crossLedger.Credits[0].LedgerID = otherLedgerID
+
+			normalized, err := normalizeCreateCrossLedgerTransactionV2Body(crossLedger, false)
+			require.NoError(t, err)
+			require.Len(t, normalized.scopes, 2)
+			assert.Equal(t, tt.wantScheme, normalized.transaction.Scheme)
+		})
+	}
+}
+
+// TestDecodeAndValidateRevisedAtomicTransactionBatchV2_PreservesScheme locks that a batch
+// item, which embeds the singular v2 request, decodes the scheme through the batch path and
+// hands it to the item's normalized transaction.
+func TestDecodeAndValidateRevisedAtomicTransactionBatchV2_PreservesScheme(t *testing.T) {
+	t.Parallel()
+
+	request := validAtomicBatchV2Request("@source", "@destination", batchTestLedgerID)
+	request.Scheme = "PIX"
+	item := revisedAtomicBatchV2Item(t, request, "direct", 1)
+
+	result, err := decodeAndValidateRevisedAtomicTransactionBatchV2(marshalAtomicBatchV2Wrapper(t, item), 50)
+	require.NoError(t, err)
+	require.Len(t, result.items, 1)
+	assert.Equal(t, "PIX", result.items[0].normalized.transaction.Scheme)
 }

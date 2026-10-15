@@ -55,6 +55,8 @@ func (uc *UseCase) DeleteOrganizationByID(ctx context.Context, id uuid.UUID) (er
 		return err
 	}
 
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntityOrganization, id.String())
+
 	deletedAt := time.Now()
 	uc.emitOrganizationDeletedEvent(ctx, span, logger, id.String(), deletedAt)
 

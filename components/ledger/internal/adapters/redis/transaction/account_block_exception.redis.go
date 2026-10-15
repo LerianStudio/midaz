@@ -201,9 +201,8 @@ func (rr *RedisConsumerRepository) GetAccountBlockException(ctx context.Context,
 //
 // The BIND itself — which debit leg the grant authorizes, and which
 // system-derived overdraft companions come with it — is decided by
-// mtransaction.ResolveAccountBlockExceptionBinding in the balance step, so the
-// balances the Go pre-validation stops fast-failing are exactly the ones the
-// script bypasses. This type only namespaces that decision for the wire.
+// mtransaction.ResolveAccountBlockExceptionBinding in the balance step. This
+// type only namespaces that decision for the wire.
 type accountBlockExceptionEval struct {
 	// key is the tenant-namespaced exception key, passed as KEYS[4].
 	key string

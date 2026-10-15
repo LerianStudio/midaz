@@ -62,12 +62,7 @@ type recoveryRecordReader interface {
 	ReadRecoveryMessage(context.Context, txRedis.RecoveryQueueSource, string) (string, error)
 }
 
-type recoveryCleanupOwner interface {
-	CleanupEngineRecovery(context.Context, time.Time, int) (txRedis.RecoveryCleanupResult, error)
-}
-
 const (
-	recoveryCleanupBatchSize              = 100
 	transactionWriteBehindRecoveryVersion = command.TransactionWriteBehindFormatVersion
 	engineRecoveryAttemptLimit            = 3
 	engineRecoveryInitialBackoff          = 10 * time.Millisecond
@@ -129,34 +124,6 @@ func (r *RedisQueueConsumer) WithRecoveryClock(clock func() time.Time) *RedisQue
 	}
 
 	return r
-}
-
-func (r *RedisQueueConsumer) cleanupEngineRecovery(ctx context.Context) {
-	r.newRecoveryRecordCompleter().cleanup(ctx)
-}
-
-func (r *recoveryRecordCompleter) cleanup(ctx context.Context) {
-	owner, ok := r.queue.(recoveryCleanupOwner)
-	if !ok {
-		return
-	}
-
-	if r.clock == nil {
-		r.logger.Log(ctx, libLog.LevelWarn, "Engine recovery cleanup clock is not configured")
-		return
-	}
-
-	result, err := owner.CleanupEngineRecovery(ctx, r.clock(), recoveryCleanupBatchSize)
-	if err != nil {
-		r.logger.Log(ctx, libLog.LevelWarn, "Failed to clean protected engine recovery artifacts", libLog.Err(err))
-		return
-	}
-
-	r.logger.Log(ctx, libLog.LevelDebug, "Cleaned protected engine recovery artifacts",
-		libLog.Int("scanned_count", result.Scanned),
-		libLog.Int("cleaned_count", result.Cleaned),
-		libLog.Int("stale_count", result.Stale),
-		libLog.Int("rescheduled_count", result.Rescheduled))
 }
 
 // recoveryRecordVersion permits legacy decoding only when the discriminator is

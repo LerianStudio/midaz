@@ -917,7 +917,7 @@ func waitForOperations(t *testing.T, db *sql.DB, transactionID uuid.UUID, expect
 // 3. ValidateSendSourceAndDistribute calculates source/destination totals
 // 4. GetBalances retrieves balances (Redis cache -> PostgreSQL fallback)
 // 5. BuildOperations creates Operation objects with DEBIT/CREDIT types
-// 6. WriteTransaction -> WriteTransactionAsync (since RABBITMQ_TRANSACTION_ASYNC=true)
+// 6. The transaction takes the async write-behind path (RABBITMQ_TRANSACTION_ASYNC=true)
 // 7. Message is sent to RabbitMQ queue
 // 8. Returns HTTP 201 with transaction in CREATED status (immediate response)
 // 9. Consumer processes the message and updates status to APPROVED

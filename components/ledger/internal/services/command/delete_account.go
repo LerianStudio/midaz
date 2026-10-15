@@ -55,8 +55,7 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	// reads or rewrites its holder, and account.deleted carries no holder field.
 	accFound, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, id, mmodel.HolderOffV1)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to find account by id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to find account by id", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to find account by id", err)
 
 		return err
 	}
@@ -103,18 +102,14 @@ func (uc *UseCase) DeleteAccountByID(ctx context.Context, organizationID, ledger
 	if err := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, portfolioID, id); err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrAccountIDNotFound, constant.EntityAccount)
-
-			logger.Log(ctx, libLog.LevelWarn, "Account ID not found on delete", libLog.String("account_id", id.String()))
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to delete account on repo by id", err)
-
-			return err
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to delete account on repo by id", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to delete account on repo by id", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Failed to delete account on repo by id", err)
 
 		return err
 	}
+
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntityAccount, id.String())
 
 	uc.emitAccountDeletedEvent(ctx, span, logger, accFound, time.Now())
 

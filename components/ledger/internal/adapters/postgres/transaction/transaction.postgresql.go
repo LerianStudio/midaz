@@ -41,7 +41,7 @@ import (
 
 // createBulkChunkSize and updateBulkChunkSize bound how many rows one bulk statement
 // carries, so the parameter count stays under PostgreSQL's 65,535 ceiling. CreateBulk
-// writes every column in transactionColumnList (19 of them, so 19,000 parameters per
+// writes every column in transactionColumnList (20 of them, so 20,000 parameters per
 // chunk); UpdateBulk writes six (id, organization_id, ledger_id, status,
 // status_description, updated_at), so its larger headroom is spent on shorter
 // row-locking windows instead. Declared here rather than inside the two methods so the
@@ -71,6 +71,7 @@ var transactionColumnList = []string{
 	"route_id",
 	"fees_skipped",
 	"tracer_skipped",
+	"scheme",
 }
 
 var transactionColumnListPrefixed = []string{
@@ -93,6 +94,7 @@ var transactionColumnListPrefixed = []string{
 	"t.route_id",
 	"t.fees_skipped",
 	"t.tracer_skipped",
+	"t.scheme",
 }
 
 // operationColumnListPrefixed mirrors operation.operationColumnList with the "o."
@@ -128,7 +130,7 @@ type Repository interface {
 	FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*Transaction, error)
 	Update(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, error)
-	// UpdateStatusFromPending writes the same status columns Update does, but only
+	// UpdateStatusFromPendingTx writes the same status columns Update does, but only
 	// onto a row that is still PENDING. It is the durable backstop of the
 	// commit/cancel transition: the compare-and-set is what stops a second
 	// transition from flipping a transaction that another one already settled.
@@ -140,7 +142,10 @@ type Repository interface {
 	// write-behind cache runs before its own row exists. The caller does that
 	// triage. The backup consumer treats zero rows as already-applied and carries
 	// on.
-	UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
+	//
+	// It runs on the caller's database transaction, so the flip commits or rolls
+	// back together with the operations the transition writes.
+	UpdateStatusFromPendingTx(ctx context.Context, tx repository.DBExecutor, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error)
 	Delete(ctx context.Context, organizationID, ledgerID, id uuid.UUID) error
 	FindWithOperations(ctx context.Context, organizationID, ledgerID, id uuid.UUID) (*Transaction, error)
 	FindOrListAllWithOperations(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID, filter http.Pagination) ([]*Transaction, libHTTP.CursorPagination, error)
@@ -271,7 +276,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 	// NOTE (v3.5.4 backport): explicit columns keep this INSERT working when future
 	// migrations add columns to transaction. Do not collapse this to table-wide VALUES.
 	insertQuery := fmt.Sprintf(
-		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING %s`,
+		`INSERT INTO transaction (%s) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING %s`,
 		transactionColumns, transactionColumns,
 	)
 
@@ -296,6 +301,7 @@ func (r *TransactionPostgreSQLRepository) Create(ctx context.Context, transactio
 		record.RouteID,
 		record.FeesSkipped,
 		record.TracerSkipped,
+		record.Scheme,
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
@@ -432,7 +438,7 @@ func (r *TransactionPostgreSQLRepository) createBulkInternal(
 
 		chunkResult, err := r.insertTransactionChunk(ctx, db, transactions[i:end])
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to insert transaction chunk", err)
+			// Already recorded on this span by insertTransactionChunk, with the failing step.
 			// Return partial result; Ignored stays 0 since remaining items were not processed (not duplicates)
 			return result, err
 		}
@@ -462,10 +468,12 @@ type chunkInsertResult struct {
 // Uses repository.DBExecutor to work with both dbresolver.DB and dbresolver.Tx.
 // Returns the count of inserted rows and their IDs for downstream filtering.
 func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Context, db repository.DBExecutor, transactions []*Transaction) (*chunkInsertResult, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.insert_transaction_chunk")
-	defer span.End()
+	// One chunk is one INSERT the driver already traces, so it opens no span of its
+	// own: every failure is recorded, with the step that failed, on the enclosing
+	// create_bulk_* span, and the caller does not record it again.
+	span := trace.SpanFromContext(ctx)
 
 	logger.Log(ctx, libLog.LevelDebug, "Inserting chunk of transactions", libLog.Int("count", len(transactions)))
 
@@ -497,6 +505,7 @@ func (r *TransactionPostgreSQLRepository) insertTransactionChunk(ctx context.Con
 			record.RouteID,
 			record.FeesSkipped,
 			record.TracerSkipped,
+			record.Scheme,
 		)
 	}
 
@@ -825,6 +834,7 @@ func (r *TransactionPostgreSQLRepository) FindAll(ctx context.Context, organizat
 			&transaction.RouteID,
 			&transaction.FeesSkipped,
 			&transaction.TracerSkipped,
+			&transaction.Scheme,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -932,6 +942,7 @@ func (r *TransactionPostgreSQLRepository) ListByIDs(ctx context.Context, organiz
 			&transaction.RouteID,
 			&transaction.FeesSkipped,
 			&transaction.TracerSkipped,
+			&transaction.Scheme,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -1025,6 +1036,7 @@ func (r *TransactionPostgreSQLRepository) FindByGroupID(ctx context.Context, gro
 			&record.RouteID,
 			&record.FeesSkipped,
 			&record.TracerSkipped,
+			&record.Scheme,
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
@@ -1107,6 +1119,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 		&transaction.RouteID,
 		&transaction.FeesSkipped,
 		&transaction.TracerSkipped,
+		&transaction.Scheme,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityTransaction)
@@ -1137,7 +1150,7 @@ func (r *TransactionPostgreSQLRepository) Find(ctx context.Context, organization
 func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, organizationID, ledgerID, parentID uuid.UUID) (*Transaction, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.find_transaction")
+	ctx, span := tracer.Start(ctx, "postgres.find_transaction_by_parent_id")
 	defer span.End()
 
 	db, release, err := r.acquireRead(ctx)
@@ -1189,6 +1202,7 @@ func (r *TransactionPostgreSQLRepository) FindByParentID(ctx context.Context, or
 		&transaction.RouteID,
 		&transaction.FeesSkipped,
 		&transaction.TracerSkipped,
+		&transaction.Scheme,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No transaction found", err)
@@ -1409,6 +1423,7 @@ func (r *TransactionPostgreSQLRepository) FindWithOperations(ctx context.Context
 			&tran.RouteID,
 			&tran.FeesSkipped,
 			&tran.TracerSkipped,
+			&tran.Scheme,
 			&op.ID,
 			&op.TransactionID,
 			&op.Description,
@@ -1595,6 +1610,7 @@ func (r *TransactionPostgreSQLRepository) FindOrListAllWithOperations(ctx contex
 			&tran.RouteID,
 			&tran.FeesSkipped,
 			&tran.TracerSkipped,
+			&tran.Scheme,
 			&opID,
 			&opTransactionID,
 			&opDescription,

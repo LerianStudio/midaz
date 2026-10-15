@@ -39,7 +39,7 @@ func (uc *UseCase) UpdateOperationRoute(ctx context.Context, organizationID, id 
 	}()
 
 	if input.AccountingEntries != nil && input.AccountingEntries.CrossLedger != nil {
-		if err := uc.rejectSecondCrossLedgerBridgeRoute(ctx, organizationID, id); err != nil {
+		if err := uc.rejectInvalidCrossLedgerBridgeLinks(ctx, organizationID, id); err != nil {
 			recordCommandError(ctx, span, logger, "Failed to check the cross-ledger bridge routes of linked transaction routes", err, libLog.String("operation_route_id", id.String()))
 
 			return nil, err
@@ -103,24 +103,35 @@ func changesCachedOperationRoute(input *mmodel.UpdateOperationRouteInput) bool {
 		len(input.AccountingEntriesRaw) > 0
 }
 
-// rejectSecondCrossLedgerBridgeRoute keeps a transaction route at one bridge
-// route when an operation route it already links gains a crossLedger entry.
-func (uc *UseCase) rejectSecondCrossLedgerBridgeRoute(ctx context.Context, organizationID, operationRouteID uuid.UUID) error {
+// rejectInvalidCrossLedgerBridgeLinks runs when an operation route gains a
+// crossLedger entry. Every transaction route that links it keeps at most one
+// bridge route, and none may link it as optional, because a bridge route is
+// never left unused.
+func (uc *UseCase) rejectInvalidCrossLedgerBridgeLinks(ctx context.Context, organizationID, operationRouteID uuid.UUID) error {
 	transactionRouteIDs, err := uc.OperationRouteRepo.FindTransactionRouteIDs(ctx, operationRouteID)
 	if err != nil || len(transactionRouteIDs) == 0 {
 		return err
 	}
 
-	linked, err := uc.TransactionRouteRepo.FindOperationRouteIDsByTransactionRouteIDs(ctx, transactionRouteIDs)
+	linked, err := uc.TransactionRouteRepo.FindOperationRouteLinksByTransactionRouteIDs(ctx, transactionRouteIDs)
 	if err != nil {
 		return err
+	}
+
+	for _, transactionRouteID := range transactionRouteIDs {
+		for _, link := range linked[transactionRouteID] {
+			if link.OperationRouteID == operationRouteID && link.Optional {
+				return errOptionalCrossLedgerBridgeRoute()
+			}
+		}
 	}
 
 	seen := map[uuid.UUID]struct{}{operationRouteID: {}}
 	siblings := make([]uuid.UUID, 0)
 
 	for _, transactionRouteID := range transactionRouteIDs {
-		for _, siblingID := range linked[transactionRouteID] {
+		for _, link := range linked[transactionRouteID] {
+			siblingID := link.OperationRouteID
 			if _, ok := seen[siblingID]; ok {
 				continue
 			}

@@ -197,7 +197,8 @@ func TestHuma_ListAuditEvents_InvalidEnumParams(t *testing.T) {
 		{"invalid result", "result=INVALID", "0009"},
 		{"invalid resource_type", "resource_type=INVALID", "0009"},
 		{"invalid actor_type", "actor_type=INVALID", "0009"},
-		{"invalid transaction_type", "transaction_type=INVALID", "0009"},
+		{"invalid transaction_type", "transaction_type=bad%20value!", "0009"},
+		{"invalid scheme", "scheme=bad%20value!", "0009"},
 		{"invalid sort_by", "sort_by=priority", "0332"},     // ErrInvalidSortColumn
 		{"invalid sort_order", "sort_order=RANDOM", "0081"}, // ErrInvalidSortOrder
 	} {

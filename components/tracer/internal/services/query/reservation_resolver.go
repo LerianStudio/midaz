@@ -6,6 +6,7 @@ package query
 
 import (
 	"context"
+	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -29,6 +30,10 @@ type ReservationSpec struct {
 	PeriodKey string
 	Amount    decimal.Decimal
 	MaxAmount decimal.Decimal
+	// CounterExpiresAt is when the usage counter this spec reserves against may be
+	// swept by cleanup: the limit's period end plus the counter retention window.
+	// nil means the counter is never swept automatically.
+	CounterExpiresAt *time.Time
 }
 
 // ResolveReservations resolves the applicable limits for a transaction ONCE and
@@ -121,6 +126,9 @@ func (s *LimitCheckerService) ResolveReservations(ctx context.Context, input *mo
 			PeriodKey: periodKey,
 			Amount:    input.Amount,
 			MaxAmount: limit.MaxAmount,
+			CounterExpiresAt: calculateCounterExpiresAt(
+				limit.LimitType, limit.NextResetAt(serverNow), limit.CustomEndDate,
+			),
 		})
 	}
 

@@ -496,8 +496,10 @@ func TestDeleteAccount_204Empty(t *testing.T) {
 		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit"}, nil).Times(1)
 	balanceRepo.EXPECT().ListByAccountID(gomock.Any(), orgID, ledgerID, accountID).Return([]*mmodel.Balance{}, nil).Times(1)
 	accountRepo.EXPECT().Delete(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID).Return(nil).Times(1)
+	metadataRepo := mongodb.NewMockRepository(ctrl)
+	metadataRepo.EXPECT().Delete(gomock.Any(), cn.EntityAccount, accountID.String()).Return(nil).Times(1)
 
-	handler := &AccountHandler{Command: &command.UseCase{AccountRepo: accountRepo, BalanceRepo: balanceRepo}}
+	handler := &AccountHandler{Command: &command.UseCase{AccountRepo: accountRepo, BalanceRepo: balanceRepo, OnboardingMetadataRepo: metadataRepo}}
 
 	app := buildHumaAccountApp(t, handler, true)
 
@@ -736,10 +738,13 @@ func TestGetAllAccounts_MetadataFilter(t *testing.T) {
 	accountRepo := account.NewMockRepository(ctrl)
 	metadataRepo := mongodb.NewMockRepository(ctrl)
 
-	metadataRepo.EXPECT().FindList(gomock.Any(), cn.EntityAccount, gomock.Any()).
-		Return([]*mongodb.Metadata{{EntityID: acc1, Data: map[string]any{"tier": "premium"}}}, nil).Times(1)
+	metadataRepo.EXPECT().FindEntityIDs(gomock.Any(), cn.EntityAccount, gomock.Any(), "", gomock.Any()).
+		Return([]string{acc1}, nil).Times(1)
 	accountRepo.EXPECT().FindAll(gomock.Any(), orgID, ledgerID, gomock.Nil(), gomock.Nil(), gomock.Any(), gomock.Any()).
 		Return([]*mmodel.Account{{ID: acc1, Name: "Premium One", AssetCode: "USD", Type: "deposit"}}, nil).Times(1)
+	metadataRepo.EXPECT().
+		FindByEntityIDs(gomock.Any(), cn.EntityAccount, []string{acc1}).
+		Return([]*mongodb.Metadata{{EntityID: acc1, Data: map[string]any{"tier": "premium"}}}, nil)
 
 	handler := &AccountHandler{Query: &query.UseCase{AccountRepo: accountRepo, OnboardingMetadataRepo: metadataRepo}}
 

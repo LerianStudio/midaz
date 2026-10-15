@@ -395,29 +395,6 @@ func TestIntegration_MultiTenantProducer_NoTenantContext(t *testing.T) {
 		"error should indicate missing tenant ID")
 }
 
-// TestIntegration_MultiTenantProducer_WithContext verifies that
-// ProducerDefaultWithContext works identically to ProducerDefault.
-func TestIntegration_MultiTenantProducer_WithContext(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	tenantID := "tenant-ctx"
-	infra := setupMultiTenantInfra(t, []string{tenantID})
-
-	ctx := tmcore.ContextWithTenantID(context.Background(), tenantID)
-	msg := []byte(`{"method":"with-context"}`)
-
-	_, err := infra.producer.ProducerDefaultWithContext(ctx, infra.exchange, infra.routingKey, msg)
-	require.NoError(t, err, "ProducerDefaultWithContext should succeed")
-
-	rmqtestutil.WaitForQueueCount(t, infra.tenants[tenantID].channel, infra.queue, 1, 5*time.Second)
-
-	messages := consumeAll(t, infra.tenants[tenantID].channel, infra.queue, 1)
-	assert.Equal(t, `{"method":"with-context"}`, string(messages[0]),
-		"message body should be preserved")
-}
-
 // TestIntegration_MultiTenantProducer_ConnectionReuse verifies that the Manager
 // reuses connections across multiple publishes to the same tenant (not creating
 // a new connection per publish).

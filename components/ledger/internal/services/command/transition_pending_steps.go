@@ -10,6 +10,7 @@ import (
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
@@ -33,15 +34,26 @@ func (uc *UseCase) loadPendingTransaction(ctx context.Context, span trace.Span, 
 	return tran, nil
 }
 
+// pendingTransactionUnlockTimeout bounds the lock release, which runs detached
+// from the request so a cancelled or timed-out request still frees the lock.
+const pendingTransactionUnlockTimeout = 5 * time.Second
+
 // lockPendingTransaction claims the per-transaction Redis lock that serialises
-// concurrent commit/cancel attempts. It returns the unlock closure used by engine
-// preparation and confirmed pre-commit failures; a lock already held is a 422.
+// concurrent commit/cancel attempts; a lock already held is a 409. Among
+// releases that share the engine's lifecycle guard, the guard is what keeps a
+// transition from applying twice, so releasing the lock never re-opens a
+// transition that already applied; a release without that guard is held back
+// only by this lock. The returned closure releases it. The lock holds a token of
+// its own, so a release that outlives the TTL never removes a lock another
+// request acquired after it expired.
 func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, logger libLog.Logger, run *pendingTransitionRun) (func(), error) {
 	lockPendingTransactionKey := utils.PendingTransactionLockKey(run.organizationID, run.ledgerID, run.tran.ID)
 
 	ttl := time.Duration(300)
 
-	success, err := uc.TransactionRedisRepo.SetNX(ctx, lockPendingTransactionKey, "", ttl)
+	ownerToken := uuid.NewString()
+
+	success, err := uc.TransactionRedisRepo.SetNX(ctx, lockPendingTransactionKey, ownerToken, ttl)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to set on redis", err)
 		logger.Log(ctx, libLog.LevelError, "Failed to set pending transaction lock on redis", libLog.Err(err))
@@ -57,11 +69,24 @@ func (uc *UseCase) lockPendingTransaction(ctx context.Context, span trace.Span, 
 		return nil, err
 	}
 
-	deleteLockOnError := func() {
-		if delErr := uc.TransactionRedisRepo.Del(ctx, lockPendingTransactionKey); delErr != nil {
+	unlock := func() {
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), pendingTransactionUnlockTimeout)
+		defer cancel()
+
+		// false means the lock already expired, possibly re-acquired by another
+		// request; that lock is not this request's to release.
+		if _, delErr := uc.TransactionRedisRepo.DeleteIfValue(releaseCtx, lockPendingTransactionKey, ownerToken); delErr != nil {
 			recordCommandError(ctx, span, logger, "Failed to delete pending transaction lock", delErr)
 		}
 	}
 
-	return deleteLockOnError, nil
+	return unlock, nil
+}
+
+// releasePendingLockOnFailure releases the pending-transaction lock when the
+// transition failed and keeps it when the transition succeeded.
+func releasePendingLockOnFailure(unlock func(), err *error) {
+	if *err != nil {
+		unlock()
+	}
 }

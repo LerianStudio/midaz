@@ -371,6 +371,102 @@ func TestIntegration_Transaction_Find(t *testing.T) {
 	t.Log("Integration test passed: transaction find verified")
 }
 
+// TestIntegration_Transaction_Scheme_RoundTrip verifies the scheme written on create
+// (singular and bulk) reads back on every select path, and that a row written without
+// one reads back empty.
+func TestIntegration_Transaction_Scheme_RoundTrip(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	infra := setupIntegrationInfra(t)
+
+	ctx := context.Background()
+
+	withScheme := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Scheme round trip",
+		Status:         Status{Code: "ACTIVE"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "BRL",
+		Scheme:         "PIX",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+	}
+
+	created, err := infra.repo.Create(ctx, withScheme)
+	require.NoError(t, err)
+	assert.Equal(t, "PIX", created.Scheme)
+
+	withoutScheme := infra.createTestTransaction(t, "Scheme round trip without scheme")
+	assert.Empty(t, withoutScheme.Scheme)
+
+	bulk := &Transaction{
+		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		Description:    "Scheme round trip bulk",
+		Status:         Status{Code: "PENDING"},
+		Amount:         decimalPtr(1000),
+		AssetCode:      "BRL",
+		Scheme:         "CARD",
+		LedgerID:       infra.ledgerID.String(),
+		OrganizationID: infra.orgID.String(),
+	}
+
+	bulkResult, err := infra.repo.CreateBulk(ctx, []*Transaction{bulk})
+	require.NoError(t, err)
+	require.Equal(t, int64(1), bulkResult.Inserted)
+
+	expected := map[string]string{
+		created.ID:       "PIX",
+		withoutScheme.ID: "",
+		bulk.ID:          "CARD",
+	}
+
+	ids := []uuid.UUID{parseID(t, created.ID), parseID(t, withoutScheme.ID), parseID(t, bulk.ID)}
+
+	assertSchemes := func(t *testing.T, transactions []*Transaction) {
+		t.Helper()
+
+		found := make(map[string]string, len(transactions))
+		for _, tx := range transactions {
+			found[tx.ID] = tx.Scheme
+		}
+
+		for id, scheme := range expected {
+			require.Contains(t, found, id)
+			assert.Equal(t, scheme, found[id], "scheme mismatch for %s", id)
+		}
+	}
+
+	t.Run("Find", func(t *testing.T) {
+		for id, scheme := range expected {
+			found, err := infra.repo.Find(ctx, infra.orgID, infra.ledgerID, parseID(t, id))
+			require.NoError(t, err)
+			assert.Equal(t, scheme, found.Scheme, "scheme mismatch for %s", id)
+		}
+	})
+
+	t.Run("FindAll", func(t *testing.T) {
+		transactions, _, err := infra.repo.FindAll(ctx, infra.orgID, infra.ledgerID, http.Pagination{Limit: 100})
+		require.NoError(t, err)
+		assertSchemes(t, transactions)
+	})
+
+	t.Run("ListByIDs", func(t *testing.T) {
+		transactions, err := infra.repo.ListByIDs(ctx, infra.orgID, infra.ledgerID, ids)
+		require.NoError(t, err)
+		assertSchemes(t, transactions)
+	})
+
+	t.Run("FindOrListAllWithOperations", func(t *testing.T) {
+		transactions, _, err := infra.repo.FindOrListAllWithOperations(ctx, infra.orgID, infra.ledgerID, ids, http.Pagination{Limit: 100})
+		require.NoError(t, err)
+		assertSchemes(t, transactions)
+	})
+
+	t.Log("Integration test passed: scheme round trip verified")
+}
+
 // TestIntegration_Transaction_FindAll tests finding all transactions.
 func TestIntegration_Transaction_FindAll(t *testing.T) {
 	if testing.Short() {

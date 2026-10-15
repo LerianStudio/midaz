@@ -6,6 +6,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -19,11 +20,12 @@ import (
 )
 
 // fakeIdempotencyRepo is an in-memory IdempotencyRepo with SetNX semantics.
-// setErr/getErr inject failures for the error-path assertions.
+// setErr/getErr/delErr inject failures for the error-path assertions.
 type fakeIdempotencyRepo struct {
 	store  map[string]string
 	setErr error
 	getErr error
+	delErr error
 }
 
 func newFakeIdempotencyRepo() *fakeIdempotencyRepo {
@@ -63,6 +65,16 @@ func (f *fakeIdempotencyRepo) Set(_ context.Context, key, value string, _ time.D
 	}
 
 	f.store[key] = value
+
+	return nil
+}
+
+func (f *fakeIdempotencyRepo) Del(_ context.Context, key string) error {
+	if f.delErr != nil {
+		return f.delErr
+	}
+
+	delete(f.store, key)
 
 	return nil
 }
@@ -167,7 +179,58 @@ func TestSetCRMIdempotencyValue_DisabledNoOp(t *testing.T) {
 	uc.SetCRMIdempotencyValue(context.Background(), testIdempotencyOrg, testIdempotencyKey, `{"id":"abc"}`, testIdempotencyTTL)
 }
 
+func TestReleaseCRMIdempotency_DisabledNoOp(t *testing.T) {
+	uc := &UseCase{Idempotency: nil}
+
+	// Must not panic.
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+}
+
+func TestReleaseCRMIdempotency_RemovesClaim(t *testing.T) {
+	repo := newFakeIdempotencyRepo()
+	uc := &UseCase{Idempotency: repo}
+
+	first, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	require.NoError(t, err)
+	require.Nil(t, first.Replay)
+	require.Contains(t, repo.store, testIdempotencyKey)
+
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+
+	assert.NotContains(t, repo.store, testIdempotencyKey)
+
+	// The released slot is claimable again instead of answering in-flight.
+	second, err := uc.CreateOrCheckCRMIdempotency(context.Background(), testIdempotencyOrg, testIdempotencyKey, testIdempotencyHash, testIdempotencyTTL)
+	require.NoError(t, err)
+	assert.Nil(t, second.Replay)
+}
+
+func TestReleaseCRMIdempotency_MissingKeyIsNoOp(t *testing.T) {
+	repo := newFakeIdempotencyRepo()
+	uc := &UseCase{Idempotency: repo}
+
+	// A slot that expired by its TTL before the release is absent; deleting it is not an error.
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+
+	assert.Empty(t, repo.store)
+}
+
+func TestReleaseCRMIdempotency_DelFailureSwallowed(t *testing.T) {
+	repo := newFakeIdempotencyRepo()
+	repo.store[testIdempotencyKey] = ""
+	repo.delErr = errors.New("redis unavailable")
+	uc := &UseCase{Idempotency: repo}
+
+	// Returns nothing: the failure must not reach the caller.
+	uc.ReleaseCRMIdempotency(context.Background(), testIdempotencyKey)
+
+	assert.Contains(t, repo.store, testIdempotencyKey, "a failed release leaves the slot to its TTL")
+}
+
 func TestCRMIdempotencyKeyBuilders(t *testing.T) {
 	assert.Equal(t, "idempotency:crm:holder:org-1:key-1", HolderIdempotencyKey("org-1", "key-1"))
 	assert.Equal(t, "idempotency:crm:instrument:org-1:holder-1:key-1", InstrumentIdempotencyKey("org-1", "holder-1", "key-1"))
+	assert.Equal(t, "idempotency:crm:composition:org-1:ledger-1:holder-1:key-1", CompositionIdempotencyKey("org-1", "ledger-1", "holder-1", "key-1"))
+	assert.NotEqual(t, CompositionIdempotencyKey("org-1", "ledger-1", "holder-1", "key-1"), CompositionIdempotencyKey("org-1", "ledger-2", "holder-1", "key-1"), "the same key on another ledger is another slot")
+	assert.NotEqual(t, CompositionIdempotencyKey("org-1", "ledger-1", "holder-1", "key-1"), CompositionIdempotencyKey("org-1", "ledger-1", "holder-2", "key-1"), "the same key on another holder is another slot")
 }

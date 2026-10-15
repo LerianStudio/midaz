@@ -56,7 +56,8 @@ message ReserveRequest {
   string segment_id = 6;
   string portfolio_id = 7;
   string merchant_id = 8;
-  // transaction_type is optional on reserve; the ledger leaves it empty.
+  // transaction_type is optional on reserve; the ledger forwards the scheme
+  // the /v2 body declared, empty otherwise.
   string transaction_type = 9;
   // transaction_timestamp is RFC3339; the tracer rejects a future timestamp
   // against its injected clock.

@@ -125,7 +125,6 @@ func (uc *UseCase) CreateTransactionV2(ctx context.Context, in CreateTransaction
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the post-fee re-validation; only its error gates malformed input before fees run.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)

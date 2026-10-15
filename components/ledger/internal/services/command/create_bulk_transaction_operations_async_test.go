@@ -11,6 +11,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -30,6 +31,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // mockDBTransaction is a test double for repository.DBTransaction.
@@ -657,10 +660,12 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 
 	// Mock DB transaction for atomic inserts - will fail and rollback
 	mockTx := &mockDBTransaction{}
-	mockTransactionRepo.EXPECT().
-		BeginTx(gomock.Any()).
-		Return(mockTx, nil).
-		Times(1)
+	fallbackTx := &mockDBTransaction{}
+
+	gomock.InOrder(
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(mockTx, nil).Times(1),
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(fallbackTx, nil).Times(1),
+	)
 
 	// Bulk insert fails - should trigger rollback and fallback
 	mockTransactionRepo.EXPECT().
@@ -668,17 +673,15 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 		Return(nil, errors.New("bulk insert failed")).
 		Times(1)
 
-	// Fallback processing calls CreateBalanceTransactionOperationsAsync
-	// which creates or updates transaction individually
+	// Fallback processing calls CreateBalanceTransactionOperationsAsync, which
+	// writes the transaction and its operations in a database transaction of its own
 	mockTransactionRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(&transaction.Transaction{ID: transactionID}, nil).
+		CreateBulkTx(gomock.Any(), fallbackTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{transactionID}}, nil).
 		Times(1)
-
-	// Fallback also creates operations
 	mockOperationRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any()).
-		Return(&operation.Operation{ID: operationID}, nil).
+		CreateBulkTx(gomock.Any(), fallbackTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1, InsertedIDs: []string{operationID}}, nil).
 		Times(1)
 
 	// Note: Balance updates are handled by BalanceSyncWorker, not in fallback flow
@@ -694,6 +697,97 @@ func TestCreateBulkTransactionOperationsAsync_BulkInsertFails_UsesFallback(t *te
 	require.NoError(t, err)
 	assert.True(t, result.FallbackUsed)
 	assert.Equal(t, int64(1), result.FallbackCount)
+	require.NotNil(t, result.MetadataFailedTransactionIDs)
+	assert.Empty(t, result.MetadataFailedTransactionIDs)
+	assert.True(t, mockTx.rollbackCalled, "the failed batch rolls back")
+	assert.True(t, fallbackTx.commitCalled, "the fallback commits its own write")
+}
+
+// TestCreateBulkTransactionOperationsAsync_FallbackIsolatesEachPayload pins the
+// per-payload database transaction of the fallback: a payload whose write fails
+// rolls back alone, and the other payload still commits.
+func TestCreateBulkTransactionOperationsAsync_FallbackIsolatesEachPayload(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	uc := &UseCase{
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		RabbitMQRepo:            rabbitmq.NewMockProducerRepository(ctrl),
+		TransactionRedisRepo:    mockRedisRepo,
+	}
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+
+	newPayload := func() transaction.TransactionProcessingPayload {
+		transactionID := uuid.New().String()
+
+		return transaction.TransactionProcessingPayload{
+			Transaction: &transaction.Transaction{
+				ID:             transactionID,
+				OrganizationID: orgID.String(),
+				LedgerID:       ledgerID.String(),
+				Status:         transaction.Status{Code: constant.NOTED},
+				Operations:     []*operation.Operation{{ID: uuid.New().String(), TransactionID: transactionID}},
+			},
+			Validate: &mtransaction.Responses{},
+			Input:    &mtransaction.Transaction{},
+			Version:  "v2",
+		}
+	}
+
+	bulkTx := &mockDBTransaction{}
+	firstTx := &mockDBTransaction{}
+	secondTx := &mockDBTransaction{}
+
+	gomock.InOrder(
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(bulkTx, nil).Times(1),
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(firstTx, nil).Times(1),
+		mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(secondTx, nil).Times(1),
+	)
+
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), bulkTx, gomock.Any()).
+		Return(nil, errors.New("bulk insert failed")).
+		Times(1)
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), gomock.Not(bulkTx), gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1}, nil).
+		Times(2)
+
+	operationFailure := errors.New("operation insert failed")
+	mockOperationRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), firstTx, gomock.Any()).
+		Return(nil, operationFailure).
+		Times(1)
+	mockOperationRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), secondTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: 1, Inserted: 1}, nil).
+		Times(1)
+
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().RemoveMessageFromQueue(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(),
+		[]transaction.TransactionProcessingPayload{newPayload(), newPayload()})
+
+	require.ErrorIs(t, err, operationFailure)
+	assert.True(t, result.FallbackUsed)
+	assert.Equal(t, int64(1), result.FallbackCount)
+	assert.True(t, firstTx.rollbackCalled, "the failing payload rolls back its own write")
+	assert.False(t, firstTx.commitCalled)
+	assert.True(t, secondTx.commitCalled, "the other payload still commits")
+	assert.False(t, secondTx.rollbackCalled)
 }
 
 func TestClassifyAndExtractEntities_SortsTransactions(t *testing.T) {
@@ -1352,4 +1446,290 @@ func TestClassifyAndExtractEntities_MixedBatch_CollectsAllOperations(t *testing.
 	assert.True(t, operationIDs[op1ID], "Operation from insert should be collected")
 	assert.True(t, operationIDs[op2ID], "Operation 1 from status transition should be collected")
 	assert.True(t, operationIDs[op3ID], "Operation 2 from status transition should be collected")
+}
+
+// bulkMetadataFixture wires CreateBulkTransactionOperationsAsync with gomock repositories
+// and records the backup and write-behind keys the cleanup goroutines remove, plus the
+// streaming events they emit. It must be built inside a synctest bubble so the test can
+// wait deterministically for every goroutine the use case starts.
+// Proving that a goroutine-triggered cleanup did NOT happen needs that wait for every
+// goroutine, which a wait on expected calls (as in requireFanOutDrains) cannot provide.
+type bulkMetadataFixture struct {
+	uc      *UseCase
+	emitter *pkgStreaming.MockEmitter
+	orgID   uuid.UUID
+	ledger  uuid.UUID
+
+	mu          sync.Mutex
+	removedKeys []string
+	deletedKeys []string
+}
+
+// newBulkMetadataFixture inserts every transaction in insertedTxIDs, treats the others as
+// duplicates, and fails the transaction metadata write of every ID in metadataFailedTxIDs.
+func newBulkMetadataFixture(
+	t *testing.T,
+	allTxIDs []string,
+	insertedTxIDs []string,
+	metadataFailedTxIDs map[string]struct{},
+) *bulkMetadataFixture {
+	t.Helper()
+
+	ctrl := gomock.NewController(t)
+
+	mockTransactionRepo := transaction.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+	f := &bulkMetadataFixture{
+		emitter: pkgStreaming.NewMockEmitter(),
+		orgID:   uuid.New(),
+		ledger:  uuid.New(),
+	}
+
+	f.uc = &UseCase{
+		TransactionRepo:         mockTransactionRepo,
+		OperationRepo:           mockOperationRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		TransactionRedisRepo:    mockRedisRepo,
+		Streaming:               f.emitter,
+	}
+
+	mockTx := &mockDBTransaction{}
+	mockTransactionRepo.EXPECT().BeginTx(gomock.Any()).Return(mockTx, nil).Times(1)
+
+	mockTransactionRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{
+			Attempted:   int64(len(allTxIDs)),
+			Inserted:    int64(len(insertedTxIDs)),
+			Ignored:     int64(len(allTxIDs) - len(insertedTxIDs)),
+			InsertedIDs: insertedTxIDs,
+		}, nil).
+		Times(1)
+
+	mockOperationRepo.EXPECT().
+		CreateBulkTx(gomock.Any(), mockTx, gomock.Any()).
+		Return(&repository.BulkInsertResult{Attempted: int64(len(allTxIDs)), Inserted: int64(len(insertedTxIDs))}, nil).
+		Times(1)
+
+	// A document-level bulk error routes every entry through the individual fallback,
+	// which fails exactly the transactions listed in metadataFailedTxIDs.
+	mockMetadataRepo.EXPECT().
+		CreateBulk(gomock.Any(), constant.EntityTransaction, gomock.Any()).
+		Return(nil, errors.New("bulk insert failed")).
+		AnyTimes()
+
+	mockMetadataRepo.EXPECT().
+		Create(gomock.Any(), constant.EntityTransaction, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _ string, meta *mongodb.Metadata) error {
+			if _, fail := metadataFailedTxIDs[meta.EntityID]; fail {
+				return errors.New("metadata create failed")
+			}
+
+			return nil
+		}).
+		AnyTimes()
+
+	rawQueue, err := json.Marshal(mmodel.TransactionRedisQueue{TransactionStatus: constant.CREATED})
+	require.NoError(t, err)
+
+	mockRedisRepo.EXPECT().ReadMessageFromQueue(gomock.Any(), gomock.Any()).Return(rawQueue, nil).AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		RemoveMessageFromQueue(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, key string) error {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+
+			f.removedKeys = append(f.removedKeys, key)
+
+			return nil
+		}).
+		AnyTimes()
+
+	mockRedisRepo.EXPECT().
+		Del(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, key string) error {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+
+			f.deletedKeys = append(f.deletedKeys, key)
+
+			return nil
+		}).
+		AnyTimes()
+
+	return f
+}
+
+// payload builds an APPROVED transaction payload with transaction metadata.
+func (f *bulkMetadataFixture) payload(txID string) transaction.TransactionProcessingPayload {
+	return transaction.TransactionProcessingPayload{
+		Transaction: &transaction.Transaction{
+			ID:             txID,
+			OrganizationID: f.orgID.String(),
+			LedgerID:       f.ledger.String(),
+			Status:         transaction.Status{Code: constant.APPROVED},
+			Metadata:       map[string]any{"reference": "bulk"},
+			Operations: []*operation.Operation{
+				{ID: uuid.New().String(), TransactionID: txID},
+			},
+		},
+		Validate: &mtransaction.Responses{Aliases: []string{"alias"}},
+		Version:  "v2",
+	}
+}
+
+// cleanedTxIDs returns the transactions whose backup and write-behind entries were removed.
+func (f *bulkMetadataFixture) cleanedTxIDs(t *testing.T, txIDs []string) (backup, writeBehind []string) {
+	t.Helper()
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	removed := make(map[string]struct{}, len(f.removedKeys))
+	for _, k := range f.removedKeys {
+		removed[k] = struct{}{}
+	}
+
+	deleted := make(map[string]struct{}, len(f.deletedKeys))
+	for _, k := range f.deletedKeys {
+		deleted[k] = struct{}{}
+	}
+
+	for _, id := range txIDs {
+		if _, ok := removed[utils.TransactionInternalKey(f.orgID, f.ledger, id)]; ok {
+			backup = append(backup, id)
+		}
+
+		if _, ok := deleted[utils.WriteBehindTransactionKey(f.orgID, f.ledger, id)]; ok {
+			writeBehind = append(writeBehind, id)
+		}
+	}
+
+	require.Len(t, f.removedKeys, len(backup), "no backup key outside the batch may be removed")
+	require.Len(t, f.deletedKeys, len(writeBehind), "no write-behind key outside the batch may be removed")
+
+	return backup, writeBehind
+}
+
+// postedSubjects returns the transaction IDs that received a transaction.posted event.
+func (f *bulkMetadataFixture) postedSubjects() []string {
+	var subjects []string
+
+	for _, evt := range f.emitter.Events() {
+		if evt.DefinitionKey == "transaction.posted" {
+			subjects = append(subjects, evt.Subject)
+		}
+	}
+
+	return subjects
+}
+
+func TestCreateBulkTransactionOperationsAsync_MetadataFailure_ReportedWithoutChangingError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		okTxID := uuid.New().String()
+		failedTxID := uuid.New().String()
+		all := []string{okTxID, failedTxID}
+
+		f := newBulkMetadataFixture(t, all, all, map[string]struct{}{failedTxID: {}})
+
+		result, err := f.uc.CreateBulkTransactionOperationsAsync(context.Background(),
+			[]transaction.TransactionProcessingPayload{f.payload(okTxID), f.payload(failedTxID)})
+
+		synctest.Wait()
+
+		require.NoError(t, err)
+		assert.False(t, result.FallbackUsed)
+		assert.Equal(t, int64(0), result.FallbackCount)
+		assert.Equal(t, map[string]struct{}{failedTxID: {}}, result.MetadataFailedTransactionIDs)
+	})
+}
+
+func TestCreateBulkTransactionOperationsAsync_MetadataConfirmed_EmptyFailedSet(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		txID := uuid.New().String()
+
+		f := newBulkMetadataFixture(t, []string{txID}, []string{txID}, nil)
+
+		result, err := f.uc.CreateBulkTransactionOperationsAsync(context.Background(),
+			[]transaction.TransactionProcessingPayload{f.payload(txID)})
+
+		synctest.Wait()
+
+		require.NoError(t, err)
+		require.NotNil(t, result.MetadataFailedTransactionIDs)
+		assert.Empty(t, result.MetadataFailedTransactionIDs)
+	})
+}
+
+func TestCreateBulkTransactionOperationsAsync_EmptyPayloads_FailedSetInitialised(t *testing.T) {
+	t.Parallel()
+
+	uc := &UseCase{}
+
+	result, err := uc.CreateBulkTransactionOperationsAsync(context.Background(), nil)
+
+	require.NoError(t, err)
+	require.NotNil(t, result.MetadataFailedTransactionIDs)
+	assert.Empty(t, result.MetadataFailedTransactionIDs)
+}
+
+func TestCreateBulkTransactionOperationsAsync_MetadataFailure_SkipsCleanupOnlyForFailed(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		insertedOK := uuid.New().String()
+		insertedFailed := uuid.New().String()
+		duplicateOK := uuid.New().String()
+		duplicateFailed := uuid.New().String()
+		all := []string{insertedOK, insertedFailed, duplicateOK, duplicateFailed}
+
+		f := newBulkMetadataFixture(t, all, []string{insertedOK, insertedFailed},
+			map[string]struct{}{insertedFailed: {}, duplicateFailed: {}})
+
+		payloads := make([]transaction.TransactionProcessingPayload, 0, len(all))
+		for _, id := range all {
+			payloads = append(payloads, f.payload(id))
+		}
+
+		result, err := f.uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
+
+		// Every cleanup and event goroutine the call started has finished.
+		synctest.Wait()
+
+		require.NoError(t, err)
+		assert.Equal(t, map[string]struct{}{insertedFailed: {}, duplicateFailed: {}}, result.MetadataFailedTransactionIDs)
+
+		backup, writeBehind := f.cleanedTxIDs(t, all)
+		assert.ElementsMatch(t, []string{insertedOK, duplicateOK}, backup,
+			"backup is removed for confirmed payloads, duplicates included, and retained for failed ones")
+		assert.ElementsMatch(t, []string{insertedOK, duplicateOK}, writeBehind,
+			"write-behind is removed for confirmed payloads, duplicates included, and retained for failed ones")
+	})
+}
+
+func TestCreateBulkTransactionOperationsAsync_MetadataFailure_StillEmitsEventsForInserted(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		insertedFailed := uuid.New().String()
+		insertedOK := uuid.New().String()
+		duplicateFailed := uuid.New().String()
+		all := []string{insertedFailed, insertedOK, duplicateFailed}
+
+		f := newBulkMetadataFixture(t, all, []string{insertedFailed, insertedOK},
+			map[string]struct{}{insertedFailed: {}, duplicateFailed: {}})
+
+		payloads := make([]transaction.TransactionProcessingPayload, 0, len(all))
+		for _, id := range all {
+			payloads = append(payloads, f.payload(id))
+		}
+
+		_, err := f.uc.CreateBulkTransactionOperationsAsync(context.Background(), payloads)
+
+		synctest.Wait()
+
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{insertedFailed, insertedOK}, f.postedSubjects(),
+			"inserted transactions emit regardless of metadata; duplicates do not emit")
+	})
 }

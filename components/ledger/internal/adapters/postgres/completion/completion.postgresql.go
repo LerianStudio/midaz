@@ -12,11 +12,15 @@ import (
 	"sort"
 	"strings"
 
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
@@ -67,6 +71,21 @@ func (store *Store) Persist(ctx context.Context, record command.TransactionWrite
 // PersistWithOutcome inserts or verifies all expected rows in a single SQL
 // transaction and reports the durable transaction status after commit.
 func (store *Store) PersistWithOutcome(ctx context.Context, record command.TransactionWriteSet) (outcome command.TransactionPersistenceOutcome, err error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	// Sequential nesting (T3): the repository bulk inserts and the verification
+	// queries run under this domain span.
+	ctx, span := tracer.Start(ctx, "postgres.persist_transaction")
+	defer span.End()
+
+	// recordedBelow marks a failure the operation repository already recorded on its own
+	// span; rollbackFailed marks a failure of this level joined onto it.
+	var recordedBelow, rollbackFailed bool
+
+	defer func() {
+		recordPersistenceError(span, "Failed to persist transaction", err, recordedBelow, rollbackFailed)
+	}()
+
 	if err := ctx.Err(); err != nil {
 		return command.TransactionPersistenceOutcome{}, err
 	}
@@ -94,6 +113,7 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				err = errors.Join(err, fmt.Errorf("rollback recovery persistence: %w", rollbackErr))
 				outcome = command.TransactionPersistenceOutcome{}
+				rollbackFailed = true
 			}
 		}
 	}()
@@ -103,7 +123,7 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 		return command.TransactionPersistenceOutcome{}, repository.ErrQueryContextNotSupported
 	}
 
-	allowInsert, transactionStatus, err := store.persistTransaction(ctx, tx, querier, record)
+	allowInsert, transactionStatus, err := store.persistTransaction(ctx, tx, querier, record, &recordedBelow)
 	if err != nil {
 		return command.TransactionPersistenceOutcome{}, err
 	}
@@ -112,6 +132,8 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 		// Bulk repositories sort their input slices. Preserve frozen row ordering.
 		operations := append([]*operation.Operation(nil), record.Transaction.Operations...)
 		if _, err := store.operations.CreateBulkTx(ctx, tx, operations); err != nil {
+			recordedBelow = true
+
 			return command.TransactionPersistenceOutcome{}, fmt.Errorf("persist recovery operations: %w", err)
 		}
 	}
@@ -138,6 +160,26 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 	}, nil
 }
 
+// recordPersistenceError records a persistence failure on the completion span, classified
+// by T5. A failure the operation repository already recorded on its own create_bulk span
+// is not recorded twice, unless the rollback that followed failed at this level too.
+func recordPersistenceError(span trace.Span, message string, err error, recordedBelow, rollbackFailed bool) {
+	if err == nil || (recordedBelow && !rollbackFailed) {
+		return
+	}
+
+	// A caller that cancels or times out is not a persistence failure: it must not inflate
+	// the error-rate SLO, so it is an event with the status unset. The error returned to
+	// the caller is unchanged and recovery still owns the record.
+	if !rollbackFailed && (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Persistence abandoned by caller", err)
+
+		return
+	}
+
+	spanattr.HandleSpanByErrorClass(span, message, err)
+}
+
 // PersistBulkWithOutcome persists a same-scope group atomically. It locks known
 // transaction rows by canonical ID, orders in-group hold/origin dependencies
 // before their consumers, batches operation inserts, and verifies every row
@@ -145,6 +187,21 @@ func (store *Store) PersistWithOutcome(ctx context.Context, record command.Trans
 //
 //nolint:gocognit,gocyclo // one SQL transaction must keep validation, ordering, locking, persistence, and outcome correlation together
 func (store *Store) PersistBulkWithOutcome(ctx context.Context, records []command.TransactionWriteSet) (outcomes []command.TransactionPersistenceOutcome, err error) {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	// Sequential nesting (T3): the repository bulk inserts and the verification
+	// queries run under this domain span.
+	ctx, span := tracer.Start(ctx, "postgres.persist_transactions_bulk")
+	defer span.End()
+
+	// recordedBelow marks a failure the operation repository already recorded on its own
+	// span; rollbackFailed marks a failure of this level joined onto it.
+	var recordedBelow, rollbackFailed bool
+
+	defer func() {
+		recordPersistenceError(span, "Failed to persist transactions in bulk", err, recordedBelow, rollbackFailed)
+	}()
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -187,6 +244,7 @@ func (store *Store) PersistBulkWithOutcome(ctx context.Context, records []comman
 			if rollbackErr := tx.Rollback(); rollbackErr != nil {
 				err = errors.Join(err, fmt.Errorf("rollback bulk recovery persistence: %w", rollbackErr))
 				outcomes = nil
+				rollbackFailed = true
 			}
 		}
 	}()
@@ -212,7 +270,7 @@ func (store *Store) PersistBulkWithOutcome(ctx context.Context, records []comman
 
 		record := records[index]
 
-		allowInsert, status, err := store.persistTransaction(ctx, tx, querier, record)
+		allowInsert, status, err := store.persistTransaction(ctx, tx, querier, record, &recordedBelow)
 		if err != nil {
 			return nil, fmt.Errorf("persist bulk transaction %s: %w", record.Transaction.ID, err)
 		}
@@ -235,6 +293,8 @@ func (store *Store) PersistBulkWithOutcome(ctx context.Context, records []comman
 
 		chunk := append([]*operation.Operation(nil), operations[start:end]...)
 		if _, err := store.operations.CreateBulkTx(ctx, tx, chunk); err != nil {
+			recordedBelow = true
+
 			return nil, fmt.Errorf("persist bulk recovery operations: %w", err)
 		}
 	}
@@ -498,7 +558,12 @@ func validateIDs(values ...string) error {
 	return nil
 }
 
-func (store *Store) persistTransaction(ctx context.Context, tx repository.DBTransaction, querier repository.DBQuerier, record command.TransactionWriteSet) (bool, string, error) {
+// persistTransaction inserts the transaction row when it is missing, or verifies and
+// advances the persisted one, inside the caller's SQL transaction.
+//
+// recordedBelow is set when the transaction repository's bulk insert fails: that
+// repository records the failure on its own span, so the caller must not record it again.
+func (store *Store) persistTransaction(ctx context.Context, tx repository.DBTransaction, querier repository.DBQuerier, record command.TransactionWriteSet, recordedBelow *bool) (bool, string, error) {
 	status, exists, err := verifyTransaction(ctx, querier, record)
 	if err != nil {
 		return false, "", err
@@ -513,6 +578,8 @@ func (store *Store) persistTransaction(ctx context.Context, tx repository.DBTran
 
 		inserted, err := store.transactions.CreateBulkTx(ctx, tx, []*transaction.Transaction{record.Transaction})
 		if err != nil {
+			*recordedBelow = true
+
 			return false, "", fmt.Errorf("persist recovery transaction: %w", err)
 		}
 
@@ -585,9 +652,9 @@ func confirmedTransactionInsert(inserted *repository.BulkInsertResult, transacti
 
 func verifyTransaction(ctx context.Context, querier repository.DBQuerier, record command.TransactionWriteSet) (string, bool, error) {
 	tran := record.Transaction
-	columns := []string{"organization_id", "ledger_id", "parent_transaction_id", "amount", "asset_code", "chart_of_accounts_group_name", "created_at", "route", "route_id", "fees_skipped", "tracer_skipped"}
+	columns := []string{"organization_id", "ledger_id", "parent_transaction_id", "amount", "asset_code", "chart_of_accounts_group_name", "created_at", "route", "route_id", "fees_skipped", "tracer_skipped", "scheme"}
 	legacyRoute := nullableText(tran.Route) //nolint:staticcheck // Recovery verifies the persisted legacy column without changing it.
-	args := []any{tran.ID, tran.OrganizationID, tran.LedgerID, tran.ParentTransactionID, tran.Amount, tran.AssetCode, tran.ChartOfAccountsGroupName, tran.CreatedAt, legacyRoute, tran.RouteID, tran.FeesSkipped, tran.TracerSkipped}
+	args := []any{tran.ID, tran.OrganizationID, tran.LedgerID, tran.ParentTransactionID, tran.Amount, tran.AssetCode, tran.ChartOfAccountsGroupName, tran.CreatedAt, legacyRoute, tran.RouteID, tran.FeesSkipped, tran.TracerSkipped, nullableText(tran.Scheme)}
 	predicate := equalityPredicate(columns, 2)
 
 	if record.Action == "hold" {

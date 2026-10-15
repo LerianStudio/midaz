@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
+	"github.com/LerianStudio/midaz/v4/pkg/scheme"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -757,7 +758,7 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 			expectedCode:    "0414",
 			expectedTitle:   "Validation Invalid Transaction Type",
 			expectedMessage: "",
-			expectedDetail:  "Invalid transactionType.",
+			expectedDetail:  "scheme (or transactionType) is required and " + scheme.FormatHint,
 		},
 		{
 			name: "missing amount (zero value)",
@@ -844,14 +845,14 @@ func TestValidation_RequiredFieldsValidation(t *testing.T) {
 	}
 }
 
-// Test 1.1.11: Validation rejects invalid transactionType
+// Test 1.1.11: Validation rejects a transactionType that is not a valid scheme
 func TestValidation_InvalidTransactionType(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(150).String()
 	requestID := testutil.MustDeterministicUUID(151).String()
 
 	req := &testutil.ValidationRequest{
 		RequestID:            requestID,
-		TransactionType:      "INVALID_TYPE",
+		TransactionType:      "INVALID TYPE",
 		Amount:               decimal.RequireFromString("100"),
 		Asset:                "BRL",
 		TransactionTimestamp: testutil.FixedTime().Format(time.RFC3339),
@@ -2209,7 +2210,7 @@ func TestValidation_1_1_36_TimestampClockSkewBoundary(t *testing.T) {
 	}
 }
 
-// Test 1.1.37: Validation accepts all valid transactionType values
+// Test 1.1.37: Validation accepts any valid scheme as transactionType, in any case, and rejects a malformed one
 func TestValidation_1_1_37_ValidTransactionTypes(t *testing.T) {
 	accountID := testutil.MustDeterministicUUID(1137).String()
 	timestamp := testutil.FixedTime().Format(time.RFC3339)
@@ -2240,13 +2241,23 @@ func TestValidation_1_1_37_ValidTransactionTypes(t *testing.T) {
 			expected:        http.StatusCreated,
 		},
 		{
-			name:            "invalid lowercase card",
+			name:            "lowercase card normalized",
 			transactionType: "card",
-			expected:        http.StatusBadRequest,
+			expected:        http.StatusCreated,
 		},
 		{
-			name:            "invalid mixed case Card",
+			name:            "mixed case Card normalized",
 			transactionType: "Card",
+			expected:        http.StatusCreated,
+		},
+		{
+			name:            "valid free-form BOLETO",
+			transactionType: "BOLETO",
+			expected:        http.StatusCreated,
+		},
+		{
+			name:            "invalid inner space",
+			transactionType: "PIX TRANSFER",
 			expected:        http.StatusBadRequest,
 		},
 	}
@@ -3718,10 +3729,9 @@ func TestValidation_1_3_19_RejectsInvalidRuleIdFilter(t *testing.T) {
 	}
 }
 
-// Test 1.3.20: Rejects invalid transactionType filter
+// Test 1.3.20: Rejects a transaction_type filter that is not a valid scheme
 func TestValidation_1_3_20_RejectsInvalidTransactionTypeFilter(t *testing.T) {
-	// Query with invalid transactionType
-	listResp, _ := testutil.ListValidations(t, "transaction_type=INVALID_TYPE")
+	listResp, _ := testutil.ListValidations(t, "transaction_type=INVALID%20TYPE")
 	defer listResp.Body.Close()
 
 	assert.Equal(t, http.StatusBadRequest, listResp.StatusCode,

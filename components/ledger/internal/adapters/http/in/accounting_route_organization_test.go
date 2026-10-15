@@ -160,7 +160,7 @@ func accountingRouteTestHandlers(t *testing.T) (*TransactionRouteHandler, *Opera
 
 	trRepo.EXPECT().FindByID(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 	trRepo.EXPECT().FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, libHTTP.CursorPagination{}, nil).AnyTimes()
-	trRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
+	trRepo.EXPECT().Update(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 	orRepo.EXPECT().FindByID(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 	orRepo.EXPECT().FindByIDs(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, services.ErrDatabaseItemNotFound).AnyTimes()
 	orRepo.EXPECT().FindAll(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, libHTTP.CursorPagination{}, nil).AnyTimes()

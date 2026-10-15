@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strings"
 
-	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -148,12 +147,10 @@ func NewInMemorySyncAggregator() *InMemorySyncAggregator {
 //
 // Time complexity: O(n + m log m) where n is input size and m is unique keys
 // Space complexity: O(m) where m is number of unique composite keys
-func (a *InMemorySyncAggregator) Aggregate(ctx context.Context, balances []*AggregatedBalance) []*AggregatedBalance {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "balance_sync.aggregate")
-	defer span.End()
-
+//
+// Aggregation is a step without I/O, so it opens no span: the caller records the
+// aggregated counts on its own span (command.sync_balances_batch).
+func (a *InMemorySyncAggregator) Aggregate(_ context.Context, balances []*AggregatedBalance) []*AggregatedBalance {
 	if len(balances) == 0 {
 		return []*AggregatedBalance{}
 	}

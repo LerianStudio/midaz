@@ -115,7 +115,7 @@ type ListTransactionValidationsResult struct {
 	HasMore bool `json:"hasMore"`
 }
 
-// Validate checks if the filters are valid.
+// Validate checks if the filters are valid and canonicalizes TransactionType.
 // Returns an error wrapping constant.ErrInvalidTransactionValidationFilters if any constraint is violated.
 func (f *TransactionValidationFilters) Validate() error {
 	// Validate date range: endDate must be after startDate if both are set
@@ -147,9 +147,14 @@ func (f *TransactionValidationFilters) Validate() error {
 		}
 	}
 
-	// Validate TransactionType if provided
-	if f.TransactionType != nil && !f.TransactionType.IsValid() {
-		return fmt.Errorf("%w: invalid transaction_type", constant.ErrInvalidTransactionValidationFilters)
+	// TransactionType is canonicalized in place (trim + upper-case) once valid.
+	if f.TransactionType != nil {
+		canonical, ok := NewTransactionType(string(*f.TransactionType))
+		if !ok {
+			return fmt.Errorf("%w: invalid transaction_type", constant.ErrInvalidTransactionValidationFilters)
+		}
+
+		f.TransactionType = &canonical
 	}
 
 	return nil

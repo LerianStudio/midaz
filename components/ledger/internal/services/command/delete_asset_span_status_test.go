@@ -14,9 +14,11 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
@@ -164,13 +166,19 @@ func TestDeleteAsset_SpanClassContract(t *testing.T) {
 			mockAssetRepo := asset.NewMockRepository(ctrl)
 			mockAccountRepo := account.NewMockRepository(ctrl)
 
+			// Every case fails before or at the asset row, so no metadata is touched.
+			mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+			mockMetadataRepo.EXPECT().Delete(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+
 			uc := &UseCase{
-				AssetRepo:      mockAssetRepo,
-				AccountRepo:    mockAccountRepo,
-				MetricsFactory: factory,
+				AssetRepo:              mockAssetRepo,
+				AccountRepo:            mockAccountRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
+				metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+				MetricsFactory:         factory,
 			}
 
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			tt.mockSetup(mockAssetRepo, mockAccountRepo)
 
@@ -180,16 +188,16 @@ func TestDeleteAsset_SpanClassContract(t *testing.T) {
 			require.Equal(t, tt.wantMetricResult == "business_error", pkg.IsBusinessError(err),
 				"case must exercise the error class it claims")
 
-			span := findSpan(t, recorder, "command.delete_asset_by_id")
+			span := spantest.FindSpan(t, recorder, "command.delete_asset_by_id")
 
 			assert.Equal(t, tt.wantSpanStatus, span.Status().Code,
 				"span status must follow the error class (T5)")
 
-			event, ok := findEvent(span, tt.wantSpanEvent)
+			event, ok := spantest.FindEvent(span, tt.wantSpanEvent)
 			require.True(t, ok, "the failure must be recorded as span event %q; got %v", tt.wantSpanEvent, span.Events())
 
 			if tt.wantEventDetail != "" {
-				assert.Contains(t, eventText(event), tt.wantEventDetail,
+				assert.Contains(t, spantest.EventText(event), tt.wantEventDetail,
 					"the recorded event must name the failing operation")
 			}
 

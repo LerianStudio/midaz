@@ -901,6 +901,70 @@ func TestIntegration_OperationRepository_ListByIDs_IgnoresDeletedOperations(t *t
 	assert.Len(t, operations, 2, "should return only active operations")
 }
 
+// TestIntegration_OperationRepository_ListByTransactionPrimary_ReturnsOnlyActiveLegsOfTheTransaction
+// seeds the transaction's legs next to a soft-deleted leg, a leg of another
+// transaction and a leg of another ledger: only the transaction's active legs
+// come back, with the fields the replay compares.
+func TestIntegration_OperationRepository_ListByTransactionPrimary_ReturnsOnlyActiveLegsOfTheTransaction(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	leg := func(transactionID uuid.UUID, opType string, amount int64, versionBefore int64) pgtestutil.OperationParams {
+		return pgtestutil.OperationParams{
+			TransactionID: transactionID, Type: opType, AccountID: ids.AccountID, AccountAlias: "@test-account",
+			BalanceID: ids.BalanceID, BalanceKey: "default", AssetCode: "USD", Amount: decimal.NewFromInt(amount),
+			BalanceVersionBefore: versionBefore, BalanceVersionAfter: versionBefore + 1, Status: "APPROVED", BalanceAffected: true,
+		}
+	}
+
+	debit := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, leg(ids.TransactionID, "DEBIT", 100, 3))
+	credit := pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, leg(ids.TransactionID, "CREDIT", 40, 4))
+
+	deletedAt := time.Now().Add(-time.Hour)
+	deleted := leg(ids.TransactionID, "DEBIT", 100, 3)
+	deleted.DeletedAt = &deletedAt
+	pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, deleted)
+
+	otherTransaction := pgtestutil.CreateTestTransactionWithStatus(t, container.DB, ids.OrgID, ids.LedgerID, "APPROVED", decimal.NewFromInt(100), "USD")
+	pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, ids.LedgerID, leg(otherTransaction, "DEBIT", 100, 3))
+	pgtestutil.CreateTestOperation(t, container.DB, ids.OrgID, uuid.Must(libCommons.GenerateUUIDv7()), leg(ids.TransactionID, "DEBIT", 100, 3))
+
+	operations, err := repo.ListByTransactionPrimary(context.Background(), ids.OrgID, ids.LedgerID, ids.TransactionID)
+
+	require.NoError(t, err)
+	require.Len(t, operations, 2, "only the transaction's active legs in this ledger")
+
+	byID := map[string]*Operation{}
+	for _, op := range operations {
+		byID[op.ID] = op
+	}
+
+	require.Contains(t, byID, debit.String())
+	require.Contains(t, byID, credit.String())
+
+	got := byID[credit.String()]
+	assert.Equal(t, ids.TransactionID.String(), got.TransactionID)
+	assert.Equal(t, ids.BalanceID.String(), got.BalanceID)
+	assert.Equal(t, "default", got.BalanceKey)
+	assert.Equal(t, "CREDIT", got.Type)
+	require.NotNil(t, got.Balance.Version)
+	assert.EqualValues(t, 4, *got.Balance.Version)
+	require.NotNil(t, got.Amount.Value)
+	assert.True(t, decimal.NewFromInt(40).Equal(*got.Amount.Value))
+}
+
+func TestIntegration_OperationRepository_ListByTransactionPrimary_EmptyForUnwrittenTransaction(t *testing.T) {
+	container := pgtestutil.SetupContainer(t)
+	repo := createRepository(t, container)
+	ids := createTestDependencies(t, container)
+
+	operations, err := repo.ListByTransactionPrimary(context.Background(), ids.OrgID, ids.LedgerID, uuid.Must(libCommons.GenerateUUIDv7()))
+
+	require.NoError(t, err)
+	assert.Empty(t, operations)
+}
+
 // ============================================================================
 // Update Tests
 // ============================================================================

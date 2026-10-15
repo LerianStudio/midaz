@@ -15,8 +15,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
+	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
 
@@ -70,35 +73,57 @@ func TestCreateTransactionRouteSuccess(t *testing.T) {
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
 
+	emitter := pkgStreaming.NewMockEmitter()
+
 	uc := &UseCase{
 		OperationRouteRepo:      mockOperationRouteRepo,
 		TransactionRouteRepo:    mockTransactionRouteRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
+		Streaming:               emitter,
 	}
 
-	mockOperationRouteRepo.EXPECT().
-		FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
-		Return(expectedOperationRoutes, nil).
-		Times(1)
+	var stagedEntityID string
 
-	mockTransactionRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
-		Return(expectedTransactionRoute, nil).
-		Times(1)
+	// The operation routes are resolved first, the metadata document is staged with
+	// the use case's ID, and only then is the row inserted under that same ID.
+	gomock.InOrder(
+		mockOperationRouteRepo.EXPECT().
+			FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
+			Return(expectedOperationRoutes, nil).
+			Times(1),
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, meta *mongodb.Metadata) error {
+				stagedEntityID = meta.EntityID
+				assert.Empty(t, emitter.Events(), "no event may be published before the insert")
+				assert.Equal(t, "value", meta.Data["key"])
 
-	mockMetadataRepo.EXPECT().
-		Create(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
-		Return(nil).
-		Times(1)
+				return nil
+			}).
+			Times(1),
+		mockTransactionRouteRepo.EXPECT().
+			Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, tr *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
+				assert.Equal(t, stagedEntityID, tr.ID.String())
+
+				return expectedTransactionRoute, nil
+			}).
+			Times(1),
+	)
 
 	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
 
 	assert.NoError(t, err)
+	assert.NotEmpty(t, stagedEntityID)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedTransactionRoute.Title, result.Title)
 	assert.Equal(t, expectedTransactionRoute.Description, result.Description)
 	assert.Equal(t, len(expectedOperationRoutes), len(result.OperationRoutes))
 	assert.Equal(t, payload.Metadata, result.Metadata)
+
+	emitted := emitter.Events()
+	require.Len(t, emitted, 1, "the created event is published once after the insert")
+	assert.Equal(t, events.TransactionRouteCreatedDefinition.Key(), emitted[0].DefinitionKey)
 }
 
 // TestCreateTransactionRouteSuccessWithoutMetadata tests successful creation without metadata
@@ -418,20 +443,17 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 		},
 	}
 
-	expectedTransactionRoute := &mmodel.TransactionRoute{
-		ID:          uuid.New(),
-		Title:       payload.Title,
-		Description: payload.Description,
-	}
-
 	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
 	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
 	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	emitter := pkgStreaming.NewMockEmitter()
 
 	uc := &UseCase{
 		OperationRouteRepo:      mockOperationRouteRepo,
 		TransactionRouteRepo:    mockTransactionRouteRepo,
 		TransactionMetadataRepo: mockMetadataRepo,
+		Streaming:               emitter,
 	}
 
 	mockOperationRouteRepo.EXPECT().
@@ -439,10 +461,10 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 		Return(expectedOperationRoutes, nil).
 		Times(1)
 
+	// A metadata failure aborts the create before the row is inserted.
 	mockTransactionRouteRepo.EXPECT().
-		Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
-		Return(expectedTransactionRoute, nil).
-		Times(1)
+		Create(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Times(0)
 
 	expectedError := errors.New("failed to create metadata")
 	mockMetadataRepo.EXPECT().
@@ -455,6 +477,87 @@ func TestCreateTransactionRouteErrorMetadataCreationFails(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, result)
 	assert.Equal(t, expectedError, err)
+	assert.Empty(t, emitter.Events(), "no event may be published when the create fails")
+}
+
+// TestCreateTransactionRouteErrorCreationFailsDiscardsStagedMetadata asserts that a failed
+// insert purges the metadata document staged under the same ID and returns the insert error.
+func TestCreateTransactionRouteErrorCreationFailsDiscardsStagedMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+	operationRouteID1 := uuid.New()
+	operationRouteID2 := uuid.New()
+
+	payload := &mmodel.CreateTransactionRouteInput{
+		Title:           "Test Transaction Route",
+		OperationRoutes: []uuid.UUID{operationRouteID1, operationRouteID2},
+		Metadata:        map[string]any{"key": "value"},
+	}
+
+	expectedOperationRoutes := []*mmodel.OperationRoute{
+		{ID: operationRouteID1, OperationType: "source"},
+		{ID: operationRouteID2, OperationType: "destination"},
+	}
+
+	mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+	mockTransactionRouteRepo := transactionroute.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	emitter := pkgStreaming.NewMockEmitter()
+
+	uc := &UseCase{
+		OperationRouteRepo:      mockOperationRouteRepo,
+		TransactionRouteRepo:    mockTransactionRouteRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		Streaming:               emitter,
+	}
+
+	var stagedEntityID, insertedID string
+
+	expectedError := errors.New("failed to create transaction route")
+
+	gomock.InOrder(
+		mockOperationRouteRepo.EXPECT().
+			FindByIDs(gomock.Any(), organizationID, payload.OperationRouteIDs()).
+			Return(expectedOperationRoutes, nil).
+			Times(1),
+		mockMetadataRepo.EXPECT().
+			Create(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, meta *mongodb.Metadata) error {
+				stagedEntityID = meta.EntityID
+				assert.Empty(t, emitter.Events(), "no event may be published before the insert")
+
+				return nil
+			}).
+			Times(1),
+		mockTransactionRouteRepo.EXPECT().
+			Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, tr *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
+				insertedID = tr.ID.String()
+
+				return nil, expectedError
+			}).
+			Times(1),
+		mockMetadataRepo.EXPECT().
+			Purge(gomock.Any(), constant.EntityTransactionRoute, gomock.Any()).
+			DoAndReturn(func(_ context.Context, _, id string) error {
+				assert.Equal(t, stagedEntityID, id)
+
+				return nil
+			}).
+			Times(1),
+	)
+
+	result, err := uc.CreateTransactionRoute(context.Background(), organizationID, &ledgerID, payload)
+
+	assert.Nil(t, result)
+	assert.Equal(t, expectedError, err)
+	assert.NotEmpty(t, stagedEntityID)
+	assert.Equal(t, stagedEntityID, insertedID)
+	assert.Empty(t, emitter.Events(), "no event may be published when the create fails")
 }
 
 // TestValidateOperationRouteTypesSuccess tests successful validation
@@ -464,7 +567,7 @@ func TestValidateOperationRouteTypesSuccess(t *testing.T) {
 		{ID: uuid.New(), OperationType: "destination"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.NoError(t, err)
 }
 
@@ -474,7 +577,7 @@ func TestValidateOperationRouteTypesBidirectionalOnly(t *testing.T) {
 		{ID: uuid.New(), OperationType: "bidirectional"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.NoError(t, err)
 }
 
@@ -485,7 +588,7 @@ func TestValidateOperationRouteTypesBidirectionalWithSource(t *testing.T) {
 		{ID: uuid.New(), OperationType: "source"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.NoError(t, err)
 }
 
@@ -496,7 +599,7 @@ func TestValidateOperationRouteTypesMissingDebit(t *testing.T) {
 		{ID: uuid.New(), OperationType: "destination"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.Error(t, err)
 	expectedError := pkg.ValidateBusinessError(constant.ErrNoSourceForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
@@ -509,7 +612,7 @@ func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 		{ID: uuid.New(), OperationType: "source"},
 	}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.Error(t, err)
 	expectedError := pkg.ValidateBusinessError(constant.ErrNoDestinationForAction, constant.EntityTransactionRoute, "")
 	assert.Equal(t, expectedError, err)
@@ -519,6 +622,6 @@ func TestValidateOperationRouteTypesMissingCredit(t *testing.T) {
 func TestValidateOperationRouteTypesEmpty(t *testing.T) {
 	operationRoutes := []*mmodel.OperationRoute{}
 
-	err := validateOperationRouteTypes(operationRoutes)
+	err := validateOperationRouteTypes(operationRoutes, nil)
 	assert.Error(t, err, "empty routes should fail — no source or destination")
 }

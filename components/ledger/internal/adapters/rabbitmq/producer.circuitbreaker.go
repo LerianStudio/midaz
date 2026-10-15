@@ -7,7 +7,6 @@ package rabbitmq
 import (
 	"context"
 	"errors"
-	"time"
 
 	libCircuitBreaker "github.com/LerianStudio/lib-commons/v7/commons/circuitbreaker"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -33,23 +32,19 @@ var (
 // Half-open transition is lazy: happens on first request after Timeout expires, not automatically.
 // HealthChecker can bypass half-open by resetting directly to closed when service recovers.
 type CircuitBreakerProducer struct {
-	underlying       ProducerRepository
-	cbManager        libCircuitBreaker.Manager
-	logger           libLog.Logger
-	operationTimeout time.Duration // timeout for RabbitMQ operations (connection, publish)
+	underlying ProducerRepository
+	cbManager  libCircuitBreaker.Manager
+	logger     libLog.Logger
 }
 
 // NewCircuitBreakerProducer creates a new circuit breaker wrapped producer.
 // The cbManager must already have the circuit breaker initialized via NewCircuitBreakerManager.
 // State listeners should be registered in NewCircuitBreakerManager, not here.
-// The operationTimeout controls how long ProducerDefaultWithContext waits before timing out.
-// If operationTimeout is 0, DefaultOperationTimeout is used.
 // Returns an error if any required parameter is nil.
 func NewCircuitBreakerProducer(
 	underlying ProducerRepository,
 	cbManager libCircuitBreaker.Manager,
 	logger libLog.Logger,
-	operationTimeout time.Duration,
 ) (*CircuitBreakerProducer, error) {
 	if underlying == nil {
 		return nil, ErrNilUnderlying
@@ -63,17 +58,10 @@ func NewCircuitBreakerProducer(
 		return nil, ErrNilCBLogger
 	}
 
-	if operationTimeout <= 0 {
-		operationTimeout = DefaultOperationTimeout
-	} else if operationTimeout > MaxOperationTimeout {
-		operationTimeout = MaxOperationTimeout
-	}
-
 	return &CircuitBreakerProducer{
-		underlying:       underlying,
-		cbManager:        cbManager,
-		logger:           logger,
-		operationTimeout: operationTimeout,
+		underlying: underlying,
+		cbManager:  cbManager,
+		logger:     logger,
 	}, nil
 }
 
@@ -83,47 +71,6 @@ func NewCircuitBreakerProducer(
 func (p *CircuitBreakerProducer) ProducerDefault(ctx context.Context, exchange, key string, message []byte) (*string, error) {
 	result, err := p.cbManager.Execute(CircuitBreakerServiceName, func() (any, error) {
 		return p.underlying.ProducerDefault(ctx, exchange, key, message)
-	})
-	if err != nil {
-		state := p.cbManager.GetState(CircuitBreakerServiceName)
-		if state == libCircuitBreaker.StateOpen {
-			// Log detailed info internally, return generic error to caller
-			p.logger.Log(ctx, libLog.LevelWarn, "Circuit breaker open for RabbitMQ - returning error immediately", libLog.Err(err))
-			return nil, ErrServiceUnavailable
-		}
-
-		return nil, err
-	}
-
-	if result == nil {
-		return nil, nil
-	}
-
-	str, ok := result.(*string)
-	if !ok {
-		// Log detailed type info internally, return generic error to caller
-		p.logger.Log(ctx, libLog.LevelError, "Unexpected result type from producer", libLog.String("type", "*string expected"), libLog.Any("result", result))
-		return nil, ErrInternalProducerError
-	}
-
-	return str, nil
-}
-
-// ProducerDefaultWithContext publishes a message through the circuit breaker with context-aware timeout.
-// Creates a scoped timeout context internally using operationTimeout, ensuring that RabbitMQ
-// connection attempts don't block indefinitely. The original context is used for cancellation
-// propagation but the scoped timeout ensures fast failure when RabbitMQ is unavailable.
-// CLOSED/HALF-OPEN: attempts publish with scoped timeout. OPEN: returns error immediately.
-// In HALF-OPEN, success closes circuit, failure reopens it.
-func (p *CircuitBreakerProducer) ProducerDefaultWithContext(ctx context.Context, exchange, key string, message []byte) (*string, error) {
-	// Create scoped timeout context for RabbitMQ operations.
-	// This ensures that even if RabbitMQ connection hangs, we timeout quickly
-	// and allow fallback to execute within the HTTP request timeout.
-	scopedCtx, cancel := context.WithTimeout(ctx, p.operationTimeout)
-	defer cancel()
-
-	result, err := p.cbManager.Execute(CircuitBreakerServiceName, func() (any, error) {
-		return p.underlying.ProducerDefaultWithContext(scopedCtx, exchange, key, message)
 	})
 	if err != nil {
 		state := p.cbManager.GetState(CircuitBreakerServiceName)

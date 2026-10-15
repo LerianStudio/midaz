@@ -11,20 +11,18 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/spanattr"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
 	// GetAllTransactions fetch all Transactions from the repository
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // transactionLegAliases answers the source and destination alias lists every
@@ -96,19 +94,11 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting transactions on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting transactions on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get transactions on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -124,11 +114,7 @@ func (uc *UseCase) GetAllTransactions(ctx context.Context, organizationID, ledge
 
 	metadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityTransaction, transactionIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb transaction", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting metadata on mongodb transaction", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get transaction metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -170,9 +156,7 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 
 	operationMetadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityOperation, operationIDs)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operation metadata", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get operation metadata on repo", err)
 
 		return err
 	}
@@ -192,17 +176,15 @@ func (uc *UseCase) enrichOperationsWithMetadata(ctx context.Context, operations 
 }
 
 func (uc *UseCase) GetOperationsByTransaction(ctx context.Context, organizationID, ledgerID uuid.UUID, tran *transaction.Transaction, filter http.QueryHeader) (*transaction.Transaction, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "query.get_all_transactions_get_operations")
 	defer span.End()
 
 	operations, _, err := uc.GetAllOperations(ctx, organizationID, ledgerID, tran.IDtoUUID(), filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve Operations", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to retrieve operations",
-			libLog.String("transaction_id", tran.IDtoUUID().String()), libLog.Err(err))
+		// logged once by GetAllOperations; record on this span only
+		spanattr.HandleSpanByErrorClass(span, "Failed to retrieve Operations", err)
 
 		return nil, err
 	}

@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
@@ -19,8 +18,6 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // GetAllOperationRoutes lists the organization's operation routes with their metadata.
@@ -34,18 +31,10 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID uui
 	operationRoutes, cur, err := uc.OperationRouteRepo.FindAll(ctx, organizationID, ledgerID, filter.ToCursorPagination())
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting operation routes on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoOperationRoutesFound, constant.EntityOperationRoute)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation routes on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting operation routes on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get operation routes on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -58,11 +47,7 @@ func (uc *UseCase) GetAllOperationRoutes(ctx context.Context, organizationID uui
 
 		metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperationRoute, metadataFilter)
 		if err != nil {
-			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityOperationRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation route", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting metadata on mongodb operation route", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get operation route metadata on repo", err)
 
 			return nil, libHTTP.CursorPagination{}, err
 		}

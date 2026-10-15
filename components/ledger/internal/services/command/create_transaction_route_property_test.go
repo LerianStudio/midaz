@@ -90,7 +90,7 @@ func TestProperty_ValidateOperationRouteTypes_BidirectionalAlwaysValid(t *testin
 			}
 		}
 
-		err := validateOperationRouteTypes(opRoutes)
+		err := validateOperationRouteTypes(opRoutes, nil)
 
 		return err == nil
 	}
@@ -129,7 +129,7 @@ func TestProperty_ValidateOperationRouteTypes_ValidRoutesAlwaysAccept(t *testing
 			})
 		}
 
-		err := validateOperationRouteTypes(opRoutes)
+		err := validateOperationRouteTypes(opRoutes, nil)
 
 		return err == nil
 	}
@@ -154,7 +154,7 @@ func TestProperty_ValidateOperationRouteTypes_MissingSourceAlwaysRejects(t *test
 			}
 		}
 
-		err := validateOperationRouteTypes(opRoutes)
+		err := validateOperationRouteTypes(opRoutes, nil)
 
 		return err != nil
 	}

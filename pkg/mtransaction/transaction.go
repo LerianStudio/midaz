@@ -360,6 +360,11 @@ type Transaction struct {
 	// while json persists it in the body JSONB so it survives commit/cancel
 	// re-resolution and propagates at runtime.
 	Skip *TransactionSkip `json:"skip,omitempty" swaggerignore:"true"`
+	// Scheme is the payment scheme the client declared on the create (CARD for any
+	// card, never the brand); the request contract validates the value. json persists
+	// it in the body JSONB and the hold intent; swaggerignore keeps it out of the READ
+	// schema, which projects it separately.
+	Scheme string `json:"scheme,omitempty" example:"PIX" swaggerignore:"true"`
 	// OperationTypeOverride overrides the persisted Operation.Type label
 	// (for example BLOCK/UNBLOCK) without changing accounting direction or amount.
 	// Internal field; populated during processing and excluded from the API contract.

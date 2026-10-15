@@ -19,6 +19,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
@@ -156,8 +157,52 @@ func TestGetAllMetadataOperationsWithOperations(t *testing.T) {
 	}
 }
 
-// TestGetAllMetadataOperationsMetadataNotFound tests error handling when metadata is not found
-func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
+// TestGetAllMetadataOperationsMetadataRepoError tests that a metadata repository failure
+// surfaces as a technical error rather than a not-found business error
+func TestGetAllMetadataOperationsMetadataRepoError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	filter := http.QueryHeader{
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	repoErr := errors.New("metadata repository unavailable")
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityOperation, filter).
+		Return(nil, repoErr)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
+	}
+
+	result, cursor, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
+
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, repoErr)
+
+	var nf pkg.EntityNotFoundError
+	assert.False(t, errors.As(err, &nf))
+	assert.Nil(t, result)
+	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+}
+
+// TestGetAllMetadataOperationsMetadataEmpty tests that a metadata filter with no match
+// returns an empty page without querying the operation repository
+func TestGetAllMetadataOperationsMetadataEmpty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -178,7 +223,50 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 
 	mockMetadataRepo.EXPECT().
 		FindList(gomock.Any(), constant.EntityOperation, filter).
-		Return(nil, errors.New("metadata not found"))
+		Return([]*mongodb.Metadata{}, nil)
+
+	uc := &UseCase{
+		TransactionMetadataRepo: mockMetadataRepo,
+		OperationRepo:           mockOperationRepo,
+	}
+
+	// No expectation on the operation repository: gomock fails the test if it is called.
+	result, cursor, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
+	assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+}
+
+// TestGetAllMetadataOperationsMetadataMatchesNoPageRow pins the empty page when the
+// metadata store matches IDs that the operation page does not carry.
+func TestGetAllMetadataOperationsMetadataMatchesNoPageRow(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+	mockOperationRepo := operation.NewMockRepository(ctrl)
+
+	orgID := uuid.New()
+	ledgerID := uuid.New()
+	accountID := uuid.New()
+
+	filter := http.QueryHeader{
+		Metadata:  &bson.M{"key": "value"},
+		Limit:     10,
+		Page:      1,
+		StartDate: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		EndDate:   time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+	}
+
+	mockMetadataRepo.EXPECT().
+		FindList(gomock.Any(), constant.EntityOperation, filter).
+		Return([]*mongodb.Metadata{{EntityID: uuid.New().String(), Data: map[string]any{"key": "value"}}}, nil)
+
+	mockOperationRepo.EXPECT().
+		FindAllByAccount(gomock.Any(), orgID, ledgerID, accountID, gomock.Any(), filter.ToCursorPagination()).
+		Return([]*operation.Operation{{ID: uuid.New().String()}}, libHTTP.CursorPagination{}, nil)
 
 	uc := &UseCase{
 		TransactionMetadataRepo: mockMetadataRepo,
@@ -187,9 +275,9 @@ func TestGetAllMetadataOperationsMetadataNotFound(t *testing.T) {
 
 	result, _, err := uc.GetAllMetadataOperations(context.Background(), orgID, ledgerID, accountID, filter)
 
-	assert.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "No operations were found in the search")
+	assert.NoError(t, err)
+	assert.NotNil(t, result, "an empty page must serialize as [], not null")
+	assert.Len(t, result, 0)
 }
 
 // TestGetAllMetadataOperationsOperationNotFound tests error handling when operations are not found

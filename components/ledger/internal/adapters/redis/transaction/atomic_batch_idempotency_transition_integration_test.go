@@ -48,7 +48,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 		t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey, indexKey).Err()) })
 
 		claim := atomicBatchIdempotencyClaim("a")
-		claimed, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
+		claimed, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim, "")
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchClaimed, claimed.Outcome)
 		require.Equal(t, time.Duration(-1), container.Client.TTL(ctx, redisKey).Val())
@@ -132,7 +132,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 		require.Positive(t, indexAfterRetry)
 		require.LessOrEqual(t, indexAfterRetry, indexBeforeRetry, "idempotent retry must not extend index retention")
 
-		replay, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
+		replay, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim, "")
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchReplayed, replay.Outcome)
 		require.Equal(t, string(finalized.Response), string(replay.Record.Response), "replay bytes must be identical")
@@ -147,7 +147,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 			claim := atomicBatchIdempotencyClaim("b")
 			claim.BatchID = uuid.New()
 			claim.OwnerToken = uuid.NewString()
-			_, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
+			_, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim, "")
 			require.NoError(t, err)
 
 			return claim, effectiveKey, redisKey
@@ -226,7 +226,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyTransitionsAndCleanup(t *te
 			claim := atomicBatchIdempotencyClaim("c")
 			claim.BatchID = uuid.New()
 			claim.OwnerToken = uuid.NewString()
-			_, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
+			_, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim, "")
 			require.NoError(t, err)
 
 			prepared := atomicBatchPreparedRecord(false)
@@ -317,7 +317,7 @@ func TestIntegrationAtomicTransactionBatchLifecycleActionSurvivesEveryTransition
 
 	claim := atomicBatchIdempotencyClaim("a")
 	claim.LifecycleAction = AtomicTransactionBatchLifecycleCommit
-	claimed, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim)
+	claimed, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim, "")
 	require.NoError(t, err)
 	require.Equal(t, AtomicTransactionBatchClaimed, claimed.Outcome)
 

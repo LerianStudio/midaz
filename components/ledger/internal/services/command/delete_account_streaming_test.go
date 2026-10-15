@@ -17,9 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/feeshared/model"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
 )
@@ -61,10 +63,17 @@ func newDeleteStreamingTestUseCase(t *testing.T, ctrl *gomock.Controller, emitte
 		Delete(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil).AnyTimes()
 
+	mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAccount, gomock.Any()).
+		Return(nil).AnyTimes()
+
 	return &UseCase{
-		AccountRepo: mockAccountRepo,
-		BalanceRepo: mockBalanceRepo,
-		Streaming:   emitter,
+		AccountRepo:            mockAccountRepo,
+		BalanceRepo:            mockBalanceRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+		Streaming:              emitter,
 	}
 }
 
@@ -201,7 +210,7 @@ func TestDeleteAccountByID_CascadeStreaming(t *testing.T) {
 	}{
 		{
 			name:       "both ports succeed",
-			wantSteps:  []string{"instruments", "fees", "row"},
+			wantSteps:  []string{"instruments", "fees", "row", "metadata"},
 			wantEvents: 1,
 		},
 		{
@@ -266,11 +275,23 @@ func TestDeleteAccountByID_CascadeStreaming(t *testing.T) {
 				}).
 				Times(rowDeletes)
 
+			mockMetadataRepo := onbMongo.NewMockRepository(ctrl)
+			mockMetadataRepo.EXPECT().
+				Delete(gomock.Any(), constant.EntityAccount, accountID.String()).
+				DoAndReturn(func(context.Context, string, string) error {
+					record("metadata")()
+
+					return nil
+				}).
+				Times(rowDeletes)
+
 			uc := &UseCase{
-				AccountRepo:        mockAccountRepo,
-				BalanceRepo:        mockBalanceRepo,
-				Streaming:          mockEmitter,
-				InstrumentCascader: &stubInstrumentCascader{cascaded: 1, err: tt.cascadeErr, onCall: record("instruments")},
+				AccountRepo:            mockAccountRepo,
+				BalanceRepo:            mockBalanceRepo,
+				OnboardingMetadataRepo: mockMetadataRepo,
+				metadataDeleteRetry:    fastMetadataDeleteRetryPolicy(),
+				Streaming:              mockEmitter,
+				InstrumentCascader:     &stubInstrumentCascader{cascaded: 1, err: tt.cascadeErr, onCall: record("instruments")},
 				FeeAliasDetacher: &stubFeeAliasDetacher{
 					result: model.FeeAliasDetachResult{PackagesUpdated: 1},
 					err:    tt.feeErr,
@@ -295,4 +316,29 @@ func TestDeleteAccountByID_CascadeStreaming(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestDeleteAccountByID_MetadataSoftDeleteFailureStillEmits verifies that a
+// metadata soft delete failing on every attempt neither fails the request nor
+// suppresses the deleted event.
+func TestDeleteAccountByID_MetadataSoftDeleteFailureStillEmits(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockEmitter := pkgStreaming.NewMockEmitter()
+	uc := newDeleteStreamingTestUseCase(t, ctrl, mockEmitter, uuid.New(), nil)
+
+	failingMetadataRepo := onbMongo.NewMockRepository(ctrl)
+	failingMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityAccount, gomock.Any()).
+		Return(errors.New("mongo unavailable")).
+		Times(fastMetadataDeleteRetryPolicy().Attempts)
+
+	uc.OnboardingMetadataRepo = failingMetadataRepo
+
+	err := uc.DeleteAccountByID(context.Background(), uuid.New(), uuid.New(), nil, uuid.New(), "Bearer test")
+	require.NoError(t, err, "a metadata soft delete failure must not fail the delete")
+
+	require.Len(t, mockEmitter.Events(), 1)
+	pkgStreaming.AssertEventEmitted(t, mockEmitter, "account", "deleted")
 }

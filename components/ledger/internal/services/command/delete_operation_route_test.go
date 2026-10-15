@@ -9,6 +9,7 @@ import (
 	"errors"
 	"testing"
 
+	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operationroute"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -29,8 +30,16 @@ func TestDeleteOperationRouteByIDSuccess(t *testing.T) {
 	organizationID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Return(nil).
+		Times(1)
+
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -62,8 +71,15 @@ func TestDeleteOperationRouteByIDContextCanceled(t *testing.T) {
 	organizationID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -83,8 +99,15 @@ func TestDeleteOperationRouteByIDNotFound(t *testing.T) {
 	organizationID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -122,8 +145,15 @@ func TestDeleteOperationRouteByIDError(t *testing.T) {
 	databaseError := errors.New("database connection error")
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -156,8 +186,15 @@ func TestDeleteOperationRouteByIDLinkedToTransactionRoutes(t *testing.T) {
 	organizationID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -195,8 +232,15 @@ func TestDeleteOperationRouteByIDHasLinksCheckError(t *testing.T) {
 	linkCheckError := errors.New("failed to check transaction route links")
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -228,8 +272,15 @@ func TestDeleteOperationRouteByID_UnknownRouteIsNotFoundBeforeLinkCheck(t *testi
 	organizationID := uuid.New()
 
 	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		OperationRouteRepo: mockRepo,
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -245,4 +296,45 @@ func TestDeleteOperationRouteByID_UnknownRouteIsNotFoundBeforeLinkCheck(t *testi
 	var entityNotFoundError pkg.EntityNotFoundError
 	require.ErrorAs(t, err, &entityNotFoundError)
 	assert.Equal(t, constant.ErrOperationRouteNotFound.Error(), entityNotFoundError.Code)
+}
+
+// The operation route is already deleted when its metadata soft delete keeps failing, so the request still succeeds.
+func TestDeleteOperationRouteByID_MetadataSoftDeleteFailureDoesNotFailTheDelete(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	operationRouteID := uuid.New()
+	organizationID := uuid.New()
+
+	mockRepo := operationroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityOperationRoute, operationRouteID.String()).
+		Return(errors.New("mongo unavailable")).
+		Times(3)
+
+	uc := &UseCase{
+		OperationRouteRepo:      mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
+	}
+
+	mockRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, operationRouteID).
+		Return(&mmodel.OperationRoute{ID: operationRouteID, OrganizationID: organizationID}, nil).
+		Times(1)
+
+	mockRepo.EXPECT().
+		HasTransactionRouteLinks(gomock.Any(), organizationID, operationRouteID).
+		Return(false, nil).
+		Times(1)
+
+	mockRepo.EXPECT().
+		Delete(gomock.Any(), organizationID, operationRouteID).
+		Return(nil).
+		Times(1)
+
+	err := uc.DeleteOperationRouteByID(context.Background(), organizationID, operationRouteID)
+
+	assert.NoError(t, err)
 }

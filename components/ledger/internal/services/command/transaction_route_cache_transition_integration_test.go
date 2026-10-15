@@ -23,6 +23,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	pgtestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -64,7 +65,7 @@ func TestIntegration_TransactionRouteCache_UpdateDropsLedgerKeyAndRewritesOrgani
 	infra.uc.TransactionMetadataRepo = metadataRepo
 
 	operationRoutes := []uuid.UUID{sourceID, newDestinationID}
-	updated, err := infra.uc.UpdateTransactionRoute(ctx, orgID, txRouteID, &mmodel.UpdateTransactionRouteInput{OperationRoutes: &operationRoutes})
+	updated, err := infra.uc.UpdateTransactionRoute(ctx, orgID, txRouteID, &mmodel.UpdateTransactionRouteInput{OperationRoutes: &operationRoutes}, LinksFullSetV1)
 	require.NoError(t, err)
 	require.NoError(t, infra.uc.CreateAccountingRouteCache(ctx, updated))
 
@@ -139,6 +140,11 @@ func TestIntegration_TransactionRouteCache_DeleteDropsBothKeysAndTheRouteIsNotFo
 	seedRouteCache(t, ctx, infra.uc, legacyKey, current)
 	require.NoError(t, infra.uc.CreateAccountingRouteCache(ctx, current))
 	requireRouteCache(t, ctx, infra.uc, organizationKey)
+
+	metadataRepo := mongodb.NewMockRepository(gomock.NewController(t))
+	metadataRepo.EXPECT().Delete(gomock.Any(), constant.EntityTransactionRoute, txRouteID.String()).Return(nil).Times(1)
+	infra.uc.TransactionMetadataRepo = metadataRepo
+	infra.uc.metadataDeleteRetry = fastMetadataDeleteRetryPolicy()
 
 	require.NoError(t, infra.uc.DeleteTransactionRouteByID(ctx, orgID, txRouteID))
 

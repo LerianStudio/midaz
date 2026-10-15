@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testhelper"
 	"github.com/LerianStudio/midaz/v4/components/tracer/internal/testutil"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/clock"
+	trcConstant "github.com/LerianStudio/midaz/v4/components/tracer/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/components/tracer/pkg/model"
 )
 
@@ -165,6 +166,88 @@ func TestResolveReservations_PeriodKeyFollowsResetTime(t *testing.T) {
 			require.False(t, denied)
 			require.Len(t, specs, 1)
 			require.Equal(t, tt.wantKey, specs[0].PeriodKey)
+		})
+	}
+}
+
+// TestResolveReservations_CounterExpiresAtIsPeriodRetention checks that a
+// reservation spec carries the counter's period-retention expiry — the same value
+// the synchronous validate path writes to usage_counters.expires_at — which lies
+// well past any reservation lifetime, so a cleanup sweep after a reservation
+// expires cannot delete a counter whose period is still running.
+func TestResolveReservations_CounterExpiresAtIsPeriodRetention(t *testing.T) {
+	accountID := testutil.MustDeterministicUUID(15520)
+	limitID := testutil.MustDeterministicUUID(15521)
+	serverNow := time.Date(2026, 10, 2, 0, 30, 0, 0, time.UTC)
+	customStart := serverNow.Add(-24 * time.Hour)
+	customEnd := serverNow.Add(48 * time.Hour)
+	longestReservationTTL := 720 * time.Hour
+
+	tests := []struct {
+		name  string
+		limit model.Limit
+	}{
+		{
+			name: "daily limit expires its counter at the next reset plus retention",
+			limit: model.Limit{
+				ID:        limitID,
+				Name:      "Daily cap",
+				LimitType: model.LimitTypeDaily,
+				MaxAmount: decimal.RequireFromString("1000"),
+				Asset:     "BRL",
+				Scopes:    []model.Scope{{AccountID: &accountID}},
+				Status:    model.LimitStatusActive,
+			},
+		},
+		{
+			name: "custom limit expires its counter at the custom end plus retention",
+			limit: model.Limit{
+				ID:              limitID,
+				Name:            "Custom cap",
+				LimitType:       model.LimitTypeCustom,
+				MaxAmount:       decimal.RequireFromString("1000"),
+				Asset:           "BRL",
+				Scopes:          []model.Scope{{AccountID: &accountID}},
+				Status:          model.LimitStatusActive,
+				CustomStartDate: &customStart,
+				CustomEndDate:   &customEnd,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checker := newResolverForTestAt(t, []model.Limit{tt.limit}, testutil.NewMockClock(serverNow))
+
+			input, err := model.NewCheckLimitsInput(
+				decimal.RequireFromString("100"),
+				"BRL",
+				accountID,
+				nil, nil, nil, nil, nil,
+				serverNow,
+			)
+			require.NoError(t, err)
+
+			specs, denied, err := checker.ResolveReservations(context.Background(), input)
+			require.NoError(t, err)
+			require.False(t, denied)
+			require.Len(t, specs, 1)
+
+			resetAt := tt.limit.NextResetAt(serverNow)
+			require.NotNil(t, resetAt)
+
+			var want time.Time
+			if tt.limit.LimitType == model.LimitTypeCustom {
+				want = tt.limit.CustomEndDate.AddDate(0, 0, trcConstant.CounterRetentionDays)
+			} else {
+				want = resetAt.AddDate(0, 0, trcConstant.CounterRetentionDays)
+			}
+
+			require.NotNil(t, specs[0].CounterExpiresAt)
+			require.True(t, want.Equal(*specs[0].CounterExpiresAt),
+				"counter expiry must be the period-retention expiry; want %s, got %s", want, specs[0].CounterExpiresAt)
+			require.True(t, specs[0].CounterExpiresAt.After(serverNow.Add(longestReservationTTL)),
+				"counter expiry must outlive every reservation lifetime")
 		})
 	}
 }

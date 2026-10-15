@@ -48,7 +48,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testID.String(),
 				RequestID:            testRequestID.String(),
-				TransactionType:      "CARD",
+				TransactionType:      testutil.Ptr("CARD"),
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("100"),
 				Asset:                "BRL",
@@ -99,7 +99,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testID.String(),
 				RequestID:            testRequestID.String(),
-				TransactionType:      "PIX",
+				TransactionType:      testutil.Ptr("PIX"),
 				SubType:              &subType,
 				Amount:               decimal.RequireFromString("500"),
 				Asset:                "USD",
@@ -172,7 +172,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testID.String(),
 				RequestID:            testRequestID.String(),
-				TransactionType:      "WIRE",
+				TransactionType:      testutil.Ptr("WIRE"),
 				SubType:              nil,
 				Amount:               decimal.RequireFromString("10000"),
 				Asset:                "EUR",
@@ -219,7 +219,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testID.String(),
 				RequestID:            testRequestID.String(),
-				TransactionType:      "CARD",
+				TransactionType:      testutil.Ptr("CARD"),
 				SubType:              &subType,
 				Amount:               decimal.RequireFromString("1500"),
 				Asset:                "BRL",
@@ -288,6 +288,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity(t *testing.T) {
 			assert.Equal(t, tt.expected.ID, result.ID, "ID mismatch")
 			assert.Equal(t, tt.expected.RequestID, result.RequestID, "RequestID mismatch")
 			assert.Equal(t, tt.expected.TransactionType, result.TransactionType, "TransactionType mismatch")
+			assert.Equal(t, tt.expected.TransactionType, result.Scheme, "Scheme mirrors TransactionType")
 			assert.Equal(t, tt.expected.SubType, result.SubType, "SubType mismatch")
 			assert.Equal(t, tt.expected.Amount, result.Amount, "Amount mismatch")
 			assert.Equal(t, tt.expected.Asset, result.Asset, "Asset mismatch")
@@ -416,7 +417,8 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 				t.Helper()
 				assert.Equal(t, testID.String(), dbModel.ID, "ID should be string representation of UUID")
 				assert.Equal(t, testRequestID.String(), dbModel.RequestID, "RequestID should be string representation of UUID")
-				assert.Equal(t, "CARD", dbModel.TransactionType)
+				assert.Equal(t, testutil.Ptr("CARD"), dbModel.TransactionType, "an enum label is written to the enum column")
+				assert.Equal(t, testutil.Ptr("CARD"), dbModel.Scheme, "the scheme column is always written")
 				assert.Nil(t, dbModel.SubType, "SubType should be nil for nil input")
 				assert.True(t, decimal.RequireFromString("100").Equal(dbModel.Amount), "Amount should be 100")
 				assert.Equal(t, "BRL", dbModel.Asset)
@@ -493,7 +495,8 @@ func TestTransactionValidationPostgreSQLModel_FromEntity(t *testing.T) {
 			assertFn: func(t *testing.T, dbModel *TransactionValidationPostgreSQLModel) {
 				t.Helper()
 				assert.Equal(t, testID.String(), dbModel.ID)
-				assert.Equal(t, "PIX", dbModel.TransactionType)
+				assert.Equal(t, testutil.Ptr("PIX"), dbModel.TransactionType, "an enum label is written to the enum column")
+				assert.Equal(t, testutil.Ptr("PIX"), dbModel.Scheme, "the scheme column is always written")
 				require.NotNil(t, dbModel.SubType, "SubType should not be nil")
 				assert.Equal(t, "debit", *dbModel.SubType)
 				assert.True(t, decimal.RequireFromString("500").Equal(dbModel.Amount), "Amount should be 500")
@@ -724,7 +727,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testutil.MustDeterministicUUID(31).String(),
 				RequestID:            testutil.MustDeterministicUUID(32).String(),
-				TransactionType:      "CARD",
+				TransactionType:      testutil.Ptr("CARD"),
 				Amount:               decimal.RequireFromString("100"),
 				Asset:                "BRL",
 				TransactionTimestamp: txTimestamp,
@@ -752,7 +755,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testutil.MustDeterministicUUID(33).String(),
 				RequestID:            testutil.MustDeterministicUUID(34).String(),
-				TransactionType:      "PIX",
+				TransactionType:      testutil.Ptr("PIX"),
 				Amount:               decimal.RequireFromString("200"),
 				Asset:                "USD",
 				TransactionTimestamp: txTimestamp,
@@ -778,7 +781,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testutil.MustDeterministicUUID(35).String(),
 				RequestID:            testutil.MustDeterministicUUID(36).String(),
-				TransactionType:      "WIRE",
+				TransactionType:      testutil.Ptr("WIRE"),
 				Amount:               decimal.RequireFromString("1000"),
 				Asset:                "EUR",
 				TransactionTimestamp: txTimestamp,
@@ -804,7 +807,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testutil.MustDeterministicUUID(37).String(),
 				RequestID:            testutil.MustDeterministicUUID(38).String(),
-				TransactionType:      "CARD",
+				TransactionType:      testutil.Ptr("CARD"),
 				Amount:               decimal.RequireFromString("50"),
 				Asset:                "BRL",
 				TransactionTimestamp: txTimestamp,
@@ -834,7 +837,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testutil.MustDeterministicUUID(39).String(),
 				RequestID:            testutil.MustDeterministicUUID(40).String(),
-				TransactionType:      "CARD",
+				TransactionType:      testutil.Ptr("CARD"),
 				Amount:               decimal.RequireFromString("50"),
 				Asset:                "BRL",
 				TransactionTimestamp: txTimestamp,
@@ -865,7 +868,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_EdgeCases(t *testing.T) {
 			dbModel: TransactionValidationPostgreSQLModel{
 				ID:                   testutil.MustDeterministicUUID(41).String(),
 				RequestID:            testutil.MustDeterministicUUID(42).String(),
-				TransactionType:      "CARD",
+				TransactionType:      testutil.Ptr("CARD"),
 				Amount:               decimal.RequireFromString("100"),
 				Asset:                "BRL",
 				TransactionTimestamp: txTimestamp,
@@ -1045,7 +1048,7 @@ func TestTransactionValidationPostgreSQLModel_ToEntity_InvalidUUIDs(t *testing.T
 			dbModel := TransactionValidationPostgreSQLModel{
 				ID:                   testID.String(),
 				RequestID:            testRequestID.String(),
-				TransactionType:      "CARD",
+				TransactionType:      testutil.Ptr("CARD"),
 				Amount:               decimal.RequireFromString("100"),
 				Asset:                "BRL",
 				TransactionTimestamp: fixedTime,
@@ -1077,4 +1080,78 @@ func TestTransactionValidationPostgreSQLModel_FromEntity_NilEntity(t *testing.T)
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cannot be nil")
+}
+
+func TestTransactionValidationPostgreSQLModel_SchemeColumns(t *testing.T) {
+	t.Parallel()
+
+	baseEntity := func(scheme model.TransactionType) *model.TransactionValidation {
+		return &model.TransactionValidation{
+			ID:              testutil.MustDeterministicUUID(1),
+			RequestID:       testutil.MustDeterministicUUID(2),
+			TransactionType: scheme,
+			Scheme:          scheme,
+			Account:         model.AccountContext{ID: testutil.MustDeterministicUUID(3)},
+		}
+	}
+
+	t.Run("enum labels fill both columns", func(t *testing.T) {
+		t.Parallel()
+
+		for _, scheme := range []model.TransactionType{
+			model.TransactionTypeCard, model.TransactionTypeWire, model.TransactionTypePix, model.TransactionTypeCrypto,
+		} {
+			var dbModel TransactionValidationPostgreSQLModel
+			require.NoError(t, dbModel.FromEntity(baseEntity(scheme)))
+
+			assert.Equal(t, testutil.Ptr(string(scheme)), dbModel.TransactionType, "scheme %s", scheme)
+			assert.Equal(t, testutil.Ptr(string(scheme)), dbModel.Scheme, "scheme %s", scheme)
+		}
+	})
+
+	t.Run("a free-form scheme leaves the enum column nil", func(t *testing.T) {
+		t.Parallel()
+
+		var dbModel TransactionValidationPostgreSQLModel
+		require.NoError(t, dbModel.FromEntity(baseEntity("BOLETO")))
+
+		assert.Nil(t, dbModel.TransactionType)
+		assert.Equal(t, testutil.Ptr("BOLETO"), dbModel.Scheme)
+	})
+
+	readModel := func(transactionType, scheme *string) *TransactionValidationPostgreSQLModel {
+		return &TransactionValidationPostgreSQLModel{
+			ID:               testutil.MustDeterministicUUID(1).String(),
+			RequestID:        testutil.MustDeterministicUUID(2).String(),
+			TransactionType:  transactionType,
+			Scheme:           scheme,
+			Account:          `{"accountId":"` + testutil.MustDeterministicUUID(3).String() + `"}`,
+			MatchedRuleIds:   "{}",
+			EvaluatedRuleIds: "{}",
+		}
+	}
+
+	tests := []struct {
+		name            string
+		transactionType *string
+		scheme          *string
+		want            model.TransactionType
+	}{
+		{name: "scheme column wins", transactionType: testutil.Ptr("PIX"), scheme: testutil.Ptr("PIX"), want: "PIX"},
+		{name: "free-form scheme alone", scheme: testutil.Ptr("BOLETO"), want: "BOLETO"},
+		{name: "enum column alone", transactionType: testutil.Ptr("WIRE"), want: model.TransactionTypeWire},
+		{name: "neither column", want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run("read: "+tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := readModel(tt.transactionType, tt.scheme).ToEntity()
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.want, result.TransactionType)
+			assert.Equal(t, tt.want, result.Scheme)
+		})
+	}
 }

@@ -28,6 +28,7 @@ type bulkMetricCounts struct {
 	operationsAttempted   int64
 	operationsInserted    int64
 	operationsIgnored     int64
+	metadataFailed        int64
 	payloadCount          int64
 }
 
@@ -54,6 +55,7 @@ func recordBulkOTelMetrics(
 		recordBulkCounter(ctx, factory, utils.BulkRecorderOperationsAttempted, counts.operationsAttempted, attrs)
 		recordBulkCounter(ctx, factory, utils.BulkRecorderOperationsInserted, counts.operationsInserted, attrs)
 		recordBulkCounter(ctx, factory, utils.BulkRecorderOperationsIgnored, counts.operationsIgnored, attrs)
+		recordBulkCounter(ctx, factory, utils.BulkRecorderMetadataFailed, counts.metadataFailed, attrs)
 		recordBulkCounter(ctx, factory, utils.BulkRecorderBulkSize, counts.payloadCount, attrs)
 		recordBulkHistogram(ctx, factory, utils.BulkRecorderBulkDuration, duration.Milliseconds(), attrs)
 	}
@@ -70,9 +72,11 @@ func aggregatePayloadsByOrgLedger(
 	type payloadInfo struct {
 		payloadCount   int64
 		operationCount int64
+		metadataFailed int64
 	}
 
 	infoByKey := make(map[bulkMetricKey]*payloadInfo)
+	countedMetadataFailures := make(map[string]struct{}, len(result.MetadataFailedTransactionIDs))
 
 	var totalPayloads, totalOperations int64
 
@@ -98,11 +102,19 @@ func aggregatePayloadsByOrgLedger(
 		operationCount := int64(len(payload.Transaction.Operations))
 		info.operationCount += operationCount
 		totalOperations += operationCount
+
+		// Each failed transaction counts once, under the org/ledger of its payload.
+		if _, failed := result.MetadataFailedTransactionIDs[payload.Transaction.ID]; failed {
+			if _, counted := countedMetadataFailures[payload.Transaction.ID]; !counted {
+				countedMetadataFailures[payload.Transaction.ID] = struct{}{}
+				info.metadataFailed++
+			}
+		}
 	}
 
 	counts := make(map[bulkMetricKey]*bulkMetricCounts, len(infoByKey))
 	for key, info := range infoByKey {
-		current := &bulkMetricCounts{payloadCount: info.payloadCount}
+		current := &bulkMetricCounts{payloadCount: info.payloadCount, metadataFailed: info.metadataFailed}
 		if totalPayloads > 0 {
 			ratio := float64(info.payloadCount) / float64(totalPayloads)
 			current.transactionsAttempted = int64(float64(result.TransactionsAttempted) * ratio)

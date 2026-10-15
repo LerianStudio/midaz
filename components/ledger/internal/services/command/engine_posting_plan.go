@@ -26,6 +26,7 @@ type postingPlanItem struct {
 	historicalOverdraftCap  decimal.Decimal
 	allowsOverdraftDraw     bool
 	mayAffectOverdraft      bool
+	repayForbidden          bool
 }
 
 func buildPostingPlan(action, status, side string, routeValidationEnabled bool, historicalOverdraftCap decimal.Decimal) (postingPlan, error) {
@@ -57,6 +58,22 @@ func buildPostingPlan(action, status, side string, routeValidationEnabled bool, 
 	}
 
 	return buildPostingPlanWithoutRouteValidation(action, historicalOverdraftCap, side), nil
+}
+
+// withoutOverdraft keeps every posting of the plan away from overdraft: debits
+// cannot draw, credits cannot repay, and no movement can reach a companion.
+func (plan postingPlan) withoutOverdraft() postingPlan {
+	items := make([]postingPlanItem, len(plan.items))
+
+	for index, item := range plan.items {
+		item.allowsOverdraftDraw = false
+		item.mayAffectOverdraft = false
+		item.historicalOverdraftCap = decimal.Zero
+		item.repayForbidden = item.postingType == accounting.PostingCredit
+		items[index] = item
+	}
+
+	return postingPlan{items: items}
 }
 
 func buildConclusivePostingPlan(historicalOverdraftCap decimal.Decimal, side string) postingPlan {

@@ -121,8 +121,8 @@ func TestCancelTransaction_WriteBehindMiss_FallbackLoadsOperations(t *testing.T)
 		Return(true, nil).
 		Times(1)
 	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), gomock.Any()).
-		Return(nil).
+		DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	queryUC := &query.UseCase{
@@ -283,8 +283,8 @@ func TestCancelTransaction_WriteBehindMiss_RowOnlyFallbackReturnsRealTransaction
 		Return(true, nil).
 		Times(1)
 	mockRedisRepo.EXPECT().
-		Del(gomock.Any(), gomock.Any()).
-		Return(nil).
+		DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(true, nil).
 		Times(1)
 
 	queryUC := &query.UseCase{

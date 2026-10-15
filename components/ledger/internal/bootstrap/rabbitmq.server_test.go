@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vmihailenco/msgpack/v5"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // =============================================================================
@@ -196,6 +198,33 @@ func TestAggregatePayloadsByOrgLedger(t *testing.T) {
 		key := bulkMetricKey{organizationID: orgID1, ledgerID: ledgerID1}
 		assert.Equal(t, int64(1), counts[key].payloadCount)
 	})
+
+	t.Run("metadata_failed_counted_once_per_transaction", func(t *testing.T) {
+		t.Parallel()
+
+		failedTx1 := uuid.New().String()
+		failedTx2 := uuid.New().String()
+		failedTx3 := uuid.New().String()
+
+		payloads := []transaction.TransactionProcessingPayload{
+			{Transaction: &transaction.Transaction{ID: failedTx1, OrganizationID: orgID1, LedgerID: ledgerID1}},
+			{Transaction: &transaction.Transaction{ID: failedTx1, OrganizationID: orgID1, LedgerID: ledgerID1}}, // Redelivered in the same batch
+			{Transaction: &transaction.Transaction{ID: failedTx2, OrganizationID: orgID1, LedgerID: ledgerID1}},
+			{Transaction: &transaction.Transaction{ID: uuid.New().String(), OrganizationID: orgID1, LedgerID: ledgerID1}},
+			{Transaction: &transaction.Transaction{ID: failedTx3, OrganizationID: orgID2, LedgerID: ledgerID2}},
+			{Transaction: &transaction.Transaction{ID: uuid.New().String(), OrganizationID: orgID2, LedgerID: ledgerID1}},
+		}
+
+		result := &command.BulkResult{
+			MetadataFailedTransactionIDs: map[string]struct{}{failedTx1: {}, failedTx2: {}, failedTx3: {}},
+		}
+
+		counts := aggregatePayloadsByOrgLedger(payloads, result)
+
+		assert.Equal(t, int64(2), counts[bulkMetricKey{organizationID: orgID1, ledgerID: ledgerID1}].metadataFailed)
+		assert.Equal(t, int64(1), counts[bulkMetricKey{organizationID: orgID2, ledgerID: ledgerID2}].metadataFailed)
+		assert.Equal(t, int64(0), counts[bulkMetricKey{organizationID: orgID2, ledgerID: ledgerID1}].metadataFailed)
+	})
 }
 
 // =============================================================================
@@ -215,6 +244,84 @@ func TestRecordBulkOTelMetrics_NilFactory(t *testing.T) {
 	assert.NotPanics(t, func() {
 		recordBulkOTelMetrics(ctx, nil, result, payloads, 100)
 	})
+}
+
+func TestRecordBulkOTelMetrics_MetadataFailedCounter(t *testing.T) {
+	t.Parallel()
+
+	orgID1, ledgerID1 := uuid.New().String(), uuid.New().String()
+	orgID2, ledgerID2 := uuid.New().String(), uuid.New().String()
+	failedTx1, failedTx2 := uuid.New().String(), uuid.New().String()
+
+	payloads := []transaction.TransactionProcessingPayload{
+		{Transaction: &transaction.Transaction{ID: failedTx1, OrganizationID: orgID1, LedgerID: ledgerID1}},
+		{Transaction: &transaction.Transaction{ID: failedTx2, OrganizationID: orgID1, LedgerID: ledgerID1}},
+		{Transaction: &transaction.Transaction{ID: uuid.New().String(), OrganizationID: orgID2, LedgerID: ledgerID2}},
+	}
+
+	t.Run("records_failures_per_org_ledger", func(t *testing.T) {
+		t.Parallel()
+
+		reader, factory := newBalanceSyncReaderFactory(t)
+
+		result := &command.BulkResult{
+			TransactionsAttempted:        3,
+			MetadataFailedTransactionIDs: map[string]struct{}{failedTx1: {}, failedTx2: {}},
+		}
+
+		recordBulkOTelMetrics(context.Background(), factory, result, payloads, 0)
+
+		values := bulkCounterValuesByOrgLedger(t, reader, utils.BulkRecorderMetadataFailed.Name)
+		assert.Equal(t, map[string]int64{orgID1 + "/" + ledgerID1: 2}, values,
+			"N failures increment by N under the org/ledger of their payloads; zero is not recorded")
+	})
+
+	t.Run("no_failures_records_nothing", func(t *testing.T) {
+		t.Parallel()
+
+		reader, factory := newBalanceSyncReaderFactory(t)
+
+		result := &command.BulkResult{
+			TransactionsAttempted:        3,
+			MetadataFailedTransactionIDs: map[string]struct{}{},
+		}
+
+		recordBulkOTelMetrics(context.Background(), factory, result, payloads, 0)
+
+		assert.Empty(t, bulkCounterValuesByOrgLedger(t, reader, utils.BulkRecorderMetadataFailed.Name))
+		assert.NotEmpty(t, bulkCounterValuesByOrgLedger(t, reader, utils.BulkRecorderTransactionsAttempted.Name),
+			"the sibling counters are still recorded")
+	})
+}
+
+// bulkCounterValuesByOrgLedger returns the named counter's value per "organization_id/ledger_id".
+func bulkCounterValuesByOrgLedger(t *testing.T, reader *sdkmetric.ManualReader, name string) map[string]int64 {
+	t.Helper()
+
+	var rm metricdata.ResourceMetrics
+
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	out := make(map[string]int64)
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != name {
+				continue
+			}
+
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok, "counter data type must be Sum[int64], got %T", m.Data)
+
+			for _, dp := range sum.DataPoints {
+				orgID, _ := dp.Attributes.Value("organization_id")
+				ledgerID, _ := dp.Attributes.Value("ledger_id")
+				out[orgID.AsString()+"/"+ledgerID.AsString()] += dp.Value
+			}
+		}
+	}
+
+	return out
 }
 
 func TestRecordBulkCounter_NilFactory(t *testing.T) {

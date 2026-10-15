@@ -451,7 +451,6 @@ func TestIntegration_MetadataPersistence_TransactionRouteCreate(t *testing.T) {
 
 			organizationID := uuid.New()
 			ledgerID := uuid.New()
-			routeID := uuid.New()
 			sourceID := uuid.New()
 			destinationID := uuid.New()
 
@@ -469,8 +468,6 @@ func TestIntegration_MetadataPersistence_TransactionRouteCreate(t *testing.T) {
 			transactionRouteRepo.EXPECT().
 				Create(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
 				DoAndReturn(func(_ context.Context, _ uuid.UUID, _ *uuid.UUID, tr *mmodel.TransactionRoute) (*mmodel.TransactionRoute, error) {
-					tr.ID = routeID
-
 					return tr, nil
 				}).
 				Times(1)
@@ -489,7 +486,7 @@ func TestIntegration_MetadataPersistence_TransactionRouteCreate(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			assert.Equal(t, tt.wantCount, env.count(t, constant.EntityTransactionRoute, routeID.String()))
+			assert.Equal(t, tt.wantCount, env.count(t, constant.EntityTransactionRoute, result.ID.String()))
 		})
 	}
 }

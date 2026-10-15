@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 )
 
 // applyTransactionMutableSets adds the conditional SET clauses a transaction
@@ -43,7 +44,11 @@ func applyTransactionMutableSets(qb squirrel.UpdateBuilder, entity *Transaction,
 	return qb
 }
 
-func (r *TransactionPostgreSQLRepository) UpdateStatusFromPending(ctx context.Context, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error) {
+func (r *TransactionPostgreSQLRepository) UpdateStatusFromPendingTx(ctx context.Context, tx repository.DBExecutor, organizationID, ledgerID, id uuid.UUID, transaction *Transaction) (*Transaction, bool, error) {
+	if tx == nil {
+		return nil, false, repository.ErrNilDBExecutor
+	}
+
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "postgres.update_transaction_status_from_pending")
@@ -54,13 +59,6 @@ func (r *TransactionPostgreSQLRepository) UpdateStatusFromPending(ctx context.Co
 		attribute.String("app.request.ledger_id", ledgerID.String()),
 		attribute.String("app.request.transaction_id", id.String()),
 	)
-
-	db, err := r.getDB(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
-
-		return nil, false, err
-	}
 
 	record := &TransactionPostgreSQLModel{}
 	record.FromEntity(transaction)
@@ -86,7 +84,7 @@ func (r *TransactionPostgreSQLRepository) UpdateStatusFromPending(ctx context.Co
 		return nil, false, err
 	}
 
-	result, err := db.ExecContext(ctx, query, args...)
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
 

@@ -12,6 +12,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -36,6 +37,8 @@ func TestGetAllSegments(t *testing.T) {
 		Page:  1,
 	}
 
+	errMetadata := errors.New("metadata retrieval error")
+
 	tests := []struct {
 		name           string
 		organizationID uuid.UUID
@@ -43,6 +46,7 @@ func TestGetAllSegments(t *testing.T) {
 		filter         http.QueryHeader
 		mockSetup      func()
 		expectErr      bool
+		technicalErr   error
 		expectedResult []*mmodel.Segment
 	}{
 		{
@@ -53,7 +57,7 @@ func TestGetAllSegments(t *testing.T) {
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockSegmentRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return([]*mmodel.Segment{
 						{ID: validUUID.String(), Name: "Test Segment", Status: mmodel.Status{Code: "active"}},
 					}, nil)
@@ -75,29 +79,30 @@ func TestGetAllSegments(t *testing.T) {
 			filter:         http.QueryHeader{Limit: 10, Page: 1},
 			mockSetup: func() {
 				mockSegmentRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return(nil, services.ErrDatabaseItemNotFound)
 			},
 			expectErr:      true,
 			expectedResult: nil,
 		},
 		{
-			name:           "Error - Failed to retrieve metadata",
+			name:           "Error - metadata failure is returned as a technical error",
 			organizationID: uuid.New(),
 			ledgerID:       uuid.New(),
 			filter:         http.QueryHeader{Limit: 10, Page: 1},
 			mockSetup: func() {
 				validUUID := uuid.New()
 				mockSegmentRepo.EXPECT().
-					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), gomock.Any(), gomock.Any(), filter).
 					Return([]*mmodel.Segment{
 						{ID: validUUID.String(), Name: "Test Segment", Status: mmodel.Status{Code: "active"}},
 					}, nil)
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, errors.New("metadata retrieval error"))
+					Return(nil, errMetadata)
 			},
 			expectErr:      true,
+			technicalErr:   errMetadata,
 			expectedResult: nil,
 		},
 	}
@@ -112,6 +117,13 @@ func TestGetAllSegments(t *testing.T) {
 			if tt.expectErr {
 				assert.Error(t, err)
 				assert.Nil(t, result)
+
+				if tt.technicalErr != nil {
+					assert.ErrorIs(t, err, tt.technicalErr)
+
+					var nf pkg.EntityNotFoundError
+					assert.False(t, errors.As(err, &nf))
+				}
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)

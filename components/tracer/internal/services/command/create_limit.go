@@ -296,7 +296,7 @@ func (c *CreateLimitCommand) Execute(ctx context.Context, input *CreateLimitInpu
 			return fmt.Errorf("failed to persist limit: %w", createErr)
 		}
 
-		afterState := LimitToMap(limit)
+		afterState := LimitToMap(limit, now)
 
 		if auditErr := c.auditWriter.RecordLimitEventWithTx(
 			ctx,

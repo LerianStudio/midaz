@@ -146,7 +146,8 @@ type ListRulesInputHuma struct {
 	SegmentID       string `query:"segment_id" doc:"Filter by scope segment_id (UUID)"`
 	PortfolioID     string `query:"portfolio_id" doc:"Filter by scope portfolio_id (UUID)"`
 	MerchantID      string `query:"merchant_id" doc:"Filter by scope merchant_id (UUID)"`
-	TransactionType string `query:"transaction_type" doc:"Filter by scope transaction_type (CARD, WIRE, PIX, CRYPTO)"`
+	TransactionType string `query:"transaction_type" deprecated:"true" doc:"Deprecated: use scheme. Same filter under its former name; when both are sent they must carry the same value"`
+	Scheme          string `query:"scheme" doc:"Filter by scope payment scheme: 1 to 50 characters of A-Z, 0-9, _ or -, trimmed and upper-cased before matching"`
 	SubType         string `query:"sub_type" doc:"Filter by scope sub_type (case-insensitive; max 50 chars)"`
 	Limit           string `query:"limit" doc:"Max items per page (1-100, default: 10)"`
 	Cursor          string `query:"cursor" doc:"Pagination cursor (empty for first page)"`
@@ -233,6 +234,7 @@ func (in *ListRulesInputHuma) bindListRulesInput(target any) error {
 	out.PortfolioID = optStr("portfolio_id")
 	out.MerchantID = optStr("merchant_id")
 	out.TransactionType = optStr("transaction_type")
+	out.Scheme = optStr("scheme")
 	out.SubType = optStr("sub_type")
 	out.Cursor = last("cursor")
 	out.SortBy = last("sort_by")

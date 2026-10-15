@@ -96,8 +96,8 @@ func TestIntegration_Quarantine_Insert_NonJSONPayload(t *testing.T) {
 }
 
 // TestIntegration_Quarantine_Insert_Idempotent verifies the ON CONFLICT
-// (redis_key) DO NOTHING contract: re-inserting the same redis_key is a
-// successful no-op so the caller may safely delete the Redis copy.
+// (redis_key) DO NOTHING contract: re-inserting the same redis_key with the same
+// payload is a successful no-op so the caller may safely delete the Redis copy.
 func TestIntegration_Quarantine_Insert_Idempotent(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
@@ -130,4 +130,51 @@ func TestIntegration_Quarantine_Insert_Idempotent(t *testing.T) {
 		redisKey,
 	).Scan(&count))
 	assert.Equal(t, 1, count, "record must land exactly once despite two inserts")
+}
+
+// TestIntegration_Quarantine_Insert_RefusesADifferentPayloadUnderTheSameKey
+// inserts a second, different payload under an already quarantined redis_key.
+// The second payload is not stored anywhere, so the insert must fail with
+// ErrQuarantinePayloadConflict and leave the stored row untouched; a success
+// would let the caller delete the only copy of the second payload.
+func TestIntegration_Quarantine_Insert_RefusesADifferentPayloadUnderTheSameKey(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	repo, db := setupQuarantineRepo(t)
+	ctx := context.Background()
+
+	redisKey := "legacy_backup:transaction:{transactions}:" + uuid.NewString()
+	stored := []byte(`{"stage":"hold"}`)
+
+	newRecord := func(payload []byte) *QuarantineRecord {
+		return &QuarantineRecord{
+			OrganizationID: uuid.Must(libCommons.GenerateUUIDv7()),
+			LedgerID:       uuid.Must(libCommons.GenerateUUIDv7()),
+			TransactionID:  uuid.Must(libCommons.GenerateUUIDv7()),
+			RedisKey:       redisKey,
+			Payload:        payload,
+			FailureReason:  "nil_validate",
+		}
+	}
+
+	require.NoError(t, repo.Insert(ctx, newRecord(stored)))
+
+	err := repo.Insert(ctx, newRecord([]byte(`{"stage":"commit"}`)))
+	require.ErrorIs(t, err, ErrQuarantinePayloadConflict)
+
+	var (
+		count int
+		got   []byte
+	)
+
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM transaction_backup_quarantine WHERE redis_key = $1`, redisKey,
+	).Scan(&count))
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT payload FROM transaction_backup_quarantine WHERE redis_key = $1`, redisKey,
+	).Scan(&got))
+	assert.Equal(t, 1, count)
+	assert.Equal(t, stored, got, "the stored payload must not be overwritten")
 }

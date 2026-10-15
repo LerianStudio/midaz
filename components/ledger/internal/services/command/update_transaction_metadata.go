@@ -31,7 +31,7 @@ const metadataUpdateAttempts = 4
 func (uc *UseCase) UpdateTransactionMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.update_metadata")
+	ctx, span := tracer.Start(ctx, "command.update_transaction_metadata")
 	defer span.End()
 
 	if entityName == constant.EntityTransaction || entityName == constant.EntityOperation {

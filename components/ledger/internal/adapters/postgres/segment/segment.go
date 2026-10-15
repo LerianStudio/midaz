@@ -56,8 +56,13 @@ func (t *SegmentPostgreSQLModel) ToEntity() *mmodel.Segment {
 
 // FromEntity converts an entity.Segment to SegmentPostgreSQLModel
 func (t *SegmentPostgreSQLModel) FromEntity(segment *mmodel.Segment) {
+	ID := segment.ID
+	if ID == "" {
+		ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+	}
+
 	*t = SegmentPostgreSQLModel{
-		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:                ID,
 		Name:              segment.Name,
 		LedgerID:          segment.LedgerID,
 		OrganizationID:    segment.OrganizationID,

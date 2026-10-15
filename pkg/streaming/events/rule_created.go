@@ -20,7 +20,7 @@ import (
 var RuleCreatedDefinition = Definition{
 	ResourceType:  "rule",
 	EventType:     "created",
-	SchemaVersion: "1.0.0",
+	SchemaVersion: "1.1.0",
 }
 
 // RuleCreatedPayload is the wire payload for rule.created. Fields are typed

@@ -379,6 +379,15 @@ func TestRedisConsumerCycleLockKey(t *testing.T) {
 		"cycle lock key must be deterministic across calls")
 }
 
+func TestEngineRecoveryCleanupLockKey(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "lock:{transactions}:engine-recovery-cleanup", EngineRecoveryCleanupLockKey(),
+		"every pod must elect the cleanup pass on the same key")
+	assert.NotEqual(t, RedisConsumerCycleLockKey(), EngineRecoveryCleanupLockKey(),
+		"cleanup passes must not wait for the recovery cycle lock")
+}
+
 func TestCacheKeyConstants(t *testing.T) {
 	t.Parallel()
 

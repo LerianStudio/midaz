@@ -6,16 +6,22 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"testing"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionquarantine"
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
@@ -68,18 +74,71 @@ func TestQuarantine_ReachesThreshold_QuarantinesThenDeletes(t *testing.T) {
 		mockQuarantine.EXPECT().
 			Insert(gomock.Any(), gomock.Any()).
 			DoAndReturn(func(_ context.Context, rec *transactionquarantine.QuarantineRecord) error {
-				assert.Equal(t, key, rec.RedisKey, "quarantine record must carry the redis key")
+				digest := sha256.Sum256(payload)
+				assert.Equal(t, "legacy_backup:"+key+":"+hex.EncodeToString(digest[:]), rec.RedisKey,
+					"quarantine record must carry the field and the payload digest")
 				assert.Equal(t, payload, rec.Payload, "quarantine record must carry the raw payload")
 				assert.Equal(t, "nil_validate", rec.FailureReason)
 				assert.Equal(t, QuarantineThreshold, rec.Attempts)
 
 				return nil
 			}),
-		mockRedis.EXPECT().RemoveMessageFromQueue(gomock.Any(), key).Return(nil),
+		mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, string(payload)).Return(redisTransaction.RecoveryAckDeleted, nil),
 		mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
 	)
 
 	consumer.quarantinePoisonRecord(ctx, noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "nil_validate")
+}
+
+// TestQuarantine_RecordChangedBeforeRemoval_LeavesTheCurrentRecord quarantines a
+// record that was rewritten or removed after it was read. The removal asks only
+// for the quarantined payload, and the counter of the quarantined attempts is
+// still cleared; that the rewritten record survives the removal is proven
+// against Valkey by TestIntegrationCompareAndDeleteBackupRecord.
+func TestQuarantine_RecordChangedBeforeRemoval_LeavesTheCurrentRecord(t *testing.T) {
+	t.Parallel()
+
+	for name, outcome := range map[string]int64{
+		"record rewritten": redisTransaction.RecoveryAckReplaced,
+		"record removed":   redisTransaction.RecoveryAckMissing,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
+
+			key := "tenant:t-1:transaction:{transactions}:" + uuid.NewString() + ":" + uuid.NewString() + ":" + uuid.NewString()
+			payload := []byte(`{"raw":"poison"}`)
+
+			gomock.InOrder(
+				mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(QuarantineThreshold), nil),
+				mockQuarantine.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil),
+				mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, string(payload)).Return(outcome, nil),
+				mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
+			)
+
+			consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "nil_validate")
+		})
+	}
+}
+
+// TestQuarantine_RemovalFailure_KeepsAttempts leaves the attempt counter in
+// place when the removal itself fails, so the next cycle retries it.
+func TestQuarantine_RemovalFailure_KeepsAttempts(t *testing.T) {
+	t.Parallel()
+
+	consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
+
+	key := "transaction:{transactions}:org:ledger:tx"
+	payload := []byte(`{"raw":"poison"}`)
+
+	gomock.InOrder(
+		mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(QuarantineThreshold), nil),
+		mockQuarantine.EXPECT().Insert(gomock.Any(), gomock.Any()).Return(nil),
+		mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, string(payload)).Return(redisTransaction.RecoveryAckMissing, errors.New("redis down")),
+	)
+
+	consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "nil_validate")
 }
 
 // TestQuarantine_InsertFailure_RecordNotDeleted is case (b): when the durable
@@ -88,25 +147,38 @@ func TestQuarantine_ReachesThreshold_QuarantinesThenDeletes(t *testing.T) {
 func TestQuarantine_InsertFailure_RecordNotDeleted(t *testing.T) {
 	t.Parallel()
 
-	consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{name: "quarantine database unavailable", err: errors.New("postgres down")},
+		// A key already holding a different payload stored nothing of this
+		// one, so it must not count as persisted.
+		{name: "quarantine key holds a different payload", err: transactionquarantine.ErrQuarantinePayloadConflict},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctx := context.Background()
-	key := "transaction:{transactions}:org:ledger:tx"
-	payload := []byte(`{"raw":"poison"}`)
+			consumer, mockRedis, mockQuarantine := newQuarantineConsumer(t)
 
-	mockRedis.EXPECT().
-		IncrementBackupAttempt(gomock.Any(), key).
-		Return(int64(QuarantineThreshold), nil)
+			key := "transaction:{transactions}:org:ledger:tx"
+			payload := []byte(`{"raw":"poison"}`)
 
-	mockQuarantine.EXPECT().
-		Insert(gomock.Any(), gomock.Any()).
-		Return(errors.New("postgres down"))
+			mockRedis.EXPECT().
+				IncrementBackupAttempt(gomock.Any(), key).
+				Return(int64(QuarantineThreshold), nil)
 
-	// THE INVARIANT: no RemoveMessageFromQueue and no ClearBackupAttempt when
-	// the persist failed. gomock fails the test if either is called because no
-	// expectation is registered for them.
+			mockQuarantine.EXPECT().
+				Insert(gomock.Any(), gomock.Any()).
+				Return(tc.err)
 
-	consumer.quarantinePoisonRecord(ctx, noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "ledger_settings_fetch_failure")
+			// THE INVARIANT: no record removal and no ClearBackupAttempt when
+			// the persist failed. gomock fails the test if either is called
+			// because no expectation is registered for them.
+
+			consumer.quarantinePoisonRecord(context.Background(), noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), payload, "ledger_settings_fetch_failure")
+		})
+	}
 }
 
 // TestQuarantine_BelowThreshold_NoQuarantineNoDelete verifies that below the
@@ -124,7 +196,7 @@ func TestQuarantine_BelowThreshold_NoQuarantineNoDelete(t *testing.T) {
 		IncrementBackupAttempt(gomock.Any(), key).
 		Return(int64(QuarantineThreshold-1), nil)
 
-	// No Insert, no RemoveMessageFromQueue, no ClearBackupAttempt expected.
+	// No Insert, no record removal, no ClearBackupAttempt expected.
 
 	consumer.quarantinePoisonRecord(ctx, noopSpan(), newTestLogger(), key, uuid.New(), uuid.New(), uuid.New(), []byte(`{}`), "unmarshal_failure")
 }
@@ -199,6 +271,76 @@ func TestProcessMessageProjectionFailuresAdvanceQuarantineAttempts(t *testing.T)
 			mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(1), nil)
 
 			consumer.processMessage(context.Background(), key, rawPayload, tc.message)
+		})
+	}
+}
+
+// TestProcessMessageQuarantinesARebuildWithoutOperations replays a record that
+// carries neither materialized operations nor balance snapshots, the shape an
+// annotation seeded before its operations were built or a 4.0.x create leaves
+// behind. The rebuild yields no operation, so the record must reach the
+// quarantine table under its own reason instead of being written as a
+// transaction with no audit trail. The transaction repository registers no
+// expectation: any write attempt fails the test.
+func TestProcessMessageQuarantinesARebuildWithoutOperations(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []string{constant.NOTED, constant.APPROVED} {
+		t.Run(status, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			t.Cleanup(ctrl.Finish)
+
+			mockRedis := redisTransaction.NewMockRedisRepository(ctrl)
+			mockQuarantine := transactionquarantine.NewMockRepository(ctrl)
+			mockLedger := ledger.NewMockRepository(ctrl)
+
+			organizationID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+			ledgerID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+			transactionID := uuid.MustParse("33333333-3333-3333-3333-333333333333")
+			key := "transaction:{transactions}:" + organizationID.String() + ":" + ledgerID.String() + ":" + transactionID.String()
+			rawPayload := `{"payload":"preserved"}`
+
+			consumer := NewRedisQueueConsumer(newTestLogger(),
+				&command.UseCase{TransactionRedisRepo: mockRedis, TransactionRepo: transaction.NewMockRepository(ctrl)},
+				&query.UseCase{LedgerRepo: mockLedger},
+			).WithQuarantineRepository(mockQuarantine)
+
+			mockLedger.EXPECT().GetSettings(gomock.Any(), organizationID, ledgerID).Return(map[string]any{}, nil)
+
+			gomock.InOrder(
+				mockRedis.EXPECT().IncrementBackupAttempt(gomock.Any(), key).Return(int64(QuarantineThreshold), nil),
+				mockQuarantine.EXPECT().
+					Insert(gomock.Any(), gomock.Any()).
+					DoAndReturn(func(_ context.Context, rec *transactionquarantine.QuarantineRecord) error {
+						assert.Equal(t, "empty_rebuilt_operations", rec.FailureReason)
+						assert.Equal(t, transactionID, rec.TransactionID)
+						assert.Equal(t, []byte(rawPayload), rec.Payload)
+
+						return nil
+					}),
+				mockRedis.EXPECT().CompareAndDeleteBackupRecord(gomock.Any(), key, rawPayload).Return(redisTransaction.RecoveryAckDeleted, nil),
+				mockRedis.EXPECT().ClearBackupAttempt(gomock.Any(), key).Return(nil),
+			)
+
+			amount := &mtransaction.Amount{Asset: "USD", Value: decimal.NewFromInt(100)}
+
+			consumer.processMessage(context.Background(), key, rawPayload, mmodel.TransactionRedisQueue{
+				OrganizationID:    organizationID,
+				LedgerID:          ledgerID,
+				TransactionID:     transactionID,
+				TransactionStatus: status,
+				Validate:          &mtransaction.Responses{},
+				TransactionInput: mtransaction.Transaction{
+					Send: mtransaction.Send{
+						Asset:      "USD",
+						Value:      decimal.NewFromInt(100),
+						Source:     mtransaction.Source{From: []mtransaction.FromTo{{AccountAlias: "@source", Amount: amount, IsFrom: true}}},
+						Distribute: mtransaction.Distribute{To: []mtransaction.FromTo{{AccountAlias: "@destination", Amount: amount}}},
+					},
+				},
+			})
 		})
 	}
 }

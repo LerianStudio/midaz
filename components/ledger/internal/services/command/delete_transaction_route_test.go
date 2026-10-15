@@ -9,10 +9,12 @@ import (
 	"errors"
 	"testing"
 
+	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transactionroute"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	"github.com/google/uuid"
@@ -34,9 +36,17 @@ func TestDeleteTransactionRouteByIDSuccess(t *testing.T) {
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
+		Return(nil).
+		Times(1)
+
 	uc := &UseCase{
-		TransactionRouteRepo: mockRepo,
-		TransactionRedisRepo: mockRedisRepo,
+		TransactionRouteRepo:    mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	transactionRoute := &mmodel.TransactionRoute{
@@ -78,8 +88,15 @@ func TestDeleteTransactionRouteByIDNotFoundOnFind(t *testing.T) {
 	organizationID := uuid.New()
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		TransactionRouteRepo: mockRepo,
+		TransactionRouteRepo:    mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -106,8 +123,15 @@ func TestDeleteTransactionRouteByIDFindError(t *testing.T) {
 	databaseError := errors.New("database connection error")
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		TransactionRouteRepo: mockRepo,
+		TransactionRouteRepo:    mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	mockRepo.EXPECT().
@@ -132,8 +156,15 @@ func TestDeleteTransactionRouteByIDDeleteError(t *testing.T) {
 	databaseError := errors.New("database deletion error")
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
+		Times(0)
+
 	uc := &UseCase{
-		TransactionRouteRepo: mockRepo,
+		TransactionRouteRepo:    mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
 	}
 
 	transactionRoute := &mmodel.TransactionRoute{
@@ -170,9 +201,17 @@ func TestDeleteTransactionRouteByID_CacheFailureDoesNotFailTheDelete(t *testing.
 
 	mockRepo := transactionroute.NewMockRepository(ctrl)
 	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
+		Return(nil).
+		Times(1)
+
 	uc := &UseCase{
-		TransactionRouteRepo: mockRepo,
-		TransactionRedisRepo: mockRedisRepo,
+		TransactionRouteRepo:    mockRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
+		TransactionRedisRepo:    mockRedisRepo,
 	}
 
 	mockRepo.EXPECT().
@@ -184,6 +223,42 @@ func TestDeleteTransactionRouteByID_CacheFailureDoesNotFailTheDelete(t *testing.
 		Return(nil).
 		Times(1)
 	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(errors.New("redis connection error")).Times(2)
+
+	assert.NoError(t, uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID))
+}
+
+// The route is already gone when its metadata soft delete keeps failing, so the
+// request still succeeds and the cache is still cleared.
+func TestDeleteTransactionRouteByID_MetadataSoftDeleteFailureDoesNotFailTheDelete(t *testing.T) {
+	ctrl := gomock.NewController(t)
+
+	transactionRouteID := uuid.New()
+	organizationID := uuid.New()
+	ledgerID := uuid.New()
+
+	mockRepo := transactionroute.NewMockRepository(ctrl)
+	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	mockMetadataRepo := txMongo.NewMockRepository(ctrl)
+	uc := &UseCase{
+		TransactionRouteRepo:    mockRepo,
+		TransactionRedisRepo:    mockRedisRepo,
+		TransactionMetadataRepo: mockMetadataRepo,
+		metadataDeleteRetry:     fastMetadataDeleteRetryPolicy(),
+	}
+
+	mockRepo.EXPECT().
+		FindByID(gomock.Any(), organizationID, transactionRouteID).
+		Return(&mmodel.TransactionRoute{ID: transactionRouteID, OrganizationID: organizationID, LedgerID: &ledgerID}, nil).
+		Times(1)
+	mockRepo.EXPECT().
+		Delete(gomock.Any(), organizationID, transactionRouteID, gomock.Any()).
+		Return(nil).
+		Times(1)
+	mockMetadataRepo.EXPECT().
+		Delete(gomock.Any(), constant.EntityTransactionRoute, transactionRouteID.String()).
+		Return(errors.New("mongo unavailable")).
+		Times(3)
+	mockRedisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(2)
 
 	assert.NoError(t, uc.DeleteTransactionRouteByID(context.Background(), organizationID, transactionRouteID))
 }

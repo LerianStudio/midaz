@@ -86,6 +86,8 @@ func (uc *UseCase) DeleteAssetByID(ctx context.Context, organizationID, ledgerID
 		return err
 	}
 
+	uc.softDeleteOnboardingMetadata(ctx, span, logger, constant.EntityAsset, id.String())
+
 	uc.emitAssetDeletedEvent(ctx, span, logger, asset, time.Now())
 
 	return nil

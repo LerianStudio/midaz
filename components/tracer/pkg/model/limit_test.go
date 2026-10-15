@@ -420,7 +420,7 @@ func TestNewLimit(t *testing.T) {
 			limitType:   LimitTypeDaily,
 			maxAmount:   decimal.RequireFromString("1000"),
 			asset:       "USD",
-			scopes:      []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11)), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
+			scopes:      []Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(11)), TransactionType: testutil.Ptr(TransactionType("BAD VALUE!"))}},
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidScope,
 		},
@@ -715,7 +715,7 @@ func TestLimit_Update(t *testing.T) {
 		},
 		{
 			name:        "rejects scope with invalid TransactionType",
-			updateScope: &[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(15)), TransactionType: testutil.Ptr(TransactionType("INVALID"))}},
+			updateScope: &[]Scope{{AccountID: testutil.UUIDPtr(testutil.MustDeterministicUUID(15)), TransactionType: testutil.Ptr(TransactionType("BAD VALUE!"))}},
 			expectError: true,
 			errorIs:     constant.ErrLimitInvalidScope,
 		},

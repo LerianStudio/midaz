@@ -177,7 +177,7 @@ func TestReserveTransaction_RecordsDroppedMetadata(t *testing.T) {
 	uc.reserveTransaction(ctx, span, &libLog.NopLogger{},
 		mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
 		uuid.New(), decimal.NewFromInt(1000), "BRL", fixedReserveAccount,
-		map[string]any{"ok": "v", "bad-key": "v", "nested": map[string]any{}}, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false)
+		map[string]any{"ok": "v", "bad-key": "v", "nested": map[string]any{}}, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false, "")
 
 	attrs := spanAttributes(ended())
 	assert.Equal(t, int64(2), attrs["app.tracer.metadata_dropped"].AsInt64())

@@ -15,20 +15,22 @@ import (
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// skipFieldKeys are the two response keys that are /v2 ONLY. A v1 client parses a body
-// it was written against, so neither may appear on /v1 — in the body OR in the
+// skipFieldKeys are the response keys that are /v2 ONLY. A v1 client parses a body
+// it was written against, so none may appear on /v1 — in the body OR in the
 // published schema, since a contract that advertises a key the body never sends is its
 // own defect.
-var skipFieldKeys = []string{"feesSkipped", "tracerSkipped"}
+var skipFieldKeys = []string{"feesSkipped", "tracerSkipped", "scheme"}
 
-// transactionWithSkips is a transaction carrying BOTH skip flags set, so an assertion
-// that a key is absent cannot pass merely because the value was the zero value.
+// transactionWithSkips is a transaction carrying BOTH skip flags set and a scheme
+// declared, so an assertion that a key is absent cannot pass merely because the value
+// was the zero value.
 func transactionWithSkips() *transaction.Transaction {
 	return &transaction.Transaction{
 		ID:            "00000000-0000-0000-0000-000000000001",
 		AssetCode:     "BRL",
 		FeesSkipped:   true,
 		TracerSkipped: true,
+		Scheme:        "PIX",
 	}
 }
 
@@ -59,8 +61,8 @@ func TestTransactionV1_BodyWithholdsSkipFields(t *testing.T) {
 	}
 }
 
-// TestTransactionV1_PreservesEmbeddedFields asserts the shadow costs nothing but the two
-// keys: every other field of the canonical transaction still reaches the v1 body. The
+// TestTransactionV1_PreservesEmbeddedFields asserts the shadows cost nothing but the
+// withheld keys: every other field of the canonical transaction still reaches the v1 body. The
 // shadow works by winning a field-name conflict, so a mistake there silently drops
 // siblings rather than failing loudly.
 func TestTransactionV1_PreservesEmbeddedFields(t *testing.T) {
@@ -78,8 +80,13 @@ func TestTransactionV1_PreservesEmbeddedFields(t *testing.T) {
 	require.NoError(t, json.Unmarshal(v1, &v1Body))
 	require.NoError(t, json.Unmarshal(canonical, &canonicalBody))
 
+	withheld := make(map[string]struct{}, len(skipFieldKeys))
+	for _, key := range skipFieldKeys {
+		withheld[key] = struct{}{}
+	}
+
 	for key, want := range canonicalBody {
-		if key == "feesSkipped" || key == "tracerSkipped" {
+		if _, isWithheld := withheld[key]; isWithheld {
 			continue
 		}
 

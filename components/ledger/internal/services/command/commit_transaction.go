@@ -188,7 +188,7 @@ func (uc *UseCase) dispatchCrossLedgerGroupTransitionV2(
 
 // transitionPendingV1 is the /v1 state-transition pipeline: lock, prepare, commit the
 // balances, finalize. It names no reservation seam.
-func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransitionRun) (*transaction.Transaction, error) {
+func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransitionRun) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.transition_pending_transaction")
@@ -198,8 +198,14 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 	if err != nil {
 		return nil, err
 	}
+	// A failure, an indeterminate engine outcome included, releases the lock so
+	// a retry is answered from the transaction state. A success keeps it until
+	// the TTL: a release without the engine guard takes the same lock, and it is
+	// all that stops that release from applying the opposite transition to the
+	// hold this one closed.
+	defer releasePendingLockOnFailure(unlock, &err)
 
-	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, false)
+	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, false)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
 	}
@@ -215,28 +221,32 @@ func (uc *UseCase) transitionPendingV1(ctx context.Context, run *pendingTransiti
 // failure never fails the request; it is retried off the request path instead. The
 // long-lived TTL hint set at create-pending keeps these reservations alive until this
 // transition.
-func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransitionRun) (*transaction.Transaction, error) {
+func (uc *UseCase) transitionPendingV2(ctx context.Context, run *pendingTransitionRun) (_ *transaction.Transaction, err error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "command.transition_pending_transaction")
+	ctx, span := tracer.Start(ctx, "command.transition_pending_transaction_v2")
 	defer span.End()
 
 	unlock, err := uc.lockPendingTransaction(ctx, span, logger, run)
 	if err != nil {
 		return nil, err
 	}
+	// A failure, an indeterminate engine outcome included, releases the lock so
+	// a retry is answered from the transaction state. A success keeps it until
+	// the TTL: a release without the engine guard takes the same lock, and it is
+	// all that stops that release from applying the opposite transition to the
+	// hold this one closed.
+	defer releasePendingLockOnFailure(unlock, &err)
 
 	// Resolve the optional commit grant immediately after acquiring the pending
-	// lock. A miss releases the lock before accounting begins.
+	// lock, before accounting begins.
 	run.accountBlockExceptionGrant, err = uc.resolveAccountBlockExceptionGrant(ctx, span, logger,
 		run.organizationID, run.ledgerID, run.accountBlockExceptionID)
 	if err != nil {
-		unlock()
-
 		return nil, err
 	}
 
-	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, unlock, true)
+	tran, err := uc.transitionPendingWithEngine(ctx, span, logger, run, true)
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to transition transaction with engine", err)
 	}

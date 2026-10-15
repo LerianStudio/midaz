@@ -89,6 +89,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 			redisRepository.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 			redisRepository.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 			redisRepository.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+			redisRepository.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
 
 			realAdapter, err := newAdapterWithLimits(pendingLifecycleClientProvider{client: client}, guardBootstrapLimits())
 			require.NoError(t, err)
@@ -97,6 +98,7 @@ func TestIntegrationAccountClosingAnswersAnInboundPendingAtItsTransition(t *test
 			uc := &command.UseCase{
 				TransactionRedisRepo:        redisRepository,
 				TransactionReader:           reader,
+				TransactionRepo:             pendingLifecycleRows{reader: reader},
 				Engine:                      executor,
 				AppliedTransactionCompleter: &pendingLifecycleFinalizer{outcomes: []string{constant.PENDING, test.terminalStatus}},
 				TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{

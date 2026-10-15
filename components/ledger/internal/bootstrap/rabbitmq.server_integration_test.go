@@ -34,6 +34,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
+	"github.com/LerianStudio/midaz/v4/pkg/repository"
 	rmqtestutil "github.com/LerianStudio/midaz/v4/tests/utils/rabbitmq"
 )
 
@@ -91,12 +92,18 @@ func TestIntegration_HandlerBTOQueue_LegacyWireFormatCompatibility(t *testing.T)
 			Times(1)
 
 		mockTransactionRepo.EXPECT().
-			Create(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, tran *transaction.Transaction) (*transaction.Transaction, error) {
+			BeginTx(gomock.Any()).
+			Return(rabbitLegacyDBTransaction{}, nil).
+			Times(1)
+
+		mockTransactionRepo.EXPECT().
+			CreateBulkTx(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ repository.DBExecutor, trans []*transaction.Transaction) (*repository.BulkInsertResult, error) {
 				// Signal that processing completed successfully
 				defer processingDone.Done()
-				t.Logf("Transaction created: ID=%s, Description=%s", tran.ID, tran.Description)
-				return tran, nil
+				require.Len(t, trans, 1)
+				t.Logf("Transaction created: ID=%s, Description=%s", trans[0].ID, trans[0].Description)
+				return &repository.BulkInsertResult{Attempted: 1, Inserted: 1}, nil
 			}).
 			Times(1)
 

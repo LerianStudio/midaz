@@ -157,7 +157,13 @@ func NewRule(name, expression string, action Decision, scopes []Scope, descripti
 			return nil, constant.ErrRuleInvalidScope
 		}
 
-		scopesCopy = append(scopesCopy, cloneAndNormalizeScope(scope))
+		normalizedScope := cloneAndNormalizeScope(scope)
+
+		if err := validateScopeScheme(normalizedScope, constant.ErrRuleInvalidScope); err != nil {
+			return nil, err
+		}
+
+		scopesCopy = append(scopesCopy, normalizedScope)
 	}
 
 	return &Rule{
@@ -220,12 +226,25 @@ func (r *Rule) Update(
 		}
 	}
 
-	// Validate scopes - each scope must have at least one field set
+	// Validate scopes: each must have at least one field set and a consistent,
+	// canonical scheme. The normalized deep copies are committed below.
+	var scopesCopy []Scope
+
 	if scopes != nil {
+		scopesCopy = make([]Scope, 0, len(*scopes))
+
 		for _, scope := range *scopes {
 			if scope.IsEmpty() {
 				return constant.ErrRuleInvalidScope
 			}
+
+			normalizedScope := cloneAndNormalizeScope(scope)
+
+			if err := validateScopeScheme(normalizedScope, constant.ErrRuleInvalidScope); err != nil {
+				return err
+			}
+
+			scopesCopy = append(scopesCopy, normalizedScope)
 		}
 	}
 
@@ -246,16 +265,6 @@ func (r *Rule) Update(
 	}
 
 	if scopes != nil {
-		// Defensive deep copy of scopes to prevent external mutation
-		// Deep copy UUID pointers to prevent external mutations from affecting rule
-		// Note: IsEmpty() already validated in the validation phase above
-		// SubType is normalized to trimmed lowercase canonical form so DB state is
-		// symmetric with runtime case-insensitive matching.
-		scopesCopy := make([]Scope, 0, len(*scopes))
-		for _, scope := range *scopes {
-			scopesCopy = append(scopesCopy, cloneAndNormalizeScope(scope))
-		}
-
 		r.Scopes = scopesCopy
 		updated = true
 	}

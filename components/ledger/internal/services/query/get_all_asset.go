@@ -9,8 +9,6 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -27,21 +25,13 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 	ctx, span := tracer.Start(ctx, "query.get_all_assets")
 	defer span.End()
 
-	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter.ToOffsetPagination())
+	assets, err := uc.AssetRepo.FindAll(ctx, organizationID, ledgerID, filter)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting assets on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)
-
-			logger.Log(ctx, libLog.LevelWarn, "No assets found")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get assets on repo", err)
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get assets on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get assets on repo", err)
 
 		return nil, err
 	}
@@ -57,9 +47,7 @@ func (uc *UseCase) GetAllAssets(ctx context.Context, organizationID, ledgerID uu
 
 	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntityAsset, assetIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoAssetsFound, constant.EntityAsset)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get asset metadata on repo", err)
 
 		return nil, err
 	}

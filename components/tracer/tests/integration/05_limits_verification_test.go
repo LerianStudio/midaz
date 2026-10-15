@@ -484,7 +484,7 @@ func TestLimitsVerification_5_1_6_ChecksMultipleLimits(t *testing.T) {
 //
 // Test spec 5.1.9: PER_TRANSACTION limit checks value only
 func TestLimitsVerification_5_1_9_PerTransactionLimitChecksValueOnly(t *testing.T) {
-	// Use valid transaction type (must be one of CARD, WIRE, PIX, CRYPTO)
+	// Any normalized scheme works; CARD keeps the fixture readable.
 	transactionType := "CARD"
 
 	// Create PER_TRANSACTION limit of 500

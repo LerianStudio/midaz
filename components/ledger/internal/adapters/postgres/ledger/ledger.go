@@ -68,8 +68,13 @@ func (t *LedgerPostgreSQLModel) FromEntity(ledger *mmodel.Ledger) {
 		settingsMap = mmodel.LedgerSettingsToMap(*ledger.Settings)
 	}
 
+	ID := ledger.ID
+	if ID == "" {
+		ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+	}
+
 	*t = LedgerPostgreSQLModel{
-		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:                ID,
 		Name:              ledger.Name,
 		OrganizationID:    ledger.OrganizationID,
 		Status:            ledger.Status.Code,

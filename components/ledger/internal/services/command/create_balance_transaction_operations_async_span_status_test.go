@@ -15,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -60,14 +61,15 @@ func TestCreateOrUpdateTransaction_SpanClassContract(t *testing.T) {
 			defer ctrl.Finish()
 
 			mockTransactionRepo := transaction.NewMockRepository(ctrl)
+			dbTx := &mockDBTransaction{}
 			mockTransactionRepo.EXPECT().
-				Create(gomock.Any(), gomock.Any()).
+				CreateBulkTx(gomock.Any(), dbTx, gomock.Any()).
 				Return(nil, tt.repoErr).
 				Times(1)
 
 			uc := &UseCase{TransactionRepo: mockTransactionRepo}
 
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 			_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 			payload := transaction.TransactionProcessingPayload{
@@ -77,22 +79,22 @@ func TestCreateOrUpdateTransaction_SpanClassContract(t *testing.T) {
 				},
 			}
 
-			_, _, err := uc.CreateOrUpdateTransaction(ctx, &capturingLogger{}, tracer, payload)
+			_, _, err := uc.CreateOrUpdateTransaction(ctx, &capturingLogger{}, tracer, dbTx, payload)
 			require.Error(t, err)
 
 			require.Equal(t, tt.wantSpanStatus == codes.Unset, pkg.IsBusinessError(err),
 				"case must exercise the error class it claims")
 
-			span := findSpan(t, recorder, "command.create_balance_transaction_operations.create_transaction")
+			span := spantest.FindSpan(t, recorder, "command.create_balance_transaction_operations.create_transaction")
 
 			assert.Equal(t, tt.wantSpanStatus, span.Status().Code,
 				"span status must follow the error class (T5)")
 
-			event, ok := findEvent(span, tt.wantSpanEvent)
+			event, ok := spantest.FindEvent(span, tt.wantSpanEvent)
 			require.True(t, ok, "the failure must be recorded as span event %q; got %v", tt.wantSpanEvent, span.Events())
 
 			if tt.wantEventDetail != "" {
-				assert.Contains(t, eventText(event), tt.wantEventDetail,
+				assert.Contains(t, spantest.EventText(event), tt.wantEventDetail,
 					"the recorded event must name the failing operation")
 			}
 		})

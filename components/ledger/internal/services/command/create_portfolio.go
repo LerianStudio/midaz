@@ -67,21 +67,24 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 		UpdatedAt:      now,
 	}
 
+	// Metadata is staged before the insert so a metadata-store failure aborts the create
+	// before anything is durable in PostgreSQL, keeping a retry safe.
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityPortfolio, portfolio.ID, cpi.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create portfolio metadata", err)
+
+		return nil, err
+	}
+
 	port, err := uc.PortfolioRepo.Create(ctx, portfolio)
 	if err != nil {
+		uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntityPortfolio, portfolio.ID, cpi.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create portfolio", err)
 
 		return nil, err
 	}
 
 	uc.emitPortfolioCreatedEvent(ctx, span, logger, port)
-
-	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityPortfolio, port.ID, cpi.Metadata)
-	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create portfolio metadata", err)
-
-		return nil, err
-	}
 
 	port.Metadata = metadata
 
@@ -93,9 +96,9 @@ func (uc *UseCase) CreatePortfolio(ctx context.Context, organizationID, ledgerID
 // failures are span-recorded and logged at Warn, never returned.
 // The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
-// Anchor: invoked immediately after PortfolioRepo.Create succeeds and
-// before CreateOnboardingMetadata runs, so a downstream Mongo failure
-// cannot mask the event.
+// Anchor: invoked immediately after PortfolioRepo.Create succeeds. The
+// metadata document is already durable at that point, so the event is
+// published only for a portfolio whose create fully completed.
 //
 // Wire-format mapping lives in pkg/streaming/events/portfolio_created.go;
 // changes to the payload contract belong there, not here.

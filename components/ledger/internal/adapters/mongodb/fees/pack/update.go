@@ -50,22 +50,17 @@ func (pm *PackageMongoDBRepository) Update(ctx context.Context, id, organization
 	filter["updated_at"] = updatedAt
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
-	_, spanUpdate := tracer.Start(ctx, "repository.package.update.find_one_and_update")
-	defer spanUpdate.End()
-
-	spanUpdate.SetAttributes(attributes...)
-
 	var record PackageMongoDBModel
 
 	if err = coll.FindOneAndUpdate(ctx, filter, updateFields, opts).Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No document matched for update", bizErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No document matched for update", bizErr)
 
 			return nil, bizErr
 		}
 
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update package", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update package", err)
 
 		return nil, err
 	}

@@ -496,6 +496,22 @@ func (h *LimitHandler) getLimitUsage(ctx context.Context, idParam string) (*mode
 	return snapshot, nil
 }
 
+// limitWindowAndPeriodSentinels are the time-window and custom-period
+// validation failures the limit commands return raw. The error registry gives
+// each one its documented client status (400, or 422 for a period too long or
+// already over).
+var limitWindowAndPeriodSentinels = []error{
+	constant.ErrLimitTimeWindowMismatch,
+	constant.ErrLimitTimeWindowZeroWidth,
+	constant.ErrLimitCustomDatesRequired,
+	constant.ErrLimitCustomDatesOrder,
+	constant.ErrLimitCustomDatesNotAllowed,
+	constant.ErrLimitCustomPeriodTooLong,
+	constant.ErrLimitCustomPeriodExpired,
+	constant.ErrLimitInvalidCustomStartFormat,
+	constant.ErrLimitInvalidCustomEndFormat,
+}
+
 // classifyLimitServiceError maps a raw service error to its canonical Midaz
 // error, attributing the span, WITHOUT rendering. It is the single
 // classification the Fiber wrappers (render via http.WithError) and the Huma
@@ -509,6 +525,13 @@ func classifyLimitServiceError(span trace.Span, err error) error {
 	// service's status/code survives instead of collapsing to a 500.
 	if pkg.IsBusinessError(err) {
 		return err
+	}
+
+	for _, sentinel := range limitWindowAndPeriodSentinels {
+		if errors.Is(err, sentinel) {
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid limit time window or custom period", err)
+			return pkg.ValidateBusinessError(sentinel, constant.EntityLimit)
+		}
 	}
 
 	switch {

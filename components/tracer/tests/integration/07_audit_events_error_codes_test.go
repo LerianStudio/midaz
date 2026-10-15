@@ -324,10 +324,10 @@ func TestListAuditEvents_InvalidFilters_ReturnsValidationError(t *testing.T) {
 		},
 		{
 			name:          "invalid_transaction_type",
-			queryParams:   "transaction_type=INVALID_TYPE",
+			queryParams:   "transaction_type=INVALID%20TYPE",
 			expectedCode:  "0009",
 			expectedTitle: "Missing Fields in Request",
-			desc:          "Invalid transaction type enum value",
+			desc:          "Transaction type that is not a valid scheme",
 		},
 		{
 			name:          "invalid_sort_order",

@@ -72,6 +72,8 @@ func (uc *UseCase) DeleteTransactionRouteByID(ctx context.Context, organizationI
 		return err
 	}
 
+	uc.softDeleteTransactionMetadata(ctx, span, logger, constant.EntityTransactionRoute, transactionRouteID.String())
+
 	// The route is already deleted, so a cache failure does not fail the request.
 	// The entries never expire, so it is logged for an operator to clear them.
 	if err := uc.DeleteTransactionRouteCache(ctx, transactionRoute); err != nil {

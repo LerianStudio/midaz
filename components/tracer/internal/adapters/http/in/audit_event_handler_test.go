@@ -336,7 +336,7 @@ func TestAuditEventHandler_ListAuditEvents_InvalidTransactionType(t *testing.T) 
 	app := fiber.New()
 	app.Get("/v1/audit-events", handler.ListAuditEvents)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?transaction_type=INVALID_TYPE", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/audit-events?transaction_type=bad%20value!", nil)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -355,7 +355,7 @@ func TestAuditEventHandler_ListAuditEvents_InvalidTransactionType(t *testing.T) 
 }
 
 func TestListAuditEventsInput_ValidTransactionTypes(t *testing.T) {
-	validTypes := []string{"CARD", "WIRE", "PIX", "CRYPTO"}
+	validTypes := []string{"CARD", "WIRE", "PIX", "CRYPTO", "pix", " boleto "}
 
 	for _, txType := range validTypes {
 		t.Run(txType, func(t *testing.T) {
@@ -372,7 +372,7 @@ func TestListAuditEventsInput_ValidTransactionTypes(t *testing.T) {
 }
 
 func TestListAuditEventsInput_InvalidTransactionType(t *testing.T) {
-	invalid := "INVALID"
+	invalid := "bad value!"
 	limit := 10
 	input := ListAuditEventsInput{
 		TransactionType: &invalid,
