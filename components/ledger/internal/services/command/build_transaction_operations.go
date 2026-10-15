@@ -174,7 +174,7 @@ func (uc *UseCase) BuildOperations(
 							attribute.String("organization_id", tran.OrganizationID),
 							attribute.String("ledger_id", tran.LedgerID),
 						); err != nil {
-							logger.Log(ctx, libLog.LevelWarn, "Failed to record transaction processed metric", libLog.Err(err))
+							logger.Log(ctx, libLog.LevelDebug, "Failed to record transaction processed metric", libLog.Err(err))
 						}
 					}
 
@@ -220,7 +220,7 @@ func (uc *UseCase) BuildOperations(
 					attribute.String("organization_id", tran.OrganizationID),
 					attribute.String("ledger_id", tran.LedgerID),
 				); err != nil {
-					logger.Log(ctx, libLog.LevelWarn, "Failed to record transaction processed metric", libLog.Err(err))
+					logger.Log(ctx, libLog.LevelDebug, "Failed to record transaction processed metric", libLog.Err(err))
 				}
 			}
 		}
