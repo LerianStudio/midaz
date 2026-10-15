@@ -539,9 +539,10 @@ func (uc *UseCase) createRevertV1(ctx context.Context, span trace.Span, logger l
 	}
 
 	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
-	// raw aliases, where the ambiguity check cannot key against them, so it is the
-	// one that answers 0073 (ErrTransactionValueMismatch) instead of 0090
-	// (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send.
+	// the raw aliases and refuses malformed input — mismatched totals, a
+	// non-positive remainder, the same account on both sides — before the ledger
+	// settings are read; the pass after normalizeSendLegs validates the normalized
+	// send. Both passes answer the same code for the same send.
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
@@ -642,9 +643,10 @@ func (uc *UseCase) createRevertV2(ctx context.Context, span trace.Span, logger l
 	}
 
 	// Same reasoning as CreateTransactionV1's first validate: this pass runs over
-	// raw aliases, where the ambiguity check cannot key against them, so it is the
-	// one that answers 0073 (ErrTransactionValueMismatch) instead of 0090
-	// (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send.
+	// the raw aliases and refuses malformed input — mismatched totals, a
+	// non-positive remainder, the same account on both sides — before the ledger
+	// settings are read; the pass after normalizeSendLegs validates the normalized
+	// send. Both passes answer the same code for the same send.
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
