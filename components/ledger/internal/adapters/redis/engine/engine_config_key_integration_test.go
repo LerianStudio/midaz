@@ -777,7 +777,9 @@ func TestIntegrationEngineRejectsMalformedConfigurationDeclarations(t *testing.T
 // concurrently on one balance while the configuration key turns the overdraft
 // off. Every execution that starts after the key changed decides with the new
 // configuration, and the money the engine keeps equals the sum of the movements
-// it approved: no execution loses another's update.
+// it approved: no execution loses another's update. Each writer holds its last
+// execution until the key changed, so executions run after the switch however
+// fast the others finish.
 func TestIntegrationEngineConfigKeySwitchUnderConcurrentWriters(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -824,7 +826,12 @@ func TestIntegrationEngineConfigKeySwitchUnderConcurrentWriters(t *testing.T) {
 		failures  = make(chan error, len(payloads))
 		switchNow = make(chan struct{})
 		once      sync.Once
+		// switchDone releases each writer's last execution once the key changed.
+		switchDone  = make(chan struct{})
+		releaseOnce sync.Once
 	)
+
+	releaseHeld := func() { releaseOnce.Do(func() { close(switchDone) }) }
 
 	for writer := range writers {
 		waitGroup.Add(1)
@@ -832,7 +839,13 @@ func TestIntegrationEngineConfigKeySwitchUnderConcurrentWriters(t *testing.T) {
 		go func() {
 			defer waitGroup.Done()
 
-			for i := writer * perWriter; i < (writer+1)*perWriter; i++ {
+			last := (writer+1)*perWriter - 1
+
+			for i := writer * perWriter; i <= last; i++ {
+				if i == last {
+					<-switchDone
+				}
+
 				afterSwitch := switched.Load()
 
 				raw, err := container.Client.Eval(context.Background(), integrationEngineLua, keys, append([]any{string(payloads[i])}, args...)...).Text()
@@ -862,9 +875,12 @@ func TestIntegrationEngineConfigKeySwitchUnderConcurrentWriters(t *testing.T) {
 		}()
 	}
 
-	// The writers are bounded; a failed assertion still waits for them, so none
-	// keeps writing the shared Valkey while later tests run.
-	t.Cleanup(waitGroup.Wait)
+	// The writers are bounded; a failed assertion still releases and waits for
+	// them, so none keeps writing the shared Valkey while later tests run.
+	t.Cleanup(func() {
+		releaseHeld()
+		waitGroup.Wait()
+	})
 
 	select {
 	case <-switchNow:
@@ -876,6 +892,7 @@ func TestIntegrationEngineConfigKeySwitchUnderConcurrentWriters(t *testing.T) {
 	off.AllowOverdraft = false
 	f.writeBalanceConfig(t, 0, snapshotBalanceConfig(off, 2))
 	switched.Store(true)
+	releaseHeld()
 
 	waitGroup.Wait()
 	close(failures)
@@ -901,7 +918,7 @@ func TestIntegrationEngineConfigKeySwitchUnderConcurrentWriters(t *testing.T) {
 	}
 
 	require.Positive(t, drewBefore, "the scenario must draw overdraft before the switch")
-	require.Positive(t, startedAfter, "the scenario must run executions after the switch")
+	require.GreaterOrEqual(t, startedAfter, writers, "every writer's held execution starts after the switch")
 
 	fields := f.blobFields(t, 0)
 	primary, err := balancecache.Decode(mustMarshal(t, fields))
@@ -1021,8 +1038,10 @@ func TestIntegrationEngineCopyConfirmsAConfigurationPatch(t *testing.T) {
 // compare-and-set between the transactions. A copy that loses every attempt of a
 // call answers a technical error the client retries, so each PATCH may take a few
 // calls, as a retrying client would; every one confirms, and the transactions'
-// money survives every copy. How many attempts and calls each PATCH took depends
-// on the machine's load and is only logged.
+// money survives every copy. Each PATCH starts only after an execution approved
+// since the previous PATCH ended, so the transactions write the balance between
+// the PATCHes however fast the runner completes them. How many attempts and calls
+// each PATCH took depends on the machine's load and is only logged.
 func TestIntegrationEngineHotBalancePatchConfirmsItsCopy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
@@ -1102,10 +1121,15 @@ func TestIntegrationEngineHotBalancePatchConfirmsItsCopy(t *testing.T) {
 
 	balance := f.input.Execution.Balances[0]
 	approvedBefore := approved.Load()
+	approvedAfterLastPatch := approvedBefore
 	attempts := make(map[int32]int)
 	calls := make(map[int]int)
 
 	for version := int64(1); version <= patches; version++ {
+		since := approvedAfterLastPatch
+		require.Eventually(t, func() bool { return approved.Load() > since }, 5*time.Second, time.Millisecond,
+			"no execution approved before PATCH %d: the writers stopped writing the balance", version)
+
 		config := snapshotBalanceConfig(balance, version)
 		config.AllowOverdraft = version%2 == 0
 
@@ -1129,9 +1153,9 @@ func TestIntegrationEngineHotBalancePatchConfirmsItsCopy(t *testing.T) {
 		require.Equal(t, redistransaction.BlobCopyWritten, outcome, "PATCH %d confirms its copy within %d calls", version, callsPerPatch)
 		attempts[reads.reads.Load()-readsBefore]++
 		calls[call]++
+		approvedAfterLastPatch = approved.Load()
 	}
 
-	require.Greater(t, approved.Load(), approvedBefore, "the transactions kept writing the balance while the PATCHes ran")
 	t.Logf("compare-and-set attempts per PATCH (attempts: PATCHes): %v; calls per PATCH (calls: PATCHes): %v; executions during the PATCHes: %d",
 		attempts, calls, approved.Load()-approvedBefore)
 
