@@ -6,6 +6,7 @@ package mtransaction
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -18,31 +19,24 @@ import (
 
 // The transaction create and revert pipelines call ValidateSendSourceAndDistribute
 // twice over the same send: once on the raw input and once after the legs are
-// normalized. These tests run both calls over one corpus and pin the exact relation
-// between their outcomes.
+// normalized. These tests run both calls over one corpus and pin the relation between
+// their outcomes: the two calls answer the same code for every send.
 //
 // Values are untouched by normalization — it only sets IsFrom on the sources, defaults
 // the balance keys, and rewrites AccountAlias into the composite
 // "index#alias#balanceKey" entry key — so the totals check answers identically on both
-// sides of it. The ambiguity check does not: it reads Responses.To keyed by the entry
-// key ConcatAlias builds, while Responses.To on a raw input is keyed by the bare alias
-// the caller sent. The two key spaces only meet once MutateConcatAliases has run.
+// sides of it. The ambiguity check compares Responses.Sources against
+// Responses.Destinations, and CalculateTotal builds both lists in the
+// "alias#balanceKey" form from each leg's bare alias and balance key, whichever alias
+// form the leg carries. The check therefore sees the same account identities on the
+// raw and on the normalized call, and answers ErrTransactionAmbiguous on both, before
+// the remainder and totals rules run.
 //
-// That makes the raw call blind to ambiguity, and the two calls diverge in two ways
-// whenever one alias appears on both sides of a send at the same index:
-//
-//   - the raw call accepts and the normalized call answers ErrTransactionAmbiguous;
-//   - the raw call answers ErrTransactionValueMismatch and the normalized call answers
-//     ErrTransactionAmbiguous instead, because the ambiguity check runs before the
-//     totals check.
-//
-// Cases in either class carry normalizedAnswersAmbiguous. Outside that class the two
-// calls agree on the code, and no rejection the raw call makes is ever lost.
-//
-// The second class is why the /v1 create and both revert pipelines run
-// ValidateSendSourceAndDistribute twice even though neither applies fees: dropping the
-// raw pass would trade ErrTransactionValueMismatch for ErrTransactionAmbiguous on that
-// class of request. This test is the guard on that error-code precedence.
+// The pipelines still validate twice for a reason this file does not own: the raw pass
+// refuses malformed input — totals, remainders, ambiguity — before the idempotency
+// claim, the ledger settings read and the fee engine, and the second pass validates
+// the normalized, post-fee send. The equality pinned here is what makes the first pass
+// answer the code the caller ends up with.
 
 // differentialContext carries the logger and tracer ValidateSendSourceAndDistribute
 // reads off the context.
@@ -136,22 +130,11 @@ func sendOf(asset string, value int64, from, to []FromTo) Transaction {
 	}
 }
 
-// ambiguousCode is the code the normalized call answers for a send carrying one alias
-// on both sides at the same index.
-func ambiguousCode() string {
-	return pkgConstant.ErrTransactionAmbiguous.Error()
-}
-
 // differentialCase is one input run through both validations.
 type differentialCase struct {
 	name   string
 	status string
 	build  func() Transaction
-
-	// normalizedAnswersAmbiguous marks the class the raw call cannot see: the
-	// normalized call answers ErrTransactionAmbiguous where the raw call answered
-	// something else — nil, or the totals mismatch the ambiguity check preempts.
-	normalizedAnswersAmbiguous bool
 }
 
 func differentialCorpus() []differentialCase {
@@ -285,7 +268,6 @@ func differentialCorpus() []differentialCase {
 			build: func() Transaction {
 				return sendOf("USD", 100, []FromTo{leg("@account", "", "USD", 100)}, []FromTo{leg("@account", "", "USD", 100)})
 			},
-			normalizedAnswersAmbiguous: true,
 		},
 		{
 			name:   "same alias on both sides at the same index with a mismatching total",
@@ -293,7 +275,6 @@ func differentialCorpus() []differentialCase {
 			build: func() Transaction {
 				return sendOf("USD", 100, []FromTo{leg("@account", "", "USD", 100)}, []FromTo{leg("@account", "", "USD", 64)})
 			},
-			normalizedAnswersAmbiguous: true,
 		},
 		{
 			name:   "same alias on both sides pending",
@@ -304,7 +285,6 @@ func differentialCorpus() []differentialCase {
 
 				return tx
 			},
-			normalizedAnswersAmbiguous: true,
 		},
 		{
 			name:   "same alias on both sides with different balance keys",
@@ -358,7 +338,6 @@ func differentialCorpus() []differentialCase {
 
 				return tx
 			},
-			normalizedAnswersAmbiguous: true,
 		},
 		{
 			name:   "v1 inflow canonical shape",
@@ -402,8 +381,7 @@ func differentialCorpus() []differentialCase {
 }
 
 // TestValidateSendSourceAndDistribute_RawAndNormalizedAgree runs every corpus entry
-// through both validations and requires the same code, except for the ambiguity class
-// the raw call cannot see, whose divergence is pinned exactly.
+// through both validations and requires the same code from each.
 func TestValidateSendSourceAndDistribute_RawAndNormalizedAgree(t *testing.T) {
 	t.Parallel()
 
@@ -415,18 +393,6 @@ func TestValidateSendSourceAndDistribute_RawAndNormalizedAgree(t *testing.T) {
 
 			rawCode, normalizedCode := runBothValidations(ctx, tc)
 
-			if tc.normalizedAnswersAmbiguous {
-				if normalizedCode != ambiguousCode() {
-					t.Fatalf("normalized validation answered %q, want %q", normalizedCode, ambiguousCode())
-				}
-
-				if rawCode == ambiguousCode() {
-					t.Fatal("raw validation answered the ambiguity code; the raw call has no entry keys to see it with")
-				}
-
-				return
-			}
-
 			if rawCode != normalizedCode {
 				t.Fatalf("raw and normalized returned different codes: raw=%q normalized=%q", rawCode, normalizedCode)
 			}
@@ -436,7 +402,7 @@ func TestValidateSendSourceAndDistribute_RawAndNormalizedAgree(t *testing.T) {
 
 // TestValidateSendSourceAndDistribute_NormalizedNeverAcceptsWhatRawRejects asserts the
 // direction that governs whether the raw call can be dropped: every rejection survives
-// normalization, and it keeps its code unless the ambiguity check preempts it.
+// normalization and keeps its code.
 func TestValidateSendSourceAndDistribute_NormalizedNeverAcceptsWhatRawRejects(t *testing.T) {
 	t.Parallel()
 
@@ -455,7 +421,7 @@ func TestValidateSendSourceAndDistribute_NormalizedNeverAcceptsWhatRawRejects(t 
 				t.Fatalf("raw validation rejected with %q and the normalized validation accepted the same input", rawCode)
 			}
 
-			if normalizedCode != rawCode && normalizedCode != ambiguousCode() {
+			if normalizedCode != rawCode {
 				t.Fatalf("normalized validation answered %q for an input the raw validation rejected with %q", normalizedCode, rawCode)
 			}
 		})
@@ -479,18 +445,18 @@ func runBothValidations(ctx context.Context, tc differentialCase) (rawCode, norm
 
 // FuzzValidateSendRawVsNormalized generates sends over arbitrary aliases, balance keys,
 // values and value expressions and holds both validations to the relation the corpus
-// pins: no rejection is lost across normalization, and the only code the normalized
-// call may answer in place of the raw one is the ambiguity the entry keys make visible.
+// pins: the raw and the normalized call answer the same code, accepted or rejected.
 func FuzzValidateSendRawVsNormalized(f *testing.F) {
 	f.Add(int64(100), "@source", "@destination", "", int64(100), int64(100), uint8(0), uint8(0))
 	f.Add(int64(100), "@source", "@destination", "savings", int64(60), int64(100), uint8(0), uint8(1))
 	f.Add(int64(100), "@account", "@account", "", int64(100), int64(100), uint8(0), uint8(0))
+	f.Add(int64(100), "@a", "@a", "", int64(100), int64(64), uint8(0), uint8(0))
 	f.Add(int64(100), "@source", "@destination", "", int64(0), int64(100), uint8(1), uint8(2))
 	f.Add(int64(100), "@source", "@destination", "", int64(0), int64(100), uint8(2), uint8(3))
 	f.Add(int64(0), "", "", "", int64(0), int64(0), uint8(0), uint8(0))
 	f.Add(int64(100), "@source#savings", "@destination", "wallet", int64(100), int64(100), uint8(0), uint8(0))
 
-	statuses := []string{pkgConstant.CREATED, pkgConstant.PENDING, pkgConstant.NOTED, pkgConstant.APPROVED}
+	statuses := []string{pkgConstant.CREATED, pkgConstant.PENDING, pkgConstant.NOTED, pkgConstant.APPROVED, pkgConstant.CANCELED}
 
 	// maxStringLen bounds fuzzer-generated strings to prevent resource exhaustion.
 	const maxStringLen = 48
@@ -507,6 +473,13 @@ func FuzzValidateSendRawVsNormalized(f *testing.F) {
 		if len(destinationAlias) > maxStringLen {
 			destinationAlias = destinationAlias[:maxStringLen]
 		}
+
+		// A client alias never carries the separator (the accepted alias characters
+		// exclude it), and a bare alias that does is read by the raw call as if it were
+		// an entry key, which is a property of the alias form rather than of the
+		// relation under test. Keep the generated aliases inside the client domain.
+		sourceAlias = strings.ReplaceAll(sourceAlias, AliasSeparatorString, "")
+		destinationAlias = strings.ReplaceAll(destinationAlias, AliasSeparatorString, "")
 
 		if len(balanceKey) > maxStringLen {
 			balanceKey = balanceKey[:maxStringLen]
@@ -538,13 +511,8 @@ func FuzzValidateSendRawVsNormalized(f *testing.F) {
 		rawCode := codeFromError(rawErr)
 		normalizedCode := codeFromError(normalizedErr)
 
-		if rawCode != "" && normalizedCode == "" {
-			t.Fatalf("raw rejected with %q and normalized accepted: sendValue=%d source=%q destination=%q balanceKey=%q expression=%d status=%s",
-				rawCode, sendValue, sourceAlias, destinationAlias, balanceKey, expression%3, status)
-		}
-
-		if normalizedCode != rawCode && normalizedCode != ambiguousCode() {
-			t.Fatalf("raw answered %q and normalized answered %q, which is outside the ambiguity class: sendValue=%d source=%q destination=%q balanceKey=%q expression=%d status=%s",
+		if normalizedCode != rawCode {
+			t.Fatalf("raw answered %q and normalized answered %q: sendValue=%d source=%q destination=%q balanceKey=%q expression=%d status=%s",
 				rawCode, normalizedCode, sendValue, sourceAlias, destinationAlias, balanceKey, expression%3, status)
 		}
 	})

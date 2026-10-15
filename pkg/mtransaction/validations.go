@@ -456,9 +456,10 @@ func AppendIfNotExist(slice []string, s []string) []string {
 //     send value.
 //     - Remaining: whatever is left after all other entries are subtracted.
 //
-//  2. Ambiguity check: the same account alias must not appear as both source
-//     and destination within the same positional index. This prevents
-//     self-transfer loops that would be no-ops.
+//  2. Ambiguity check: the same account, identified by "alias#balanceKey", must
+//     not appear as both a source and a destination, whatever position each
+//     entry holds in its list. This prevents self-transfer loops that would be
+//     no-ops. A pending cancel (CANCELED) skips it: releasing a hold moves no value.
 //
 //  3. Remainder check: a "remaining" entry must resolve to a positive amount.
 //
@@ -548,20 +549,27 @@ func validateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	response.OperationRoutesTo = <-orTo
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Destinations)
 
-	// Ambiguity check: reject if the same alias appears as both source and destination.
-	for i, source := range response.Sources {
-		if _, ok := response.To[ConcatAlias(i, source)]; ok {
-			logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: source alias also appears as destination", libLog.String("alias", source))
-
-			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+	// Ambiguity check: reject if the same account appears as both source and
+	// destination. Sources and Destinations already carry each account as
+	// "alias#balanceKey", whether the caller sent bare aliases or entry keys, so
+	// the two lists are compared as sets: the position an entry holds in either
+	// list is irrelevant, and the same alias on different balance keys is not a
+	// collision.
+	//
+	// Cancelling a pending send only releases its hold and cannot move value between
+	// the two sides, so a body persisted before this rule existed stays cancellable.
+	if transactionType != pkgConstant.CANCELED {
+		sources := make(map[string]struct{}, len(response.Sources))
+		for _, source := range response.Sources {
+			sources[source] = struct{}{}
 		}
-	}
 
-	for i, destination := range response.Destinations {
-		if _, ok := response.From[ConcatAlias(i, destination)]; ok {
-			logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: destination alias also appears as source", libLog.String("alias", destination))
+		for _, destination := range response.Destinations {
+			if _, ok := sources[destination]; ok {
+				logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: source alias also appears as destination", libLog.String("alias", destination))
 
-			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+				return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+			}
 		}
 	}
 

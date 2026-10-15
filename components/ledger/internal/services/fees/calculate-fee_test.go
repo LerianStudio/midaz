@@ -315,12 +315,14 @@ func TestCalculateFee_NoPackagesFound(t *testing.T) {
 				Value: decimal.NewFromInt(1000),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 			},
@@ -354,6 +356,7 @@ func TestCalculateFee_MultiplePackages_Success(t *testing.T) {
 
 	route := "debitoted"
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -361,6 +364,7 @@ func TestCalculateFee_MultiplePackages_Success(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -444,6 +448,7 @@ func TestCalculateFee_MultiplePackages_CalculateFeeError(t *testing.T) {
 
 	route := "debitoted"
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -451,6 +456,7 @@ func TestCalculateFee_MultiplePackages_CalculateFeeError(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -529,6 +535,7 @@ func TestCalculateFee_MultiplePackages_WithSegmentID(t *testing.T) {
 
 	route := "debitoted"
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -536,6 +543,7 @@ func TestCalculateFee_MultiplePackages_WithSegmentID(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -623,6 +631,7 @@ func TestCalculateFee_MultiplePackages_WithMetadataUpdate(t *testing.T) {
 
 	route := "debitoted"
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -630,6 +639,7 @@ func TestCalculateFee_MultiplePackages_WithMetadataUpdate(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(500),
@@ -772,12 +782,14 @@ func TestCalculateFee_MultiplePackages(t *testing.T) {
 				Value: decimal.NewFromInt(500),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
 					}},
 				},
 			},
@@ -836,12 +848,14 @@ func TestCalculateFee_MultiplePackages_NoPackageFound(t *testing.T) {
 				Value: decimal.NewFromInt(500),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
 					}},
 				},
 			},
@@ -899,12 +913,14 @@ func TestCalculateFee_MultiplePackages_FilterError(t *testing.T) {
 				Value: decimal.NewFromInt(500),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(500)},
 					}},
 				},
 			},
@@ -968,12 +984,14 @@ func TestCalculateFee_TechnicalError_MalformedSegmentWaiver(t *testing.T) {
 				Value: decimal.NewFromInt(1000),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 			},

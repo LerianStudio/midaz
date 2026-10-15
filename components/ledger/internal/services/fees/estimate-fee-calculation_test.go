@@ -349,12 +349,14 @@ func TestEstimateFeeCalculation_PackageNotFound_MongoErrNoDocuments(t *testing.T
 				Value: decimal.NewFromInt(1000),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 			},
@@ -401,12 +403,14 @@ func TestEstimateFeeCalculation_PackageNotFound_OtherError(t *testing.T) {
 				Value: decimal.NewFromInt(1000),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 			},
@@ -507,12 +511,14 @@ func TestEstimateFeeCalculation_ValueBelowMinimum(t *testing.T) {
 				Value: decimal.NewFromInt(50),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(50)},
 					}},
 				},
 			},
@@ -562,12 +568,14 @@ func TestEstimateFeeCalculation_ValueAboveMaximum(t *testing.T) {
 				Value: decimal.NewFromInt(3000),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(3000)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(3000)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(3000)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(3000)},
 					}},
 				},
 			},
@@ -610,6 +618,7 @@ func TestEstimateFeeCalculation_CalculateFeeError(t *testing.T) {
 	}
 
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -617,6 +626,7 @@ func TestEstimateFeeCalculation_CalculateFeeError(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -690,6 +700,7 @@ func TestEstimateFeeCalculation_NoFeeApplied(t *testing.T) {
 	}
 
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -697,6 +708,7 @@ func TestEstimateFeeCalculation_NoFeeApplied(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -758,6 +770,7 @@ func TestEstimateFeeCalculation_Success_WithMetadata(t *testing.T) {
 	}
 
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -765,6 +778,7 @@ func TestEstimateFeeCalculation_Success_WithMetadata(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -841,6 +855,7 @@ func TestEstimateFeeCalculation_Success_WithExistingMetadata(t *testing.T) {
 	}
 
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -848,6 +863,7 @@ func TestEstimateFeeCalculation_Success_WithExistingMetadata(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(1000),
@@ -927,6 +943,7 @@ func TestEstimateFeeCalculation_ValueAtMinimum(t *testing.T) {
 	}
 
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(100),
@@ -934,6 +951,7 @@ func TestEstimateFeeCalculation_ValueAtMinimum(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(100),
@@ -1009,6 +1027,7 @@ func TestEstimateFeeCalculation_ValueAtMaximum(t *testing.T) {
 	}
 
 	from := transaction.FromTo{
+		AccountAlias: "@source",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(2000),
@@ -1016,6 +1035,7 @@ func TestEstimateFeeCalculation_ValueAtMaximum(t *testing.T) {
 	}
 
 	to := transaction.FromTo{
+		AccountAlias: "@destination",
 		Amount: &transaction.Amount{
 			Asset: "BRL",
 			Value: decimal.NewFromInt(2000),
