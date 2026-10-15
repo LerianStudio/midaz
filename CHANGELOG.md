@@ -1,5 +1,14 @@
 # Midaz Changelog
 
+## [3.8.5](https://github.com/LerianStudio/midaz/releases/tag/v3.8.5)
+
+Fixes:
+- Preserve the pending transaction body when performing a PATCH operation to ensure data integrity. (@ClaraTersi)
+
+[Compare changes](https://github.com/LerianStudio/midaz/compare/v3.8.4...v3.8.5)
+
+---
+
 ## [3.8.3](https://github.com/LerianStudio/midaz/releases/tag/v3.8.3)
 
 Fixes:
