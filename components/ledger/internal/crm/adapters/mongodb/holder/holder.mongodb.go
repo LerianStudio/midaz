@@ -135,25 +135,20 @@ func (hm *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	_, spanInsert := tracer.Start(ctx, "mongodb.create_holder.insert")
-	defer spanInsert.End()
-
-	spanInsert.SetAttributes(attributes...)
-
-	spanInsert.SetAttributes(repositoryInputAttributes(record)...)
+	span.SetAttributes(repositoryInputAttributes(record)...)
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
 		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok {
 			if strings.HasPrefix(indexName, "search.document") {
 				businessErr := pkg.ValidateBusinessError(cn.ErrDocumentAssociationError, cn.EntityHolder)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanInsert, "Holder document already associated", businessErr)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder document already associated", businessErr)
 
 				return nil, businessErr
 			}
 		}
 
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to insert holder", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to insert holder", err)
 
 		return nil, err
 	}
@@ -203,21 +198,16 @@ func (hm *MongoDBRepository) Find(ctx context.Context, organizationID string, id
 		filter = append(filter, bson.E{Key: "deleted_at", Value: nil})
 	}
 
-	_, spanFind := tracer.Start(ctx, "mongodb.find_holder.find")
-	defer spanFind.End()
-
-	spanFind.SetAttributes(attributes...)
-
 	err = coll.FindOne(ctx, filter).Decode(&record)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			businessErr := pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFind, "Holder not found", businessErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder not found", businessErr)
 
 			return nil, businessErr
 		}
 
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find holder", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find holder", err)
 
 		return nil, err
 	}
@@ -264,11 +254,6 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("holders_" + organizationID))
 
-	_, spanUpdate := tracer.Start(ctx, "mongodb.update_holder.update_by_id")
-	defer spanUpdate.End()
-
-	spanUpdate.SetAttributes(attributes...)
-
 	// Build encryption context for this holder
 	encryptionCtx := encryption.EncryptionContext{
 		TenantID:       encryption.ExtractTenantID(ctx),
@@ -284,7 +269,7 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	spanUpdate.SetAttributes(repositoryInputAttributes(holderToUpdate)...)
+	span.SetAttributes(repositoryInputAttributes(holderToUpdate)...)
 
 	bsonData, err := bson.Marshal(holderToUpdate)
 	if err != nil {
@@ -304,28 +289,23 @@ func (hm *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	updateResult, err := coll.UpdateByID(ctx, id, update)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update holder", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update holder", err)
 
 		return nil, err
 	}
 
 	if updateResult.MatchedCount == 0 {
 		businessErr := pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "Holder not found", businessErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder not found", businessErr)
 
 		return nil, businessErr
 	}
 
 	var record MongoDBModel
 
-	_, spanFind := tracer.Start(ctx, "mongodb.update_holder.find_by_id")
-	defer spanFind.End()
-
-	spanFind.SetAttributes(attributes...)
-
 	err = coll.FindOne(ctx, bson.M{"_id": id}).Decode(&record)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find holder after update", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find holder after update", err)
 
 		return nil, err
 	}
@@ -367,11 +347,6 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("holders_" + organizationID))
 
-	_, spanDelete := tracer.Start(ctx, "mongodb.delete_holder.delete_one")
-	defer spanDelete.End()
-
-	spanDelete.SetAttributes(attributes...)
-
 	filter := bson.D{
 		{Key: "_id", Value: id},
 		{Key: "deleted_at", Value: nil},
@@ -380,14 +355,14 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if hardDelete {
 		deleted, err := coll.DeleteOne(ctx, filter, opts)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete holder", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to delete holder", err)
 
 			return err
 		}
 
 		if deleted.DeletedCount == 0 {
 			businessErr := pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Holder not found", businessErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder not found", businessErr)
 
 			return businessErr
 		}
@@ -400,14 +375,14 @@ func (hm *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 		updateResult, err := coll.UpdateOne(ctx, filter, update)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete holder", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to delete holder", err)
 
 			return err
 		}
 
 		if updateResult.MatchedCount == 0 {
 			businessErr := pkg.ValidateBusinessError(cn.ErrHolderNotFound, cn.EntityHolder)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Holder not found", businessErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Holder not found", businessErr)
 
 			return businessErr
 		}

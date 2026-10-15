@@ -47,12 +47,7 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	skip := int64(query.Page*query.Limit - query.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip).SetSort(bson.D{{Key: "_id", Value: 1}})
 
-	_, spanFind := tracer.Start(ctx, "mongodb.find_all_holders.find")
-	defer spanFind.End()
-
-	spanFind.SetAttributes(attributes...)
-
-	spanFind.SetAttributes(
+	span.SetAttributes(
 		attribute.Int("app.request.query.limit", query.Limit),
 		attribute.Int("app.request.query.page", query.Page),
 		attribute.String("app.request.query.sort_order", query.SortOrder),
@@ -63,13 +58,13 @@ func (hm *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	filter, err := hm.buildHolderFilter(ctx, organizationID, query, includeDeleted)
 	if err != nil {
-		recordSpanError(spanFind, "Invalid metadata value", err)
+		recordSpanError(span, "Invalid metadata value", err)
 		return nil, err
 	}
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find holder", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find holder", err)
 
 		return nil, err
 	}
