@@ -8,6 +8,9 @@ import (
 	"database/sql"
 	"time"
 
+	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
+	"github.com/google/uuid"
+
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -53,11 +56,16 @@ func (t *OrganizationPostgreSQLModel) ToEntity() *mmodel.Organization {
 }
 
 // FromEntity converts an entity.Organization to OrganizationPostgresModel.
-// It performs a pure field mapping; callers that need a new ID (e.g. Create)
-// must set it on the model after calling FromEntity.
+// It keeps the entity ID when one is set and generates a UUIDv7 only when the
+// entity arrives without an ID.
 func (t *OrganizationPostgreSQLModel) FromEntity(organization *mmodel.Organization) {
+	ID := organization.ID
+	if ID == "" {
+		ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+	}
+
 	*t = OrganizationPostgreSQLModel{
-		ID:                   organization.ID,
+		ID:                   ID,
 		ParentOrganizationID: organization.ParentOrganizationID,
 		LegalName:            organization.LegalName,
 		DoingBusinessAs:      organization.DoingBusinessAs,

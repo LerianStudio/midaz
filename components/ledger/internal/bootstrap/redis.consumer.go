@@ -6,6 +6,7 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"os/signal"
@@ -691,6 +692,44 @@ func (r *RedisQueueConsumer) processMessage(ctx context.Context, key, rawPayload
 			return
 		}
 
+		// Operations are deduplicated only by ID, and a rebuild mints new ones:
+		// legs an earlier writer already persisted must take their persisted IDs,
+		// and a rebuild that cannot be told apart from them writes nothing.
+		reconciled, err := r.Command.ReconcileReplayedOperations(msgCtxWithSpan, m.OrganizationID, m.LedgerID, m.TransactionID, operations)
+		if err != nil {
+			libOpentelemetry.HandleSpanError(msgSpan, "Failed to reconcile replayed operations", err)
+			logger.Log(msgCtxWithSpan, libLog.LevelError, "Failed to read persisted operations of replayed transaction; record left in backup queue",
+				libLog.String("key", key), libLog.Err(err))
+
+			return
+		}
+
+		msgSpan.SetAttributes(attribute.Int("app.replay.adopted_operations", reconciled.Adopted))
+
+		if reconciled.Verdict != command.ReplayReconciliationResolved {
+			libOpentelemetry.HandleSpanEvent(msgSpan, "Replayed operations do not match the persisted ones")
+			logger.Log(msgCtxWithSpan, libLog.LevelWarn, "Replayed operations do not match the persisted ones; routing to quarantine flow",
+				libLog.String("key", key), libLog.String("mismatch_reason", string(reconciled.MismatchReason)),
+				libLog.Int("rebuilt_operations", len(operations)))
+
+			r.quarantinePoisonRecord(msgCtxWithSpan, msgSpan, logger, key, m.OrganizationID, m.LedgerID, m.TransactionID, []byte(rawPayload), "persisted_operations_mismatch")
+
+			return
+		}
+
+		operations = reconciled.Operations
+
+		// The rebuilt IDs are stored in the record before the write, so every
+		// later replay of this record takes the materialized branch above and
+		// rewrites the same operations. The record now stored is the payload a
+		// quarantine in this cycle must preserve.
+		stored, ok := r.storeRebuiltOperations(msgCtxWithSpan, msgSpan, logger, key, rawPayload, m, operations)
+		if !ok {
+			return
+		}
+
+		rawPayload = stored
+
 		// Mark the recomputed after-balances so the possible overdraft audit
 		// divergence is observable rather than silent.
 		msgSpan.SetAttributes(attribute.Bool("app.replay.recomputed_balances_after", true))
@@ -798,9 +837,11 @@ func balanceRedisToBalance(balance mmodel.BalanceRedis, organizationID, ledgerID
 //  3. At/above the threshold: Insert into the durable quarantine table FIRST.
 //     - On Insert failure: leave BOTH the record and the attempts counter in
 //     place so the next cycle retries — never delete on a failed persist.
-//     - On Insert success: remove the record (HDel) then the attempts counter
-//     (HDel). Order is load-bearing: the durable copy must exist before the
-//     Redis copy is deleted.
+//     - On Insert success: remove the record only while it still holds the
+//     quarantined payload (compare-and-delete on the field as read), then
+//     clear the attempts counter. Order is load-bearing: the durable copy must
+//     exist before the Redis copy is deleted. A record removed or rewritten
+//     since it was read is left for its own replay.
 //
 // The payload (raw financial copy) is never logged or attached to a span (T9).
 func (r *RedisQueueConsumer) quarantinePoisonRecord(
@@ -844,7 +885,7 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 		OrganizationID: organizationID,
 		LedgerID:       ledgerID,
 		TransactionID:  transactionID,
-		RedisKey:       key,
+		RedisKey:       legacyQuarantineKey(key, payload),
 		Payload:        payload,
 		FailureReason:  failureReason,
 		Attempts:       int(attempts),
@@ -864,8 +905,11 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 	}
 
 	// Persistence confirmed. Now (and only now) remove the Redis copy, then the
-	// attempts counter.
-	if err := r.queue.RemoveMessageFromQueue(ctx, key); err != nil {
+	// attempts counter. key is the field exactly as read, already tenant-scoped
+	// in multi-tenant mode, so the removal must not scope it again; and it
+	// removes only the payload just quarantined, never a record rewritten since.
+	removal, err := r.queue.CompareAndDeleteBackupRecord(ctx, key, string(payload))
+	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to remove quarantined record from backup queue", err)
 		logger.Log(ctx, libLog.LevelError, "Quarantined record persisted but failed to remove from backup queue",
 			libLog.String("redis_key", key), libLog.Err(err))
@@ -877,10 +921,30 @@ func (r *RedisQueueConsumer) quarantinePoisonRecord(
 
 	r.emitQuarantineMetric(ctx, logger)
 
+	if removal != txRedis.RecoveryAckDeleted {
+		libOpentelemetry.HandleSpanEvent(span, "Quarantined backup record changed before removal")
+		logger.Log(ctx, libLog.LevelError, "Poison backup record quarantined; the backup queue record was removed or rewritten after it was read and is left in place",
+			libLog.String("redis_key", key),
+			libLog.String("failure_reason", failureReason),
+			libLog.Int("attempts", int(attempts)),
+			libLog.Bool("record_missing", removal == txRedis.RecoveryAckMissing))
+
+		return
+	}
+
 	logger.Log(ctx, libLog.LevelError, "Poison backup record quarantined and removed from backup queue",
 		libLog.String("redis_key", key),
 		libLog.String("failure_reason", failureReason),
 		libLog.Int("attempts", int(attempts)))
+}
+
+// legacyQuarantineKey is the quarantine redis_key of one legacy backup payload.
+// A field holds one record per transaction, but a later lifecycle stage or a
+// rewrite can replace it with a different payload; the digest gives every
+// distinct payload its own durable row, while the same payload quarantined
+// again stays one row.
+func legacyQuarantineKey(field string, payload []byte) string {
+	return fmt.Sprintf("legacy_backup:%s:%x", field, sha256.Sum256(payload))
 }
 
 // clearBackupAttempt removes the per-record attempts counter, logging at Warn on

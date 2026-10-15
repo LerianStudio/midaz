@@ -95,6 +95,13 @@ var (
 	acknowledgeEngineRecoveryScript = redis.NewScript(acknowledgeEngineRecoveryLua)
 )
 
+//go:embed scripts/replace_backup_record_if_value.lua
+var replaceBackupRecordIfValueLua string
+
+// replaceBackupRecordIfValueScript is built once at package init, like the
+// scripts above.
+var replaceBackupRecordIfValueScript = redis.NewScript(replaceBackupRecordIfValueLua)
+
 //go:embed scripts/remove_balance_sync_keys_batch.lua
 var removeBalanceSyncKeysBatchScript string
 
@@ -112,6 +119,20 @@ const (
 	RecoveryAckReplaced             int64 = 2
 	RecoveryAckFinalizationRequired int64 = 3
 	RecoveryAckReceiptChanged       int64 = 4
+)
+
+// BackupRecordReplacement reports how a conditional backup record replacement
+// resolved.
+type BackupRecordReplacement int64
+
+const (
+	// BackupRecordMissing means the record was removed after it was read.
+	BackupRecordMissing BackupRecordReplacement = 0
+	// BackupRecordReplaced means the record held the expected value and now holds
+	// the replacement.
+	BackupRecordReplaced BackupRecordReplacement = 1
+	// BackupRecordChanged means the record was rewritten after it was read.
+	BackupRecordChanged BackupRecordReplacement = 2
 )
 
 // maxRedisBatchSize limits the number of items sent in a single Redis operation
@@ -196,6 +217,21 @@ type RedisRepository interface {
 	ScanRecoveryMessages(ctx context.Context, source RecoveryQueueSource, cursor uint64, count int64) (RecoveryScanPage, error)
 	// RemoveMessageFromQueue removes a specific message from the backup queue by key.
 	RemoveMessageFromQueue(ctx context.Context, key string) error
+	// CompareAndDeleteBackupRecord atomically removes one backup queue record
+	// only while it still holds expected, byte for byte. field is the physical
+	// field exactly as the backup hash returned it, already tenant-scoped in
+	// multi-tenant mode, so only the hash name is namespaced. It returns
+	// RecoveryAckDeleted, or RecoveryAckMissing / RecoveryAckReplaced when the
+	// record was removed or rewritten since it was read, leaving it untouched.
+	// The record's attempt counter is not touched.
+	CompareAndDeleteBackupRecord(ctx context.Context, field, expected string) (int64, error)
+	// ReplaceMessageInQueueIfValue atomically replaces one backup queue record
+	// only while it still holds expected, byte for byte. field is the physical
+	// field exactly as the backup hash returned it, already tenant-scoped in
+	// multi-tenant mode, so only the hash name is namespaced. A record removed or
+	// rewritten since it was read is left untouched and reported as
+	// BackupRecordMissing or BackupRecordChanged.
+	ReplaceMessageInQueueIfValue(ctx context.Context, field, expected, replacement string) (BackupRecordReplacement, error)
 	// IncrementBackupAttempt atomically increments the failure counter for a backup
 	// record in the parallel attempts hash and returns the new count. Returns the
 	// new value and nil on success. Used by the backup consumer to track how many
@@ -1836,6 +1872,90 @@ func (rr *RedisConsumerRepository) RemoveMessageFromQueue(ctx context.Context, k
 	logger.Log(ctx, libLog.LevelDebug, "Message removed from Redis queue", libLog.String("key", key))
 
 	return nil
+}
+
+// CompareAndDeleteBackupRecord removes one legacy backup record only while it
+// still holds expected. It reuses the recovery compare-and-delete script without
+// its attempt clearing: the legacy attempt counter is keyed differently and is
+// cleared by ClearBackupAttempt. The field is used exactly as read.
+func (rr *RedisConsumerRepository) CompareAndDeleteBackupRecord(ctx context.Context, field, expected string) (int64, error) {
+	if err := ctx.Err(); err != nil {
+		return RecoveryAckMissing, err
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.compare_delete_backup_record")
+	defer span.End()
+
+	// An empty expected value is legitimate: an unparseable empty record is
+	// quarantined like any other and must leave the hash afterwards.
+	if field == "" {
+		return RecoveryAckMissing, fmt.Errorf("invalid backup record removal identity")
+	}
+
+	keys, err := tenantKeysFromContext(ctx, []string{TransactionBackupQueue, TransactionBackupAttemptsQueue})
+	if err != nil {
+		return RecoveryAckMissing, fmt.Errorf("resolve backup queue keys: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return RecoveryAckMissing, fmt.Errorf("get backup record removal client: %w", err)
+	}
+
+	result, err := compareDeleteRecoveryScript.Run(ctx, client, keys, field, expected, "", "0").Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to remove backup record", err)
+		return RecoveryAckMissing, fmt.Errorf("compare and delete backup record: %w", err)
+	}
+
+	if result != RecoveryAckMissing && result != RecoveryAckDeleted && result != RecoveryAckReplaced {
+		return RecoveryAckMissing, fmt.Errorf("invalid backup record removal result")
+	}
+
+	return result, nil
+}
+
+// ReplaceMessageInQueueIfValue replaces one legacy backup record only while it
+// still holds expected. The field is used exactly as read: namespacing it again
+// would address a field that does not exist in multi-tenant mode.
+func (rr *RedisConsumerRepository) ReplaceMessageInQueueIfValue(ctx context.Context, field, expected, replacement string) (BackupRecordReplacement, error) {
+	if err := ctx.Err(); err != nil {
+		return BackupRecordMissing, err
+	}
+
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "redis.replace_message_in_queue_if_value")
+	defer span.End()
+
+	if field == "" || expected == "" || replacement == "" {
+		return BackupRecordMissing, fmt.Errorf("invalid backup record replacement identity or payload")
+	}
+
+	prefixedQueue, err := tenantKeyFromContextOrError(ctx, TransactionBackupQueue)
+	if err != nil {
+		return BackupRecordMissing, fmt.Errorf("resolve backup queue key: %w", err)
+	}
+
+	client, err := rr.conn.GetClient(ctx)
+	if err != nil {
+		return BackupRecordMissing, fmt.Errorf("get backup record replacement client: %w", err)
+	}
+
+	result, err := replaceBackupRecordIfValueScript.Run(ctx, client, []string{prefixedQueue}, field, expected, replacement).Int64()
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to replace backup record", err)
+		return BackupRecordMissing, fmt.Errorf("replace backup record: %w", err)
+	}
+
+	outcome := BackupRecordReplacement(result)
+	if outcome != BackupRecordMissing && outcome != BackupRecordReplaced && outcome != BackupRecordChanged {
+		return BackupRecordMissing, fmt.Errorf("invalid backup record replacement result")
+	}
+
+	return outcome, nil
 }
 
 // CompareAndDeleteRecovery acknowledges only the exact version-2 envelope read

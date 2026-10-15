@@ -1261,3 +1261,35 @@ func TestIntegration_GetDB_TenantContext_ListByIDsThroughTenantPath(t *testing.T
 	require.NoError(t, err)
 	assert.Empty(t, staticOrgs, "static path should not find tenant-only records")
 }
+
+// TestIntegration_OrganizationRepository_Create_PreservesPresetID guards the
+// contract that metadata written under a pre-assigned ID stays attached: Create
+// must persist the caller's ID instead of minting a new one.
+func TestIntegration_OrganizationRepository_Create_PreservesPresetID(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	presetID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	org := &mmodel.Organization{
+		ID:            presetID.String(),
+		LegalName:     "Preset ID Organization",
+		LegalDocument: "66666666666666",
+		Status:        mmodel.Status{Code: "ACTIVE"},
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	created, err := repo.Create(ctx, org)
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, presetID.String(), created.ID, "Create must keep the preset ID")
+
+	found, err := repo.Find(ctx, presetID)
+	require.NoError(t, err, "organization should be retrievable by the preset ID")
+	require.NotNil(t, found)
+	assert.Equal(t, presetID.String(), found.ID)
+	assert.Equal(t, "Preset ID Organization", found.LegalName)
+}

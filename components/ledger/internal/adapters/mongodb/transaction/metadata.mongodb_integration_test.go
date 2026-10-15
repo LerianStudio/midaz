@@ -634,6 +634,161 @@ func TestIntegration_MetadataRepository_Delete_MarksEveryLiveDuplicate(t *testin
 	assert.Nil(t, found, "no duplicate of a deleted entity should stay visible")
 }
 
+func TestIntegration_MetadataRepository_Purge_RemovesLiveDocument(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "operationroute"
+
+	mongotestutil.InsertMetadata(t, container.Database, collection, mongotestutil.MetadataFixture{
+		EntityID:   "purge-live",
+		EntityName: "OperationRoute",
+		Data:       map[string]any{"staged": true},
+	})
+	mongotestutil.InsertMetadata(t, container.Database, collection, mongotestutil.MetadataFixture{
+		EntityID:   "purge-neighbor",
+		EntityName: "OperationRoute",
+		Data:       map[string]any{"staged": false},
+	})
+
+	// Act
+	err := repo.Purge(ctx, collection, "purge-live")
+
+	// Assert
+	require.NoError(t, err, "Purge should not return error")
+	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "purge-live"}),
+		"Purge should remove the document, not mark it")
+	assert.Equal(t, int64(1), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "purge-neighbor"}),
+		"Purge must not touch another entity's document")
+}
+
+func TestIntegration_MetadataRepository_Purge_RemovesSoftDeletedDocument(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "operationroute"
+
+	mongotestutil.InsertMetadata(t, container.Database, collection, mongotestutil.MetadataFixture{
+		EntityID:   "purge-tombstone",
+		EntityName: "OperationRoute",
+		Data:       map[string]any{"staged": true},
+	})
+	require.NoError(t, repo.Delete(ctx, collection, "purge-tombstone"))
+	require.Equal(t, int64(1), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "purge-tombstone"}),
+		"Delete should leave a tombstone for Purge to remove")
+
+	// Act
+	err := repo.Purge(ctx, collection, "purge-tombstone")
+
+	// Assert
+	require.NoError(t, err, "Purge should not return error")
+	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "purge-tombstone"}),
+		"Purge should remove a soft-deleted document")
+}
+
+func TestIntegration_MetadataRepository_Purge_RemovesEveryDuplicate(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "operationroute_duplicates"
+
+	mongotestutil.InsertManyMetadata(t, container.Database, collection, []mongotestutil.MetadataFixture{
+		{EntityID: "purge-dup", EntityName: "OperationRoute", Data: map[string]any{"copy": "older"}},
+		{EntityID: "purge-dup", EntityName: "OperationRoute", Data: map[string]any{"copy": "newer"}},
+	})
+
+	// Act
+	err := repo.Purge(ctx, collection, "purge-dup")
+
+	// Assert
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{"entity_id": "purge-dup"}),
+		"Purge should remove every document of the entity")
+}
+
+func TestIntegration_MetadataRepository_Purge_UnknownEntityIsNoOp(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "operationroute"
+
+	mongotestutil.InsertMetadata(t, container.Database, collection, mongotestutil.MetadataFixture{
+		EntityID:   "purge-bystander",
+		EntityName: "OperationRoute",
+		Data:       map[string]any{"kept": true},
+	})
+
+	// Act
+	err := repo.Purge(ctx, collection, "never-existed")
+
+	// Assert
+	require.NoError(t, err, "Purge of an entity without metadata should be a no-op")
+	assert.Equal(t, int64(1), mongotestutil.CountDocuments(t, container.Database, collection, bson.M{}),
+		"Purge of an unknown entity must not remove other documents")
+}
+
+func TestIntegration_MetadataRepository_Purge_ReleasesUniqueMetadataValue(t *testing.T) {
+	// Arrange
+	container := mongotestutil.SetupReusableContainer(t)
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+	collection := "transactionroute"
+
+	_, err := repo.CreateIndex(ctx, collection, &mmodel.CreateMetadataIndexInput{
+		MetadataKey: "externalRef",
+		Unique:      true,
+	})
+	require.NoError(t, err)
+
+	newMetadata := func(entityID string) *Metadata {
+		now := time.Now()
+
+		return &Metadata{
+			EntityID:   entityID,
+			EntityName: "TransactionRoute",
+			Data:       map[string]any{"externalRef": "ref-x"},
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+	}
+
+	// A soft delete keeps the value indexed, so the retry would be refused forever.
+	require.NoError(t, repo.Create(ctx, collection, newMetadata("staged-soft")))
+	require.NoError(t, repo.Delete(ctx, collection, "staged-soft"))
+
+	err = repo.Create(ctx, collection, newMetadata("retry-after-soft"))
+	require.Error(t, err, "a soft-deleted document should still hold the unique value")
+	assert.True(t, mongo.IsDuplicateKeyError(err), "the refusal should be a duplicate key error, got %v", err)
+
+	require.NoError(t, repo.Purge(ctx, collection, "staged-soft"))
+
+	// The staged document of a failed create holds the value until purged.
+	require.NoError(t, repo.Create(ctx, collection, newMetadata("staged-failed")))
+
+	// Act
+	err = repo.Purge(ctx, collection, "staged-failed")
+	require.NoError(t, err)
+
+	retryErr := repo.Create(ctx, collection, newMetadata("retry-after-purge"))
+
+	// Assert
+	require.NoError(t, retryErr, "a purged document should release its unique metadata value")
+
+	stored, err := repo.FindByEntity(ctx, collection, "retry-after-purge")
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.Equal(t, "ref-x", stored.Data["externalRef"])
+}
+
 // findStoredMetadata reads the raw document of an entity, bypassing the repository's deleted_at filter.
 func findStoredMetadata(t *testing.T, db *mongo.Database, collection, entityID string) MetadataMongoDBModel {
 	t.Helper()

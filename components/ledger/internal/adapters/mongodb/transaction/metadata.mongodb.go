@@ -48,6 +48,11 @@ type Repository interface {
 	// creates a document: an entity without a live document, including one already deleted, is a
 	// no-op that keeps the first deleted_at.
 	Delete(ctx context.Context, collection, id string) error
+	// Purge hard-deletes every metadata document of the entity, live or soft-deleted. It exists for
+	// a document a create staged before an insert that failed: that entity never existed, so no
+	// tombstone is kept, and removing the document releases any unique metadata index value it held.
+	// An entity without documents is a no-op.
+	Purge(ctx context.Context, collection, id string) error
 	CreateIndex(ctx context.Context, collection string, input *mmodel.CreateMetadataIndexInput) (*mmodel.MetadataIndex, error)
 	FindAllIndexes(ctx context.Context, collection string) ([]*mmodel.MetadataIndex, error)
 	DeleteIndex(ctx context.Context, collection, indexName string) error
@@ -539,6 +544,34 @@ func (mmr *MetadataMongoDBRepository) Delete(ctx context.Context, collection, id
 	// UpdateMany marks every duplicate left on a collection that predates the unique entity_id index.
 	if _, err := coll.UpdateMany(ctx, filter, update); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to soft delete metadata", err)
+
+		return err
+	}
+
+	return nil
+}
+
+// Purge implements Repository.
+func (mmr *MetadataMongoDBRepository) Purge(ctx context.Context, collection, id string) error {
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+
+	ctx, span := tracer.Start(ctx, "mongodb.purge_metadata")
+	defer span.End()
+
+	db, err := mmr.getDatabase(ctx)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to get database", err)
+
+		return err
+	}
+
+	coll := db.Collection(strings.ToLower(collection))
+
+	// No deleted_at filter: a soft-deleted document still holds its unique metadata index values.
+	filter := bson.D{{Key: "entity_id", Value: id}}
+
+	if _, err := coll.DeleteMany(ctx, filter); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to purge metadata", err)
 
 		return err
 	}

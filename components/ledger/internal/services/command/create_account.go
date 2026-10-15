@@ -178,8 +178,19 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 		UpdatedAt:          now,
 	}
 
+	// Metadata is staged before the SQL insert so a document-store failure aborts the create
+	// before anything durable exists. A failure past this point discards the staged document once
+	// the account is known not to exist.
+	metadataDoc, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccount, account.ID, cai.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create account metadata", err)
+
+		return nil, err
+	}
+
 	acc, err := uc.AccountRepo.Create(ctx, account)
 	if err != nil {
+		uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntityAccount, account.ID, cai.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create account", err)
 
 		return nil, err
@@ -203,22 +214,19 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 	if err != nil {
 		recordCommandError(ctx, span, logger, "Failed to create default balance", err)
 
+		// The staged metadata follows the account: it is discarded only when the compensating
+		// delete removed the account. An account that survives keeps its metadata.
 		delErr := uc.AccountRepo.Delete(ctx, organizationID, ledgerID, &portfolioUUID, accountID)
 		if delErr != nil {
 			logger.Log(ctx, libLog.LevelError, "Failed to delete account during compensation", libLog.Err(delErr))
+		} else {
+			uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntityAccount, account.ID, cai.Metadata)
 		}
 
 		return nil, pkg.ValidateBusinessError(constant.ErrAccountCreationFailed, constant.EntityAccount)
 	}
 
 	uc.emitAccountCreatedEvent(ctx, span, logger, acc)
-
-	metadataDoc, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccount, acc.ID, cai.Metadata)
-	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create account metadata", err)
-
-		return nil, err
-	}
 
 	acc.Metadata = metadataDoc
 
@@ -230,9 +238,10 @@ func (uc *UseCase) CreateAccount(ctx context.Context, organizationID, ledgerID u
 // failures are span-recorded and logged at Warn, never returned.
 // The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
-// Anchor: invoked between the default-balance success branch and the
-// metadata-write call in CreateAccount, so a downstream Mongo failure
-// cannot mask the event and a balance-create rollback cannot leak it.
+// Anchor: invoked right after the default-balance success branch in
+// CreateAccount, so a balance-create rollback cannot leak the event. The
+// metadata document is written before the SQL insert, so no metadata
+// failure can occur after the event is published.
 //
 // Wire-format mapping lives in pkg/streaming/events/account_created.go;
 // changes to the payload contract belong there, not here. This function

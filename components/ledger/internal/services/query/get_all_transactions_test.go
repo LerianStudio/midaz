@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
@@ -961,7 +962,7 @@ func TestGetAllTransactions(t *testing.T) {
 		assert.Contains(t, err.Error(), "No transactions were found")
 	})
 
-	t.Run("Error_Metadata", func(t *testing.T) {
+	t.Run("Error_Metadata is returned as a technical error", func(t *testing.T) {
 		trans := []*transaction.Transaction{
 			{
 				ID:             uuid.New().String(),
@@ -970,6 +971,8 @@ func TestGetAllTransactions(t *testing.T) {
 				Operations:     []*operation.Operation{},
 			},
 		}
+
+		metadataErr := errors.New("metadata error")
 
 		mockTransactionRepo.
 			EXPECT().
@@ -980,15 +983,71 @@ func TestGetAllTransactions(t *testing.T) {
 		mockMetadataRepo.
 			EXPECT().
 			FindByEntityIDs(gomock.Any(), "Transaction", []string{trans[0].ID}).
-			Return(nil, errors.New("metadata error")).
+			Return(nil, metadataErr).
 			Times(1)
 
 		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
 
 		assert.Error(t, err)
+		assert.ErrorIs(t, err, metadataErr)
+
+		var nf pkg.EntityNotFoundError
+		assert.False(t, errors.As(err, &nf))
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cur)
-		assert.Contains(t, err.Error(), "No transactions were found")
+	})
+
+	t.Run("Error_OperationMetadata is returned as a technical error", func(t *testing.T) {
+		transactionID := uuid.New().String()
+		operationID := uuid.New().String()
+
+		trans := []*transaction.Transaction{
+			{
+				ID:             transactionID,
+				OrganizationID: organizationID.String(),
+				LedgerID:       ledgerID.String(),
+				Operations: []*operation.Operation{
+					{
+						ID:             operationID,
+						TransactionID:  transactionID,
+						OrganizationID: organizationID.String(),
+						LedgerID:       ledgerID.String(),
+						Type:           constant.DEBIT,
+						AccountAlias:   "source",
+					},
+				},
+			},
+		}
+
+		metadataErr := errors.New("operation metadata error")
+
+		mockTransactionRepo.
+			EXPECT().
+			FindOrListAllWithOperations(gomock.Any(), organizationID, ledgerID, []uuid.UUID{}, filter.ToCursorPagination()).
+			Return(trans, mockCur, nil).
+			Times(1)
+
+		mockMetadataRepo.
+			EXPECT().
+			FindByEntityIDs(gomock.Any(), constant.EntityTransaction, []string{transactionID}).
+			Return(nil, nil).
+			Times(1)
+
+		mockMetadataRepo.
+			EXPECT().
+			FindByEntityIDs(gomock.Any(), constant.EntityOperation, []string{operationID}).
+			Return(nil, metadataErr).
+			Times(1)
+
+		result, cur, err := uc.GetAllTransactions(context.TODO(), organizationID, ledgerID, filter)
+
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, metadataErr)
+
+		var nf pkg.EntityNotFoundError
+		assert.False(t, errors.As(err, &nf))
+		assert.Nil(t, result)
+		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 }
 

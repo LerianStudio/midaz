@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -48,9 +47,7 @@ func (uc *UseCase) GetAllOperations(ctx context.Context, organizationID, ledgerI
 
 	metadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityOperation, operationIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb operation", err)
+		recordQueryError(ctx, span, logger, "Failed to get operation metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

@@ -169,8 +169,13 @@ func (a *AssetRatePostgreSQLModel) FromEntity(assetRate *AssetRate) error {
 		return fmt.Errorf("asset rate scale is required")
 	}
 
+	ID := assetRate.ID
+	if ID == "" {
+		ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+	}
+
 	*a = AssetRatePostgreSQLModel{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:             ID,
 		OrganizationID: assetRate.OrganizationID,
 		LedgerID:       assetRate.LedgerID,
 		ExternalID:     assetRate.ExternalID,
