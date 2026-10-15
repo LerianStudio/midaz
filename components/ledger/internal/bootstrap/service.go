@@ -132,7 +132,7 @@ func (s *Service) launcherApps() []launcherApp {
 	if s.MultiTenantConsumer != nil {
 		apps = append(apps, launcherApp{
 			"Multi-Tenant RabbitMQ Consumer",
-			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory},
+			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory, tracer: serviceTracer(s.Telemetry)},
 		})
 	}
 

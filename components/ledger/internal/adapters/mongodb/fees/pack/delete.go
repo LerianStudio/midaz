@@ -44,23 +44,18 @@ func (pm *PackageMongoDBRepository) SoftDelete(ctx context.Context, id, organiza
 
 	coll := db.Collection(strings.ToLower(feeconstant.PackageCollection))
 
-	_, spanDelete := tracer.Start(ctx, "repository.package.delete.delete_one")
-	defer spanDelete.End()
-
-	spanDelete.SetAttributes(attributes...)
-
 	deletedAt := bson.D{{Key: "$set", Value: bson.D{{Key: "deleted_at", Value: time.Now()}}}}
 
 	deleted, err := coll.UpdateOne(ctx, packageScopeFilter(id, organizationID, ledgerID), deletedAt)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete package", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete package", err)
 
 		return err
 	}
 
 	if deleted.MatchedCount == 0 {
 		bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "", feeconstant.PackageCollection)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "No package found to delete", bizErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No package found to delete", bizErr)
 
 		return bizErr
 	}

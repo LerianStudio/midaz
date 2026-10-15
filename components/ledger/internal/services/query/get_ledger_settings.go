@@ -38,7 +38,7 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 	cacheKey := utils.LedgerSettingsInternalKey(organizationID, ledgerID)
 
 	// Cache read (best-effort)
-	if settings, ok := uc.readSettingsFromCache(ctx, tracer, logger, cacheKey, ledgerID); ok {
+	if settings, ok := uc.readSettingsFromCache(ctx, span, logger, cacheKey, ledgerID); ok {
 		return settings, nil
 	}
 
@@ -51,7 +51,7 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 	}
 
 	// Cache write (best-effort)
-	uc.writeSettingsToCache(ctx, tracer, logger, cacheKey, settings, ledgerID)
+	uc.writeSettingsToCache(ctx, span, logger, cacheKey, settings, ledgerID)
 
 	return settings, nil
 }
@@ -59,19 +59,18 @@ func (uc *UseCase) GetLedgerSettings(ctx context.Context, organizationID, ledger
 // readSettingsFromCache attempts to read ledger settings from Redis.
 // Returns (settings, true) on a cache hit, or (nil, false) on miss or error.
 // Errors are logged but never propagated -- a cache failure simply means the
-// caller falls through to the database.
-func (uc *UseCase) readSettingsFromCache(ctx context.Context, tracer trace.Tracer, logger libLog.Logger, cacheKey string, ledgerID uuid.UUID) (map[string]any, bool) {
+// caller falls through to the database. The cache read opens no span of its own:
+// it is one Redis command the driver already traces, so its failure is recorded on
+// the caller's query.get_ledger_settings span.
+func (uc *UseCase) readSettingsFromCache(ctx context.Context, span trace.Span, logger libLog.Logger, cacheKey string, ledgerID uuid.UUID) (map[string]any, bool) {
 	if uc.OnboardingRedisRepo == nil {
 		return nil, false
 	}
 
-	cacheCtx, cacheSpan := tracer.Start(ctx, "query.get_ledger_settings.cache_read")
-	defer cacheSpan.End()
-
-	cached, err := uc.OnboardingRedisRepo.Get(cacheCtx, cacheKey)
+	cached, err := uc.OnboardingRedisRepo.Get(ctx, cacheKey)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(cacheSpan, "Cache read error", err)
-		logger.Log(cacheCtx, libLog.LevelWarn, "Cache read error, falling back to database", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Cache read error", err)
+		logger.Log(ctx, libLog.LevelWarn, "Cache read error, falling back to database", libLog.Err(err))
 
 		return nil, false
 	}
@@ -82,42 +81,40 @@ func (uc *UseCase) readSettingsFromCache(ctx context.Context, tracer trace.Trace
 
 	var settings map[string]any
 	if err := json.Unmarshal([]byte(cached), &settings); err != nil {
-		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to unmarshal cached settings", err)
-		logger.Log(cacheCtx, libLog.LevelWarn, "Failed to unmarshal cached settings, falling back to database", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal cached settings", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to unmarshal cached settings, falling back to database", libLog.Err(err))
 
 		return nil, false
 	}
 
-	logger.Log(cacheCtx, libLog.LevelDebug, "Cache hit for ledger settings", libLog.String("ledgerId", ledgerID.String()))
+	logger.Log(ctx, libLog.LevelDebug, "Cache hit for ledger settings", libLog.String("ledgerId", ledgerID.String()))
 
 	return settings, true
 }
 
 // writeSettingsToCache stores ledger settings in Redis for future reads.
 // Errors are logged but never propagated -- a cache write failure does not
-// affect the transaction flow.
-func (uc *UseCase) writeSettingsToCache(ctx context.Context, tracer trace.Tracer, logger libLog.Logger, cacheKey string, settings map[string]any, ledgerID uuid.UUID) {
+// affect the transaction flow. Like the read, the write opens no span of its own
+// and records its failure on the caller's query.get_ledger_settings span.
+func (uc *UseCase) writeSettingsToCache(ctx context.Context, span trace.Span, logger libLog.Logger, cacheKey string, settings map[string]any, ledgerID uuid.UUID) {
 	if uc.OnboardingRedisRepo == nil {
 		return
 	}
 
-	cacheCtx, cacheSpan := tracer.Start(ctx, "query.get_ledger_settings.cache_write")
-	defer cacheSpan.End()
-
 	settingsJSON, err := json.Marshal(settings)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to marshal settings for cache", err)
-		logger.Log(cacheCtx, libLog.LevelWarn, "Failed to marshal settings for cache", libLog.Err(err))
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal settings for cache", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to marshal settings for cache", libLog.Err(err))
 
 		return
 	}
 
-	if err := uc.OnboardingRedisRepo.Set(cacheCtx, cacheKey, string(settingsJSON), SettingsCacheTTL); err != nil {
-		libOpentelemetry.HandleSpanError(cacheSpan, "Failed to cache ledger settings", err)
-		logger.Log(cacheCtx, libLog.LevelWarn, "Failed to cache ledger settings", libLog.Err(err))
+	if err := uc.OnboardingRedisRepo.Set(ctx, cacheKey, string(settingsJSON), SettingsCacheTTL); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to cache ledger settings", err)
+		logger.Log(ctx, libLog.LevelWarn, "Failed to cache ledger settings", libLog.Err(err))
 
 		return
 	}
 
-	logger.Log(cacheCtx, libLog.LevelDebug, "Cached ledger settings", libLog.String("ledgerId", ledgerID.String()))
+	logger.Log(ctx, libLog.LevelDebug, "Cached ledger settings", libLog.String("ledgerId", ledgerID.String()))
 }

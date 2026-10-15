@@ -44,24 +44,19 @@ func (r *BillingPackageMongoDBRepository) SoftDelete(ctx context.Context, id, or
 
 	coll := db.Collection(strings.ToLower(feeconstant.BillingPackageCollection))
 
-	_, spanDelete := tracer.Start(ctx, "repository.billing_package.delete.update_one")
-	defer spanDelete.End()
-
-	spanDelete.SetAttributes(attributes...)
-
 	now := time.Now().UTC().Format(time.RFC3339)
 	deletedAt := bson.D{{Key: "$set", Value: bson.D{{Key: "deleted_at", Value: now}}}}
 
 	deleted, err := coll.UpdateOne(ctx, billingPackageScopeFilter(id, organizationID, ledgerID), deletedAt)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete billing package", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to delete billing package", err)
 
 		return err
 	}
 
 	if deleted.MatchedCount == 0 {
 		bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "No billing package found to delete", bizErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No billing package found to delete", bizErr)
 
 		return bizErr
 	}

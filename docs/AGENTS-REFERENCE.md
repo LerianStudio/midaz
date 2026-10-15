@@ -199,7 +199,7 @@ Binding standard: `docs/standards/telemetry.md` (T1–T13). The span-error helpe
 Span lifecycle:
 
 - Always `defer span.End()` immediately after `tracer.Start`.
-- Open a child I/O span only where the driver is not auto-instrumented: MongoDB and RabbitMQ yes, PostgreSQL and Redis/Valkey no — `lib-commons` instruments both of those pools (`sqlobs`/`redisobs`), so a hand-rolled `postgres.<op>.query`/`.exec` or one-command `redis.<cmd>` span only duplicates the driver's. See T2 for the full table.
+- Open a child I/O span only where T2 requires it: RabbitMQ yes; MongoDB, PostgreSQL and Redis/Valkey no. MongoDB has one domain span per repository operation and no driver child; `lib-commons` instruments the PostgreSQL and Redis pools (`sqlobs`/`redisobs`), so a hand-rolled `postgres.<op>.query`/`.exec` or one-command `redis.<cmd>` span only duplicates the driver's. See T2 for the full table.
 - When a child I/O span is not opened, its error handling and attributes belong on the parent domain span — the driver span carries no business-vs-technical class and does not see client-side scan/mapping failures.
 - For the child I/O spans that remain, preserve parent context: use `_, spanInsert := tracer.Start(ctx, "...")`, not `ctx, spanInsert := ...`.
 - Do not create child spans for in-memory mapping/validation.

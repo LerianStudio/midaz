@@ -171,6 +171,13 @@ func (uc *UseCase) SyncBalancesBatch(ctx context.Context, organizationID, ledger
 	deduplicated := aggregator.Aggregate(ctx, aggregatedBalances)
 	result.BalancesAggregated = len(deduplicated)
 
+	// Aggregation opens no span of its own (a step without I/O): its input and output
+	// sizes ride this span instead.
+	span.SetAttributes(
+		attribute.Int("app.balance_sync.aggregated_keys", len(aggregatedBalances)),
+		attribute.Int("app.balance_sync.balances_aggregated", len(deduplicated)),
+	)
+
 	// Early return: all keys were orphaned or unparseable, no valid balances to persist.
 	if len(deduplicated) == 0 {
 		if len(orphanedKeys) > 0 {

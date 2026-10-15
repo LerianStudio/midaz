@@ -16,6 +16,7 @@ import (
 
 	onbMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	txMongo "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -84,10 +85,10 @@ func TestCreateMetadataHelpers_RecordOnSpanByClassWithoutLogging(t *testing.T) {
 				require.ErrorIs(t, err, class.err)
 				assert.Nil(t, result)
 
-				span := findSpan(t, recorder, helper.spanName)
+				span := spantest.FindSpan(t, recorder, helper.spanName)
 				assert.Equal(t, class.wantStatus, span.Status().Code)
 
-				_, hasEvent := findEvent(span, message)
+				_, hasEvent := spantest.FindEvent(span, message)
 				if class.wantEvent {
 					assert.True(t, hasEvent, "a business error is recorded as a span event")
 				}

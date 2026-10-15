@@ -67,7 +67,7 @@ func (h *TransactionValidationHandler) GetTransactionValidation(c fiber.Ctx) err
 func (h *TransactionValidationHandler) getTransactionValidation(ctx context.Context, idParam string) (*model.TransactionValidation, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "handler.transaction-validation.get")
+	ctx, span := tracer.Start(ctx, "handler.transaction_validation.get")
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)
@@ -116,7 +116,7 @@ func (h *TransactionValidationHandler) ListTransactionValidations(c fiber.Ctx) e
 func (h *TransactionValidationHandler) listTransactionValidations(ctx context.Context, bind func(any) error) (*ListTransactionValidationsResponse, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "handler.transaction-validation.list")
+	ctx, span := tracer.Start(ctx, "handler.transaction_validation.list")
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)

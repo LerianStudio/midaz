@@ -18,6 +18,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -101,13 +102,13 @@ func TestCreateAccountingRouteCache_RecordsWriteFailureOnce(t *testing.T) {
 
 			uc := &UseCase{TransactionRedisRepo: mockRedisRepo}
 
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 			logger := &capturingLogger{}
 			ctx = libObservability.ContextWithLogger(ctx, logger)
 
 			err := uc.CreateAccountingRouteCache(ctx, route)
 
-			span := findSpan(t, recorder, "command.create_transaction_route_cache")
+			span := spantest.FindSpan(t, recorder, "command.create_transaction_route_cache")
 			assert.Equal(t, tt.wantStatus, span.Status().Code)
 
 			if len(tt.wantMessages) == 0 {
@@ -164,13 +165,13 @@ func TestCreateAccountingRouteCache_RecordsConversionFailureOnce(t *testing.T) {
 		},
 	}
 
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 	logger := &capturingLogger{}
 	ctx = libObservability.ContextWithLogger(ctx, logger)
 
 	require.Error(t, uc.CreateAccountingRouteCache(ctx, route))
 
-	assert.Equal(t, codes.Error, findSpan(t, recorder, "command.create_transaction_route_cache").Status().Code)
+	assert.Equal(t, codes.Error, spantest.FindSpan(t, recorder, "command.create_transaction_route_cache").Status().Code)
 
 	line := onlyLoggedLine(t, logger)
 	assert.Equal(t, libLog.LevelError, line.Level)
