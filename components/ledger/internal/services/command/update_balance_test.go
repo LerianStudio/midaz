@@ -272,20 +272,24 @@ func TestUpdateBalance_ConfigurationWrite_CarriesTheReturnedRow(t *testing.T) {
 
 	allowSending, allowReceiving := false, true
 
-	returned := &mmodel.Balance{
-		ID:             balanceID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Alias:          "@user1",
-		Key:            "",
-		AllowSending:   false,
-		AllowReceiving: true,
-		ConfigVersion:  7,
-		Settings: &mmodel.BalanceSettings{
-			BalanceScope:          mmodel.BalanceScopeTransactional,
-			OverdraftLimitEnabled: true,
-			OverdraftLimit:        strPtr("250.50"),
-		},
+	// Each case builds its own row: Update receives it as the UPDATE result and
+	// may write cached amounts into it, so parallel cases must not share it.
+	newReturned := func() *mmodel.Balance {
+		return &mmodel.Balance{
+			ID:             balanceID.String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@user1",
+			Key:            "",
+			AllowSending:   false,
+			AllowReceiving: true,
+			ConfigVersion:  7,
+			Settings: &mmodel.BalanceSettings{
+				BalanceScope:          mmodel.BalanceScopeTransactional,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        strPtr("250.50"),
+			},
+		}
 	}
 
 	cases := map[string]mmodel.UpdateBalance{
@@ -304,6 +308,7 @@ func TestUpdateBalance_ConfigurationWrite_CarriesTheReturnedRow(t *testing.T) {
 			mockBalanceRepo := balance.NewMockRepository(ctrl)
 			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
+			returned := newReturned()
 			current := *returned
 			current.Settings = nil
 
@@ -344,14 +349,17 @@ func TestUpdateBalance_ConfigurationWrite_FailsClosed(t *testing.T) {
 	t.Parallel()
 
 	errRedis := errors.New("redis connection refused")
-	allowSending := false
 
 	// An empty PATCH still writes the row's configuration and confirms its copy, so
 	// a cache failure fails it too; a client that sends one may retry it safely.
-	payloads := map[string]mmodel.UpdateBalance{
-		"allow flags": {AllowSending: &allowSending},
-		"settings":    {Settings: &mmodel.BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: strPtr("10")}},
-		"empty":       {},
+	// Each case builds its own payload: Update normalizes the settings in place, so
+	// parallel cases must not share their pointers.
+	payloads := map[string]func() mmodel.UpdateBalance{
+		"allow flags": func() mmodel.UpdateBalance { return mmodel.UpdateBalance{AllowSending: boolPtr(false)} },
+		"settings": func() mmodel.UpdateBalance {
+			return mmodel.UpdateBalance{Settings: &mmodel.BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: strPtr("10")}}
+		},
+		"empty": func() mmodel.UpdateBalance { return mmodel.UpdateBalance{} },
 	}
 
 	// counted is the outcome the blob copy counter records, empty when no copy ran.
@@ -372,11 +380,12 @@ func TestUpdateBalance_ConfigurationWrite_FailsClosed(t *testing.T) {
 		{name: "blob of another balance", copyOutcome: redis.BlobCopyOfAnotherBalance, counted: "of_another_balance"},
 	}
 
-	for payloadName, update := range payloads {
+	for payloadName, newPayload := range payloads {
 		for _, tc := range cases {
 			t.Run(payloadName+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
 
+				update := newPayload()
 				organizationID := uuid.Must(libCommons.GenerateUUIDv7())
 				ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 				balanceID := uuid.Must(libCommons.GenerateUUIDv7())
