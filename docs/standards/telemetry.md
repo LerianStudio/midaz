@@ -20,20 +20,20 @@ Two rules — **T5** (span-error helper by class) and **T8** (single-point loggi
 
 ## T2 — Span naming
 
-**Rule:** Span names MUST be `<layer>.<operation>` in dotted snake_case (e.g. `command.create_account`, `mongodb.update_holder`). A child I/O span MUST be opened **only where the driver is not auto-instrumented**; where one is opened it MUST extend the parent name with a `.exec` / `.query` / `.find` / `.insert` (etc.) suffix. MUST NOT use bespoke prefixes or free-form names.
+**Rule:** Span names MUST be `<layer>.<operation>` in dotted snake_case (e.g. `command.create_account`, `mongodb.update_holder`). A child I/O span MUST be opened **only where the driver is not auto-instrumented and the table below requires it**; where one is opened it MUST extend the parent name with a `.exec` / `.query` / `.find` / `.insert` (etc.) suffix. MUST NOT use bespoke prefixes or free-form names.
 
 Current driver coverage in this repo:
 
 | Store | Driver auto-instrumentation | Child I/O span |
 |-------|-----------------------------|----------------|
-| MongoDB | none (`lib-commons` has no `commons/mongo/observability.go`) | **REQUIRED** |
+| MongoDB | none (`lib-commons` has no `commons/mongo/observability.go`) | **FORBIDDEN** — one domain span per repository operation (`mongodb.<op>` / `repository.<entity>.<op>`), no child: the driver call ran under a child with the same duration as its parent, so the parent carries the attributes and the error instead |
 | PostgreSQL | `lib-commons/commons/postgres` → `instrumentPool()` → `sqlobs.Setup()`, which passes `otelsql.WithTracerProvider` (since lib-commons v6.8.1) | **FORBIDDEN** — otelsql already emits `sql.connector.connect` / `sql.conn.query` / `sql.rows` per statement |
 | Redis / Valkey | `lib-commons/commons/redis` → `instrumentClient()` → `redisobs.Setup()` (since lib-commons v6.8.1) | **FORBIDDEN** for spans that mirror one driver command; semantic spans that span several commands or carry domain meaning (`redis.run_balance_atomic_script`, `redis.schedule_balance_sync_batch`, `redis.set_nx`) stay |
 | RabbitMQ | none (`messagingobs` is wired nowhere) | **REQUIRED** |
 
 **Rationale:** A predictable two-segment scheme makes spans groupable by layer and operation across services and lets dashboards and trace search rely on a stable naming contract instead of per-author conventions. Once the driver emits its own span per statement, a hand-rolled sibling doubles the span volume on the hottest path in the system without adding a single fact: one `GET /v1/organizations` was observed emitting `sql.connector.connect`, `sql.conn.query` and `sql.rows` from `github.com/XSAM/otelsql` alongside midaz's own `postgres.find_all.query`. Error attribution does not move to the driver span, however — otelsql cannot express the business-vs-technical class T5 requires and does not see client-side `Scan`/mapping failures — so when a child I/O span is deleted its `HandleSpanError` / `HandleSpanBusinessErrorEvent` / `SetAttributes` calls move onto the surviving parent domain span rather than disappearing.
 
-**Canonical example:** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:138`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `_, spanInsert := tracer.Start(ctx, "mongodb.create_holder.insert")` (child I/O span with `.insert` suffix under the `mongodb.create_holder` parent, on a driver with no auto-instrumentation).
+**Canonical example:** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:97`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `ctx, span := tracer.Start(ctx, "mongodb.create_holder")`, the single domain span of the MongoDB insert: the `InsertOne` call, its attributes (line 138) and its error handling all record on it, with no `.insert` child.
 
 **Counter-example (forbidden duplicate):** the shape to reject is `_, spanExec := tracer.Start(ctx, "postgres.create.exec")` wrapping a `db.ExecContext` call. The 121 `postgres.<op>.query` / `postgres.<op>.exec` spans under `components/ledger/internal/adapters/postgres/` and the 8 one-command Redis spans (`redis.set`/`get`/`del`/`mget`/`incr`) were removed for this reason; `components/tracer/internal/adapters/postgres/` still carries its own set pending a separate analysis.
 
@@ -49,7 +49,7 @@ Current driver coverage in this repo:
 
 **Canonical example (sanctioned detach):** [`components/tracer/internal/services/validation_service.go:614`](../../components/tracer/internal/services/validation_service.go) — `context.WithTimeout(context.WithoutCancel(ctx), validationPersistTimeout)` with the preceding intent comment (lines 611–613) explaining the SOX/GLBA audit-trail persistence budget.
 
-**Counter-example (forbidden leaf rebind):** the shape to reject is `ctx, spanInsert := tracer.Start(ctx, "mongodb.create_holder.insert")` — rebinding `ctx` on a leaf insert/find span with no detach intent, which nests sibling I/O spans under each other instead of the parent. The audit's 135+ leaf rebinds were converted to the non-rebinding `_, spanX :=` form (see the canonical example above); the PostgreSQL and Redis leaves it covered have since been deleted outright under T2, so the surviving population is the MongoDB and RabbitMQ leaves, and the lint gate keeps the rebind from reappearing on them.
+**Counter-example (forbidden leaf rebind):** the shape to reject is `ctx, spanFind := tracer.Start(ctx, "<layer>.<operation>.find")` — rebinding `ctx` on a leaf insert/find span with no detach intent, which nests sibling I/O spans under each other instead of the parent. The audit's 135+ leaf rebinds were converted to the non-rebinding `_, spanX :=` form; the PostgreSQL, Redis and MongoDB leaves it covered have since been deleted outright under T2, so the rule now guards the few leaves that remain and any new one, and the lint gate keeps the rebind from reappearing on them.
 
 **Enforcement:** `custom-lint` — flag `ctx, span\w* := .*tracer.Start` on leaf spans; allowlist requires an adjacent `WithoutCancel` or an intent comment (per-file review where ambiguous).
 
@@ -61,7 +61,7 @@ Current driver coverage in this repo:
 
 **Rationale:** `SetSpanAttributesFromValue(span, prefix, value, nil)` flattens every struct field onto the span — the mechanism behind the audit's P0 PII leak (76 of 100 call sites passed a nil Redactor, including plaintext CPF/email/phone before encryption). Namespacing inputs vs. outputs keeps span queries unambiguous, and presence-flags preserve observability of optionality without putting the data on the wire.
 
-**Canonical example (presence-flag idiom):** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:145`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `attribute.Bool("app.request.repository_input.has_contact", record.Contact != nil)` and the surrounding `has_*` block (lines 143–148).
+**Canonical example (presence-flag idiom):** [`components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go:403`](../../components/ledger/internal/crm/adapters/mongodb/holder/holder.mongodb.go) — `attribute.Bool("app.request.repository_input.has_contact", m.Contact != nil)` and the surrounding `has_*` block of `repositoryInputAttributes` (lines 401–406), set on the `mongodb.create_holder` span at line 138.
 
 **Counter-example (banned nil-Redactor flatten):** the shape to reject is `SetSpanAttributesFromValue(spanUpdate, "app.request.repository_input", holder, nil)`, which flattens the full holder (PII) onto the span. `SetSpanAttributesFromValue` with a nil Redactor now has **zero call sites** repo-wide — the holder paths were rewritten to the `has_*` presence-flag block above; the `forbidigo` gate keeps the flatten from returning.
 
