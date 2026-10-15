@@ -15,8 +15,11 @@ import (
 
 // CreateOnboardingMetadata persists the given metadata in MongoDB for the specified entity.
 // Nil or empty metadata persists no document and returns (nil, nil).
+//
+// A write failure is recorded on this helper's span by error class and returned without a log
+// line: the calling use case owns the single log of the error.
 func (uc *UseCase) CreateOnboardingMetadata(ctx context.Context, entityName, entityID string, metadata map[string]any) (map[string]any, error) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
 	ctx, span := tracer.Start(ctx, "command.create_metadata")
 	defer span.End()
@@ -36,7 +39,7 @@ func (uc *UseCase) CreateOnboardingMetadata(ctx context.Context, entityName, ent
 	}
 
 	if err := uc.OnboardingMetadataRepo.Create(ctx, entityName, &meta); err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create metadata", err)
+		recordCommandSpanError(span, "Failed to create metadata", err)
 
 		return nil, err
 	}

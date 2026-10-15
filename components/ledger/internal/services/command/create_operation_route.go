@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
-	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	pkgStreaming "github.com/LerianStudio/midaz/v4/pkg/streaming"
@@ -53,8 +52,16 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID uuid
 		UpdatedAt:         now,
 	}
 
+	metadata, err := uc.CreateTransactionMetadata(ctx, constant.EntityOperationRoute, operationRoute.ID.String(), payload.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create operation route metadata", err)
+
+		return nil, err
+	}
+
 	createdOperationRoute, err := uc.OperationRouteRepo.Create(ctx, organizationID, ledgerID, operationRoute)
 	if err != nil {
+		uc.discardStagedTransactionMetadata(ctx, span, logger, constant.EntityOperationRoute, operationRoute.ID.String(), payload.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create operation route", err)
 
 		return nil, err
@@ -62,23 +69,7 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID uuid
 
 	uc.emitOperationRouteCreatedEvent(ctx, span, logger, createdOperationRoute)
 
-	if len(payload.Metadata) > 0 {
-		meta := mongodb.Metadata{
-			EntityID:   createdOperationRoute.ID.String(),
-			EntityName: constant.EntityOperationRoute,
-			Data:       payload.Metadata,
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-
-		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityOperationRoute, &meta); err != nil {
-			recordCommandError(ctx, span, logger, "Failed to create operation route metadata", err)
-
-			return nil, err
-		}
-
-		createdOperationRoute.Metadata = payload.Metadata
-	}
+	createdOperationRoute.Metadata = metadata
 
 	return createdOperationRoute, nil
 }
@@ -89,9 +80,10 @@ func (uc *UseCase) CreateOperationRoute(ctx context.Context, organizationID uuid
 // Warn, never returned. Durability of the event is owned by PG and
 // the persisted database mutation; this helper does not make broker delivery transactional.
 //
-// Anchor: invoked immediately after OperationRouteRepo.Create succeeds
-// and before the metadata-write call in CreateOperationRoute, so a
-// downstream Mongo failure cannot mask the event.
+// Anchor: invoked immediately after OperationRouteRepo.Create succeeds.
+// CreateOperationRoute writes the metadata document before the insert, so
+// the event is emitted only for a route whose insert committed, and a
+// failed insert emits nothing.
 //
 // Wire-format mapping lives in pkg/streaming/events/operation_route_created.go;
 // changes to the payload contract belong there, not here.

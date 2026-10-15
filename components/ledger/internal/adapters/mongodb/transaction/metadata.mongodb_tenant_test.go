@@ -239,3 +239,15 @@ func TestGetDatabase_RequireTenantWithoutContext_ReturnsError(t *testing.T) {
 	require.ErrorContains(t, err, "tenant mongo database missing from context")
 	assert.Nil(t, db, "database should be nil when fail-closed tenant mode has no tenant context")
 }
+
+func TestPurge_RequireTenantWithoutContext_ReturnsError(t *testing.T) {
+	t.Parallel()
+
+	repo := NewMetadataMongoDBRepository(newPlaceholderConnection(), true)
+
+	err := repo.Purge(context.Background(), "transactionroute", "entity-1")
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "tenant mongo database missing from context",
+		"Purge should fail closed like every other method when tenant mode has no tenant context")
+}

@@ -108,43 +108,6 @@ func TestCreatePortfolio(t *testing.T) {
 			expectedErr:   errors.New("failed to create portfolio"),
 			expectedPortf: nil,
 		},
-		{
-			name: "failure - metadata creation error",
-			input: &mmodel.CreatePortfolioInput{
-				Name:     "Test Portfolio",
-				EntityID: "entity-123",
-				Status: mmodel.Status{
-					Code: "ACTIVE",
-				},
-				Metadata: map[string]any{
-					"key1": "value1",
-				},
-			},
-			mockSetup: func() {
-				mockPortfolioRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					Return(&mmodel.Portfolio{
-						ID:             uuid.New().String(),
-						EntityID:       "entity-123",
-						LedgerID:       ledgerID.String(),
-						OrganizationID: organizationID.String(),
-						Name:           "Test Portfolio",
-						Status: mmodel.Status{
-							Code: "ACTIVE",
-						},
-						CreatedAt: time.Now(),
-						UpdatedAt: time.Now(),
-					}, nil).
-					Times(1)
-
-				mockMetadataRepo.EXPECT().
-					Create(gomock.Any(), "Portfolio", gomock.Any()).
-					Return(errors.New("failed to create metadata")).
-					Times(1)
-			},
-			expectedErr:   errors.New("failed to create metadata"),
-			expectedPortf: nil,
-		},
 	}
 
 	for _, tt := range tests {

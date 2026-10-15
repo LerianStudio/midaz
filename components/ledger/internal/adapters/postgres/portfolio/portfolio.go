@@ -58,8 +58,13 @@ func (t *PortfolioPostgreSQLModel) ToEntity() *mmodel.Portfolio {
 
 // FromEntity converts an entity.Portfolio to PortfolioPostgreSQLModel
 func (t *PortfolioPostgreSQLModel) FromEntity(portfolio *mmodel.Portfolio) {
+	ID := portfolio.ID
+	if ID == "" {
+		ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
+	}
+
 	*t = PortfolioPostgreSQLModel{
-		ID:                uuid.Must(libCommons.GenerateUUIDv7()).String(),
+		ID:                ID,
 		Name:              portfolio.Name,
 		EntityID:          portfolio.EntityID,
 		LedgerID:          portfolio.LedgerID,

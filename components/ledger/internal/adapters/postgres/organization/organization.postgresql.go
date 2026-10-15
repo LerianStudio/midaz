@@ -137,7 +137,6 @@ func (r *OrganizationPostgreSQLRepository) Create(ctx context.Context, organizat
 
 	record := &OrganizationPostgreSQLModel{}
 	record.FromEntity(organization)
-	record.ID = uuid.Must(libCommons.GenerateUUIDv7()).String()
 
 	address, err := json.Marshal(record.Address)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -128,7 +129,7 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		deletedAt := time.Now().Add(-24 * time.Hour)
 
 		entity := &mmodel.Organization{
-			ID:                   "should-be-overwritten",
+			ID:                   "01928f6e-4c3a-7b1d-9e2f-0a1b2c3d4e5f",
 			ParentOrganizationID: &parentOrgID,
 			LegalName:            "Acme Corporation LLC",
 			DoingBusinessAs:      &dba,
@@ -153,7 +154,7 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		var model OrganizationPostgreSQLModel
 		model.FromEntity(entity)
 
-		assert.Equal(t, entity.ID, model.ID, "ID should be mapped from entity")
+		assert.Equal(t, entity.ID, model.ID, "predefined ID should be preserved")
 		assert.Equal(t, entity.ParentOrganizationID, model.ParentOrganizationID)
 		assert.Equal(t, entity.LegalName, model.LegalName)
 		assert.Equal(t, entity.DoingBusinessAs, model.DoingBusinessAs)
@@ -183,7 +184,6 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		var model OrganizationPostgreSQLModel
 		model.FromEntity(entity)
 
-		assert.Equal(t, "simple-corp-id", model.ID, "ID should be mapped from entity")
 		assert.Nil(t, model.ParentOrganizationID)
 		assert.Equal(t, entity.LegalName, model.LegalName)
 		assert.Nil(t, model.DoingBusinessAs)
@@ -193,11 +193,10 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.False(t, model.DeletedAt.Valid, "DeletedAt should not be valid when entity.DeletedAt is nil")
 	})
 
-	t.Run("maps_entity_id", func(t *testing.T) {
+	t.Run("generates_uuid_v7_when_id_empty", func(t *testing.T) {
 		entity := &mmodel.Organization{
-			ID:            "fixed-id-for-test",
-			LegalName:     "ID Test Corp",
-			LegalDocument: "33333333333333",
+			LegalName:     "Generated ID Corp",
+			LegalDocument: "44444444444444",
 			Status:        mmodel.Status{Code: "ACTIVE"},
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
@@ -208,8 +207,12 @@ func TestOrganizationPostgreSQLModel_FromEntity(t *testing.T) {
 		model1.FromEntity(entity)
 		model2.FromEntity(entity)
 
-		assert.Equal(t, "fixed-id-for-test", model1.ID, "ID should be mapped from entity")
-		assert.Equal(t, model1.ID, model2.ID, "Same entity should produce same ID")
+		assert.NotEmpty(t, model1.ID)
+		assert.NotEqual(t, model1.ID, model2.ID, "Each call should generate a unique ID")
+
+		parsed, err := uuid.Parse(model1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, uuid.Version(7), parsed.Version(), "generated ID should be a UUIDv7")
 	})
 }
 
