@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 
-	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -206,8 +205,8 @@ func (uc *UseCase) reportConfigCopyDivergence(ctx context.Context, span trace.Sp
 	logger := libObservability.NewLoggerFromContext(ctx)
 
 	span.SetAttributes(
-		attribute.Int("app.config_copy.balance.divergent_count", len(divergent.balanceRefs)),
-		attribute.Int("app.config_copy.account.divergent_count", len(divergent.accountIDs)),
+		attribute.Int("app.response.config_copy.balance.divergent_count", len(divergent.balanceRefs)),
+		attribute.Int("app.response.config_copy.account.divergent_count", len(divergent.accountIDs)),
 	)
 
 	logger.Log(ctx, libLog.LevelWarn, "Configuration copy holds other content under the version the engine decides with",
@@ -397,7 +396,7 @@ func (uc *UseCase) resolveBalanceConfigs(
 			libLog.Int("balances", unresolved))
 	}
 
-	uc.recordConfigReloaded(ctx, span, organizationID, ledgerID, configFamilyBalance, reloaded)
+	uc.recordConfigReloaded(ctx, span, configFamilyBalance, reloaded)
 
 	return resolved, nil
 }
@@ -448,7 +447,7 @@ func (uc *UseCase) resolveAccountConfigs(
 	reportKeysOlderThanTheRows(ctx, span, configFamilyAccount, newerIDs)
 
 	if len(missing) == 0 {
-		uc.recordConfigReloaded(ctx, span, organizationID, ledgerID, configFamilyAccount, reloaded)
+		uc.recordConfigReloaded(ctx, span, configFamilyAccount, reloaded)
 
 		return resolved, nil
 	}
@@ -474,7 +473,7 @@ func (uc *UseCase) resolveAccountConfigs(
 		resolved[config.AccountID] = keptConfiguration(ctx, logger, configFamilyAccount, acc.ID, config, stored, err)
 	}
 
-	uc.recordConfigReloaded(ctx, span, organizationID, ledgerID, configFamilyAccount, reloaded+len(accounts))
+	uc.recordConfigReloaded(ctx, span, configFamilyAccount, reloaded+len(accounts))
 
 	return resolved, nil
 }
@@ -487,7 +486,7 @@ func reportKeysOlderThanTheRows(ctx context.Context, span trace.Span, family str
 		return
 	}
 
-	span.SetAttributes(attribute.Int("app.config_key."+family+".older_than_row_count", len(ids)))
+	span.SetAttributes(attribute.Int("app.response.config_key."+family+".older_than_row_count", len(ids)))
 
 	libObservability.NewLoggerFromContext(ctx).Log(ctx, libLog.LevelWarn, "Configuration key is older than the row the balance was seeded from, deciding with the row",
 		libLog.String("family", family), libLog.Any("ids", ids))
@@ -544,12 +543,12 @@ func applyBalanceConfig(b *mmodel.Balance, config accounting.BalanceConfig) {
 // key was absent, which is the database cost of the keys' fixed expiry; an account
 // row a seed's blocked hydration already read counts once, with no read of its own.
 // Best-effort: a metric failure never affects the load.
-func (uc *UseCase) recordConfigReloaded(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, family string, reloaded int) {
+func (uc *UseCase) recordConfigReloaded(ctx context.Context, span trace.Span, family string, reloaded int) {
 	if reloaded == 0 {
 		return
 	}
 
-	span.SetAttributes(attribute.Int("app.config_key."+family+".reloaded_count", reloaded))
+	span.SetAttributes(attribute.Int("app.response.config_key."+family+".reloaded_count", reloaded))
 
 	if uc.MetricsFactory == nil {
 		return
@@ -564,12 +563,7 @@ func (uc *UseCase) recordConfigReloaded(ctx context.Context, span trace.Span, or
 		return
 	}
 
-	if addErr := counter.WithLabels(map[string]string{
-		"organization_id": organizationID.String(),
-		"ledger_id":       ledgerID.String(),
-		"tenant_id":       tmcore.GetTenantIDContext(ctx),
-		"family":          family,
-	}).Add(ctx, int64(reloaded)); addErr != nil {
+	if addErr := counter.WithLabels(map[string]string{"family": family}).Add(ctx, int64(reloaded)); addErr != nil {
 		logger.Log(ctx, libLog.LevelDebug, "Failed to emit configuration reload counter", libLog.Err(addErr))
 	}
 }

@@ -148,7 +148,6 @@ func (rr *RedisConsumerRepository) ReadConfigKeys(ctx context.Context, organizat
 	values, err := rr.MGet(ctx, keys)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to read configuration keys", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to read configuration keys", libLog.Err(err))
 
 		return ConfigKeyValues{}, fmt.Errorf("read configuration keys: %w", err)
 	}
@@ -194,8 +193,8 @@ func (rr *RedisConsumerRepository) ReadConfigKeys(ctx context.Context, organizat
 	}
 
 	span.SetAttributes(
-		attribute.Int("app.config_keys.found", len(result.Balances)+len(result.Accounts)),
-		attribute.Int("app.config_keys.unreadable", unreadable),
+		attribute.Int("app.response.config_keys.found", len(result.Balances)+len(result.Accounts)),
+		attribute.Int("app.response.config_keys.unreadable", unreadable),
 	)
 
 	return result, nil
@@ -227,7 +226,7 @@ func (rr *RedisConsumerRepository) WriteBalanceConfig(ctx context.Context, organ
 	}
 
 	if status == configKeyWritten {
-		span.SetAttributes(attribute.String("app.config_key.outcome", "written"))
+		span.SetAttributes(attribute.String("app.response.config_key.outcome", "written"))
 
 		return config, ConfigWritten, nil
 	}
@@ -240,7 +239,7 @@ func (rr *RedisConsumerRepository) WriteBalanceConfig(ctx context.Context, organ
 	}
 
 	if status == configKeyNewerStored {
-		span.SetAttributes(attribute.String("app.config_key.outcome", "superseded"))
+		span.SetAttributes(attribute.String("app.response.config_key.outcome", "superseded"))
 
 		return winner, ConfigSuperseded, nil
 	}
@@ -251,7 +250,7 @@ func (rr *RedisConsumerRepository) WriteBalanceConfig(ctx context.Context, organ
 		return winner, 0, fmt.Errorf("balance configuration %s version %d: %w", config.BalanceID, config.Version, ErrConfigVersionConflict)
 	}
 
-	span.SetAttributes(attribute.String("app.config_key.outcome", "unchanged"))
+	span.SetAttributes(attribute.String("app.response.config_key.outcome", "unchanged"))
 
 	return winner, ConfigUnchanged, nil
 }
@@ -280,7 +279,7 @@ func (rr *RedisConsumerRepository) WriteAccountConfig(ctx context.Context, organ
 	}
 
 	if status == configKeyWritten {
-		span.SetAttributes(attribute.String("app.config_key.outcome", "written"))
+		span.SetAttributes(attribute.String("app.response.config_key.outcome", "written"))
 
 		return config, ConfigWritten, nil
 	}
@@ -293,7 +292,7 @@ func (rr *RedisConsumerRepository) WriteAccountConfig(ctx context.Context, organ
 	}
 
 	if status == configKeyNewerStored {
-		span.SetAttributes(attribute.String("app.config_key.outcome", "superseded"))
+		span.SetAttributes(attribute.String("app.response.config_key.outcome", "superseded"))
 
 		return winner, ConfigSuperseded, nil
 	}
@@ -304,7 +303,7 @@ func (rr *RedisConsumerRepository) WriteAccountConfig(ctx context.Context, organ
 		return winner, 0, fmt.Errorf("account configuration %s version %d: %w", config.AccountID, config.Version, ErrConfigVersionConflict)
 	}
 
-	span.SetAttributes(attribute.String("app.config_key.outcome", "unchanged"))
+	span.SetAttributes(attribute.String("app.response.config_key.outcome", "unchanged"))
 
 	return winner, ConfigUnchanged, nil
 }
@@ -362,14 +361,14 @@ func (rr *RedisConsumerRepository) CopyBalanceConfigToBlob(ctx context.Context, 
 	ctx, span := tracer.Start(ctx, "redis.copy_balance_config_to_blob")
 	defer span.End()
 
-	span.SetAttributes(attribute.Int64("app.config.version", config.Version))
+	span.SetAttributes(attribute.Int64("app.request.config.version", config.Version))
 
 	outcome, attempts, err := rr.copyConfigToBlob(ctx, utils.BalanceInternalKey(organizationID, ledgerID, balanceRef), nil,
 		func(raw []byte) ([]byte, bool, error) { return balancecache.CopyBalanceConfig(raw, config) })
 
 	span.SetAttributes(
-		attribute.String("app.blob_copy.outcome", outcome.String()),
-		attribute.Int("app.blob_copy.attempts", attempts),
+		attribute.String("app.response.blob_copy.outcome", outcome.String()),
+		attribute.Int("app.response.blob_copy.attempts", attempts),
 	)
 
 	if err != nil {
@@ -394,7 +393,7 @@ func (rr *RedisConsumerRepository) CopyAccountConfigToBlobs(ctx context.Context,
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.Int64("app.config.version", config.Version),
+		attribute.Int64("app.request.config.version", config.Version),
 		attribute.Int("app.request.balance_refs_count", len(balanceRefs)),
 	)
 
@@ -442,7 +441,7 @@ func (rr *RedisConsumerRepository) CopyAccountConfigToBlobs(ctx context.Context,
 		outcomes[ref] = outcome
 	}
 
-	span.SetAttributes(attribute.Int("app.blob_copy.conflicts", conflicts))
+	span.SetAttributes(attribute.Int("app.response.blob_copy.conflicts", conflicts))
 
 	return outcomes, nil
 }

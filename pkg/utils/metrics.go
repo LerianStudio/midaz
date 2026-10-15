@@ -188,9 +188,9 @@ var (
 
 	// ConfigKeyReloaded counts configurations reloaded from the PostgreSQL primary
 	// before an engine execution because their configuration key was absent, by
-	// organization_id, ledger_id, tenant_id (empty in single-tenant) and family
-	// (balance|account). Absence is normal after a deploy and on every expiry of the
-	// fixed one-hour key lifetime, so the rate is the database cost of that lifetime.
+	// family (balance|account). Absence is normal after a deploy and on every expiry
+	// of the fixed one-hour key lifetime, so the rate is the database cost of that
+	// lifetime.
 	ConfigKeyReloaded = metrics.Metric{
 		Name:        "config_key_reloaded_total",
 		Unit:        "1",

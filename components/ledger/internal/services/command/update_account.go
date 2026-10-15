@@ -247,7 +247,7 @@ func (uc *UseCase) writeAccountConfiguration(ctx context.Context, span trace.Spa
 		}
 	}
 
-	span.SetAttributes(attribute.Int("app.account_config.blob_copy_unconfirmed", unconfirmed))
+	span.SetAttributes(attribute.Int("app.response.account_config.blob_copy_unconfirmed", unconfirmed))
 
 	if unconfirmed > 0 {
 		err := fmt.Errorf("account %s version %d, %d balances: %w", config.AccountID, config.Version, unconfirmed, errConfigurationCopyNotConfirmed)

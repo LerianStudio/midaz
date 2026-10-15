@@ -160,6 +160,64 @@ func TestResolveEngineConfiguration_FailedKeyReadReloadsFromThePrimary(t *testin
 	assertCarriesPrimaryConfiguration(t, f.loaded)
 }
 
+// The reload counter carries the family only: an organization, ledger or tenant
+// label would open one series per scope (bounded-cardinality metric labels).
+func TestResolveEngineConfiguration_CountsReloadsByFamilyOnly(t *testing.T) {
+	t.Parallel()
+
+	f := newConfigResolutionFixture(t)
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+
+	factory, err := metrics.NewMetricsFactory(provider.Meter("config-key-reload-test"), nil)
+	require.NoError(t, err)
+
+	f.uc.MetricsFactory = factory
+
+	balanceConfig, accountConfig := f.primaryConfigs(t)
+	f.redis.EXPECT().ReadConfigKeys(gomock.Any(), f.orgID, f.ledgerID, []string{f.ref}, []uuid.UUID{f.accountID}).
+		Return(redis.ConfigKeyValues{}, nil)
+	f.expectPrimaryReads()
+	f.redis.EXPECT().WriteBalanceConfig(gomock.Any(), f.orgID, f.ledgerID, f.ref, balanceConfig).
+		Return(balanceConfig, redis.ConfigWritten, nil)
+	f.redis.EXPECT().WriteAccountConfig(gomock.Any(), f.orgID, f.ledgerID, accountConfig).
+		Return(accountConfig, redis.ConfigWritten, nil)
+
+	require.NoError(t, f.uc.resolveEngineConfiguration(t.Context(), f.orgID, f.ledgerID, []*mmodel.Balance{f.loaded}, engineSeeds{}))
+
+	var rm metricdata.ResourceMetrics
+
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	reloaded := map[string]int64{}
+
+	for _, sm := range rm.ScopeMetrics {
+		for _, m := range sm.Metrics {
+			if m.Name != utils.ConfigKeyReloaded.Name {
+				continue
+			}
+
+			sum, ok := m.Data.(metricdata.Sum[int64])
+			require.True(t, ok, "%s must be a Sum[int64], got %T", m.Name, m.Data)
+
+			for _, dp := range sum.DataPoints {
+				labels := make([]string, 0, dp.Attributes.Len())
+				for _, kv := range dp.Attributes.ToSlice() {
+					labels = append(labels, string(kv.Key))
+				}
+
+				assert.Equal(t, []string{"family"}, labels)
+
+				family, _ := dp.Attributes.Value("family")
+				reloaded[family.AsString()] += dp.Value
+			}
+		}
+	}
+
+	assert.Equal(t, map[string]int64{configFamilyBalance: 1, configFamilyAccount: 1}, reloaded)
+}
+
 // A configuration that cannot be read from the primary cannot be assumed.
 func TestResolveEngineConfiguration_FailedPrimaryReadFailsTheLoad(t *testing.T) {
 	t.Parallel()

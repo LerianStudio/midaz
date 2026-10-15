@@ -281,7 +281,7 @@ func (uc *UseCase) writeBalanceConfiguration(ctx context.Context, span trace.Spa
 	}
 
 	uc.recordConfigBlobCopies(ctx, logger, configCopyFamilyBalance, []redis.BlobCopyOutcome{outcome}, 0)
-	span.SetAttributes(attribute.String("app.balance_config.blob_copy", outcome.String()))
+	span.SetAttributes(attribute.String("app.response.balance_config.blob_copy", outcome.String()))
 
 	if !outcome.Confirmed() {
 		err := fmt.Errorf("balance %s version %d: %w", config.BalanceID, config.Version, errConfigurationCopyNotConfirmed)
