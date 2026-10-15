@@ -9,6 +9,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -573,16 +574,16 @@ func TestIntegration_ConfigCopy_TransactionBetweenReadAndWriteKeepsItsMoney(t *t
 	assert.Equal(t, int64(10), snapshot.Version)
 }
 
-// A blob that changes on every attempt ends the copy as a conflict, without the copy
-// ever writing over the latest money.
+// A blob that changes on every attempt ends the copy as a conflict after the bounded
+// number of attempts, without the copy ever writing over the latest money.
 func TestIntegration_ConfigCopy_ConflictsExhaustWithoutWriting(t *testing.T) {
 	infra := setupRedisIntegrationInfra(t)
 	scope := newConfigKeyScope()
 	balanceID, accountID := uuid.New(), uuid.New()
-	moves := []string{
-		configCopyBlob(balanceID, accountID, "99", 10, ""),
-		configCopyBlob(balanceID, accountID, "98", 11, ""),
-		configCopyBlob(balanceID, accountID, "97", 12, ""),
+	moves := make([]string, 0, maxBalanceSettingsCASAttempts)
+
+	for attempt := range maxBalanceSettingsCASAttempts {
+		moves = append(moves, configCopyBlob(balanceID, accountID, strconv.Itoa(99-attempt), 10+attempt, ""))
 	}
 
 	require.NoError(t, infra.redisContainer.Client.Set(t.Context(), scope.blobKey(), configCopyBlob(balanceID, accountID, "100", 9, ""), time.Hour).Err())
@@ -598,7 +599,8 @@ func TestIntegration_ConfigCopy_ConflictsExhaustWithoutWriting(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, BlobCopyConflict, outcome)
 	assert.False(t, outcome.Confirmed())
-	assert.Equal(t, moves[2], storedBlob(t, infra, scope.blobKey()), "the latest money stays exactly as written")
+	assert.Equal(t, int32(maxBalanceSettingsCASAttempts), hook.calls.Load(), "one read per attempt, and no more attempts than the bound")
+	assert.Equal(t, moves[len(moves)-1], storedBlob(t, infra, scope.blobKey()), "the latest money stays exactly as written")
 }
 
 func TestIntegration_ConfigCopy_AbsentBlobIsNotCreated(t *testing.T) {

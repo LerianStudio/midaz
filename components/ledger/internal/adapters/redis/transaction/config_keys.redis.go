@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	libBackoff "github.com/LerianStudio/lib-commons/v7/commons/backoff"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -446,6 +447,29 @@ func (rr *RedisConsumerRepository) CopyAccountConfigToBlobs(ctx context.Context,
 	return outcomes, nil
 }
 
+// maxBalanceSettingsCASAttempts bounds the configuration copy retries caused by
+// confirmed concurrent cache mutations. Redis transport errors are returned immediately because an
+// EVAL error may be commit-ambiguous and the client controls transport retries.
+//
+// The engine never writes the configuration copy of a blob that exists, so on a hot
+// balance the PATCH has to win the compare-and-set against the transactions itself.
+// A lost compare-and-set waits a short full-jitter pause before reading again, which
+// keeps the retries from falling into step with the engine writes; the attempts and
+// the pauses are bounded, so a balance that never goes quiet fails the PATCH with a
+// technical error the client can retry.
+const (
+	maxBalanceSettingsCASAttempts  = 8
+	balanceSettingsCASBackoffBase  = time.Millisecond
+	balanceSettingsCASBackoffLimit = 16 * time.Millisecond
+)
+
+// balanceSettingsCASBackoff is the pause after the attempt-th lost compare-and-set:
+// a full-jitter share of an exponential step from balanceSettingsCASBackoffBase,
+// capped at balanceSettingsCASBackoffLimit.
+func balanceSettingsCASBackoff(attempt int) time.Duration {
+	return libBackoff.FullJitter(min(libBackoff.Exponential(balanceSettingsCASBackoffBase, attempt-1), balanceSettingsCASBackoffLimit))
+}
+
 // copyConfigToBlob runs the read / prepare / compare-and-set loop on one blob.
 // first, when set, is the blob already read by the caller and serves as the first
 // observation. It reuses the settings compare-and-set script, which also refuses a
@@ -507,6 +531,12 @@ func (rr *RedisConsumerRepository) copyConfigToBlob(ctx context.Context, blobKey
 			observed = nil
 		default:
 			return 0, attempt, fmt.Errorf("compare-and-set configuration copy: unexpected result %d", result)
+		}
+
+		if attempt < maxBalanceSettingsCASAttempts {
+			if err := libBackoff.WaitContext(ctx, balanceSettingsCASBackoff(attempt)); err != nil {
+				return 0, attempt, err
+			}
 		}
 	}
 

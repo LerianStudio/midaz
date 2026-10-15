@@ -2806,11 +2806,6 @@ func boolToRedisFlag(value bool) int {
 // changing cache lifecycle semantics relative to ordinary transaction mutations.
 const balanceCacheSettingsTTL = cachepolicy.BalanceTTL
 
-// maxBalanceSettingsCASAttempts bounds the configuration copy retries caused by
-// confirmed concurrent cache mutations. Redis transport errors are returned immediately because an
-// EVAL error may be commit-ambiguous and the client controls transport retries.
-const maxBalanceSettingsCASAttempts = 3
-
 // resolveBalanceSettingsArgs normalizes a settings payload into the four
 // primitive values buildBalanceAtomicOperationPlan passes to the balance atomic
 // Lua script: AllowOverdraft and OverdraftLimitEnabled as 0/1, OverdraftLimit
