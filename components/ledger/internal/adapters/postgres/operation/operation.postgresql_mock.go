@@ -212,6 +212,21 @@ func (mr *MockRepositoryMockRecorder) ListByIDs(ctx, organizationID, ledgerID, i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByIDs", reflect.TypeOf((*MockRepository)(nil).ListByIDs), ctx, organizationID, ledgerID, ids)
 }
 
+// ListByTransactionPrimary mocks base method.
+func (m *MockRepository) ListByTransactionPrimary(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) ([]*Operation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListByTransactionPrimary", ctx, organizationID, ledgerID, transactionID)
+	ret0, _ := ret[0].([]*Operation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListByTransactionPrimary indicates an expected call of ListByTransactionPrimary.
+func (mr *MockRepositoryMockRecorder) ListByTransactionPrimary(ctx, organizationID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListByTransactionPrimary", reflect.TypeOf((*MockRepository)(nil).ListByTransactionPrimary), ctx, organizationID, ledgerID, transactionID)
+}
+
 // ListLatestByBalances mocks base method.
 func (m *MockRepository) ListLatestByBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (map[string]*Operation, error) {
 	m.ctrl.T.Helper()

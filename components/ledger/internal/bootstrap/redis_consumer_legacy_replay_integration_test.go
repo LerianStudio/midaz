@@ -8,6 +8,8 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -332,19 +334,15 @@ func (infra *engineWriteBehindHTTPIntegration) requireQuarantinedAtThreshold(
 		assert.Equal(t, cycle, attempts)
 	}
 
+	// The record as it stands before the threshold cycle is the payload that
+	// cycle must quarantine.
+	raw, err := infra.redis.HGet(ctx, infra.legacyBackupQueueKey(t, ctx), field).Result()
+	require.NoError(t, err)
+
 	stats := replay.Consume(ctx)
 	require.Equal(t, 1, stats.messageCount)
 
-	var (
-		quarantinedTransaction uuid.UUID
-		failureReason          string
-		quarantinedAttempts    int
-	)
-
-	require.NoError(t, infra.db.QueryRow(
-		`SELECT transaction_id, failure_reason, attempts FROM transaction_backup_quarantine WHERE redis_key = $1`, field,
-	).Scan(&quarantinedTransaction, &failureReason, &quarantinedAttempts))
-	assert.Equal(t, transactionID, quarantinedTransaction)
+	failureReason, quarantinedAttempts := infra.requireSingleQuarantineRow(t, transactionID, field, raw)
 	assert.Equal(t, reason, failureReason)
 	assert.Equal(t, QuarantineThreshold, quarantinedAttempts)
 
@@ -353,6 +351,45 @@ func (infra *engineWriteBehindHTTPIntegration) requireQuarantinedAtThreshold(
 	assert.Empty(t, messages, "a quarantined record must leave the backup queue")
 	assert.Zero(t, infra.redis.HLen(ctx, attemptsKey).Val(), "quarantine must clear the attempts counter")
 	infra.requireProjection(t, ctx, transactionID, 0, 0, 0)
+}
+
+// requireSingleQuarantineRow asserts that the transaction has exactly one
+// quarantine row, that it holds payload exactly, and that its key is the field
+// as read followed by the payload's SHA-256 digest. It returns the row's
+// failure reason and attempts.
+func (infra *engineWriteBehindHTTPIntegration) requireSingleQuarantineRow(tb testing.TB, transactionID uuid.UUID, field, payload string) (string, int) {
+	tb.Helper()
+	t := tb
+
+	var rows int
+	require.NoError(t, infra.db.QueryRow(`SELECT COUNT(*) FROM transaction_backup_quarantine WHERE transaction_id = $1`, transactionID).Scan(&rows))
+	require.Equal(t, 1, rows, "the transaction must have exactly one quarantine row")
+
+	var (
+		redisKey string
+		stored   []byte
+		reason   string
+		attempts int
+	)
+
+	require.NoError(t, infra.db.QueryRow(
+		`SELECT redis_key, payload, failure_reason, attempts FROM transaction_backup_quarantine WHERE transaction_id = $1`, transactionID,
+	).Scan(&redisKey, &stored, &reason, &attempts))
+
+	digest := sha256.Sum256([]byte(payload))
+	assert.Equal(t, payload, string(stored), "the quarantine must hold the record exactly as quarantined")
+	assert.Equal(t, "legacy_backup:"+field+":"+hex.EncodeToString(digest[:]), redisKey)
+
+	return reason, attempts
+}
+
+func (infra *engineWriteBehindHTTPIntegration) legacyBackupQueueKey(tb testing.TB, ctx context.Context) string {
+	tb.Helper()
+
+	queue, err := tmvalkey.GetKeyContext(ctx, txRedis.TransactionBackupQueue)
+	require.NoError(tb, err)
+
+	return queue
 }
 
 // legBalanceSnapshots reads the persisted balance of every leg of input and

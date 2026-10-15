@@ -9,7 +9,9 @@
 package transactionquarantine
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -42,15 +44,21 @@ type QuarantineRecord struct {
 	QuarantinedAt  time.Time
 }
 
+// ErrQuarantinePayloadConflict reports that the redis_key is already
+// quarantined with a different payload. The new payload was not stored, so the
+// caller must keep its Redis copy.
+var ErrQuarantinePayloadConflict = errors.New("quarantine redis key already holds a different payload")
+
 // Repository persists poison backup-queue records to PostgreSQL.
 //
 //go:generate go run go.uber.org/mock/mockgen@v0.6.0 --destination=transactionquarantine.postgresql_mock.go --package=transactionquarantine . Repository
 type Repository interface {
-	// Insert writes a quarantine record, returning nil if the record was stored
-	// or already present. Idempotency is enforced via ON CONFLICT (redis_key)
-	// DO NOTHING: a record quarantined across multiple consumer cycles lands
-	// exactly once, and a no-op conflict is treated as success (confirmed
-	// persistence) so the caller may safely delete the Redis copy.
+	// Insert writes a quarantine record, returning nil only when this exact
+	// payload is durably stored under the record's redis_key: it was inserted,
+	// or the key already holds a byte-identical payload (ON CONFLICT (redis_key)
+	// DO NOTHING keeps a record quarantined across cycles to one row). A key
+	// already holding a different payload returns ErrQuarantinePayloadConflict
+	// and is never overwritten; the caller must keep its Redis copy.
 	Insert(ctx context.Context, record *QuarantineRecord) error
 }
 
@@ -164,7 +172,24 @@ func (r *QuarantinePostgreSQLRepository) Insert(ctx context.Context, record *Qua
 		return err
 	}
 
-	result, err := db.ExecContext(ctx, query, args...)
+	// The insert and the conflict check share one transaction, so the check
+	// reads the primary row the conflict hit rather than a lagging replica.
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to begin quarantine transaction", err)
+
+		return err
+	}
+
+	committed := false
+
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	result, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to insert quarantine record", err)
 
@@ -180,14 +205,54 @@ func (r *QuarantinePostgreSQLRepository) Insert(ctx context.Context, record *Qua
 
 	span.SetAttributes(attribute.Int64("db.rows_affected", rowsAffected))
 
-	// rowsAffected == 0 means the record was already quarantined (ON CONFLICT
-	// DO NOTHING). That is a successful, idempotent outcome: the durable copy
-	// exists, so the caller may safely delete the Redis copy.
+	// rowsAffected == 0 means the key was already quarantined (ON CONFLICT DO
+	// NOTHING). It is a successful, idempotent outcome only when the stored
+	// payload is this one; otherwise this payload exists nowhere but Redis.
+	if rowsAffected == 0 {
+		if err := r.requireStoredPayload(ctx, tx, record); err != nil {
+			libOpentelemetry.HandleSpanError(span, "Quarantine key holds a different payload", err)
+
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to commit quarantine record", err)
+
+		return err
+	}
+
+	committed = true
+
 	logger.Log(
 		ctx, libLog.LevelDebug, "Quarantine record persisted",
 		libLog.String("redis_key", record.RedisKey),
 		libLog.Int("attempts", record.Attempts),
 	)
+
+	return nil
+}
+
+// requireStoredPayload confirms that the row already quarantined under the
+// record's redis_key holds exactly the record's payload.
+func (r *QuarantinePostgreSQLRepository) requireStoredPayload(ctx context.Context, tx dbresolver.Tx, record *QuarantineRecord) error {
+	query, args, err := squirrel.Select("payload").
+		From(r.tableName).
+		Where(squirrel.Eq{"redis_key": record.RedisKey}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+	if err != nil {
+		return err
+	}
+
+	var stored []byte
+	if err := tx.QueryRowContext(ctx, query, args...).Scan(&stored); err != nil {
+		return fmt.Errorf("read quarantined payload: %w", err)
+	}
+
+	if !bytes.Equal(stored, record.Payload) {
+		return ErrQuarantinePayloadConflict
+	}
 
 	return nil
 }
