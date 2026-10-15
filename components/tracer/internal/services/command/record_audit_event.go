@@ -182,7 +182,7 @@ func (c *RecordAuditEventCommand) RecordRuleEventWithTx(
 ) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordRuleEventWithTx")
+	ctx, span := tracer.Start(ctx, "service.audit_event.record_rule_event_with_tx")
 	defer span.End()
 
 	event, err := c.buildRuleEvent(ctx, eventType, action, ruleID, before, after, reason)
@@ -220,7 +220,7 @@ func (c *RecordAuditEventCommand) RecordLimitEventWithTx(
 ) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordLimitEventWithTx")
+	ctx, span := tracer.Start(ctx, "service.audit_event.record_limit_event_with_tx")
 	defer span.End()
 
 	event, err := c.buildLimitEvent(ctx, eventType, action, limitID, before, after, reason)
@@ -271,7 +271,7 @@ func (c *RecordAuditEventCommand) RecordReservationEventWithTx(
 ) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationEventWithTx")
+	ctx, span := tracer.Start(ctx, "service.audit_event.record_reservation_event_with_tx")
 	defer span.End()
 
 	event, err := c.buildReservationEvent(ctx, eventType, action, reservationID, auditCtx)
@@ -303,7 +303,7 @@ func (c *RecordAuditEventCommand) RecordReservationEvent(
 ) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationEvent")
+	ctx, span := tracer.Start(ctx, "service.audit_event.record_reservation_event")
 	defer span.End()
 
 	event, err := c.buildReservationEvent(ctx, eventType, action, reservationID, auditCtx)
@@ -344,7 +344,7 @@ func (c *RecordAuditEventCommand) RecordReservationExpiryBatch(
 ) error {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.RecordAuditEventCommand.RecordReservationExpiryBatch")
+	ctx, span := tracer.Start(ctx, "service.audit_event.record_reservation_expiry_batch")
 	defer span.End()
 
 	event, err := model.NewAuditEvent(
