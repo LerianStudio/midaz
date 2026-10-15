@@ -45,8 +45,10 @@ func (t *indexTracker) ensureOnce(key string, fn func() error) error {
 	return nil
 }
 
-// reset clears the state for a specific key. Used in tests to ensure fresh state when each
-// test runs with a new MongoDB container or seeds the state itself.
+// reset clears the state for a specific key. Used in integration and span tests to ensure
+// fresh state when each test runs with a new MongoDB container or seeds the state itself.
+//
+//nolint:unused // used in *_integration_test.go (build tag: integration) and holder_span_test.go
 func (t *indexTracker) reset(key string) {
 	t.states.Delete(key)
 }
