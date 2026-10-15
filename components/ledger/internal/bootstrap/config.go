@@ -1359,7 +1359,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
 	balanceSyncWorker.WithMetricsFactory(metricsFactory).WithServiceTracer(workerTracer)
 
-	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, metricsFactory).
+	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, tenantClient, tenantServiceName, metricsFactory).
 		WithServiceTracer(workerTracer)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
