@@ -190,6 +190,20 @@ func (mr *MockRepositoryMockRecorder) FindList(ctx, collection, filter any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), ctx, collection, filter)
 }
 
+// Purge mocks base method.
+func (m *MockRepository) Purge(ctx context.Context, collection, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Purge", ctx, collection, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Purge indicates an expected call of Purge.
+func (mr *MockRepositoryMockRecorder) Purge(ctx, collection, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Purge", reflect.TypeOf((*MockRepository)(nil).Purge), ctx, collection, id)
+}
+
 // Update mocks base method.
 func (m *MockRepository) Update(ctx context.Context, collection, id string, metadata map[string]any) error {
 	m.ctrl.T.Helper()

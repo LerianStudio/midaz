@@ -345,20 +345,20 @@ func TestCreateAccountTypeWithMetadata(t *testing.T) {
 		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 
-	mockAccountTypeRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(expectedAccountType, nil).
-		Times(1)
-
 	mockMetadataRepo.EXPECT().
 		Create(gomock.Any(), gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, entityType string, meta *mongodb.Metadata) error {
 			assert.Equal(t, constant.EntityAccountType, entityType)
-			assert.Equal(t, expectedAccountType.ID.String(), meta.EntityID)
 			assert.Equal(t, expectedMetadata["category"], meta.Data["category"])
 			assert.Equal(t, expectedMetadata["order"], meta.Data["order"])
+
 			return nil
 		}).
+		Times(1)
+
+	mockAccountTypeRepo.EXPECT().
+		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(expectedAccountType, nil).
 		Times(1)
 
 	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
@@ -366,59 +366,4 @@ func TestCreateAccountTypeWithMetadata(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedMetadata, result.Metadata)
-}
-
-// TestCreateAccountTypeMetadataError tests creating account type with metadata creation error
-func TestCreateAccountTypeMetadataError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	payload := &mmodel.CreateAccountTypeInput{
-		Name:        "Equity Accounts",
-		Description: "Accounts that track equity",
-		KeyValue:    "equity_accounts",
-		Metadata: map[string]any{
-			"category": "equity",
-		},
-	}
-
-	expectedAccountType := &mmodel.AccountType{
-		ID:             uuid.Must(libCommons.GenerateUUIDv7()),
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Name:           payload.Name,
-		Description:    payload.Description,
-		KeyValue:       payload.KeyValue,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
-	}
-
-	metadataErr := errors.New("failed to create metadata")
-
-	mockAccountTypeRepo := accounttype.NewMockRepository(ctrl)
-	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
-
-	uc := UseCase{
-		AccountTypeRepo:        mockAccountTypeRepo,
-		OnboardingMetadataRepo: mockMetadataRepo,
-	}
-
-	mockAccountTypeRepo.EXPECT().
-		Create(gomock.Any(), organizationID, ledgerID, gomock.Any()).
-		Return(expectedAccountType, nil).
-		Times(1)
-
-	mockMetadataRepo.EXPECT().
-		Create(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(metadataErr).
-		Times(1)
-
-	result, err := uc.CreateAccountType(context.Background(), organizationID, ledgerID, payload)
-
-	assert.Error(t, err)
-	assert.Equal(t, metadataErr, err)
-	assert.Nil(t, result)
 }

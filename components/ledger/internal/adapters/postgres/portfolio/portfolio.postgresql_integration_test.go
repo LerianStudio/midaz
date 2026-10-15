@@ -209,7 +209,7 @@ func TestIntegration_PortfolioRepository_Create_InsertsAndReturnsPortfolio(t *te
 	require.NoError(t, err, "Create should not return error")
 	require.NotNil(t, created)
 
-	// Verify by finding - use the ID from created portfolio since FromEntity generates new UUIDs
+	// Verify by finding - use the ID returned by Create, which is the persisted ID
 	createdID, err := uuid.Parse(created.ID)
 	require.NoError(t, err, "created ID should be valid UUID")
 
@@ -656,4 +656,41 @@ func defaultQueryHeader() http.QueryHeader {
 		StartDate: time.Now().AddDate(-1, 0, 0), // 1 year ago
 		EndDate:   time.Now().AddDate(0, 0, 1),  // 1 day ahead
 	}
+}
+
+// TestIntegration_PortfolioRepository_Create_PreservesPresetID guards the contract
+// that metadata written under a pre-assigned ID stays attached: Create must
+// persist the caller's ID instead of minting a new one.
+func TestIntegration_PortfolioRepository_Create_PreservesPresetID(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	ledgerID := pgtestutil.CreateTestLedger(t, container.DB, orgID)
+	presetID := uuid.Must(libCommons.GenerateUUIDv7())
+	now := time.Now().Truncate(time.Microsecond)
+
+	portfolio := &mmodel.Portfolio{
+		ID:             presetID.String(),
+		OrganizationID: orgID.String(),
+		LedgerID:       ledgerID.String(),
+		Name:           "Preset ID Portfolio",
+		EntityID:       "entity-preset-id",
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	created, err := repo.Create(ctx, portfolio)
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, presetID.String(), created.ID, "Create must keep the preset ID")
+
+	found, err := repo.Find(ctx, orgID, ledgerID, presetID)
+	require.NoError(t, err, "portfolio should be retrievable by the preset ID")
+	require.NotNil(t, found)
+	assert.Equal(t, presetID.String(), found.ID)
+	assert.Equal(t, "Preset ID Portfolio", found.Name)
 }

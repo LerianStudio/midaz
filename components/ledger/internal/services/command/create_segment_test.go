@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/segment"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/google/uuid"
@@ -22,9 +23,15 @@ func TestCreateSegment(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := segment.NewMockRepository(ctrl)
+	mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+
+	// Every case sends nil metadata, so the metadata store must never be touched.
+	mockMetadataRepo.EXPECT().Create(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	mockMetadataRepo.EXPECT().Purge(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	uc := &UseCase{
-		SegmentRepo: mockRepo,
+		SegmentRepo:            mockRepo,
+		OnboardingMetadataRepo: mockMetadataRepo,
 	}
 
 	tests := []struct {

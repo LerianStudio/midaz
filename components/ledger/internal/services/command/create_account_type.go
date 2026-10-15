@@ -59,16 +59,21 @@ func (uc *UseCase) CreateAccountType(ctx context.Context, organizationID, ledger
 		UpdatedAt:        now,
 	}
 
-	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
+	accountTypeID := accountType.ID.String()
+
+	// Metadata is staged before the insert so a metadata-store failure aborts the create
+	// before anything is durable in PostgreSQL, keeping a retry safe.
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccountType, accountTypeID, payload.Metadata)
 	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create account type", err)
+		recordCommandError(ctx, span, logger, "Failed to create metadata", err)
 
 		return nil, err
 	}
 
-	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAccountType, createdAccountType.ID.String(), payload.Metadata)
+	createdAccountType, err := uc.AccountTypeRepo.Create(ctx, organizationID, ledgerID, accountType)
 	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create metadata", err)
+		uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntityAccountType, accountTypeID, payload.Metadata)
+		recordCommandError(ctx, span, logger, "Failed to create account type", err)
 
 		return nil, err
 	}
