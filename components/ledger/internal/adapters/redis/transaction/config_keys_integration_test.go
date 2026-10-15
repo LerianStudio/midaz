@@ -574,15 +574,21 @@ func TestIntegration_ConfigCopy_TransactionBetweenReadAndWriteKeepsItsMoney(t *t
 	assert.Equal(t, int64(10), snapshot.Version)
 }
 
-// A blob that changes on every attempt ends the copy as a conflict after the bounded
-// number of attempts, without the copy ever writing over the latest money.
+// A blob that changes on every attempt ends the copy as a conflict after 8
+// attempts, without the copy ever writing over the latest money. The bound is a
+// measured decision (fewer attempts answered PATCHes on busy balances with
+// technical errors), so it is pinned as a literal rather than read back from the
+// constant.
 func TestIntegration_ConfigCopy_ConflictsExhaustWithoutWriting(t *testing.T) {
+	const attempts = 8
+
 	infra := setupRedisIntegrationInfra(t)
 	scope := newConfigKeyScope()
 	balanceID, accountID := uuid.New(), uuid.New()
-	moves := make([]string, 0, maxBalanceSettingsCASAttempts)
+	moves := make([]string, 0, attempts+1)
 
-	for attempt := range maxBalanceSettingsCASAttempts {
+	// One move more than the bound: a copy that tried a ninth time would read it.
+	for attempt := range attempts + 1 {
 		moves = append(moves, configCopyBlob(balanceID, accountID, strconv.Itoa(99-attempt), 10+attempt, ""))
 	}
 
@@ -599,8 +605,139 @@ func TestIntegration_ConfigCopy_ConflictsExhaustWithoutWriting(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, BlobCopyConflict, outcome)
 	assert.False(t, outcome.Confirmed())
-	assert.Equal(t, int32(maxBalanceSettingsCASAttempts), hook.calls.Load(), "one read per attempt, and no more attempts than the bound")
-	assert.Equal(t, moves[len(moves)-1], storedBlob(t, infra, scope.blobKey()), "the latest money stays exactly as written")
+	assert.Equal(t, int32(attempts), hook.calls.Load(), "one read per attempt, and no more attempts than the bound")
+	assert.Equal(t, moves[attempts-1], storedBlob(t, infra, scope.blobKey()), "the latest money stays exactly as written")
+}
+
+// pausedCopyHook stands in for transactions that move the blob right after each
+// read of the configuration copy, so every compare-and-set loses. It records when
+// each read starts and when each compare-and-set returns: the time between a lost
+// compare-and-set and the next read is the pause the copy took before it.
+type pausedCopyHook struct {
+	move func(ctx context.Context, read int) error
+
+	mu        sync.Mutex
+	readStart []time.Time
+	casEnd    []time.Time
+	afterCAS  func()
+}
+
+func (h *pausedCopyHook) DialHook(next redisclient.DialHook) redisclient.DialHook { return next }
+
+func (h *pausedCopyHook) ProcessHook(next redisclient.ProcessHook) redisclient.ProcessHook {
+	return func(ctx context.Context, cmd redisclient.Cmder) error {
+		if cmd.Name() == "get" {
+			h.mu.Lock()
+			h.readStart = append(h.readStart, time.Now())
+			read := len(h.readStart)
+			h.mu.Unlock()
+
+			if err := next(ctx, cmd); err != nil {
+				return err
+			}
+
+			return h.move(ctx, read)
+		}
+
+		if err := next(ctx, cmd); err != nil {
+			return err
+		}
+
+		// The compare-and-set script runs by SHA, or by source after a NOSCRIPT.
+		if cmd.Name() == "evalsha" || cmd.Name() == "eval" {
+			h.mu.Lock()
+			h.casEnd = append(h.casEnd, time.Now())
+			h.mu.Unlock()
+
+			if h.afterCAS != nil {
+				h.afterCAS()
+			}
+		}
+
+		return nil
+	}
+}
+
+func (h *pausedCopyHook) ProcessPipelineHook(next redisclient.ProcessPipelineHook) redisclient.ProcessPipelineHook {
+	return next
+}
+
+// A lost compare-and-set waits a jittered pause before the copy reads the blob
+// again, so the retries do not fall into step with the transactions writing the
+// balance. Each pause can be close to zero, but the 7 pauses of a copy that loses
+// all 8 attempts are drawn from steps that add up to 63 ms: all of them together
+// fall under 2 ms about once in ten million runs, while a copy that does not pause
+// spends only its own computation between a refused write and the next read.
+func TestIntegration_ConfigCopy_PausesBetweenLostAttempts(t *testing.T) {
+	infra := setupRedisIntegrationInfra(t)
+	scope := newConfigKeyScope()
+	balanceID, accountID := uuid.New(), uuid.New()
+
+	require.NoError(t, infra.redisContainer.Client.Set(t.Context(), scope.blobKey(), configCopyBlob(balanceID, accountID, "100", 9, ""), time.Hour).Err())
+
+	hook := &pausedCopyHook{move: func(ctx context.Context, read int) error {
+		moved := configCopyBlob(balanceID, accountID, strconv.Itoa(100-read), 9+read, "")
+
+		return infra.redisContainer.Client.SetArgs(ctx, scope.blobKey(), moved, redisclient.SetArgs{KeepTTL: true}).Err()
+	}}
+
+	repo := newHookedConfigRepository(t, infra, hook)
+
+	outcome, err := repo.CopyBalanceConfigToBlob(t.Context(), scope.orgID, scope.ledgerID, scope.ref, balanceConfigAt(balanceID, 2, true))
+	require.NoError(t, err)
+	require.Equal(t, BlobCopyConflict, outcome)
+
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+
+	require.Len(t, hook.readStart, 8)
+	require.Len(t, hook.casEnd, 8)
+
+	var paused time.Duration
+
+	for attempt := 1; attempt < len(hook.readStart); attempt++ {
+		pause := hook.readStart[attempt].Sub(hook.casEnd[attempt-1])
+		require.GreaterOrEqual(t, pause, time.Duration(0), "attempt %d reads after the previous compare-and-set", attempt+1)
+
+		paused += pause
+	}
+
+	t.Logf("time between the lost compare-and-sets and the next reads: %s", paused)
+	assert.GreaterOrEqual(t, paused, 2*time.Millisecond, "the copy pauses between lost attempts")
+}
+
+// A PATCH whose request is cancelled while its copy waits after a lost
+// compare-and-set stops there: it answers the cancellation and neither reads nor
+// writes the blob again.
+func TestIntegration_ConfigCopy_CancelledAfterALostAttemptStops(t *testing.T) {
+	infra := setupRedisIntegrationInfra(t)
+	scope := newConfigKeyScope()
+	balanceID, accountID := uuid.New(), uuid.New()
+	moved := configCopyBlob(balanceID, accountID, "99", 10, "")
+
+	require.NoError(t, infra.redisContainer.Client.Set(t.Context(), scope.blobKey(), configCopyBlob(balanceID, accountID, "100", 9, ""), time.Hour).Err())
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	hook := &pausedCopyHook{
+		move: func(ctx context.Context, _ int) error {
+			return infra.redisContainer.Client.SetArgs(ctx, scope.blobKey(), moved, redisclient.SetArgs{KeepTTL: true}).Err()
+		},
+		afterCAS: cancel,
+	}
+
+	repo := newHookedConfigRepository(t, infra, hook)
+
+	_, err := repo.CopyBalanceConfigToBlob(ctx, scope.orgID, scope.ledgerID, scope.ref, balanceConfigAt(balanceID, 2, true))
+	require.ErrorIs(t, err, context.Canceled)
+
+	hook.mu.Lock()
+	defer hook.mu.Unlock()
+
+	assert.Len(t, hook.readStart, 1, "no attempt after the cancellation")
+	assert.Len(t, hook.casEnd, 1)
+	assert.Equal(t, moved, storedBlob(t, infra, scope.blobKey()), "the latest money stays exactly as written")
 }
 
 func TestIntegration_ConfigCopy_AbsentBlobIsNotCreated(t *testing.T) {
