@@ -315,6 +315,7 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Tenant ID comes from JWT via auth middleware.
 - Tenant DB resolution uses tenant middleware and lib-commons tenant managers.
 - Modules `onboarding` and `transaction` have independent PostgreSQL and MongoDB managers.
+- `/readyz` never probes a tenant's databases: one unreachable tenant must not take the pod out of rotation for every tenant. In multi-tenant mode `postgres_onboarding` and `postgres_transaction` report `n/a` (the static connection belongs to no tenant) and no per-tenant MongoDB check exists. Per-tenant health comes from the `TenantHealthProber` (`bootstrap/tenant_health.prober.go`), which runs on the leader pod only (Redis lease) and publishes `tenant_dependency_up{tenant_id,dependency}` plus failure counters; every pod publishes `tenant_health_probe_leader`, the selector for the current leader's series (an ex-leader's gauges keep their last value until restart); knobs `TENANT_HEALTH_PROBE_*`. See `docs/infra/tenant-health-probe.md`.
 - Multi-tenant code uses `MT` suffix for names (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`). Single-tenant code uses no qualifier.
 - Under CRM envelope encryption, key material is per-organization; a single shared Vault Transit engine holds all KEKs and tenant isolation lives in the key NAME (`{tenant}_org-{id}`), not in per-tenant mounts. See `## CRM Field Encryption / KMS`.
 
