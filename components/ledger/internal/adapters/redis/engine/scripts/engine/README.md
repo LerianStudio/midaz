@@ -159,7 +159,12 @@ recovery record, or public contract.
 
 For multi-scope executions, five keys per additional transaction scope follow
 the account block: receipt, guard, protection, transaction index, and evidence.
-The fee-debt lists follow them (see the fee-debt protocol below).
+They are ordered by organization and ledger ID. The receipt key for an
+additional scope is available to validate a dependency on an earlier execution
+whose primary scope was that ledger; the new execution still writes one receipt
+at `KEYS[3]`. A single-scope request has no added keys or `scopeKeys` field.
+The fee-debt lists follow the scope keys, or the account block when there are
+none (see the fee-debt protocol below).
 
 The configuration block closes `KEYS`: one balance configuration key per
 balance, in balance order, then one account configuration key per account, in
@@ -170,10 +175,6 @@ name against the key it derives from: the balance blob with the `balance:`
 namespace replaced by `balance-config:`, and the account-closing marker with
 `account-closing:` replaced by `account-config:`. Consumers use the declared
 indexes, never a position computed from the pool.
-They are ordered by organization and ledger ID. The receipt key for an
-additional scope is available to validate a dependency on an earlier execution
-whose primary scope was that ledger; the new execution still writes one receipt
-at `KEYS[3]`. A single-scope request has no added keys or `scopeKeys` field.
 
 A valid stored receipt is checked before the live grant. Replaying the same
 execution therefore returns its prior result after the grant has been consumed;
