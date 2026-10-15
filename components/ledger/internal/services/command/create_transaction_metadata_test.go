@@ -15,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
@@ -120,7 +121,7 @@ func TestCreateTransactionMetadata_WriteFailureMarksSpan(t *testing.T) {
 	require.ErrorIs(t, err, writeErr)
 	assert.Nil(t, result)
 
-	span := findSpan(t, recorder, "command.create_transaction_metadata")
+	span := spantest.FindSpan(t, recorder, "command.create_transaction_metadata")
 	assert.Equal(t, codes.Error, span.Status().Code)
 
 	assert.Empty(t, logger.snapshot(), "the helper records on its span only; the use case logs")
