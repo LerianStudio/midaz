@@ -52,8 +52,7 @@ The entrypoint tells one ordered story:
    same way, from its account configuration key, the request, and the copies in
    the blobs of its balances, and applies it to every balance of the account.
    The decided versions stay in `item.configVersions`, outside `item.current`,
-   so the result and the recovery evidence keep their shape; the versions of the
-   blob's own copies stay in `item.blobConfigVersions`.
+   so the result and the recovery evidence keep their shape.
 4. `loadAccountProtection` reads the closing controls of every account of the
    pool, and `validateAccountClosingAvailability` refuses every requirement and
    posting whose account is closing or closed, and every used balance this
@@ -100,14 +99,14 @@ The entrypoint tells one ordered story:
    total prepared-byte ceiling. An execution without movements prepares none of
    them, so refusals and no-ops publish no companion. Each blob carries the
    compatibility copy of the configuration for releases that read it from the
-   blob: `encodeBalance` copies a family (the balance configuration with
-   `balanceConfigVersion`, the `blocked` flag with `accountConfigVersion`) only
-   when the blob has that family's version field and the decided version is
-   newer than it. Otherwise it keeps the blob's copy, version field (or its
-   absence) and fields, exactly as they were: a copy without a version field was
-   written by a release that reads the configuration from the blob, or before
-   versions existed, and only the configuration PATCH replaces it. A seeded blob
-   takes the decided configuration, with version fields for nonzero versions.
+   blob. `encodeBalance` writes that copy only into a blob the execution seeds:
+   the decided configuration, with `balanceConfigVersion` and
+   `accountConfigVersion` for nonzero versions. A blob that exists keeps every
+   configuration field, in the representations it has, and both version fields,
+   present or absent, exactly as they were, whatever the versions: a release that
+   reads the configuration from the blob changes the copy without touching
+   version fields it does not know, so no label tells how old the copy is. Only
+   the configuration PATCH replaces the copy of an existing blob.
 10. `commitPreparedExecution` is the only publication phase. It receives the
     score derived from the same Redis `TIME` read and writes changed and
     published companion balances, changed fee-debt lists, synchronization

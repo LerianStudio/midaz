@@ -244,8 +244,9 @@ var errConfigurationCopyNotConfirmed = errors.New("configuration copy in the bal
 // in the balance blob, which releases reading the configuration from the blob
 // obey (a compatibility bridge, removable once no rollback target reads it
 // there). The copy never touches money: it is written through a compare-and-set
-// on the exact bytes read, and a blob a transaction already moved to this
-// version or a newer one needs no write.
+// on the exact bytes read, and a blob whose copy already holds this version, or a
+// newer one another PATCH wrote, needs no write. Transactions never write the
+// copy of a blob that exists, so on a busy balance this PATCH writes it itself.
 //
 // Fail-closed: PostgreSQL already committed, but answering success while the key
 // or the copy still holds the previous configuration would let transactions keep

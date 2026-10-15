@@ -130,9 +130,9 @@ end
 -- decideAccountConfigurations). The configuration keys are only read here, never
 -- written or renewed: a key that expired since Go read it leaves the request's
 -- configuration in force for this execution alone. The decided versions stay in
--- item.configVersions, outside item.current, so the result keeps its shape; the
--- versions of the blob's own copies stay in item.blobConfigVersions, which decide
--- whether a committed write copies the decision into the blob (encodeBalance).
+-- item.configVersions, outside item.current, so the result keeps its shape. A
+-- committed write copies them into the blob only when it seeds the blob
+-- (encodeBalance).
 local function loadBalancePool(request)
     local pool, companions = {}, {}
     local normalization = array()
@@ -171,8 +171,7 @@ local function loadBalancePool(request)
         local item = {
             current = current, blob = blob, keyIndex = keyIndex, seeded = not raw,
             deleted = redis.call("EXISTS", KEYS[markerIndex], KEYS[legacyMarkerIndex]) > 0,
-            accountCopy = accountCopy, configVersions = { balance = configuration.version },
-            blobConfigVersions = blob and { balance = blobCopy.version, account = accountCopy.version }
+            accountCopy = accountCopy, configVersions = { balance = configuration.version }
         }
         pool[scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)] = item
         -- Index the single internal overdraft companion for later draw or repay

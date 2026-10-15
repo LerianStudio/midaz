@@ -639,9 +639,10 @@ func TestIntegration_ConfigKeyPatch_FailsClosedAndTheRetryCompletes(t *testing.T
 }
 
 // A transaction approved between the PATCH's read of the blob and its
-// compare-and-set already copied the configuration of the key: the PATCH answers
-// success without writing, and the engine's money stays exactly as written.
-func TestIntegration_ConfigKeyPatch_TransactionCopyingTheConfigurationConfirmsIt(t *testing.T) {
+// compare-and-set moves money and keeps the blob's configuration copy, as the engine
+// does with every blob that exists: the compare-and-set loses, and the PATCH reads
+// the blob again and writes its copy over the transaction's bytes, money untouched.
+func TestIntegration_ConfigKeyPatch_TransactionBetweenReadAndWriteMakesThePatchCopyAgain(t *testing.T) {
 	h := newConfigPatchHarness(t)
 
 	seed := newConfigPatchBalance("@config-a14")
@@ -650,24 +651,25 @@ func TestIntegration_ConfigKeyPatch_TransactionCopyingTheConfigurationConfirmsIt
 	h.writeRowToKey(t, seed)
 	h.cacheBlob(t, seed, configPatchMoney{available: "100", onHold: "0", version: 7}, 4, 0)
 
-	// The engine's write: new money and the configuration the key holds after the
-	// PATCH (allowSending off, version 5).
-	engineSeed := seed
-	engineSeed.allowSending = false
-
 	var engineBytes string
 
 	var moved atomic.Bool
 
 	h.hook.intervene(nil, func(ctx context.Context, c patchCommand) {
 		if c.tag == "patch" && c.name == "get" && c.keys[0] == h.blobKey(seed.ref()) && moved.CompareAndSwap(false, true) {
-			engineBytes = h.cacheBlob(t, engineSeed, configPatchMoney{available: "99.5", onHold: "0", version: 8}, 5, 0)
+			// The engine's write: new money, the blob's own copy and labels kept.
+			engineBytes = h.cacheBlob(t, seed, configPatchMoney{available: "99.5", onHold: "0", version: 8}, 4, 0)
 		}
 	})
 
 	require.NoError(t, h.patch(taggedRequest(t.Context(), "patch"), seed, mmodel.UpdateBalance{AllowSending: boolPointer(false)}))
 
-	assert.Equal(t, engineBytes, h.blob(t, seed.ref()), "the PATCH never writes over the engine's blob")
+	after := h.blob(t, seed.ref())
+	requireSameMoney(t, engineBytes, after)
+	fields := blobFieldsOf(t, after)
+	assert.Equal(t, `0`, string(fields["AllowSending"]), "the PATCH wrote its copy on its second read")
+	assert.Equal(t, `false`, string(fields["allowSending"]))
+	assert.Equal(t, `"5"`, string(fields[balancecache.BlobBalanceConfigVersionField]))
 	assert.Equal(t, 3, h.hook.count(func(c patchCommand) bool {
 		return c.tag == "patch" && c.name == "get" && c.keys[0] == h.blobKey(seed.ref())
 	}), "the refused compare-and-set forces exactly one fresh read, then the response reads the money")

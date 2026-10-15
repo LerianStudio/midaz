@@ -790,41 +790,35 @@ copies it confirmed or attempted in the blobs in `config_blob_copy_total`
 
 A noncanonical overdraft limit in the blob requests the precommit repair only
 when the blob's own copy decides the configuration; a limit from the key or the
-request is canonical, and the blob keeps its own limit until a newer version is
-copied over it.
+request is canonical, and the blob keeps its own limit. The repair rewrites the
+blob's own limit in canonical form, with the same value; it copies no
+configuration from a key or a request.
 
-A committed execution copies a configuration family into a blob it writes only
-when the version it decided with is newer than the blob's copy of that family,
-each family on its own: the balance configuration with `balanceConfigVersion`,
-the `blocked` flag with `accountConfigVersion` (decimal strings). The copy goes
-in both cache representations. On an equal version the blob keeps its copy
-unchanged, the version field and every configuration field in whichever
-representations it had them, even when the execution decided with other content
-from the key or the request: an earlier release changes the copy without
-changing a version field it does not know, and overwriting that copy would undo
-its change for the releases that read the blob. The blob also keeps a family's
-copy unchanged when it has no version field for that family: an earlier release
-seeded the blob from scratch, possibly after a PATCH it served, or the blob
-predates versions, so its copy may be newer than a live key. Only the PATCH copy,
-which writes the version field, replaces such a copy; a version field this release
-wrote, `"0"` included, follows the version rule. A balance the execution seeds
-from a cache miss has no copy yet and receives the decided configuration with its
-versions. A version-0 decision writes no version field, so later executions keep
-that copy as they keep an earlier release's: it holds the row at version 0, and a
-later change reaches it through the PATCH copy or through the blob write of the
-earlier release that served the PATCH. The decided version is never lower than
-the blob's, so a copy never moves back. Money, `Version` and identity are
-written as always. A refusal writes nothing, and no write was added before the
-commit phase. A cached companion that is only refreshed keeps its value. The
-configuration copy in the blob is a compatibility bridge for releases that read
-the configuration from the blob, and the configuration PATCH confirms it before
-answering; it is removable once no rollback target reads the configuration from
-the blob. Over a copy with an older version field, an execution that commits
-between the PATCH's read of the blob and its compare-and-set has already copied
-the PATCH's version, so the PATCH confirms without writing. Over a copy without a
-version field it has not: the PATCH writes the copy on a later attempt, and on a
-balance busy enough to win every compare-and-set the PATCH answers a technical
-error, which the client's retry completes.
+A committed execution writes the configuration copy only into a blob it seeds
+from a cache miss: the decided configuration in both cache representations, with
+`balanceConfigVersion` and `accountConfigVersion` (decimal strings) when the
+decided version is above 0. Into a blob that exists it writes money, `Version`
+and identity as always, and carries every configuration field, in whichever
+representations the blob has it, and both version fields, present or absent,
+over unchanged, whatever the versions. An earlier release changes the copy
+without touching version fields it does not know, so no version field tells how
+old the copy's content is: a live key newer than the blob's version field can
+still be older than a PATCH that release served, and overwriting the copy would
+undo that PATCH for the releases that read the blob, after a rollback for good.
+A refusal writes nothing, and no write was added before the commit phase. A
+cached companion that is only refreshed keeps its value.
+
+The configuration copy in the blob is a compatibility bridge for releases that
+read the configuration from the blob; it is removable once no rollback target
+reads the configuration from the blob. Only the configuration PATCH writes it in
+a blob that exists, and it confirms the copy before answering, through a
+compare-and-set on the exact bytes it read: an execution that commits between
+the PATCH's read and its write makes it lose, and the PATCH reads the blob again,
+so it never writes over newer money. It makes up to 8 attempts, with a
+full-jitter pause after each lost one (an exponential step from 1 ms capped at
+16 ms, so at most about 63 ms of pauses). On a balance whose executions keep
+Redis busy enough to win every attempt, the PATCH answers a technical error,
+which the client's retry completes.
 
 ## Single execution, transport, and error classification
 
@@ -1422,40 +1416,35 @@ the replica serving that read has the change), or once the key expires: at most
 one hour. An account blocked by an earlier pod during the
 rollout can therefore still transact on current pods for up to one hour.
 
-Current pods do not undo that change in the blob. Where the blob had a version
-field, it still names the version the key holds; where an earlier pod seeded the
-blob, it has none. Either way a committed execution decides with the key and
-keeps the blob's copy as it is. Only a newer decided version is copied over a
-copy with a version field (a reload of the row once the key expires, or a later
-PATCH), and only a PATCH a current pod serves replaces a copy without one.
+Current pods never undo that change in the blob: they never write the
+configuration copy of a blob that exists, whatever its version fields say. A
+committed execution decides with the newest configuration and keeps the blob's
+copy as it is; only a PATCH replaces it.
 
 A rollback therefore needs no data step for the blobs in the cache, outside the
 cases below. The earlier release reads the blob copy and preserves the version
-fields it does not know. Every PATCH a current pod answered with success has
-confirmed that copy, and the blob write of a PATCH an earlier pod served is kept
-as described above. The configuration keys left behind expire within one hour;
-after a new rollout, a key that outlived the rollback is honored for at most
-that hour.
+fields it does not know. Every configuration PATCH that answered with success
+stays in the blob until a later PATCH overwrites it, whichever release served
+it: a current pod confirmed its copy before answering, and the blob write of an
+earlier pod is never undone by a current one. The configuration keys left behind
+expire within one hour; after a new rollout, a key that outlived the rollback is
+honored for at most that hour.
 
 These cases stay outside that guarantee, until the next PATCH on the balance or
 account:
 
-- A blob whose copy already disagreed with PostgreSQL before this release. The
-  copy has no version field and the row reads version 0; the engine keeps that
-  copy.
+- A blob whose copy already disagreed with PostgreSQL before this release, or
+  that a PATCH an earlier pod served answered with success without updating (the
+  defect this release fixes, still present in earlier pods). The engine keeps
+  that copy.
 - A balance a current pod seeds from a cache miss while an older key still lives
   decides with the newer row (see [Configuration keys](#configuration-keys)). The
   account row is read from the primary, so the seeded blob always takes a block
   an earlier pod committed. The balance row follows read routing: until the
-  replica serving it applies the PATCH an earlier pod served, the seeded blob
-  takes the key's older balance configuration, and a rollback before an approved
-  execution copies the newer version leaves the earlier release obeying it.
-- Earlier pods serve two PATCHes on the same balance or account while one key
-  lives, and between them a current pod reloads the key with the first without
-  copying it into a blob, because its execution was refused or the blob, of
-  another balance of the account, was outside its pool. That blob's copy keeps a
-  version older than the key, so an execution a current pod approves afterwards
-  copies the first PATCH's configuration over the second's.
+  replica serving it applies a PATCH an earlier pod served, the seeded blob takes
+  the key's older balance configuration, and the engine never rewrites the copy
+  of that blob afterwards, so after a rollback the earlier release obeys the
+  older configuration until the next PATCH on the balance.
 
 A configuration version may only rise. The down migrations remove the triggers
 and their functions but keep the `config_version` columns, and the up adds a
@@ -1507,7 +1496,7 @@ The balance-cache participant inventory is:
 | Role | Entry point | Current write/read contract |
 | --- | --- | --- |
 | Writer | `transaction/scripts/balance_atomic_operation.lua`: cold seed and successful monetary mutation | complete dual |
-| Writer | `engine/script.go` plus `engine/scripts/engine/*.lua`: default engine cold seed and successful monetary mutation | complete dual |
+| Writer | `engine/script.go` plus `engine/scripts/engine/*.lua`: default engine cold seed and successful monetary mutation | complete dual; an existing blob's configuration fields and configuration version fields are carried over unchanged |
 | Writer | `RedisConsumerRepository.CopyBalanceConfigToBlob` and `CopyAccountConfigToBlobs` via `balancecache.CopyBalanceConfig` and `CopyAccountConfig` | configuration family and its version only, in the representations the blob already uses |
 | Writer | `transaction.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `engine.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |

@@ -49,9 +49,12 @@ package balancecache
 // is lower, or equal while the family's content differs (a blob that diverged before
 // versions existed starts at version 0 like its row); it never writes over a higher
 // version and never touches money, identity or the other family. The copy always
-// writes the version field, version 0 included, and is the only writer that replaces
-// a family without one: the engine keeps such a family, which a release reading the
-// configuration from the blob may have written after the key's version.
+// writes the version field, version 0 included. It is the only writer of the copy in
+// a blob that exists: the engine writes the decided configuration and versions only
+// into a blob it seeds, and carries every configuration and version field of an
+// existing blob over unchanged, because a release reading the configuration from the
+// blob changes the copy without touching version fields it does not know, so no
+// version field tells how old the copy is.
 //
 // Versions in shared types. accounting.BalanceSnapshot and mmodel.Balance carry
 // ConfigVersion and AccountConfigVersion, and mmodel.Account carries ConfigVersion,
