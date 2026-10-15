@@ -440,9 +440,7 @@ func (w *BalanceSyncWorker) runWorker() error {
 			return w.flushBatchFn(flushCtx, keys)
 		},
 		// FetchKeysFunc: claims due keys from the ZSET via Lua (ZRANGEBYSCORE + SET NX)
-		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
-			return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
-		},
+		w.fetchSyncKeys,
 		// WaitForNextFunc: fixed backoff when idle (ZSET empty)
 		func(waitCtx context.Context) bool {
 			return waitOrDone(waitCtx, w.idleWait)
@@ -697,9 +695,7 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 				return w.flushBatchFn(pgCtx, keys)
 			},
 			// FetchKeysFunc: tenant context enables Redis key namespacing via tmvalkey.GetKeyContext
-			func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
-				return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
-			},
+			w.fetchSyncKeys,
 			// WaitForNextFunc: fixed backoff when idle (ZSET empty for this tenant)
 			func(waitCtx context.Context) bool {
 				return waitOrDone(waitCtx, w.idleWait)
@@ -842,6 +838,13 @@ type orgLedgerGroup struct {
 	orgID    uuid.UUID
 	ledgerID uuid.UUID
 	keys     []redisTransaction.SyncKey
+}
+
+// fetchSyncKeys is the collectors' FetchKeysFunc: it claims due keys from the ZSET via
+// Lua (ZRANGEBYSCORE + SET NX). The claim runs under unsampledPollContext so an empty
+// poll exports no trace; the flush gets the collector's own context and stays traced.
+func (w *BalanceSyncWorker) fetchSyncKeys(ctx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
+	return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(unsampledPollContext(ctx), limit)
 }
 
 // flushBatch groups keys by (orgID, ledgerID) and processes each group via SyncBalancesBatch.
@@ -1101,6 +1104,12 @@ func NewLegacyBalanceSyncDrainer(logger libLog.Logger, useCase *command.UseCase,
 	}
 }
 
+// fetchLegacySyncKeys is the drainer's FetchKeysFunc: it claims due keys from the legacy
+// ZSET under unsampledPollContext, like BalanceSyncWorker.fetchSyncKeys.
+func (d *LegacyBalanceSyncDrainer) fetchLegacySyncKeys(ctx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
+	return d.useCase.TransactionRedisRepo.GetBalanceSyncKeysLegacy(unsampledPollContext(ctx), limit)
+}
+
 // Run implements the Launcher interface for the legacy drainer.
 func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -1125,9 +1134,7 @@ func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 			return worker.flushBatch(flushCtx, keys)
 		},
-		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
-			return d.useCase.TransactionRedisRepo.GetBalanceSyncKeysLegacy(fetchCtx, limit)
-		},
+		d.fetchLegacySyncKeys,
 		func(waitCtx context.Context) bool {
 			return waitOrDone(waitCtx, d.idleWait)
 		},
