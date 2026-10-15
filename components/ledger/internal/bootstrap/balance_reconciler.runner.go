@@ -16,6 +16,7 @@ import (
 
 	libCommons "github.com/LerianStudio/lib-commons/v7/commons"
 	libRedis "github.com/LerianStudio/lib-commons/v7/commons/redis"
+	tmclient "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/client"
 	tmcore "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/core"
 	tmpostgres "github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/postgres"
 	"github.com/LerianStudio/lib-commons/v7/commons/tenant-manager/tenantcache"
@@ -55,6 +56,9 @@ const (
 	balanceReconcilerReasonQuery     = "query"
 	balanceReconcilerReasonLock      = "lock"
 	balanceReconcilerReasonPanic     = "panic"
+	// balanceReconcilerReasonTenantList is a failed active-tenant listing; the pass
+	// fell back to the cached tenants.
+	balanceReconcilerReasonTenantList = "tenant_list"
 )
 
 // balanceReconcilerDivergentDirections are the directions published as divergence
@@ -99,10 +103,15 @@ type BalanceReconcilerRunner struct {
 	lease      reconcilerLease
 	pgResolver tenantPGResolver
 	tenants    tenantIDSource
-	metrics    *metrics.MetricsFactory
-	clock      func() time.Time
-	newTicker  func(time.Duration) (<-chan time.Time, func())
-	cfg        BalanceReconcilerConfig
+	// tenantLister enumerates every active tenant of tenantService through the
+	// tenant manager, so a tenant without recent traffic is still scanned. nil
+	// keeps the cached tenants as the only source.
+	tenantLister  activeTenantLister
+	tenantService string
+	metrics       *metrics.MetricsFactory
+	clock         func() time.Time
+	newTicker     func(time.Duration) (<-chan time.Time, func())
+	cfg           BalanceReconcilerConfig
 	// rotation advances the first tenant of each multi-tenant pass.
 	rotation int
 	// scans holds each tenant's scan in progress, keyed by tenant id ("" in single-tenant).
@@ -162,6 +171,8 @@ func initBalanceReconcilerRunner(
 	multiTenantEnabled bool,
 	tenants *tenantcache.TenantCache,
 	pgManager *tmpostgres.Manager,
+	tenantClient *tmclient.Client,
+	tenantServiceName string,
 	metricsFactory *metrics.MetricsFactory,
 ) *BalanceReconcilerRunner {
 	ctx := context.Background()
@@ -195,10 +206,24 @@ func initBalanceReconcilerRunner(
 	// Typed nils stay out of the interfaces so a single-tenant runner never iterates them.
 	if multiTenantEnabled {
 		runner.WithTenants(tenants, pgManager)
+
+		if tenantClient != nil {
+			runner.WithActiveTenantLister(tenantClient, tenantServiceName)
+		}
+	}
+
+	tenantSource := "none"
+
+	switch {
+	case runner.tenantLister != nil:
+		tenantSource = "tenant_manager"
+	case runner.tenants != nil:
+		tenantSource = "cache"
 	}
 
 	logger.Log(ctx, libLog.LevelInfo, "Balance reconciler configured",
 		libLog.Bool("multi_tenant", runner.tenants != nil),
+		libLog.String("tenant_source", tenantSource),
 		libLog.Int("interval_ms", runner.cfg.IntervalMs),
 		libLog.Int("grace_ms", runner.cfg.GraceMs),
 		libLog.Int("page_size", runner.cfg.PageSize),
@@ -215,6 +240,19 @@ func (r *BalanceReconcilerRunner) WithTenants(tenants tenantIDSource, pgResolver
 	if tenants != nil && pgResolver != nil {
 		r.tenants = tenants
 		r.pgResolver = pgResolver
+	}
+
+	return r
+}
+
+// WithActiveTenantLister makes multi-tenant passes cover every active tenant the
+// tenant manager lists for service, not only the tenants the pod served within
+// the tenant cache TTL. A failed listing falls back to the cached tenants. A nil
+// lister keeps the cache as the only source.
+func (r *BalanceReconcilerRunner) WithActiveTenantLister(lister activeTenantLister, service string) *BalanceReconcilerRunner {
+	if lister != nil {
+		r.tenantLister = lister
+		r.tenantService = service
 	}
 
 	return r
@@ -334,7 +372,7 @@ func (r *BalanceReconcilerRunner) runPass(ctx context.Context, current *string) 
 	defer span.End()
 
 	budgetEnds := r.clock().Add(time.Duration(r.cfg.PassBudgetMs) * time.Millisecond)
-	scopes := r.scopes(ctx)
+	scopes, authoritative := r.scopes(ctx)
 
 	listed := make(map[string]struct{}, len(scopes))
 	for _, scope := range scopes {
@@ -363,10 +401,14 @@ func (r *BalanceReconcilerRunner) runPass(ctx context.Context, current *string) 
 		return
 	}
 
-	// A tenant gone from the cache leaves no publication behind: its series expire.
-	for tenantID := range r.scans {
-		if _, ok := listed[tenantID]; !ok {
-			delete(r.scans, tenantID)
+	// A tenant gone from the list leaves no publication behind: its series expire.
+	// A fallback list after a failed listing proves nothing about absent tenants,
+	// so their unfinished scans wait for the next authoritative list.
+	if authoritative {
+		for tenantID := range r.scans {
+			if _, ok := listed[tenantID]; !ok {
+				delete(r.scans, tenantID)
+			}
 		}
 	}
 
@@ -535,16 +577,53 @@ func (r *BalanceReconcilerRunner) publish(ctx context.Context, tenantID string, 
 		libLog.Any("value_mismatch_count", state.counts[mmodel.BalanceTrailValueMismatch]))
 }
 
-// scopes lists the balance tables of this pass. Multi-tenant passes start one
-// tenant later each time, over a stable order, so no tenant always goes last.
-func (r *BalanceReconcilerRunner) scopes(ctx context.Context) []balanceReconcilerScope {
-	if r.tenants == nil {
-		return []balanceReconcilerScope{{ctx: ctx}}
+// tenantIDs lists the tenants of this pass: the tenant manager's active tenants
+// when a lister is set, else the cached ones. A listing failure is counted and
+// logged, and the cached tenants keep the pass going, so a tenant manager outage
+// degrades coverage to the tenants with recent traffic instead of stopping it.
+// The second result is false for that fallback list, which is only a subset of
+// the active tenants.
+func (r *BalanceReconcilerRunner) tenantIDs(ctx context.Context) ([]string, bool) {
+	if r.tenantLister == nil {
+		return r.tenants.TenantIDs(), true
 	}
 
-	tenantIDs := r.tenants.TenantIDs()
+	tenants, err := r.tenantLister.GetActiveTenantsByService(ctx, r.tenantService)
+	if err != nil {
+		if ctx.Err() == nil {
+			r.logger.Log(ctx, libLog.LevelWarn, "Balance reconciler failed to list active tenants; scanning cached tenants only", libLog.Err(err))
+			r.countFailure(ctx, "", balanceReconcilerReasonTenantList)
+		}
+
+		return r.tenants.TenantIDs(), false
+	}
+
+	ids := make([]string, 0, len(tenants))
+
+	for _, tenant := range tenants {
+		if tenant == nil || tenant.ID == "" {
+			continue
+		}
+
+		ids = append(ids, tenant.ID)
+	}
+
+	return ids, true
+}
+
+// scopes lists the balance tables of this pass. Multi-tenant passes start one
+// tenant later each time, over a stable order, so no tenant always goes last.
+// authoritative is false when the list came from the cache after a failed
+// tenant listing: a tenant absent from it is not known to be gone.
+func (r *BalanceReconcilerRunner) scopes(ctx context.Context) ([]balanceReconcilerScope, bool) {
+	if r.tenants == nil {
+		return []balanceReconcilerScope{{ctx: ctx}}, true
+	}
+
+	tenantIDs, authoritative := r.tenantIDs(ctx)
 	if len(tenantIDs) == 0 {
-		return nil
+		r.logger.Log(ctx, libLog.LevelDebug, "Balance reconciler pass found no tenants to scan")
+		return nil, authoritative
 	}
 
 	sort.Strings(tenantIDs)
@@ -558,7 +637,7 @@ func (r *BalanceReconcilerRunner) scopes(ctx context.Context) []balanceReconcile
 		scopes = append(scopes, balanceReconcilerScope{tenantID: tenantID, ctx: tmcore.ContextWithTenantID(ctx, tenantID)})
 	}
 
-	return scopes
+	return scopes, authoritative
 }
 
 // resolveTenantPG returns ctx carrying a freshly resolved transaction-module PG
