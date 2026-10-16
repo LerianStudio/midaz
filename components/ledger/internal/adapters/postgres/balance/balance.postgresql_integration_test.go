@@ -595,7 +595,7 @@ func TestIntegration_BalanceRepository_Update_ReturnsUpdatedBalance(t *testing.T
 	// Act
 	newSending := false
 	newReceiving := false
-	returned, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
+	returned, _, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
 		AllowSending:   &newSending,
 		AllowReceiving: &newReceiving,
 	})
@@ -637,7 +637,7 @@ func TestIntegration_BalanceRepository_Update_ReturnedBalanceMatchesPersistedDat
 	// Act
 	newSending := false
 	newReceiving := true
-	returned, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
+	returned, _, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
 		AllowSending:   &newSending,
 		AllowReceiving: &newReceiving,
 	})
@@ -681,7 +681,7 @@ func TestIntegration_BalanceRepository_Update_ReturnsEntityNotFoundError(t *test
 
 	// Act
 	newSending := false
-	returned, err := repo.Update(ctx, orgID, ledgerID, nonExistentID, mmodel.UpdateBalance{
+	returned, _, err := repo.Update(ctx, orgID, ledgerID, nonExistentID, mmodel.UpdateBalance{
 		AllowSending: &newSending,
 	})
 
@@ -723,7 +723,7 @@ func TestIntegration_BalanceRepository_Update_ChangesAllowFlags(t *testing.T) {
 	// Act
 	newSending := false
 	newReceiving := false
-	returned, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
+	returned, _, err := repo.Update(ctx, orgID, ledgerID, balanceID, mmodel.UpdateBalance{
 		AllowSending:   &newSending,
 		AllowReceiving: &newReceiving,
 	})

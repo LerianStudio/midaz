@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
 	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
@@ -135,9 +136,11 @@ func TestIntegration_AdapterExecute_UsesLiveOverdraftSettingsWithoutVersionBump(
 	livePrimary.OverdraftLimitEnabled = true
 	livePrimary.OverdraftLimit = decimal.NewFromInt(100)
 	require.Equal(t, int64(7), livePrimary.Version)
-	encoded, err := balancecache.Encode(livePrimary, balancecache.FormatDual)
+	// A PATCH committed after the request was composed: the configuration key
+	// carries the newer settings, the blob keeps its money and version.
+	encoded, err := balancecache.EncodeBalanceConfig(snapshotBalanceConfig(livePrimary, 1))
 	require.NoError(t, err)
-	require.NoError(t, client.Set(ctx, keys.Balances[livePrimary.BalanceRef].Balance, encoded, 0).Err())
+	require.NoError(t, client.Set(ctx, keys.Balances[livePrimary.BalanceRef].Config, encoded, cachepolicy.ConfigKeyTTL).Err())
 
 	provider := &integrationClientProvider{client: client}
 	adapter, err := newAdapterWithLimits(provider, guardBootstrapLimits())
@@ -437,7 +440,7 @@ func deleteLiveStateCompositionState(t *testing.T, client *redis.Client, keys re
 	t.Helper()
 	inventory := []string{keys.Schedule, keys.Recovery, keys.Receipts, keys.Guards}
 	for _, balance := range keys.Balances {
-		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted)
+		inventory = append(inventory, balance.Balance, balance.Deleted, balance.LegacyDeleted, balance.Config)
 	}
 	require.NoError(t, client.Del(context.Background(), inventory...).Err())
 }

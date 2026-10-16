@@ -16,7 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
-func TestPrepareExecutionAppendsFeeDebtKeysLast(t *testing.T) {
+func TestPrepareExecutionAppendsFeeDebtKeysBeforeTheConfigurationBlock(t *testing.T) {
 	t.Parallel()
 
 	input, limits, resolved := validWireExecution()
@@ -41,7 +41,10 @@ func TestPrepareExecutionAppendsFeeDebtKeysLast(t *testing.T) {
 
 	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
 	require.NoError(t, err)
-	require.Equal(t, []string{source, secondary}, prepared.Keys[len(prepared.Keys)-2:])
+	// Only the configuration block, one key per balance and per account, follows
+	// the fee-debt lists.
+	feeDebtEnd := len(prepared.Keys) - len(input.Execution.Balances) - len(protectedAccounts(input.Execution))
+	require.Equal(t, []string{source, secondary}, prepared.Keys[feeDebtEnd-2:feeDebtEnd])
 
 	var wire struct {
 		FeeDebts     []wireFeeDebt `json:"feeDebts"`
@@ -54,8 +57,8 @@ func TestPrepareExecutionAppendsFeeDebtKeysLast(t *testing.T) {
 	scope := input.Execution.OrganizationID.String()
 	ledger := input.Execution.LedgerID.String()
 	require.Equal(t, []wireFeeDebt{
-		{OrganizationID: scope, LedgerID: ledger, BalanceRef: "@source#default", KeyIndex: len(prepared.Keys) - 1},
-		{OrganizationID: scope, LedgerID: ledger, BalanceRef: "@secondary#default", KeyIndex: len(prepared.Keys)},
+		{OrganizationID: scope, LedgerID: ledger, BalanceRef: "@source#default", KeyIndex: feeDebtEnd - 1},
+		{OrganizationID: scope, LedgerID: ledger, BalanceRef: "@secondary#default", KeyIndex: feeDebtEnd},
 	}, wire.FeeDebts)
 	require.Equal(t, []wireFeeDebtReopen{{
 		DebtID: input.Execution.Transactions[0].ID.String() + ":fee", DebtorRef: "@source#default", CreditRef: "@secondary#default",

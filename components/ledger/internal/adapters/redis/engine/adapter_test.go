@@ -338,7 +338,7 @@ func TestAccountingError_OutcomeCertaintyAndNormalizationScope(t *testing.T) {
 		assertAdapterTechnical(t, err, code, test.uncertain)
 		require.ErrorIs(t, err, cause)
 	}
-	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "transaction-index", "evidence", "balance", "balance:deleted"}
+	keys := []string{"balance"}
 	for _, test := range []struct {
 		raw, code string
 		uncertain bool
@@ -357,17 +357,30 @@ func TestAccountingError_OutcomeCertaintyAndNormalizationScope(t *testing.T) {
 	require.False(t, isNoScript(accountingReply("runtime NOSCRIPT missing")))
 }
 
-func TestAccountingError_NormalizationIgnoresAccountBlockExceptionKey(t *testing.T) {
+func TestAccountingError_NormalizationTrustsOnlyLiveBalanceKeys(t *testing.T) {
 	t.Parallel()
 
-	request, _ := adapterResultFixture(t)
-	keys := []string{"schedule", "recovery", "receipt", "guard", "protection", "transaction-index", "evidence", "balance", "deleted", "legacy-deleted", "grant"}
+	input, limits, resolved := validWireExecutionWithGrant()
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
 
-	err := classifyAccountingError(accountingReply(`BALANCE_LIMIT_NORMALIZATION_REQUIRED:["balance"]`), request, keys)
-	assertAdapterTechnical(t, err, "normalization_required", false)
+	accountID := input.Execution.Balances[0].AccountID
+	balance := resolved.Balances["@source#default"]
+	require.Equal(t, []string{balance.Balance}, prepared.BalanceKeys)
 
-	err = classifyAccountingError(accountingReply(`BALANCE_LIMIT_NORMALIZATION_REQUIRED:["grant"]`), request, keys)
-	assertAdapterTechnical(t, err, "invalid_normalization_failure", true)
+	normalization := func(key string) error {
+		return classifyAccountingError(accountingReply(`BALANCE_LIMIT_NORMALIZATION_REQUIRED:["`+key+`"]`), input.Execution, prepared.BalanceKeys)
+	}
+
+	assertAdapterTechnical(t, normalization(balance.Balance), "normalization_required", false)
+
+	for _, key := range []string{
+		balance.Deleted, balance.LegacyDeleted, balance.Config,
+		resolved.AccountBlockExceptions[input.Execution.Transactions[0].AccountBlockException.ExceptionID],
+		resolved.Accounts[accountID].Closing, resolved.Accounts[accountID].Config,
+	} {
+		assertAdapterTechnical(t, normalization(key), "invalid_normalization_failure", true)
+	}
 }
 
 func assertAdapterTechnical(t *testing.T, err error, code string, uncertain bool) {

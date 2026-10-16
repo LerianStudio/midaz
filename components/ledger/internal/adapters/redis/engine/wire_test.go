@@ -33,6 +33,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	pkgHTTP "github.com/LerianStudio/midaz/v4/pkg/net/http"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
@@ -55,7 +56,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 
 	var wire wireRequest
 	require.NoError(t, json.Unmarshal(first.Payload, &wire))
-	require.Equal(t, 3, wire.ProtocolVersion)
+	require.Equal(t, 4, wire.ProtocolVersion)
 	require.Equal(t, resolved.TenantID, wire.TenantID)
 	require.Equal(t, input.Execution.OrganizationID.String(), wire.OrganizationID)
 	require.Equal(t, input.Execution.LedgerID.String(), wire.LedgerID)
@@ -67,7 +68,9 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 		resolved.Balances["@source#default"].Balance, resolved.Balances["@source#default"].Deleted,
 		resolved.Balances["@source#default"].LegacyDeleted,
 		resolved.Accounts[accountID].Closing, resolved.Accounts[accountID].Closed, resolved.Accounts[accountID].Ownership,
+		resolved.Balances["@source#default"].Config, resolved.Accounts[accountID].Config,
 	}, first.Keys)
+	require.Equal(t, first.Keys[7:8], first.BalanceKeys, "only the live balance blobs may be named by a limit repair")
 	require.Equal(t, 1, wire.ScheduleKeyIndex)
 	require.Equal(t, 2, wire.RecoveryKeyIndex)
 	require.Equal(t, 3, wire.ReceiptKeyIndex)
@@ -80,6 +83,12 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Equal(t, 8, wire.Balances[0].KeyIndex)
 	require.Equal(t, 9, wire.Balances[0].DeleteKeyIndex)
 	require.Equal(t, 10, wire.Balances[0].LegacyDeleteKeyIndex)
+	require.Equal(t, 14, wire.Balances[0].ConfigKeyIndex)
+	require.Equal(t, "0", wire.Balances[0].BalanceConfigVersion)
+	require.Len(t, wire.Accounts, 1)
+	require.Equal(t, 15, wire.Accounts[0].ConfigKeyIndex)
+	require.Equal(t, "0", wire.Accounts[0].ConfigVersion)
+	require.False(t, wire.Accounts[0].Blocked)
 	require.Equal(t, "9223372036854775807", wire.Balances[0].Snapshot.Version)
 	require.Equal(t, "12345678901234567890.1234567890123456789", wire.Balances[0].Snapshot.Available)
 	require.Equal(t, "0.0000000000000000001", wire.Transactions[0].Postings[0].Amount)
@@ -98,7 +107,7 @@ func TestPrepareExecutionDeterministicLosslessWire(t *testing.T) {
 	require.Equal(t, first.Payload, second.Payload, "prepared bytes must not alias input storage")
 }
 
-func TestPrepareExecutionCarriesPerItemScopeInProtocolV3(t *testing.T) {
+func TestPrepareExecutionCarriesPerItemScope(t *testing.T) {
 	t.Parallel()
 
 	input, limits, resolved := validWireExecution()
@@ -117,7 +126,7 @@ func TestPrepareExecutionCarriesPerItemScopeInProtocolV3(t *testing.T) {
 
 	var wire wireRequest
 	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
-	require.Equal(t, 3, wire.ProtocolVersion)
+	require.Equal(t, 4, wire.ProtocolVersion)
 	require.Equal(t, organizationID.String(), wire.Balances[0].OrganizationID)
 	require.Equal(t, ledgerID.String(), wire.Balances[0].LedgerID)
 	require.Equal(t, organizationID.String(), wire.Transactions[0].OrganizationID)
@@ -126,7 +135,13 @@ func TestPrepareExecutionCarriesPerItemScopeInProtocolV3(t *testing.T) {
 	foreign := wire.ScopeKeys[1]
 	require.Equal(t, organizationID.String(), foreign.OrganizationID)
 	require.Equal(t, ledgerID.String(), foreign.LedgerID)
-	require.Equal(t, len(prepared.Keys)-4, foreign.ReceiptKeyIndex)
+	// The configuration block (one balance, one account) follows the scope keys.
+	require.Equal(t, len(prepared.Keys)-6, foreign.ReceiptKeyIndex)
+	require.Equal(t, "tenant:fixture:"+utils.BalanceConfigKey(organizationID, ledgerID, "@source#default"),
+		prepared.Keys[wire.Balances[0].ConfigKeyIndex-1],
+		"the configuration key is resolved in the balance's own scope and tenant")
+	require.Equal(t, "tenant:fixture:"+utils.AccountConfigKey(organizationID, ledgerID, input.Execution.Balances[0].AccountID),
+		prepared.Keys[wire.Accounts[0].ConfigKeyIndex-1])
 	require.Contains(t, prepared.Keys[foreign.TransactionIndexKeyIndex-1], ":transaction-index:"+organizationID.String()+":"+ledgerID.String())
 }
 
@@ -505,6 +520,7 @@ func TestPrepareExecutionCarriesAccountBlockExceptionAfterBalanceKeys(t *testing
 		resolved.Balances["@source#default"].LegacyDeleted,
 		resolved.AccountBlockExceptions[exception.ExceptionID],
 		resolved.Accounts[accountID].Closing, resolved.Accounts[accountID].Closed, resolved.Accounts[accountID].Ownership,
+		resolved.Balances["@source#default"].Config, resolved.Accounts[accountID].Config,
 	}, prepared.Keys)
 
 	var wire wireRequest
@@ -678,6 +694,106 @@ func addWireBalance(input *command.EngineExecution, resolved *resolvedExecutionK
 	)
 }
 
+func TestPrepareExecutionCarriesTheRequestConfigurationVersions(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	input.Execution.Balances[0].ConfigVersion = 9223372036854775807
+	input.Execution.Balances[0].AccountConfigVersion = 4
+	input.Execution.Balances[0].Blocked = true
+
+	prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.NoError(t, err)
+
+	var wire wireRequest
+	require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+	require.Equal(t, "9223372036854775807", wire.Balances[0].BalanceConfigVersion, "versions travel as exact decimal text")
+	require.Equal(t, "4", wire.Accounts[0].ConfigVersion)
+	require.True(t, wire.Accounts[0].Blocked)
+	require.NotContains(t, string(prepared.Payload), `"configVersion":"9223372036854775807"`)
+
+	var snapshot map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(mustMarshalWire(t, wire.Balances[0].Snapshot), &snapshot))
+	require.NotContains(t, snapshot, "balanceConfigVersion", "the snapshot keeps the shape the engine result shares")
+	require.NotContains(t, snapshot, "accountConfigVersion")
+
+	input.Execution.Balances[0].ConfigVersion = -1
+	_, err = prepareExecution(context.Background(), input, limits, resolved)
+	require.ErrorContains(t, err, "configuration version")
+}
+
+func TestPrepareExecutionDecidesOneRequestConfigurationPerAccount(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		firstVersion    int64
+		firstBlocked    bool
+		secondVersion   int64
+		secondBlocked   bool
+		wantVersion     string
+		wantBlocked     bool
+		wantExplanation string
+	}{
+		{name: "newest version", firstVersion: 2, firstBlocked: true, secondVersion: 3, wantVersion: "3", wantExplanation: "the newest account configuration of the pool"},
+		{name: "block wins a tie", firstVersion: 3, secondVersion: 3, secondBlocked: true, wantVersion: "3", wantBlocked: true, wantExplanation: "a divergent request never unblocks an account"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			input, limits, resolved := validWireExecution()
+			sibling := input.Execution.Balances[0]
+			sibling.ID = uuid.MustParse("0d174365-c8e6-4557-aeb8-672e446fa9cc")
+			sibling.Key, sibling.BalanceRef = "savings", "@source#savings"
+			input.Execution.Balances = append(input.Execution.Balances, sibling)
+			resolved.Balances[sibling.BalanceRef] = testResolvedBalanceKeys(strings.Replace(resolved.Balances["@source#default"].Balance, "@source#default", sibling.BalanceRef, 1))
+			input.Execution.Balances[0].AccountConfigVersion, input.Execution.Balances[0].Blocked = test.firstVersion, test.firstBlocked
+			input.Execution.Balances[1].AccountConfigVersion, input.Execution.Balances[1].Blocked = test.secondVersion, test.secondBlocked
+
+			prepared, err := prepareExecution(context.Background(), input, limits, resolved)
+			require.NoError(t, err)
+
+			var wire wireRequest
+			require.NoError(t, json.Unmarshal(prepared.Payload, &wire))
+			require.Len(t, wire.Accounts, 1)
+			require.Equal(t, test.wantVersion, wire.Accounts[0].ConfigVersion, test.wantExplanation)
+			require.Equal(t, test.wantBlocked, wire.Accounts[0].Blocked, test.wantExplanation)
+		})
+	}
+}
+
+func TestPrepareExecutionRefusesAConfigurationKeyOfAnotherIdentity(t *testing.T) {
+	t.Parallel()
+
+	input, limits, resolved := validWireExecution()
+	balance := resolved.Balances["@source#default"]
+	balance.Config = strings.Replace(balance.Config, "@source#default", "@other#default", 1)
+	resolved.Balances["@source#default"] = balance
+
+	_, err := prepareExecution(context.Background(), input, limits, resolved)
+	require.ErrorContains(t, err, "balance configuration key")
+
+	input, limits, resolved = validWireExecution()
+	accountID := input.Execution.Balances[0].AccountID
+	account := resolved.Accounts[accountID]
+	account.Config = strings.Replace(account.Config, accountID.String(), uuid.Nil.String(), 1)
+	resolved.Accounts[accountID] = account
+
+	_, err = prepareExecution(context.Background(), input, limits, resolved)
+	require.ErrorContains(t, err, "account configuration key")
+}
+
+func mustMarshalWire(t *testing.T, value any) []byte {
+	t.Helper()
+
+	raw, err := json.Marshal(value)
+	require.NoError(t, err)
+
+	return raw
+}
+
 func TestWireArraysAreNotNull(t *testing.T) {
 	t.Parallel()
 
@@ -709,9 +825,9 @@ func TestPreparedExecutionMeasurements(t *testing.T) {
 		wantBytes  int
 		maxTouched int
 	}{
-		{name: "two postings", postings: 2, pool: 2, wantBytes: 3247, maxTouched: 2},
-		{name: "ten postings", postings: 10, pool: 20, wantBytes: 21567, maxTouched: 10},
-		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 104047, maxTouched: 50},
+		{name: "two postings", postings: 2, pool: 2, wantBytes: 3453, maxTouched: 2},
+		{name: "ten postings", postings: 10, pool: 20, wantBytes: 23667, maxTouched: 10},
+		{name: "fifty postings", postings: 50, pool: 100, wantBytes: 114547, maxTouched: 50},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -801,7 +917,7 @@ func TestV1NearBodyLimitExpansionLowerBound(t *testing.T) {
 	t.Logf("v1 lower-bound bytes: original=%d frozen_recovery=%d v1_legs=%d wire_postings=%d snapshots=%d final_wire=%d", len(body), len(recovery), len(transaction.Send.Source.From)+len(transaction.Send.Distribute.To), len(request.Transactions[0].Postings), len(request.Balances), len(prepared.Payload))
 	require.Equal(t, 4193188, len(body))
 	require.Equal(t, 11175426, len(recovery))
-	require.Equal(t, 13064885, len(prepared.Payload))
+	require.Equal(t, 13065091, len(prepared.Payload))
 	require.Greater(t, len(recovery), len(body), "completion plan must retain transaction and stable projection data")
 	require.Greater(t, len(prepared.Payload), len(recovery), "wire must carry the completion plan plus engine postings and snapshots")
 	require.Equal(t, 2, len(request.Transactions[0].Postings), "v1 retains both logical legs; no v1 leg cap is introduced")
@@ -1066,6 +1182,7 @@ func testResolvedAccountKeys(prefix string, request accounting.Execution, token 
 			Closing:        prefix + "account-closing:" + cachepolicy.HashTag + ":" + scope + accountID.String(),
 			Closed:         prefix + "account-closed:" + cachepolicy.HashTag + ":" + scope + accountID.String(),
 			Ownership:      prefix + "account-admin-ownership:" + cachepolicy.HashTag + ":" + scope + accountID.String(),
+			Config:         prefix + "account-config:" + cachepolicy.HashTag + ":" + scope + accountID.String(),
 			AdmissionToken: token,
 		}
 	}
@@ -1081,6 +1198,7 @@ func testResolvedBalanceKeys(key string) resolvedBalanceKeys {
 
 	return resolvedBalanceKeys{
 		Balance: key, Deleted: deleted, LegacyDeleted: key + cachepolicy.DeletionMarkerSuffix,
+		Config: strings.Replace(key, cachepolicy.BalanceNamespacePrefix, "balance-config:"+cachepolicy.HashTag+":", 1),
 	}
 }
 

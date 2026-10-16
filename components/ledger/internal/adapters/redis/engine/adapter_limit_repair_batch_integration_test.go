@@ -138,6 +138,9 @@ func adapterLimitRepairBatchExecution(t *testing.T) (command.EngineExecution, Li
 
 func adapterNoncanonicalLimit(t *testing.T, snapshot core.BalanceSnapshot, limit string) []byte {
 	t.Helper()
+	// The blob's own configuration copy is newer than the request and no
+	// configuration key is live, so the blob decides and its limit needs repair.
+	snapshot.ConfigVersion = 1
 	encoded, err := balancecache.Encode(snapshot, balancecache.FormatDual)
 	require.NoError(t, err)
 	needle := []byte(`"OverdraftLimit":"` + snapshot.OverdraftLimit.String() + `"`)

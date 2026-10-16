@@ -186,6 +186,41 @@ var (
 		Description: "Total cache-miss balance seeds rebuilt from the operation trail because the balance row was stale.",
 	}
 
+	// ConfigKeyReloaded counts configurations reloaded from the PostgreSQL primary
+	// before an engine execution because their configuration key was absent, by
+	// family (balance|account). Absence is normal after a deploy and on every expiry
+	// of the fixed one-hour key lifetime, so the rate is the database cost of that
+	// lifetime.
+	ConfigKeyReloaded = metrics.Metric{
+		Name:        "config_key_reloaded_total",
+		Unit:        "1",
+		Description: "Total balance and account configurations reloaded from the primary database because their configuration key was absent.",
+	}
+
+	// ConfigCopyDivergent counts configurations loaded for an engine execution whose
+	// copy (the blob's, or the row's on a cache miss) carries the version the engine
+	// decides with but other content, by family (balance|account). The engine decides
+	// with the configuration key and keeps the blob's copy, so nothing fails; a
+	// nonzero rate means a release that reads the configuration from the blob changed
+	// it without a version (expected only while earlier pods serve PATCHes), a copy
+	// that diverged before versions existed, or versions moved back.
+	ConfigCopyDivergent = metrics.Metric{
+		Name:        "config_copy_divergent_total",
+		Unit:        "1",
+		Description: "Total balance and account configuration copies found with other content under the version the engine decides with.",
+	}
+
+	// ConfigBlobCopy counts the configuration copies a balance or account PATCH
+	// confirmed or attempted in the balance blobs, by family (balance|account) and
+	// outcome (written|already_current|blob_absent|of_another_balance|conflict|failed).
+	// conflict is a copy that kept losing its compare-and-set and failed the PATCH;
+	// failed is a Redis or blob error. Both answer the PATCH with a technical error.
+	ConfigBlobCopy = metrics.Metric{
+		Name:        "config_blob_copy_total",
+		Unit:        "1",
+		Description: "Total configuration copies a PATCH confirmed or attempted in the balance blobs, by outcome.",
+	}
+
 	// BalanceReconcilerDivergences is how many balances the last reconciler pass
 	// found diverging from the head of their operation trail, by tenant_id (empty
 	// in single-tenant) and direction (balance_ahead|trail_ahead|value_mismatch).

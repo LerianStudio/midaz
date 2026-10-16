@@ -304,7 +304,7 @@ func TestIntegration_AdapterExecute_WritesDualBalanceCacheContract(t *testing.T)
 					"OverdraftUsed":"0","overdraftUsed":"0","Version":9007199254740992,"version":"9007199254740992",
 					"AllowSending":1,"allowSending":true,"AllowReceiving":0,"allowReceiving":false,
 					"AllowOverdraft":1,"allowOverdraft":true,"OverdraftLimitEnabled":0,"overdraftLimitEnabled":false,
-					"OverdraftLimit":"0","overdraftLimit":"0",
+					"OverdraftLimit":"0","overdraftLimit":"0","Blocked":0,"blocked":false,
 					"writerExtension":{"exact":9007199254740997,"kept":true}
 				}`,
 					balance.ID.String(), balance.ID.String(), balance.AccountID.String(), balance.AccountID.String(),

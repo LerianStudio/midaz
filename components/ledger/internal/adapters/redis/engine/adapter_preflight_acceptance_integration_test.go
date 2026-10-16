@@ -15,11 +15,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	redistransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	core "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
+	redistestutil "github.com/LerianStudio/midaz/v4/tests/utils/redis"
 )
 
 func TestIntegration_AdapterExecute_IsolatesSameAliasAcrossAuthenticatedScopes(t *testing.T) {
@@ -84,6 +87,83 @@ func TestIntegration_AdapterExecute_IsolatesSameAliasAcrossAuthenticatedScopes(t
 	require.Equal(t, int64(3), inspector.HLen(committed[0].ctx, committed[0].keys.Recovery).Val())
 	require.Equal(t, int64(1), inspector.ZCard(committed[3].ctx, committed[3].keys.Schedule).Val())
 	require.Equal(t, int64(1), inspector.HLen(committed[3].ctx, committed[3].keys.Recovery).Val())
+}
+
+// A configuration PATCH in one tenant writes that tenant's configuration key only:
+// the engine of another tenant with the same organization, ledger, alias and
+// balance ID never decides with it, and the engine never writes a configuration
+// key. Each tenant's blob receives the configuration its own engine decided.
+func TestIntegration_AdapterExecute_ConfigurationKeysStayInTheirTenant(t *testing.T) {
+	container := redistestutil.SetupReusableContainer(t)
+	patchWriter, err := redistransaction.NewConsumerRedis(redistestutil.CreateConnectionWithDB(t, container.Addr, container.DB))
+	require.NoError(t, err)
+
+	organizationID, ledgerID := uuid.NewString(), uuid.NewString()
+	patchedCtx := tmcore.ContextWithTenantID(context.Background(), "tenant-patched")
+	otherCtx := tmcore.ContextWithTenantID(context.Background(), "tenant-untouched")
+
+	patchedInput, limits := scopedAdapterExecution(t, "tenant-patched", organizationID, ledgerID, 11)
+	otherInput, _ := scopedAdapterExecution(t, "tenant-untouched", organizationID, ledgerID, 11)
+	source := patchedInput.Execution.Balances[0]
+	require.Equal(t, source.ID, otherInput.Execution.Balances[0].ID, "both tenants hold the same balance identity")
+	require.True(t, source.AllowSending, "the request carries sending allowed")
+
+	sendingOff := snapshotBalanceConfig(source, source.ConfigVersion+1)
+	sendingOff.AllowSending = false
+	_, outcome, err := patchWriter.WriteBalanceConfig(patchedCtx, source.OrganizationID, source.LedgerID, source.BalanceRef, sendingOff)
+	require.NoError(t, err)
+	require.Equal(t, redistransaction.ConfigWritten, outcome)
+
+	adapter, err := newAdapterWithLimits(&integrationClientProvider{client: container.Client}, limits)
+	require.NoError(t, err)
+
+	execute := func(ctx context.Context, input command.EngineExecution) (*core.ExecutionResult, resolvedExecutionKeys) {
+		t.Helper()
+
+		ctx = admitEngineSeeds(t, ctx, container.Client, input.Execution)
+		result, err := adapter.Execute(ctx, input)
+		require.NoError(t, err)
+		require.Len(t, result.Final, 1)
+
+		keys, err := resolveAdapterKeys(ctx, input.Execution)
+		require.NoError(t, err)
+
+		return result, keys
+	}
+
+	otherResult, otherKeys := execute(otherCtx, otherInput)
+	assert.True(t, otherResult.Final[0].AllowSending, "another tenant's configuration key must not reach this tenant's engine")
+
+	patchedResult, patchedKeys := execute(patchedCtx, patchedInput)
+	assert.False(t, patchedResult.Final[0].AllowSending, "the tenant's own configuration key decides")
+
+	for _, scope := range []struct {
+		name         string
+		ctx          context.Context
+		keys         resolvedExecutionKeys
+		allowSending bool
+		copyVersion  int64
+	}{
+		{name: "untouched tenant", ctx: otherCtx, keys: otherKeys, allowSending: true, copyVersion: source.ConfigVersion},
+		{name: "patched tenant", ctx: patchedCtx, keys: patchedKeys, allowSending: false, copyVersion: sendingOff.Version},
+	} {
+		raw, err := container.Client.Get(scope.ctx, scope.keys.Balances[source.BalanceRef].Balance).Bytes()
+		require.NoError(t, err, scope.name)
+
+		blob, err := balancecache.Decode(raw)
+		require.NoError(t, err, scope.name)
+		assert.Equal(t, scope.allowSending, blob.AllowSending, "%s: the blob copy holds the configuration its engine decided", scope.name)
+
+		balanceVersion, _, err := balancecache.BlobConfigVersions(raw)
+		require.NoError(t, err, scope.name)
+		assert.Equal(t, scope.copyVersion, balanceVersion, scope.name)
+	}
+
+	assert.Zero(t, container.Client.Exists(otherCtx, otherKeys.Balances[source.BalanceRef].Config).Val(), "the engine never writes a configuration key")
+
+	stored, err := patchWriter.ReadConfigKeys(patchedCtx, source.OrganizationID, source.LedgerID, []string{source.BalanceRef}, nil)
+	require.NoError(t, err)
+	assert.True(t, stored.Balances[source.BalanceRef].Equal(sendingOff), "the transaction leaves the tenant's key as the PATCH wrote it")
 }
 
 func TestIntegration_AdapterExecute_TouchedDeletionMarkerAbortsMixedBatchWithoutWrites(t *testing.T) {

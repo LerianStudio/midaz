@@ -214,12 +214,17 @@ func equalEngineSnapshotAmounts(left, right accounting.BalanceSnapshot) bool {
 		left.Version == right.Version
 }
 
+// equalEngineSnapshotControls also compares the configuration versions: two copies
+// of one balance that carry the same flags under different versions were resolved
+// from different configuration states, and the engine orders by version.
 func equalEngineSnapshotControls(left, right accounting.BalanceSnapshot) bool {
 	return left.AllowSending == right.AllowSending &&
 		left.AllowReceiving == right.AllowReceiving &&
 		left.Blocked == right.Blocked &&
 		left.AllowOverdraft == right.AllowOverdraft &&
-		left.OverdraftLimitEnabled == right.OverdraftLimitEnabled
+		left.OverdraftLimitEnabled == right.OverdraftLimitEnabled &&
+		left.ConfigVersion == right.ConfigVersion &&
+		left.AccountConfigVersion == right.AccountConfigVersion
 }
 
 func overdraftCompanionAliases(explicit []balanceSnapshotEntry) ([]string, map[string]uuid.UUID, error) {
@@ -336,6 +341,8 @@ func balanceToEngineSnapshot(organizationID, ledgerID uuid.UUID, balance *mmodel
 		Blocked:               transactionBalance.Blocked,
 		AllowOverdraft:        transactionBalance.AllowOverdraft,
 		OverdraftLimitEnabled: transactionBalance.OverdraftLimitEnabled,
+		ConfigVersion:         balance.ConfigVersion,
+		AccountConfigVersion:  balance.AccountConfigVersion,
 	}, nil
 }
 

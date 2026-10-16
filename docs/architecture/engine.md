@@ -109,8 +109,9 @@ revert, commit, or cancel that reaches the engine:
    canonical and correlated, then invokes `Engine.Execute` exactly once. It does
    not implement stale-balance or conflict retry.
 6. `redis/engine.Adapter.Execute` resolves tenant-scoped physical keys, including
-   an ordered tail key for every presented account-block exception, builds the
-   bounded protocol-v3 wire request, obtains a supported standalone/Sentinel
+   an ordered tail key for every presented account-block exception and the
+   configuration key of every balance and account of the pool, builds the
+   bounded protocol-v4 wire request, obtains a supported standalone/Sentinel
    client, and sends the assembled Lua script with Redis client retries disabled.
    The execution-level organization and ledger remain the primary scope for
    compatibility, while each balance and transaction carries its effective scope.
@@ -265,11 +266,9 @@ from the request that did not move is published with its seed's amounts and
 version and scheduled for synchronization. That synchronization is
 version-guarded: it leaves PostgreSQL unchanged for a seed read from the current
 row, and updates the row only when the seed was rebuilt ahead of it. The
-published companion takes the account-level `blocked` flag from a balance of its
-account that the execution writes and read from Redis, because an account PATCH
-rewrites that flag only on cached balances and the seed may carry a block state
-the account no longer has; when every written balance of the account was seeded
-too, it keeps its seed's flag. It gets no movement, no version increment, and no
+published companion carries the account-level `blocked` flag the execution
+decided for its account (see [Configuration keys](#configuration-keys)), like
+every other balance of the account. It gets no movement, no version increment, and no
 entry in `Final` or in the recovery evidence. Publication needs the same
 proof a used seed needs: the account is neither closing nor closed, its admission
 is confirmed, and the companion carries no deletion marker. A companion without
@@ -541,18 +540,22 @@ flags retain 0/1 and legacy Version retains its compatible numeric representatio
 
 During dual writing, legacy CamelCase fields win whenever present, regardless of
 SchemaVersion. New lowerCamel fields are authoritative only in a new-only blob.
-Every dual writer updates both representations. An old writer may mutate only
+Every dual writer updates both representations of what it writes. The engine
+writes no configuration field into a blob that exists, so every configuration
+field stays exactly as the blob had it, in whichever representations it has (see
+[Configuration keys](#configuration-keys)). An old writer may mutate only
 the legacy fields while preserving stale lowerCamel fields, so selecting fields
 by schema version would read stale money. Readers must also accept new-only
 blobs; a dual writer reading one reconstructs both representations coherently.
 
-Settings PATCH now uses the shared Go codec for lossless dual conversion, while
-Lua performs the exact-raw-byte CAS. Uppercase fields remain authoritative when
-present. Go emits canonical new money, booleans, and Version strings while
-preserving the exact legacy Version raw token and unknown extensions. The
-operation observes at most three attempts: only a confirmed CAS conflict is
-retryable, a missing cache key is a no-op, and a successful settings write
-refreshes the unchanged 24-hour balance TTL.
+A configuration PATCH writes the configuration keys (see
+[Configuration keys](#configuration-keys)) and then confirms the configuration
+copy in the blob. The copy replaces only the configuration family and its
+version, in the representations the blob already uses, and carries every other
+byte over unchanged; Lua performs the exact-raw-byte CAS. The copy makes up to
+8 attempts, with a jittered pause of 0 to 16 ms after each lost one: only a
+confirmed CAS conflict is retryable, a missing cache key has nothing to confirm,
+and a successful copy refreshes the unchanged 24-hour balance TTL.
 
 The writer inventory includes cold seeds, accounting mutations, settings PATCH,
 conditional limit repair, and any recovery rehydration. Settings writers change
@@ -576,7 +579,8 @@ caller's settings. The existing script performs a read-only whole-batch prefligh
 before any seed or monetary write and reports all noncanonical warm-cache limits.
 
 The engine adapter repairs only after that confirmed prewrite server
-signal. It never repairs from a database snapshot and does not delete or seed a
+signal, which the engine raises only for a blob whose own configuration copy
+decides (see [Configuration keys](#configuration-keys)). It never repairs from a database snapshot and does not delete or seed a
 missing cache entry. Uppercase legacy `OverdraftLimit` remains authoritative when
 present; lower-case `overdraftLimit` is used only when the uppercase field is absent.
 
@@ -643,16 +647,19 @@ integration tests use the same assembled source. Raw Lua assets consume the
 fixed local policy values prepended by `LuaSource` and are not standalone
 definitions of cache policy. The legacy script retains its three top-level KEYS
 and its 25-argument stride per balance; the engine retains exactly three ARGV
-values. The engine key inventory begins with five shared keys, followed by three
+values. The engine key inventory begins with seven shared keys, followed by three
 keys per balance (live value plus both deletion-marker forms), then one grant key
 for each transaction that presents an account-block exception, in transaction
-order, and finally three account-protection keys — `closing`, `closed` and the
+order, and then three account-protection keys — `closing`, `closed` and the
 administrative ownership — for each account of the declared balance pool, once per
-account in stable order. After the coordination keys of any additional scope, the
-inventory closes with one fee-debt list key per debtor the execution declares
+account in stable order. After the coordination keys of any additional scope come
+one fee-debt list key per debtor the execution declares
 (`fee-debt:{transactions}:<org>:<ledger>:<alias#key>`, see the engine README's
-fee-debt protocol). Balance-key bytes and the 24-hour balance-cache TTL are
-unchanged.
+fee-debt protocol). The inventory closes with the configuration block: one
+configuration key per balance, in balance order, then one per account, in the
+order of the account-protection block. The request declares every balance's and
+every account's key indexes explicitly, and Lua verifies each against its position
+and its name. Balance-key bytes and the 24-hour balance-cache TTL are unchanged.
 
 Before the first write, the engine must:
 
@@ -670,8 +677,9 @@ Before the first write, the engine must:
    every explicitly required or posted balance. Deletion markers are never
    bypassed. Generated companions repeat both protections at their exact mutation
    site. An unused pool balance with a marker must not block the request. Live
-   cached money, settings, block state, and version supersede the request seed
-   after identity validation.
+   cached money and version supersede the request seed after identity
+   validation; the settings and the block state are the configuration each
+   balance and account decides (see [Configuration keys](#configuration-keys)).
 5. Check the account-protection controls of every account whose balance the
    execution actually uses. A `closed` value refuses with `account_closed`, a
    `closing` value with `account_closing_in_progress`, and a value that is present
@@ -702,8 +710,9 @@ The earlier Go cache-aside read and this Lua read have different jobs. Go needs 
 complete, scoped seed and account identity to compose and validate the request;
 `query.GetBalances` uses cached data when valid and falls back to primary
 PostgreSQL for misses. Lua then reads Redis again because only that read is
-serialized with the mutation. If the key exists, its live money, settings, and
-version override the seed after identity validation. If it is still absent, the
+serialized with the mutation. If the key exists, its live money and version
+override the seed after identity validation, and its configuration copy competes
+with the configuration key and the request by version. If it is still absent, the
 PostgreSQL snapshot seeds working memory and is written only with a successful
 commit. A concurrent cache fill between the two reads is safe because the Lua
 read wins. The 24-hour cache TTL makes database fallback practical; it is not a
@@ -722,6 +731,108 @@ and serialization failures, but must not promise rollback for runtime/OOM errors
 Such failures are technical and potentially indeterminate; retain evidence and
 do not replay accounting blindly. The existing script's per-balance writes and
 manual rollback must not be mistaken for the target prepared-commit guarantee.
+
+### Configuration keys
+
+The configuration of a balance (`allowSending`, `allowReceiving`,
+`allowOverdraft`, `overdraftLimitEnabled`, `overdraftLimit`, `balanceScope`) and
+of an account (`blocked`) lives in configuration keys of its own, apart from the
+balance blob whose money only the engine writes:
+`balance-config:{transactions}:<org>:<ledger>:<alias#key>` and
+`account-config:{transactions}:<org>:<ledger>:<accountId>`, with the tenant
+prefix in multi-tenant mode and in the slot of the balance blobs. Each value
+carries the PostgreSQL row's configuration with its `configVersion`, and a
+balance value also carries the balance ID. The value contract is fixed in
+`adapters/redis/balancecache/config.go`.
+
+Only Go writes these keys: a PATCH with the row its `UPDATE` returned, and the
+balance load with a primary read when a key is absent. A key lives one hour from
+that write and is never renewed. The engine only reads them. It never writes,
+recreates, or extends one; a key that expired between the balance load and the
+script leaves the request's configuration in force for that execution only.
+
+The balance load uses a live key, except for a balance it seeds from its row on a
+cache miss: that load already read the balance row, through read routing (a
+replica where one serves reads), and its account row, from the primary. Where
+either row carries a newer version than its key, the row decides and the load
+writes it to the key under the same version rule; an equal version keeps the key.
+Where the account key is absent, the account row that load read is written to
+it, so the account is not read again. A row newer than its key was committed
+without the key, by a PATCH an earlier release served or by a PATCH whose key
+write failed before the client's retry. The load logs each such key at Warn. A cached balance reads no row, and its blob
+copy is left to the decision below.
+
+The request carries the configuration the balance load resolved: the snapshot
+holds the balance configuration and `balanceConfigVersion` its version, and each
+account declaration holds `blocked` and `configVersion`. The versions travel
+outside the snapshot, whose shape is also the shape of the engine's result.
+
+Inside the atomic execution each balance decides once, with the newest balance
+configuration among its configuration key, the request, and the copy in its blob
+(a copy without a version field reads 0). Each account decides once, with the
+newest account configuration among its configuration key, the request, and the
+copies in the blobs of its balances in the pool; every balance of the account,
+the overdraft companion included, carries that `blocked` flag. Versions compare
+as integers, never across the two families. On an equal version the key wins
+over the request and the request over the blob copy. A key whose identity is
+not the balance's (left by a deleted balance under the same `alias#key`), or
+whose value is unreadable, is absent. An equal version with different content
+cannot be refused inside the execution without blocking the balance until the
+key expires, so the precedence decides, and the script reports nothing. The Go
+balance load reports it before the execution: it logs at Error a key holding
+other content under the version it writes, and it compares the configuration
+each balance was loaded with (the blob's copy, or the rows on a cache miss) with
+the one it resolved, logging at Warn and counting in
+`config_copy_divergent_total` (label `family`: `balance` or `account`) every
+copy with the same version and other content. A configuration PATCH counts the
+copies it confirmed or attempted in the blobs in `config_blob_copy_total`
+(labels `family` and `outcome`: `written`, `already_current`, `blob_absent`,
+`of_another_balance`, `conflict` or `failed`).
+
+A noncanonical overdraft limit in the blob requests the precommit repair only
+when the blob's own copy decides the configuration; a limit from the key or the
+request is canonical, and the blob keeps its own limit. The repair rewrites the
+blob's own limit in canonical form, with the same value; it copies no
+configuration from a key or a request.
+
+A committed execution writes the configuration copy only into a blob it seeds
+from a cache miss: the decided configuration in both cache representations, with
+`balanceConfigVersion` and `accountConfigVersion` (decimal strings) when the
+decided version is above 0. Into a blob that exists it writes money, `Version`
+and identity as always, and carries every configuration field, in whichever
+representations the blob has it, and both version fields, present or absent,
+over unchanged, whatever the versions. An earlier release changes the copy
+without touching version fields it does not know, so no version field tells how
+old the copy's content is: a live key newer than the blob's version field can
+still be older than a PATCH that release served, and overwriting the copy would
+undo that PATCH for the releases that read the blob, after a rollback for good.
+A refusal writes nothing, and no write was added before the commit phase. A
+cached companion that is only refreshed keeps its value.
+
+The configuration copy in the blob is a compatibility bridge for releases that
+read the configuration from the blob; it is removable once no rollback target
+reads the configuration from the blob. Only the configuration PATCH writes it in
+a blob that exists, and it confirms the copy before answering, through a
+compare-and-set on the exact bytes it read: an execution that commits between
+the PATCH's read and its write makes it lose, and the PATCH reads the blob again,
+so it never writes over newer money. It makes up to 8 attempts, with a
+full-jitter pause after each lost one: a random share, from 0 up to a step that
+starts at 1 ms, doubles, and is capped at 16 ms, so one PATCH pauses less than
+63 ms in all. On a balance whose executions keep Redis busy enough to win every
+attempt, the PATCH answers a technical error, which the client's retry
+completes.
+
+The PATCH fails closed: it never answers with success before the key is written
+and the copy confirmed. A PATCH that answers a technical error has already
+committed the new configuration in PostgreSQL, and retrying it is safe. If the
+key write failed, current pods keep the previous configuration until the retry,
+a seed from a cache miss, or the key's expiry within one hour. If the key was
+written and only the copy failed, current pods already enforce the new
+configuration, while the balance read (which shows the blob's settings) and a
+rollback to an earlier release keep the previous one until the client's retry
+confirms the copy. The rollback guarantee (see
+[Configuration keys beside earlier releases](#configuration-keys-beside-earlier-releases))
+covers the PATCHes that answered with success.
 
 ## Single execution, transport, and error classification
 
@@ -837,7 +948,7 @@ automatically repair a partially executed commit.
 | overdraft_not_eligible | 0492 only for eligible-account route denial; 0018 for forbidden/ineligible paths, preserving validation precedence |
 | overdraft_repay_route_denied | 0492; only for a posting that carries `RepayRouteDenied` |
 | balance_deleted | 0019 |
-| account_blocked | 0502; evaluated from the live cache value inside Lua |
+| account_blocked | 0502; evaluated inside Lua from the account configuration the execution decided |
 | account_block_exception_invalid | 0508 on `Transaction`, correlated to the primary posting; the live grant is missing, malformed, consumed, expired, or has a divergent alias/amount; no state or grant is mutated |
 | balance_missing | 0139 for the corresponding retrieval failure |
 | overdraft_companion_missing | Technical invariant failure, generic 0046 |
@@ -1195,11 +1306,11 @@ organization and ledger, and alias/key identity is verified.
 Parser integration accepts Lua responses encoded as arrays, single objects,
 empty objects, or numeric-indexed objects through the shared codec. It preserves
 original legacy alias/key correlation; invalid entries become technical errors
-and are not silently discarded after a possible commit. For canonical decode
-and PATCH replacement, the adapter normalizes legacy-qualified `alias#domainKey`
-values in a copy, preserving response correlation without arbitrary Redis or
-organization-prefix stripping. PATCH writes domain-only keys after conversion
-and does not change financial or version semantics.
+and are not silently discarded after a possible commit. For canonical decode,
+the adapter normalizes legacy-qualified `alias#domainKey` values in a copy,
+preserving response correlation without arbitrary Redis or organization-prefix
+stripping. The configuration copy a PATCH confirms carries the alias and key
+fields over unchanged and does not change financial or version semantics.
 
 For `GetBalancesByKeys`, a Redis `MGET` nil means only that the key is absent.
 A present malformed, undecodable, or unexpected-typed value is a whole-batch
@@ -1298,6 +1409,78 @@ These protections leave the following unguarded:
   dead-lettered is projected only by the recovery cycle, so in single-tenant
   mode the window can stay open for the whole mixed fleet.
 
+### Configuration keys beside earlier releases
+
+The engine request is protocol 4. Every pod runs the script of its own release,
+by SHA, against the same Redis: the current script refuses a protocol-3 request
+and an earlier script refuses a protocol-4 one, both with `invalid_protocol`
+before any read of live state, so no pod executes the other's request.
+
+The `config_version` columns and their triggers are migrated before the pods
+roll, and earlier releases work over the migrated schema. While earlier and
+current pods run side by side, earlier pods read the configuration from the blob
+copy and current pods decide as described in
+[Configuration keys](#configuration-keys). A configuration PATCH served by an
+earlier pod writes PostgreSQL and the cached blobs but no configuration key, and
+leaves the blob's version fields as they were; a blob an earlier pod seeds from
+scratch has no version fields. Current pods see that change after the
+next PATCH a current pod serves on that balance or account, when a current pod
+seeds one of its balances from a cache miss (for the balance configuration, once
+the replica serving that read has the change), or once the key expires: at most
+one hour. An account blocked by an earlier pod during the
+rollout can therefore still transact on current pods for up to one hour.
+
+Current pods never undo that change in the blob: they never write the
+configuration copy of a blob that exists, whatever its version fields say. A
+committed execution decides with the newest configuration and keeps the blob's
+copy as it is; only a PATCH replaces it.
+
+A rollback therefore needs no data step for the blobs in the cache, outside the
+cases below. The earlier release reads the blob copy and preserves the version
+fields it does not know. Every configuration PATCH that answered with success
+stays in the blob until a later PATCH overwrites it, whichever release served
+it: a current pod confirmed its copy before answering, and the blob write of an
+earlier pod is never undone by a current one. A PATCH that answered a technical
+error is not covered: its copy may still be missing, and the earlier release
+obeys the previous configuration until the client retries the PATCH. The
+configuration keys left behind expire within one hour; after a new rollout, a
+key that outlived the rollback is honored for at most that hour.
+
+These cases stay outside that guarantee, until the next PATCH on the balance or
+account:
+
+- A configuration PATCH a current pod served while a balance's blob was not in
+  the cache has no copy to confirm for that balance. While earlier and current
+  pods run side by side, a transaction an earlier pod served that read the
+  configuration before that PATCH committed, or read it from a replica that has
+  not applied it yet, can then seed the blob with the earlier configuration, and
+  the current engine never rewrites the copy of that blob. The same race exists
+  within the earlier release itself, whose PATCH also has nothing to update when
+  the blob is absent.
+- A blob whose copy already disagreed with PostgreSQL before this release, or
+  that a PATCH an earlier pod served answered with success without updating (the
+  defect this release fixes, still present in earlier pods). The engine keeps
+  that copy.
+- A balance a current pod seeds from a cache miss while an older key still lives
+  decides with the newer row (see [Configuration keys](#configuration-keys)). The
+  account row is read from the primary, so the seeded blob always takes a block
+  an earlier pod committed. The balance row follows read routing: until the
+  replica serving it applies a PATCH an earlier pod served, the seeded blob takes
+  the key's older balance configuration, and the engine never rewrites the copy
+  of that blob afterwards, so after a rollback the earlier release obeys the
+  older configuration until the next PATCH on the balance.
+
+A configuration version may only rise. The down migrations remove the triggers
+and their functions but keep the `config_version` columns, and the up adds a
+column only when it is missing, so a down followed by the up keeps every stored
+version; while the triggers are absent, a configuration change does not raise
+the version. Restoring PostgreSQL to an earlier point moves versions back below
+the copies the cache holds, and such a copy would then decide over every later
+change of its balance or account. A restore therefore requires purging the
+balance blobs and the configuration keys (`balance-config:` and
+`account-config:`) from Redis, as it already does for the live money the blobs
+hold.
+
 ### Cache writer compatibility
 
 The shared readers accept legacy, dual, and schema-version-2 new-only balance
@@ -1307,8 +1490,8 @@ command or recovery flows; it is retained for rollback verification and accepts 
 schema-version-2 new-only blobs; present uppercase values remain authoritative,
 including malformed values that must not fall back to lowerCamel shadows.
 
-Settings PATCH prepares dual replacements in Go and conditionally writes them
-without changing monetary state or Version. Both overdraft-limit repair writers
+A configuration PATCH conditionally writes only the configuration copy, without
+changing monetary state or Version. Both overdraft-limit repair writers
 use the same dual codec and preserve absolute expiry under whole-blob CAS. An
 accounting no-op preserves its original bytes, and legacy rollback restores the
 original raw blob rather than converting it as a side effect. These exceptions
@@ -1337,8 +1520,8 @@ The balance-cache participant inventory is:
 | Role | Entry point | Current write/read contract |
 | --- | --- | --- |
 | Writer | `transaction/scripts/balance_atomic_operation.lua`: cold seed and successful monetary mutation | complete dual |
-| Writer | `engine/script.go` plus `engine/scripts/engine/*.lua`: default engine cold seed and successful monetary mutation | complete dual |
-| Writer | `RedisConsumerRepository.UpdateBalanceCacheSettings` via `balancecache.PatchSettingsDual` | complete dual |
+| Writer | `engine/script.go` plus `engine/scripts/engine/*.lua`: default engine cold seed and successful monetary mutation | complete dual; an existing blob's configuration fields and configuration version fields are carried over unchanged |
+| Writer | `RedisConsumerRepository.CopyBalanceConfigToBlob` and `CopyAccountConfigToBlobs` via `balancecache.CopyBalanceConfig` and `CopyAccountConfig` | configuration family and its version only, in the representations the blob already uses |
 | Writer | `transaction.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `engine.repairBalanceLimits` via `balancecache.NormalizeLimitDual` | complete dual |
 | Writer | `balance_atomic_operation.lua` rollback | exact original bytes; never a format conversion |

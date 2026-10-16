@@ -72,12 +72,16 @@ func (s *BalanceRepoStub) ListByAliasesWithKeys(_ context.Context, _, _ uuid.UUI
 	return nil, nil
 }
 
+func (s *BalanceRepoStub) ListByAliasesWithKeysOnPrimary(_ context.Context, _, _ uuid.UUID, _ []string) ([]*mmodel.Balance, error) {
+	return nil, nil
+}
+
 func (s *BalanceRepoStub) BalancesUpdate(_ context.Context, _, _ uuid.UUID, _ []*mmodel.Balance) error {
 	return nil
 }
 
-func (s *BalanceRepoStub) Update(_ context.Context, _, _, _ uuid.UUID, _ mmodel.UpdateBalance) (*mmodel.Balance, error) {
-	return nil, nil
+func (s *BalanceRepoStub) Update(_ context.Context, _, _, _ uuid.UUID, _ mmodel.UpdateBalance) (*mmodel.Balance, bool, error) {
+	return nil, false, nil
 }
 
 func (s *BalanceRepoStub) Delete(_ context.Context, _, _, _ uuid.UUID) error {

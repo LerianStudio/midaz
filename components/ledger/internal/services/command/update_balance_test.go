@@ -19,6 +19,8 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
@@ -62,7 +64,7 @@ func TestUpdateBalance(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
+		Return(expectedBalance, false, nil).
 		Times(1)
 
 	// Redis returns empty (no cached value)
@@ -71,21 +73,9 @@ func TestUpdateBalance(t *testing.T) {
 		Return("", nil).
 		Times(1)
 
-	// No Settings in the update payload → the cache settings rewrite MUST NOT
-	// fire. AllowSending/AllowReceiving mutations don't touch the overdraft
-	// settings contract guarded by UpdateBalanceCacheSettings.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
-
-	// The allow flags carried by the payload MUST reach the cached blob: the
-	// transaction guard reads them from Redis, and a hot balance renews its TTL
-	// on every operation, so a cache left alone would honour the old flags
-	// indefinitely. Only the flag actually present in the PATCH is forwarded.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheAllowFlags(gomock.Any(), organizationID, ledgerID, "@test#default", &allowSending, nil).
-		Return(nil).
-		Times(1)
+	// The committed row reaches the configuration key and the blob copy that
+	// transactions obey.
+	written := expectBalanceConfigurationWrite(t, mockRedisRepo, organizationID, ledgerID, "@test#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -98,6 +88,8 @@ func TestUpdateBalance(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.Equal(t, expectedBalance.ID, result.ID)
 	assert.False(t, result.AllowSending)
+	assert.False(t, written.AllowSending)
+	assert.True(t, written.AllowReceiving)
 }
 
 // TestUpdateBalance_RepoError tests the Update method when repository returns error
@@ -135,7 +127,7 @@ func TestUpdateBalance_RepoError(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(nil, errors.New(errMSG))
+		Return(nil, false, errors.New(errMSG))
 	// Redis is NOT called when Update fails
 
 	uc := UseCase{
@@ -202,7 +194,7 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(repoBalance, nil).
+		Return(repoBalance, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().
@@ -210,19 +202,9 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 		Return(string(cachedJSON), nil).
 		Times(1)
 
-	// No Settings in the update → the settings rewrite MUST NOT run.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
-
-	// The allow-flags rewrite runs instead, and it is an in-place mutation of
-	// the blob: the in-flight transactional snapshot held in Redis
-	// (Available=500, OnHold=50, Version=5) is neither overwritten nor deleted,
-	// which is why the flags travel through a script rather than a Del.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheAllowFlags(gomock.Any(), organizationID, ledgerID, "@user1#default", &allowSending, nil).
-		Return(nil).
-		Times(1)
+	// The configuration copy never touches the in-flight transactional
+	// snapshot held in Redis (Available=500, OnHold=50, Version=5).
+	expectBalanceConfigurationWrite(t, mockRedisRepo, organizationID, ledgerID, "@user1#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -247,325 +229,229 @@ func TestUpdateBalance_RedisOverlay(t *testing.T) {
 	assert.True(t, result.AllowReceiving)
 }
 
-// TestUpdateBalance_CacheSettingsUpdate_UsesCompositeAliasKey pins the exact
-// composite `alias#key` that the command layer passes to the Redis repo when
-// rewriting settings in the cached balance. If the composition rule drifts
-// (e.g. a refactor separates alias and key into distinct arguments or
-// re-orders them), this test fails loudly so the Lua-mutated balance key
-// and the command-side cache key stay in lock-step.
-//
-// The repo method is responsible for composing BalanceInternalKey from the
-// composite cacheKey + (org, ledger); this test pins the command-side
-// contract with the repo, not the full prefixed Redis key.
-func TestUpdateBalance_CacheSettingsUpdate_UsesCompositeAliasKey(t *testing.T) {
-	t.Parallel()
+// expectBalanceConfigurationWrite expects the configuration key write and then the
+// blob copy of the balance cached under ref, both with the same configuration, and
+// returns that configuration once the key write has seen it.
+func expectBalanceConfigurationWrite(t *testing.T, redisRepo *redis.MockRedisRepository, organizationID, ledgerID uuid.UUID, ref string, copyOutcome redis.BlobCopyOutcome) *accounting.BalanceConfig {
+	t.Helper()
 
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
+	written := &accounting.BalanceConfig{}
 
-	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+	redisRepo.EXPECT().
+		WriteBalanceConfig(gomock.Any(), organizationID, ledgerID, ref, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ string, config accounting.BalanceConfig) (accounting.BalanceConfig, redis.ConfigWriteOutcome, error) {
+			*written = config
 
-	allowOverdraft := true
-	newSettings := &mmodel.BalanceSettings{
-		AllowOverdraft: allowOverdraft,
-	}
-	balanceUpdate := mmodel.UpdateBalance{Settings: newSettings}
-
-	expectedBalance := &mmodel.Balance{
-		ID:             balanceID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Alias:          "@user1",
-		Key:            "default",
-		AllowSending:   true,
-		AllowReceiving: true,
-	}
-
-	// The command layer MUST pass the composite "alias#key" form so the repo
-	// can rebuild BalanceInternalKey consistently with the Lua script's
-	// SET NX key. Any other separator or ordering would desynchronize the
-	// write and the transactional read.
-	expectedCompositeKey := "@user1#default"
-
-	mockBalanceRepo := balance.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	// Settings path triggers Find + ensureOverdraftBalance; stub them as no-ops
-	// that simulate a balance which already has overdraft enabled (avoids the
-	// auto-create side-effect). Find returns a balance whose settings match the
-	// update — enforceOverdraftTransition treats this as a no-op transition.
-	existing := &mmodel.Balance{
-		ID:             balanceID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Alias:          "@user1",
-		Key:            "default",
-		Settings: &mmodel.BalanceSettings{
-			AllowOverdraft: true,
-		},
-	}
-
-	mockBalanceRepo.EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(existing, nil).
+			return config, redis.ConfigWritten, nil
+		}).
 		Times(1)
 
-	mockBalanceRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
+	redisRepo.EXPECT().
+		CopyBalanceConfigToBlob(gomock.Any(), organizationID, ledgerID, ref, gomock.Any()).
+		DoAndReturn(func(_ context.Context, _, _ uuid.UUID, _ string, config accounting.BalanceConfig) (redis.BlobCopyOutcome, error) {
+			assert.Equal(t, *written, config, "the blob copy must carry the configuration written to the key, after it")
+
+			return copyOutcome, nil
+		}).
 		Times(1)
 
-	// The Get overlay still uses the same prefixed key; keep it tolerant.
-	mockRedisRepo.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Return("", nil).
-		Times(1)
-
-	// HARD GATE: the cacheKey arg MUST be the composite "alias#key".
-	// The new settings payload MUST be forwarded verbatim so the repo can
-	// apply an in-place rewrite without losing live transactional state.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), organizationID, ledgerID, expectedCompositeKey, newSettings).
-		Return(nil).
-		Times(1)
-
-	// A settings-only payload carries no allow flag, so the allow-flags
-	// rewrite MUST NOT run: it would renew the blob's TTL for nothing.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheAllowFlags(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
-
-	uc := UseCase{
-		BalanceRepo:          mockBalanceRepo,
-		TransactionRedisRepo: mockRedisRepo,
-	}
-
-	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, expectedBalance.ID, result.ID)
+	return written
 }
 
-// TestUpdateBalance_CacheSettingsUpdate_FailureIsBestEffort verifies that a
-// Redis failure during the settings-only cache rewrite does not propagate to
-// the caller: the PostgreSQL write has already succeeded and is durable, so
-// the update must still return the updated balance. A subsequent
-// transaction's cache miss (or the sync worker) will reconcile.
-//
-// A Settings payload is used to guarantee the cache-rewrite path actually
-// executes (non-settings updates skip the rewrite by design).
-func TestUpdateBalance_CacheSettingsUpdate_FailureIsBestEffort(t *testing.T) {
+// TestUpdateBalance_ConfigurationWrite_CarriesTheReturnedRow pins what reaches
+// the configuration key: the whole row the UPDATE returned, with its version,
+// under the composite alias#key the engine reads — not the PATCH payload. A
+// settings PATCH therefore keeps the allow flags of the row, and an allow-flags
+// PATCH keeps its settings.
+func TestUpdateBalance_ConfigurationWrite_CarriesTheReturnedRow(t *testing.T) {
 	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
 
 	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
 	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
 	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	allowOverdraft := true
-	balanceUpdate := mmodel.UpdateBalance{
-		Settings: &mmodel.BalanceSettings{
-			AllowOverdraft: allowOverdraft,
-		},
+	allowSending, allowReceiving := false, true
+
+	// Each case builds its own row: Update receives it as the UPDATE result and
+	// may write cached amounts into it, so parallel cases must not share it.
+	newReturned := func() *mmodel.Balance {
+		return &mmodel.Balance{
+			ID:             balanceID.String(),
+			OrganizationID: organizationID.String(),
+			LedgerID:       ledgerID.String(),
+			Alias:          "@user1",
+			Key:            "",
+			AllowSending:   false,
+			AllowReceiving: true,
+			ConfigVersion:  7,
+			Settings: &mmodel.BalanceSettings{
+				BalanceScope:          mmodel.BalanceScopeTransactional,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        strPtr("250.50"),
+			},
+		}
 	}
 
-	expectedBalance := &mmodel.Balance{
-		ID:             balanceID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Alias:          "@user1",
-		Key:            "default",
+	cases := map[string]mmodel.UpdateBalance{
+		"allow flags": {AllowSending: &allowSending, AllowReceiving: &allowReceiving},
+		"settings": {Settings: &mmodel.BalanceSettings{
+			OverdraftLimitEnabled: true,
+			OverdraftLimit:        strPtr("250.50"),
+		}},
 	}
 
-	// Find returns a balance whose settings already match the update — the
-	// enforceOverdraftTransition check treats this as a no-op transition so
-	// the test stays focused on the cache-rewrite failure path.
-	existing := &mmodel.Balance{
-		ID:             balanceID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Alias:          "@user1",
-		Key:            "default",
-		Settings: &mmodel.BalanceSettings{
-			AllowOverdraft: true,
-		},
+	for name, update := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			mockBalanceRepo := balance.NewMockRepository(ctrl)
+			mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+
+			returned := newReturned()
+			current := *returned
+			current.Settings = nil
+
+			mockBalanceRepo.EXPECT().Find(gomock.Any(), organizationID, ledgerID, balanceID).Return(&current, nil).Times(1)
+			mockBalanceRepo.EXPECT().Update(gomock.Any(), organizationID, ledgerID, balanceID, gomock.Any()).Return(returned, false, nil).Times(1)
+			mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).Times(1)
+
+			// A legacy row with an empty key is cached under the default key.
+			written := expectBalanceConfigurationWrite(t, mockRedisRepo, organizationID, ledgerID, "@user1#default", redis.BlobCopyAlreadyCurrent)
+
+			uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo}
+
+			_, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, update)
+			require.NoError(t, err)
+
+			assert.True(t, written.Equal(accounting.BalanceConfig{
+				BalanceID:             balanceID,
+				Version:               7,
+				AllowSending:          false,
+				AllowReceiving:        true,
+				OverdraftLimitEnabled: true,
+				OverdraftLimit:        decimal.RequireFromString("250.5"),
+				BalanceScope:          mmodel.BalanceScopeTransactional,
+			}), "written: %+v", *written)
+		})
 	}
-
-	mockBalanceRepo := balance.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	mockBalanceRepo.EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(existing, nil).
-		Times(1)
-
-	mockBalanceRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
-		Times(1)
-
-	mockRedisRepo.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Return("", nil).
-		Times(1)
-
-	// Redis is down / network partition. The use case must swallow the error
-	// and return the updated balance anyway — the PG write is the source of
-	// truth and cannot be rolled back at this point.
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), organizationID, ledgerID, gomock.Any(), gomock.Any()).
-		Return(errors.New("redis connection refused")).
-		Times(1)
-
-	uc := UseCase{
-		BalanceRepo:          mockBalanceRepo,
-		TransactionRedisRepo: mockRedisRepo,
-	}
-
-	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
-
-	require.NoError(t, err, "Cache rewrite failure must not propagate — PG write is durable")
-	require.NotNil(t, result)
-	assert.Equal(t, expectedBalance.ID, result.ID)
 }
 
-// TestUpdateBalance_CacheAllowFlagsUpdate_ForwardsBothFlags pins that a PATCH
-// carrying both allow flags forwards both pointers, so neither is left to the
-// tri-state "keep" branch of the Lua script.
-func TestUpdateBalance_CacheAllowFlagsUpdate_ForwardsBothFlags(t *testing.T) {
+// TestUpdateBalance_ConfigurationWrite_FailsClosed pins the fail-closed posture:
+// PostgreSQL already committed, but answering success while the configuration key
+// or the blob copy may still hold the previous configuration would let
+// transactions keep obeying it. Every Redis failure, and a copy still unconfirmed
+// after its compare-and-set attempts, fails the PATCH; the repository error
+// surfaces unwrapped. A blob that is absent, already current or belongs to
+// another balance (one deleted and recreated under the same alias#key) leaves
+// nothing to confirm.
+func TestUpdateBalance_ConfigurationWrite_FailsClosed(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
+	errRedis := errors.New("redis connection refused")
 
-	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	allowSending := false
-	allowReceiving := true
-
-	balanceUpdate := mmodel.UpdateBalance{
-		AllowSending:   &allowSending,
-		AllowReceiving: &allowReceiving,
+	// An empty PATCH still writes the row's configuration and confirms its copy, so
+	// a cache failure fails it too; a client that sends one may retry it safely.
+	// Each case builds its own payload: Update normalizes the settings in place, so
+	// parallel cases must not share their pointers.
+	payloads := map[string]func() mmodel.UpdateBalance{
+		"allow flags": func() mmodel.UpdateBalance { return mmodel.UpdateBalance{AllowSending: boolPtr(false)} },
+		"settings": func() mmodel.UpdateBalance {
+			return mmodel.UpdateBalance{Settings: &mmodel.BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: strPtr("10")}}
+		},
+		"empty": func() mmodel.UpdateBalance { return mmodel.UpdateBalance{} },
 	}
 
-	expectedBalance := &mmodel.Balance{
-		ID:             balanceID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Alias:          "@user1",
-		Key:            "default",
-		AllowSending:   false,
-		AllowReceiving: true,
+	// counted is the outcome the blob copy counter records, empty when no copy ran.
+	cases := []struct {
+		name        string
+		writeErr    error
+		copyOutcome redis.BlobCopyOutcome
+		copyErr     error
+		wantErr     error
+		counted     string
+	}{
+		{name: "key write fails", writeErr: errRedis, wantErr: errRedis},
+		{name: "blob copy fails", copyErr: errRedis, wantErr: errRedis, counted: "failed"},
+		{name: "blob copy unconfirmed", copyOutcome: redis.BlobCopyConflict, wantErr: errConfigurationCopyNotConfirmed, counted: "conflict"},
+		{name: "blob copy written", copyOutcome: redis.BlobCopyWritten, counted: "written"},
+		{name: "blob already current", copyOutcome: redis.BlobCopyAlreadyCurrent, counted: "already_current"},
+		{name: "blob absent", copyOutcome: redis.BlobCopyBlobAbsent, counted: "blob_absent"},
+		{name: "blob of another balance", copyOutcome: redis.BlobCopyOfAnotherBalance, counted: "of_another_balance"},
 	}
 
-	mockBalanceRepo := balance.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
+	for payloadName, newPayload := range payloads {
+		for _, tc := range cases {
+			t.Run(payloadName+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
 
-	mockBalanceRepo.EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(expectedBalance, nil).
-		Times(1)
+				update := newPayload()
+				organizationID := uuid.Must(libCommons.GenerateUUIDv7())
+				ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+				balanceID := uuid.Must(libCommons.GenerateUUIDv7())
 
-	mockBalanceRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
-		Times(1)
+				row := &mmodel.Balance{ID: balanceID.String(), Alias: "@user1", Key: "default", AllowReceiving: true, ConfigVersion: 3}
 
-	mockRedisRepo.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Return("", nil).
-		Times(1)
+				ctrl := gomock.NewController(t)
+				mockBalanceRepo := balance.NewMockRepository(ctrl)
+				mockRedisRepo := redis.NewMockRedisRepository(ctrl)
 
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheAllowFlags(gomock.Any(), organizationID, ledgerID, "@user1#default", &allowSending, &allowReceiving).
-		Return(nil).
-		Times(1)
+				mockBalanceRepo.EXPECT().Find(gomock.Any(), organizationID, ledgerID, balanceID).Return(row, nil).Times(1)
+				mockBalanceRepo.EXPECT().Update(gomock.Any(), organizationID, ledgerID, balanceID, update).Return(row, false, nil).Times(1)
 
-	uc := UseCase{
-		BalanceRepo:          mockBalanceRepo,
-		TransactionRedisRepo: mockRedisRepo,
+				mockRedisRepo.EXPECT().
+					WriteBalanceConfig(gomock.Any(), organizationID, ledgerID, "@user1#default", gomock.Any()).
+					Return(accounting.BalanceConfig{}, redis.ConfigWritten, tc.writeErr).
+					Times(1)
+
+				copyCalls := 1
+				if tc.writeErr != nil {
+					copyCalls = 0
+				}
+
+				mockRedisRepo.EXPECT().
+					CopyBalanceConfigToBlob(gomock.Any(), organizationID, ledgerID, "@user1#default", gomock.Any()).
+					Return(tc.copyOutcome, tc.copyErr).
+					Times(copyCalls)
+
+				// The overlay read sits after the gate.
+				overlayCalls := 1
+				if tc.wantErr != nil {
+					overlayCalls = 0
+				}
+
+				mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).Times(overlayCalls)
+
+				reader, factory := newReaderFactory(t)
+				uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo, MetricsFactory: factory}
+
+				result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, update)
+
+				wantCounts := map[string]int64{}
+				if tc.counted != "" {
+					wantCounts["balance/"+tc.counted] = 1
+				}
+
+				assert.Equal(t, wantCounts, collectBlobCopyCounters(t, reader))
+
+				if tc.wantErr == nil {
+					require.NoError(t, err)
+					require.NotNil(t, result)
+
+					return
+				}
+
+				require.Error(t, err, "the PATCH must fail")
+				assert.Nil(t, result)
+				assert.ErrorIs(t, err, tc.wantErr)
+				assert.False(t, pkg.IsBusinessError(err), "a cache failure is a technical error")
+
+				if tc.writeErr != nil || tc.copyErr != nil {
+					assert.Equal(t, errRedis.Error(), err.Error(), "the repository error must surface unwrapped")
+				}
+			})
+		}
 	}
-
-	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	assert.Equal(t, expectedBalance.ID, result.ID)
-	assert.False(t, result.AllowSending)
-	assert.True(t, result.AllowReceiving)
-}
-
-// TestUpdateBalance_CacheAllowFlagsUpdate_FailureFailsRequest pins the
-// fail-closed posture: the PostgreSQL write is already durable, but returning
-// success with a stale cached flag would let the transaction guard keep
-// approving on the old value, and a hot balance never heals on its own. The
-// client's retry re-runs the idempotent PATCH and fixes the blob.
-func TestUpdateBalance_CacheAllowFlagsUpdate_FailureFailsRequest(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	t.Cleanup(ctrl.Finish)
-
-	organizationID := uuid.Must(libCommons.GenerateUUIDv7())
-	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-	balanceID := uuid.Must(libCommons.GenerateUUIDv7())
-
-	allowSending := false
-	balanceUpdate := mmodel.UpdateBalance{AllowSending: &allowSending}
-
-	expectedBalance := &mmodel.Balance{
-		ID:             balanceID.String(),
-		OrganizationID: organizationID.String(),
-		LedgerID:       ledgerID.String(),
-		Alias:          "@user1",
-		Key:            "default",
-	}
-
-	mockBalanceRepo := balance.NewMockRepository(ctrl)
-	mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-	mockBalanceRepo.EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, balanceID).
-		Return(expectedBalance, nil).
-		Times(1)
-
-	mockBalanceRepo.EXPECT().
-		Update(gomock.Any(), organizationID, ledgerID, balanceID, balanceUpdate).
-		Return(expectedBalance, nil).
-		Times(1)
-
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheAllowFlags(gomock.Any(), organizationID, ledgerID, "@user1#default", &allowSending, nil).
-		Return(errors.New("redis connection refused")).
-		Times(1)
-
-	// The overlay Get and the settings rewrite sit after the gate and MUST NOT
-	// be reached.
-	mockRedisRepo.EXPECT().
-		Get(gomock.Any(), gomock.Any()).
-		Times(0)
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
-
-	uc := UseCase{
-		BalanceRepo:          mockBalanceRepo,
-		TransactionRedisRepo: mockRedisRepo,
-	}
-
-	result, err := uc.Update(context.TODO(), organizationID, ledgerID, balanceID, balanceUpdate)
-
-	require.Error(t, err, "an allow-flags propagation failure MUST fail the PATCH")
-	assert.Nil(t, result)
-	assert.Equal(t, "redis connection refused", err.Error(),
-		"the repository error MUST surface unwrapped to the caller")
 }
 
 func TestUpdateBalances_PrimaryPath_UsesAfterDirectly(t *testing.T) {

@@ -73,20 +73,28 @@ type integrationFixture struct {
 func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrationFixture {
 	t.Helper()
 
+	return newIntegrationFixtureWithPrefix(t, client, "test:"+strings.ReplaceAll(t.Name(), "/", ":")+":")
+}
+
+// newIntegrationFixtureWithPrefix places every key of the fixture under prefix. A
+// tenant prefix ("tenant:<id>:") puts the keys where the Go cache writers of that
+// tenant address them.
+func newIntegrationFixtureWithPrefix(t *testing.T, client redis.UniversalClient, prefix string) *integrationFixture {
+	t.Helper()
+
 	input, limits, resolved := validWireExecution()
 	input.Execution.Balances[0].Available = decimal.NewFromInt(100)
 	input.Execution.Balances[0].Version = 0
 	input.Execution.Balances[0].AllowOverdraft = true
 	input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(30)
 	input.CompletionPlans[0].Payload = json.RawMessage(`{"action":"direct","opaque":true,"version":9007199254740993}`)
-	prefix := "test:" + strings.ReplaceAll(t.Name(), "/", ":") + ":"
 	replace := func(key string) string { return strings.Replace(key, "tenant:fixture:", prefix, 1) }
 	resolved.Schedule, resolved.Recovery = replace(resolved.Schedule), replace(resolved.Recovery)
 	resolved.Receipts, resolved.Guards, resolved.Protection = replace(resolved.Receipts), replace(resolved.Guards), replace(resolved.Protection)
 	resolved.TransactionIndex, resolved.Evidence = replace(resolved.TransactionIndex), replace(resolved.Evidence)
 	for ref, pair := range resolved.Balances {
 		resolved.Balances[ref] = resolvedBalanceKeys{
-			Balance: replace(pair.Balance), Deleted: replace(pair.Deleted), LegacyDeleted: replace(pair.LegacyDeleted),
+			Balance: replace(pair.Balance), Deleted: replace(pair.Deleted), LegacyDeleted: replace(pair.LegacyDeleted), Config: replace(pair.Config),
 		}
 	}
 	resolved.Accounts = make(map[uuid.UUID]resolvedAccountKeys)
@@ -98,7 +106,7 @@ func newIntegrationFixture(t *testing.T, client redis.UniversalClient) *integrat
 	t.Cleanup(func() {
 		keys := []string{resolved.Schedule, resolved.Recovery, resolved.Receipts, resolved.Guards, resolved.Protection, resolved.TransactionIndex, resolved.Evidence}
 		for _, pair := range fixture.resolved.Balances {
-			keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted)
+			keys = append(keys, pair.Balance, pair.Deleted, pair.LegacyDeleted, pair.Config)
 		}
 		for _, key := range fixture.resolved.AccountBlockExceptions {
 			keys = append(keys, key)
@@ -126,7 +134,7 @@ func (f *integrationFixture) syncAccountProtection(t *testing.T) {
 		}
 
 		accounts[accountID] = protection
-		f.protectionKeys = append(f.protectionKeys, protection.Closing, protection.Closed, protection.Ownership)
+		f.protectionKeys = append(f.protectionKeys, protection.Closing, protection.Closed, protection.Ownership, protection.Config)
 		admitSharedSeeds(t, f.client, protection.Ownership, testAdmissionToken)
 	}
 
@@ -226,6 +234,43 @@ func (f *integrationFixture) seed(t *testing.T, index int, snapshot accounting.B
 	require.NoError(t, err)
 	key := f.resolved.Balances[f.input.Execution.Balances[index].BalanceRef].Balance
 	require.NoError(t, f.client.Set(context.Background(), key, encoded, time.Hour).Err())
+}
+
+// writeBalanceConfig stores the configuration key of the balance at index, as Go
+// writes it from a PostgreSQL row: the engine only ever reads it.
+func (f *integrationFixture) writeBalanceConfig(t *testing.T, index int, config accounting.BalanceConfig) {
+	t.Helper()
+	encoded, err := balancecache.EncodeBalanceConfig(config)
+	require.NoError(t, err)
+	key := f.resolved.Balances[f.input.Execution.Balances[index].BalanceRef].Config
+	require.NoError(t, f.client.Set(context.Background(), key, encoded, cachepolicy.ConfigKeyTTL).Err())
+}
+
+// writeAccountConfig stores the configuration key of one account of the pool.
+func (f *integrationFixture) writeAccountConfig(t *testing.T, config accounting.AccountConfig) {
+	t.Helper()
+	f.syncAccountProtection(t)
+	encoded, err := balancecache.EncodeAccountConfig(config)
+	require.NoError(t, err)
+	require.NoError(t, f.client.Set(context.Background(), f.resolved.Accounts[config.AccountID].Config, encoded, cachepolicy.ConfigKeyTTL).Err())
+}
+
+// liveConfiguration makes the configuration of live the one a PATCH committed
+// after the request was composed: both configuration keys of the balance at
+// index carry it at version, newer than the request's.
+func (f *integrationFixture) liveConfiguration(t *testing.T, index int, live accounting.BalanceSnapshot, version int64) {
+	t.Helper()
+	f.writeBalanceConfig(t, index, snapshotBalanceConfig(live, version))
+	f.writeAccountConfig(t, accounting.AccountConfig{AccountID: live.AccountID, Version: version, Blocked: live.Blocked})
+}
+
+func snapshotBalanceConfig(balance accounting.BalanceSnapshot, version int64) accounting.BalanceConfig {
+	return accounting.BalanceConfig{
+		BalanceID: balance.ID, Version: version,
+		AllowSending: balance.AllowSending, AllowReceiving: balance.AllowReceiving,
+		AllowOverdraft: balance.AllowOverdraft, OverdraftLimitEnabled: balance.OverdraftLimitEnabled,
+		OverdraftLimit: balance.OverdraftLimit, BalanceScope: balance.BalanceScope,
+	}
 }
 
 type integrationStoredKey struct {
@@ -451,7 +496,8 @@ func TestIntegrationEngineCompositionAndLiveSettings(t *testing.T) {
 			live := f.input.Execution.Balances[0]
 			live.AllowOverdraft, live.OverdraftLimitEnabled = true, true
 			live.OverdraftLimit = decimal.NewFromInt(50)
-			f.seed(t, 0, live)
+			f.seed(t, 0, f.input.Execution.Balances[0])
+			f.liveConfiguration(t, 0, live, 1)
 			before := f.capture(t)
 			raw, err := f.run(t)
 			if amount == 51 {
@@ -521,11 +567,12 @@ func TestIntegrationEngineValidatesBalanceRequirementsAgainstLiveState(t *testin
 			}}
 			fixture.input.Execution.Transactions[0].RejectBlockedBalances = test.rejectBlocked
 
+			fixture.seed(t, 0, *seed)
 			live := *seed
 			if test.live != nil {
 				test.live(&live)
 			}
-			fixture.seed(t, 0, live)
+			fixture.liveConfiguration(t, 0, live, 1)
 			before := fixture.capture(t)
 
 			_, err := fixture.run(t)
@@ -550,8 +597,9 @@ func TestIntegrationEngineAccountBlockExceptionGrant(t *testing.T) {
 	seedBlockedSource := func(t *testing.T, fixture *integrationFixture) {
 		t.Helper()
 		live := fixture.input.Execution.Balances[0]
-		live.Blocked = true
 		fixture.seed(t, 0, live)
+		live.Blocked = true
+		fixture.liveConfiguration(t, 0, live, 1)
 	}
 
 	t.Run("valid grant bypasses a blocked source and is consumed before the receipt", func(t *testing.T) {
@@ -676,11 +724,10 @@ func TestIntegrationEngineAccountBlockExceptionGrant(t *testing.T) {
 		fixture.addCompanion("0")
 		setSourceRequirement(fixture)
 		primary := fixture.input.Execution.Balances[0]
-		primary.Blocked = true
-		companion := fixture.input.Execution.Balances[1]
-		companion.Blocked = true
 		fixture.seed(t, 0, primary)
-		fixture.seed(t, 1, companion)
+		fixture.seed(t, 1, fixture.input.Execution.Balances[1])
+		primary.Blocked = true
+		fixture.liveConfiguration(t, 0, primary, 1)
 		grantKey := fixture.addGrant(t, "@source", "30")
 
 		raw, err := fixture.run(t)
@@ -695,8 +742,9 @@ func TestIntegrationEngineAccountBlockExceptionGrant(t *testing.T) {
 		fixture := newIntegrationFixture(t, container.Client)
 		setSourceRequirement(fixture)
 		live := fixture.input.Execution.Balances[0]
-		live.AllowSending = false
 		fixture.seed(t, 0, live)
+		live.AllowSending = false
+		fixture.liveConfiguration(t, 0, live, 1)
 		fixture.addGrant(t, "@source", "30")
 
 		_, err := fixture.run(t)
@@ -725,8 +773,9 @@ func TestIntegrationEngineAccountBlockExceptionGrant(t *testing.T) {
 		transaction.RejectBlockedBalances = true
 		fixture.input.Execution.Balances[0].OnHold = decimal.NewFromInt(30)
 		live := fixture.input.Execution.Balances[0]
-		live.Blocked = true
 		fixture.seed(t, 0, live)
+		live.Blocked = true
+		fixture.liveConfiguration(t, 0, live, 1)
 		grantKey := fixture.addGrant(t, "@source", "30")
 
 		raw, err := fixture.run(t)
@@ -826,6 +875,7 @@ func TestIntegrationEngineUsesLivePermissionInsteadOfSeedPermission(t *testing.T
 	live.AllowSending = true
 	live.Version = 9
 	fixture.seed(t, 0, live)
+	fixture.liveConfiguration(t, 0, live, 1)
 
 	raw, err := fixture.run(t)
 	require.NoError(t, err)
@@ -1177,6 +1227,9 @@ func TestIntegrationEngineNoncanonicalLimitStillRequiresRepair(t *testing.T) {
 				}
 				fields[field], err = json.Marshal(limit)
 				require.NoError(t, err)
+				// The blob's own copy decides only while it is newer than the
+				// request and no configuration key is live.
+				fields[balancecache.BlobBalanceConfigVersionField] = json.RawMessage(`"1"`)
 				encoded, err = json.Marshal(fields)
 				require.NoError(t, err)
 				_, err = balancecache.Decode(encoded)
@@ -1433,8 +1486,8 @@ func TestIntegrationEngineRejectsMalformedProtocol(t *testing.T) {
 			raw := string(f.prepared(t).Payload)
 			switch kind {
 			case "duplicate key":
-				require.Contains(t, raw, `"protocolVersion":3`)
-				raw = strings.Replace(raw, `"protocolVersion":3`, `"protocolVersion":3,"protocolVersion":3`, 1)
+				require.Contains(t, raw, `"protocolVersion":4`)
+				raw = strings.Replace(raw, `"protocolVersion":4`, `"protocolVersion":4,"protocolVersion":4`, 1)
 			case "trailing JSON":
 				raw += `{}`
 			case "array as object", "postings as object":

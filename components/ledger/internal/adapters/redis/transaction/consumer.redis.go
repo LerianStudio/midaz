@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/balancecache"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -45,12 +46,6 @@ var claimBalanceSyncKeysLua string
 
 //go:embed scripts/update_balance_settings.lua
 var updateBalanceSettingsLua string
-
-//go:embed scripts/update_balance_blocked.lua
-var updateBalanceBlockedLua string
-
-//go:embed scripts/update_balance_allow_flags.lua
-var updateBalanceAllowFlagsLua string
 
 //go:embed scripts/delete_if_value.lua
 var deleteIfValueLua string
@@ -74,8 +69,7 @@ var compareDeleteRecoveryLua string
 var acknowledgeEngineRecoveryLua string
 
 // balanceAtomicScript, claimBalanceSyncScript, updateBalanceSettingsScript,
-// updateBalanceBlockedScript, updateBalanceAllowFlagsScript, deleteIfValueScript,
-// expireIfValueScript, normalizeBalanceLimitScript, compareDeleteRecoveryScript,
+// deleteIfValueScript, expireIfValueScript, normalizeBalanceLimitScript, compareDeleteRecoveryScript,
 // and acknowledgeEngineRecoveryScript are built once at package init.
 // redis.NewScript computes the source SHA1 eagerly, so hoisting these out of the
 // per-call hot paths avoids re-hashing on every invocation. *redis.Script is
@@ -84,8 +78,6 @@ var (
 	balanceAtomicScript             = redis.NewScript(balanceAtomicOperationLua)
 	claimBalanceSyncScript          = redis.NewScript(claimBalanceSyncKeysLua)
 	updateBalanceSettingsScript     = redis.NewScript(updateBalanceSettingsLua)
-	updateBalanceBlockedScript      = redis.NewScript(updateBalanceBlockedLua)
-	updateBalanceAllowFlagsScript   = redis.NewScript(updateBalanceAllowFlagsLua)
 	deleteIfValueScript             = redis.NewScript(deleteIfValueLua)
 	expireIfValueScript             = redis.NewScript(expireIfValueLua)
 	markAccountClosingWriteScript   = redis.NewScript(markAccountClosingWriteLua)
@@ -276,41 +268,29 @@ type RedisRepository interface {
 	// preventing removal of entries re-scheduled by newer mutations.
 	// Returns the number of keys actually removed from the schedule.
 	RemoveBalanceSyncKeysBatch(ctx context.Context, keys []SyncKey) (int64, error)
-	// UpdateBalanceCacheSettings performs an in-place, settings-only update of a
-	// cached balance entry. It GETs the current JSON blob, mutates ONLY the
-	// overdraft/scope settings fields, and SETs it back with the Lua script's
-	// canonical balanceCacheSettingsTTL.
-	//
-	// Transactional fields (Available, OnHold, Version, OverdraftUsed) are
-	// deliberately NOT touched: the Redis copy is the authoritative live state
-	// that the atomic Lua script mutates on every transaction, and may be ahead
-	// of PostgreSQL while sync is pending. Overwriting them — or deleting the
-	// key outright — would lose in-flight mutations.
-	//
-	// A cache miss (key absent) is a no-op: the next transaction will load the
-	// freshly-updated settings directly from PostgreSQL on its first SETNX.
-	UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error
-	// UpdateBalanceCacheBlocked rewrites the account-level Blocked flag in
-	// place on every cached balance blob of an account in a single atomic Lua
-	// EVAL (all balance keys share the {transactions} hash slot). Cache keys
-	// are "alias#key" pairs; absent keys are skipped — the on-demand hydration
-	// covers them with the freshly persisted value on the next miss. Live
-	// transactional state (Available, OnHold, Version, OverdraftUsed) is
-	// preserved; the key is never deleted.
-	UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error
-	// UpdateBalanceCacheAllowFlags rewrites the AllowSending/AllowReceiving
-	// flags in place on the cached blob of one balance ("alias#key") in a
-	// single atomic Lua EVAL. Each flag is applied only when its pointer is
-	// non-nil, so a PATCH carrying one flag leaves the other as cached. Live
-	// transactional state (Available, OnHold, Version, OverdraftUsed) is
-	// preserved; the key is never deleted.
-	//
-	// Both pointers nil is a no-op that never reaches Redis. An absent key is
-	// a no-op too — the on-demand hydration covers it with the freshly
-	// persisted value on the next miss. A blob the script cannot decode is
-	// reported but not an error: the atomic script cannot decode it either, so
-	// it approves no transaction.
-	UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error
+	// ReadConfigKeys reads the configuration keys of the given balances (alias#key)
+	// and accounts in one MGET, without touching their expiry. Missing and
+	// unreadable keys have no entry; a balance entry of another balance ID is
+	// absent for the caller (BalanceConfig.Describes). The key contract is in
+	// package balancecache.
+	ReadConfigKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string, accountIDs []uuid.UUID) (ConfigKeyValues, error)
+	// WriteBalanceConfig writes one balance configuration key (alias#key) when it is
+	// absent, of another balance or older, and returns the value it holds afterwards.
+	// Same version and content is ConfigUnchanged (expiry untouched); a newer stored
+	// version is ConfigSuperseded and is returned; same version with other content is
+	// ErrConfigVersionConflict and nothing is written.
+	WriteBalanceConfig(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRef string, config accounting.BalanceConfig) (accounting.BalanceConfig, ConfigWriteOutcome, error)
+	// WriteAccountConfig is WriteBalanceConfig for the configuration key of one account.
+	WriteAccountConfig(ctx context.Context, organizationID, ledgerID uuid.UUID, config accounting.AccountConfig) (accounting.AccountConfig, ConfigWriteOutcome, error)
+	// CopyBalanceConfigToBlob writes the complete balance configuration and its
+	// version into the balance blob (alias#key) when the blob holds an older copy,
+	// through an exact-bytes compare-and-set that never overwrites newer money.
+	// Compatibility bridge for releases that read the configuration from the blob.
+	CopyBalanceConfigToBlob(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRef string, config accounting.BalanceConfig) (BlobCopyOutcome, error)
+	// CopyAccountConfigToBlobs writes the account's blocked flag and its version into
+	// every given blob of the account (alias#key) that holds an older copy, reading
+	// them in one MGET; same compare-and-set rule as CopyBalanceConfigToBlob.
+	CopyAccountConfigToBlobs(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string, config accounting.AccountConfig) (map[string]BlobCopyOutcome, error)
 	// CreateAccountBlockExceptions writes a batch of single-use account-block
 	// exceptions, one key per exception with its own native Redis expiry. The
 	// cache is the exception's COMPLETE storage: there is no table, no sweeper
@@ -2833,24 +2813,17 @@ func boolToRedisFlag(value bool) int {
 }
 
 // balanceCacheSettingsTTL uses the canonical balance cache lifetime shared by
-// the balance atomic Lua script and settings-only updates. Keeping both paths on
-// the same policy prevents configuration edits from changing cache lifecycle
-// semantics relative to ordinary transaction mutations.
+// the balance atomic Lua script and the configuration copy into the blob.
+// Keeping both paths on the same policy prevents configuration edits from
+// changing cache lifecycle semantics relative to ordinary transaction mutations.
 const balanceCacheSettingsTTL = cachepolicy.BalanceTTL
 
-// maxBalanceSettingsCASAttempts bounds retries caused by confirmed concurrent
-// cache mutations. Redis transport errors are returned immediately because an
-// EVAL error may be commit-ambiguous and the client controls transport retries.
-const maxBalanceSettingsCASAttempts = 3
-
 // resolveBalanceSettingsArgs normalizes a settings payload into the four
-// primitive values scripts/update_balance_settings.lua assigns verbatim onto
-// the cached balance: AllowOverdraft and OverdraftLimitEnabled as 0/1,
-// OverdraftLimit as a decimal string ("0" when disabled/unset), and
-// BalanceScope defaulted to transactional when empty. A nil settings payload
-// resolves to the same zero-state buildBalanceAtomicOperationPlan uses for
-// balances without Settings. All business logic for the PATCH lives here;
-// the Lua script only assigns these values onto the decoded balance.
+// primitive values buildBalanceAtomicOperationPlan passes to the balance atomic
+// Lua script: AllowOverdraft and OverdraftLimitEnabled as 0/1, OverdraftLimit
+// as a decimal string ("0" when disabled/unset), and BalanceScope defaulted to
+// transactional when empty. A nil settings payload resolves to the zero state
+// of a balance without Settings.
 func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraft, overdraftLimitEnabled int, overdraftLimit, balanceScope string, err error) {
 	if settings == nil {
 		return 0, 0, "0", mmodel.BalanceScopeTransactional, nil
@@ -2873,360 +2846,6 @@ func resolveBalanceSettingsArgs(settings *mmodel.BalanceSettings) (allowOverdraf
 	}
 
 	return boolToInt(settings.AllowOverdraft), boolToInt(settings.OverdraftLimitEnabled), overdraftLimit, balanceScope, nil
-}
-
-// UpdateBalanceCacheSettings applies a settings-only PATCH to a cached balance
-// while preserving exact live monetary and version state. Go prepares a
-// precision-safe dual-format replacement and Lua commits it only if the cache
-// bytes still match the observation used to prepare it.
-//
-// Flow:
-//  1. Resolve the settings payload and GET the current blob.
-//  2. Convert legacy, dual, or new-only fields through balancecache.
-//  3. EVAL an exact-byte CAS. A confirmed mismatch is retried from a fresh GET
-//     up to maxBalanceSettingsCASAttempts total observations.
-//
-// Errors are surfaced to the caller so the command layer can decide whether to
-// log (best-effort) or escalate; this method does not swallow them internally.
-func (rr *RedisConsumerRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_settings")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.organization_id", organizationID.String()),
-		attribute.String("app.ledger_id", ledgerID.String()),
-	)
-
-	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, cacheKey)
-
-	prefixedKey, err := tenantKeyFromContextOrError(ctx, internalKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace balance cache key", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace balance cache key", libLog.Err(err))
-
-		return err
-	}
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
-
-		return err
-	}
-
-	allowOverdraft, overdraftLimitEnabled, overdraftLimit, balanceScope, err := resolveBalanceSettingsArgs(settings)
-	if err != nil {
-		return fmt.Errorf("serialize balance cache settings: %w", err)
-	}
-
-	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
-	patch := balancecache.SettingsPatch{
-		AllowOverdraft:        allowOverdraft == 1,
-		OverdraftLimitEnabled: overdraftLimitEnabled == 1,
-		OverdraftLimit:        overdraftLimit,
-		BalanceScope:          balanceScope,
-	}
-
-	for attempt := 0; attempt < maxBalanceSettingsCASAttempts; attempt++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-
-		observed, err := rds.Get(ctx, prefixedKey).Bytes()
-		if errors.Is(err, redis.Nil) {
-			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
-			return nil
-		}
-
-		if err != nil {
-			return fmt.Errorf("read balance cache for settings update: %w", err)
-		}
-
-		replacement, err := balancecache.PatchSettingsDual(observed, patch)
-		if err != nil {
-			invalidJSONErr := fmt.Errorf("invalid cached balance JSON: %w", err)
-			libOpentelemetry.HandleSpanError(span, "Cached balance is not valid JSON", invalidJSONErr)
-			logger.Log(ctx, libLog.LevelError, "Cached balance is not valid JSON", libLog.Err(invalidJSONErr))
-
-			return invalidJSONErr
-		}
-
-		_, _, _, _, err = normalizeQualifiedBalanceReadKey(replacement)
-		if err != nil {
-			invalidKeyErr := fmt.Errorf("normalize cached balance key for settings update: %w", err)
-			libOpentelemetry.HandleSpanError(span, "Cached balance key is invalid", invalidKeyErr)
-			logger.Log(ctx, libLog.LevelError, "Cached balance key is invalid", libLog.Err(invalidKeyErr))
-
-			return invalidKeyErr
-		}
-
-		scriptResult, err := updateBalanceSettingsScript.Run(ctx, rds, []string{prefixedKey},
-			observed, replacement, ttlSeconds).Int64()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to run settings update script on redis", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to run settings update script on Redis", libLog.Err(err))
-
-			return fmt.Errorf("update balance cache settings: %w", err)
-		}
-
-		switch scriptResult {
-		case 1:
-			logger.Log(ctx, libLog.LevelDebug, "Balance cache settings updated in place")
-			return nil
-		case 0:
-			logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on settings update (no-op)")
-			return nil
-		case 2:
-			continue
-		default:
-			unexpectedErr := fmt.Errorf("unexpected update balance settings result: %d", scriptResult)
-			libOpentelemetry.HandleSpanError(span, "Unexpected settings update script result", unexpectedErr)
-
-			return unexpectedErr
-		}
-	}
-
-	conflictErr := fmt.Errorf("balance cache settings update conflicted after %d attempts", maxBalanceSettingsCASAttempts)
-	libOpentelemetry.HandleSpanError(span, "Balance cache settings update conflict", conflictErr)
-
-	return conflictErr
-}
-
-// UpdateBalanceCacheBlocked applies the account-level Blocked flag to every
-// cached balance blob of an account in a single atomic Lua EVAL per chunk.
-//
-// The mutation runs inside scripts/update_balance_blocked.lua for the same
-// reason the settings rewrite does: Redis serializes EVAL execution, so this
-// write and any concurrent balance_atomic_operation.lua debit/credit on the
-// same keys can never interleave, and live transactional state pending
-// write-behind sync is preserved (no DEL). All balance keys share the
-// {transactions} hash slot, so the multi-key EVAL is legal in cluster mode.
-//
-// Errors are surfaced to the caller so the command layer can decide whether to
-// log (best-effort) or escalate; this method does not swallow them internally.
-func (rr *RedisConsumerRepository) UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error {
-	if len(cacheKeys) == 0 {
-		return nil
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_blocked")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.Bool("app.request.blocked", blocked),
-		attribute.Int("app.request.balance_keys_count", len(cacheKeys)),
-	)
-
-	internalKeys := make([]string, 0, len(cacheKeys))
-	for _, cacheKey := range cacheKeys {
-		internalKeys = append(internalKeys, utils.BalanceInternalKey(organizationID, ledgerID, cacheKey))
-	}
-
-	prefixedKeys, err := tenantKeysFromContext(ctx, internalKeys)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace balance cache keys", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace balance cache keys", libLog.Err(err))
-
-		return err
-	}
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
-
-		return err
-	}
-
-	blockedArg := boolToInt(blocked)
-	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
-
-	var totalWritten, totalCorrupt int64
-
-	// Every chunk is attempted even when an earlier one fails: each
-	// transaction renews the 24h TTL of its blob (SET ... EX in the atomic
-	// script), so a hot blob left behind by an aborted pass could carry a
-	// stale Blocked flag indefinitely. Failures are accumulated and returned
-	// as an aggregate after the sweep completes.
-	var chunkErrs []error
-
-	for start := 0; start < len(prefixedKeys); start += maxRedisBatchSize {
-		end := min(start+maxRedisBatchSize, len(prefixedKeys))
-
-		result, err := updateBalanceBlockedScript.Run(ctx, rds, prefixedKeys[start:end], blockedArg, ttlSeconds).Result()
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to run blocked update script on redis", err)
-			logger.Log(ctx, libLog.LevelError, "Failed to run blocked update script on Redis", libLog.Err(err))
-
-			chunkErrs = append(chunkErrs, err)
-
-			continue
-		}
-
-		written, corrupt, err := parseBlockedUpdateResult(result)
-		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Unexpected result from blocked update script", err)
-			logger.Log(ctx, libLog.LevelError, "Unexpected result from blocked update script", libLog.Err(err))
-
-			chunkErrs = append(chunkErrs, err)
-
-			continue
-		}
-
-		totalWritten += written
-		totalCorrupt += corrupt
-	}
-
-	span.SetAttributes(
-		attribute.Int64("db.balances_rewritten", totalWritten),
-		attribute.Int64("db.balances_corrupt", totalCorrupt),
-	)
-
-	if totalCorrupt > 0 {
-		logger.Log(ctx, libLog.LevelWarn, "Corrupt cached balance blobs skipped on blocked update",
-			libLog.Int("corrupt", int(totalCorrupt)))
-	}
-
-	if len(chunkErrs) > 0 {
-		return errors.Join(chunkErrs...)
-	}
-
-	logger.Log(ctx, libLog.LevelDebug, "Balance cache blocked flag updated in place",
-		libLog.Int("written", int(totalWritten)))
-
-	return nil
-}
-
-// parseBlockedUpdateResult decodes the { written, corrupt } array reply of
-// scripts/update_balance_blocked.lua.
-func parseBlockedUpdateResult(result any) (written, corrupt int64, err error) {
-	values, ok := result.([]any)
-	if !ok || len(values) != 2 {
-		return 0, 0, fmt.Errorf("unexpected result shape from blocked update script: %T", result)
-	}
-
-	written, ok = values[0].(int64)
-	if !ok {
-		return 0, 0, fmt.Errorf("unexpected written counter type from blocked update script: %T", values[0])
-	}
-
-	corrupt, ok = values[1].(int64)
-	if !ok {
-		return 0, 0, fmt.Errorf("unexpected corrupt counter type from blocked update script: %T", values[1])
-	}
-
-	return written, corrupt, nil
-}
-
-// resolveAllowFlagArg maps an optional allow flag onto the tri-state ARGV value
-// scripts/update_balance_allow_flags.lua expects: -1 keeps the cached value
-// (the flag was not part of the PATCH), 0 writes false, 1 writes true.
-func resolveAllowFlagArg(flag *bool) int {
-	if flag == nil {
-		return -1
-	}
-
-	return boolToInt(*flag)
-}
-
-// UpdateBalanceCacheAllowFlags applies an allow-flags PATCH to the cached
-// balance JSON blob in a single atomic Lua EVAL, preserving the live
-// transactional state (Available, OnHold, Version, OverdraftUsed) that the
-// balance atomic script may have mutated but not yet flushed to PostgreSQL.
-//
-// The mutation runs inside scripts/update_balance_allow_flags.lua for the same
-// reason the settings and blocked rewrites do: Redis serializes EVAL
-// execution, so this write and any concurrent balance_atomic_operation.lua
-// debit/credit on the same key can never interleave.
-//
-// Flow:
-//  1. Resolve each flag pointer into its tri-state ARGV value
-//     (resolveAllowFlagArg); both nil short-circuits without touching Redis.
-//  2. EVAL the script against the tenant-prefixed internal key.
-//  3. Result 1 committed; 0 is a cache miss (key absent) and a no-op — the
-//     next transaction's SETNX loads the just-persisted flags from
-//     PostgreSQL; -2 means the cached value was not valid JSON.
-//
-// A corrupt blob is reported at Warn and NOT returned as an error: the
-// transaction path decodes the same blob with cjson and fails on it, so a blob
-// this script cannot rewrite cannot approve a transaction either — failing the
-// PATCH would block the operator without buying any enforcement. Every other
-// failure (tenant key, client, EVAL, cast) is returned so the fail-closed
-// caller can reject the PATCH.
-func (rr *RedisConsumerRepository) UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error {
-	if allowSending == nil && allowReceiving == nil {
-		return nil
-	}
-
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	ctx, span := tracer.Start(ctx, "redis.update_balance_cache_allow_flags")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("app.request.organization_id", organizationID.String()),
-		attribute.String("app.request.ledger_id", ledgerID.String()),
-		attribute.Bool("app.request.has_allow_sending", allowSending != nil),
-		attribute.Bool("app.request.has_allow_receiving", allowReceiving != nil),
-	)
-
-	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, cacheKey)
-
-	prefixedKey, err := tenantKeyFromContextOrError(ctx, internalKey)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to namespace balance cache key", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to namespace balance cache key", libLog.Err(err))
-
-		return err
-	}
-
-	rds, err := rr.conn.GetClient(ctx)
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get redis client", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to get Redis client", libLog.Err(err))
-
-		return err
-	}
-
-	ttlSeconds := strconv.FormatInt(int64(balanceCacheSettingsTTL/time.Second), 10)
-
-	result, err := updateBalanceAllowFlagsScript.Run(ctx, rds, []string{prefixedKey},
-		resolveAllowFlagArg(allowSending), resolveAllowFlagArg(allowReceiving), ttlSeconds).Result()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to run allow flags update script on redis", err)
-		logger.Log(ctx, libLog.LevelError, "Failed to run allow flags update script on Redis", libLog.Err(err))
-
-		return err
-	}
-
-	scriptResult, ok := result.(int64)
-	if !ok {
-		castErr := fmt.Errorf("unexpected result type from allow flags update script: %T", result)
-		libOpentelemetry.HandleSpanError(span, "Unexpected result type from allow flags update script", castErr)
-		logger.Log(ctx, libLog.LevelError, "Unexpected result type from allow flags update script", libLog.Err(castErr))
-
-		return castErr
-	}
-
-	switch scriptResult {
-	case 1:
-		logger.Log(ctx, libLog.LevelDebug, "Balance cache allow flags updated in place")
-	case 0:
-		logger.Log(ctx, libLog.LevelDebug, "Balance cache miss on allow flags update (no-op)")
-	default:
-		span.SetAttributes(attribute.Bool("db.balance_blob_corrupt", true))
-		logger.Log(ctx, libLog.LevelWarn, "Corrupt cached balance blob skipped on allow flags update",
-			libLog.Int("script_result", int(scriptResult)))
-	}
-
-	return nil
 }
 
 // GetBalancesByKeys retrieves multiple balance values using MGET.

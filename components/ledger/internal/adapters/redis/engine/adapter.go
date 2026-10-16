@@ -164,12 +164,12 @@ func (a *Adapter) Execute(ctx context.Context, input command.EngineExecution) (r
 		return nil, technical("context_canceled", false, err)
 	}
 
-	return a.executePrepared(ctx, source, input.Execution, prepared.Keys, prepared.Payload)
+	return a.executePrepared(ctx, source, input.Execution, prepared)
 }
 
-func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request accounting.Execution, keys []string, payload any) (*accounting.ExecutionResult, error) {
+func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, request accounting.Execution, prepared *preparedExecution) (*accounting.ExecutionResult, error) {
 	args := []any{
-		payload,
+		prepared.Payload,
 		a.limits.MaxRequestBytes,
 		a.limits.MaxPreparedBytes,
 		a.limits.MaxTransactions,
@@ -182,11 +182,11 @@ func (a *Adapter) executePrepared(ctx context.Context, client *redis.Client, req
 			return nil, technical("context_canceled", false, err)
 		}
 
-		response, executionErr := executeAccounting(ctx, client, keys, args)
+		response, executionErr := executeAccounting(ctx, client, prepared.Keys, args)
 		if executionErr != nil {
 			var normalization *normalizationRequiredError
 
-			classified := classifyAccountingError(executionErr, request, keys)
+			classified := classifyAccountingError(executionErr, request, prepared.BalanceKeys)
 			if !errors.As(classified, &normalization) {
 				return nil, classified
 			}
@@ -343,13 +343,18 @@ func resolveAdapterKeys(ctx context.Context, request accounting.Execution) (reso
 			return resolvedExecutionKeys{}, fmt.Errorf("resolve accounting deletion marker key")
 		}
 
+		config, err := tmvalkey.GetKeyContext(ctx, utils.BalanceConfigKey(organizationID, ledgerID, balance.BalanceRef))
+		if err != nil {
+			return resolvedExecutionKeys{}, err
+		}
+
 		balanceMapKey := scopedBalanceRef(organizationID, ledgerID, balance.BalanceRef)
 		if organizationID == request.OrganizationID && ledgerID == request.LedgerID {
 			balanceMapKey = balance.BalanceRef
 		}
 
 		resolved.Balances[balanceMapKey] = resolvedBalanceKeys{
-			Balance: prefixed, Deleted: deleted, LegacyDeleted: prefixed + cachepolicy.DeletionMarkerSuffix,
+			Balance: prefixed, Deleted: deleted, LegacyDeleted: prefixed + cachepolicy.DeletionMarkerSuffix, Config: config,
 		}
 	}
 
@@ -435,10 +440,11 @@ func resolveAccountProtectionKeys(ctx context.Context, request accounting.Execut
 			Closing:        utils.AccountClosingMarkerKey(organizationID, ledgerID, accountID),
 			Closed:         utils.AccountClosedMarkerKey(organizationID, ledgerID, accountID),
 			Ownership:      utils.AccountAdminOwnershipKey(organizationID, ledgerID, accountID),
+			Config:         utils.AccountConfigKey(organizationID, ledgerID, accountID),
 			AdmissionToken: sink.TokenFor(organizationID, ledgerID, accountID),
 		}
 
-		for _, key := range []*string{&protection.Closing, &protection.Closed, &protection.Ownership} {
+		for _, key := range []*string{&protection.Closing, &protection.Closed, &protection.Ownership, &protection.Config} {
 			prefixed, err := tmvalkey.GetKeyContext(ctx, *key)
 			if err != nil {
 				return err
@@ -453,7 +459,10 @@ func resolveAccountProtectionKeys(ctx context.Context, request accounting.Execut
 	return nil
 }
 
-func classifyAccountingError(err error, request accounting.Execution, keys []string) error {
+// classifyAccountingError maps a script reply to the closed adapter error set.
+// balanceKeys are the live balance blobs of the request: a normalization request
+// naming any other key is not trusted.
+func classifyAccountingError(err error, request accounting.Execution, balanceKeys []string) error {
 	var server redis.Error
 	if !errors.As(err, &server) {
 		return technical("transport", true, err)
@@ -499,13 +508,9 @@ func classifyAccountingError(err error, request accounting.Execution, keys []str
 			return technical("invalid_normalization_failure", true, err)
 		}
 
-		allowed := make(map[string]bool, len(request.Balances))
-
-		balanceKeyStart := 7
-
-		balanceKeyEnd := balanceKeyStart + 3*len(request.Balances)
-		for i := balanceKeyStart; i < balanceKeyEnd; i += 3 {
-			allowed[keys[i]] = true
+		allowed := make(map[string]bool, len(balanceKeys))
+		for _, key := range balanceKeys {
+			allowed[key] = true
 		}
 
 		seen := make(map[string]bool, len(reported))

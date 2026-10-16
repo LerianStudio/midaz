@@ -33,6 +33,9 @@ func TestIntegration_AdapterExecute_RepairsNoncanonicalHotCacheLimit(t *testing.
 	hot.Available = decimal.NewFromInt(120)
 	hot.OverdraftLimitEnabled = true
 	hot.OverdraftLimit = decimal.NewFromInt(1000)
+	// The blob's own configuration copy is newer than the request and no
+	// configuration key is live, so the blob decides and its limit needs repair.
+	hot.ConfigVersion = 1
 	encoded, err := balancecache.Encode(hot, balancecache.FormatDual)
 	require.NoError(t, err)
 	var fields map[string]json.RawMessage
@@ -98,6 +101,9 @@ func TestIntegration_AdapterExecute_LimitRepairPromotesLegacyCache(t *testing.T)
 			hot.Available = decimal.NewFromInt(20)
 			hot.OverdraftLimitEnabled = true
 			hot.OverdraftLimit = decimal.NewFromInt(1000)
+			// The blob's own configuration copy is newer than the request and no
+			// configuration key is live, so the blob decides and its limit needs repair.
+			hot.ConfigVersion = 1
 			encoded, err := balancecache.Encode(hot, balancecache.FormatDual)
 			require.NoError(t, err)
 			var fields map[string]json.RawMessage
@@ -262,6 +268,9 @@ func TestIntegration_AdapterExecute_RepairThenRefusalPreservesHotBalance(t *test
 			hot.Available = decimal.NewFromInt(20)
 			hot.OverdraftLimitEnabled = true
 			hot.OverdraftLimit = decimal.NewFromInt(1000)
+			// The blob's own configuration copy is newer than the request and no
+			// configuration key is live, so the blob decides and its limit needs repair.
+			hot.ConfigVersion = 1
 			encoded, err := balancecache.Encode(hot, tt.format)
 			require.NoError(t, err)
 			encoded = replaceLimitTestBytes(t, encoded, tt.find, tt.replace)
@@ -353,6 +362,9 @@ func TestIntegration_AdapterExecute_InvalidNoncanonicalLimitDoesNotMutate(t *tes
 			hot := input.Execution.Balances[0]
 			hot.OverdraftLimitEnabled = true
 			hot.OverdraftLimit = decimal.NewFromInt(1000)
+			// The blob's own configuration copy is newer than the request and no
+			// configuration key is live, so the blob decides and its limit needs repair.
+			hot.ConfigVersion = 1
 			encoded, err := balancecache.Encode(hot, balancecache.FormatDual)
 			require.NoError(t, err)
 			encoded = replaceLimitTestBytes(t, encoded, []byte(`"OverdraftLimit":"1000"`), []byte(`"OverdraftLimit":`+invalid))

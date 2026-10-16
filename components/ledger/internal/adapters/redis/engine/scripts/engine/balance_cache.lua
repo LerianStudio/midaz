@@ -139,16 +139,131 @@ local function decodeBalance(blob, seed, ref)
     return snapshot, false
 end
 
+-- Configuration versions order the configurations of ONE balance, or of ONE
+-- account, as PostgreSQL committed them; a balance version is never compared with
+-- an account version. They travel as canonical decimal strings and are compared
+-- by length and then as text, never as Lua numbers.
+local maximumConfigVersion = "9223372036854775807"
+
+local function validConfigVersion(value)
+    return type(value) == "string" and value:match("^%d+$") ~= nil and not (#value > 1 and value:sub(1, 1) == "0") and
+        (#value < #maximumConfigVersion or (#value == #maximumConfigVersion and value <= maximumConfigVersion))
+end
+
+local function newerConfigVersion(candidate, current)
+    if #candidate ~= #current then return #candidate > #current end
+    return candidate > current
+end
+
+-- newestConfiguration returns the configuration with the highest version among
+-- the candidates present. Candidates are given in precedence order, so on an
+-- equal version the earlier one wins: the configuration key over the request,
+-- the request over the blob copy.
+local function newestConfiguration(...)
+    local chosen = nil
+    for i = 1, select("#", ...) do
+        local candidate = select(i, ...)
+        if candidate and (chosen == nil or newerConfigVersion(candidate.version, chosen.version)) then chosen = candidate end
+    end
+    return chosen
+end
+
+-- The blob keeps a copy of the configuration with the version of each family, in
+-- lowercase fields that releases reading the configuration from the blob neither
+-- read nor drop. A family without its version field reads version 0 in the
+-- decision; it is a copy of unknown age (see encodeBalance).
+local balanceConfigVersionField, accountConfigVersionField = "balanceConfigVersion", "accountConfigVersion"
+
+local function blobConfigVersion(blob, field)
+    local value = blob[field]
+    if value == nil then return "0" end
+    if not validConfigVersion(value) then technical("invalid_balance", "invalid cached configuration version") end
+    return value
+end
+
+local balanceConfigFields = { "allowSending", "allowReceiving", "allowOverdraft", "overdraftLimitEnabled", "overdraftLimit", "balanceScope" }
+
+-- balanceConfiguration takes the balance configuration family of a snapshot with
+-- the version it was read at.
+local function balanceConfiguration(snapshot, version)
+    local configuration = { version = version }
+    for _, field in ipairs(balanceConfigFields) do configuration[field] = snapshot[field] end
+    return configuration
+end
+
+local function applyBalanceConfiguration(snapshot, configuration)
+    for _, field in ipairs(balanceConfigFields) do snapshot[field] = configuration[field] end
+end
+
+local configurationBalanceScopes = { transactional = true, internal = true }
+
+-- decodeConfigKey parses one configuration key value. A value that is missing,
+-- unreadable, incomplete or of another identity is absent: Go reloads the key
+-- from PostgreSQL and replaces it. The engine only reads these keys.
+local function decodeConfigKey(raw, identityField, identity)
+    if not raw then return nil end
+    local decoded, value = pcall(decodeJSON, raw)
+    if not decoded or not isObject(value) or value[identityField] ~= identity or not validConfigVersion(value.configVersion) then return nil end
+    return value
+end
+
+local function decodeBalanceConfigKey(raw, balanceId)
+    local value = decodeConfigKey(raw, "balanceId", balanceId)
+    if not value then return nil end
+    for _, field in ipairs({ "allowSending", "allowReceiving", "allowOverdraft", "overdraftLimitEnabled" }) do
+        if type(value[field]) ~= "boolean" then return nil end
+    end
+    local canonical, limit = pcall(money, value.overdraftLimit)
+    if not canonical or limit ~= value.overdraftLimit or limit:sub(1, 1) == "-" or not configurationBalanceScopes[value.balanceScope] then
+        return nil
+    end
+    return balanceConfiguration(value, value.configVersion)
+end
+
+local function decodeAccountConfigKey(raw, accountId)
+    local value = decodeConfigKey(raw, "accountId", accountId)
+    if not value or type(value.blocked) ~= "boolean" then return nil end
+    return { version = value.configVersion, blocked = value.blocked }
+end
+
+-- The blob keeps a copy of the configuration for releases that read it from the
+-- blob: a compatibility bridge, removable once no rollback target does. The engine
+-- writes that copy only into a blob it seeds itself, with the decided configuration
+-- and the decided versions. Into a blob that already exists it never writes
+-- configuration: every configuration field, in whatever representations the blob
+-- has it, and both version fields, present or absent, are carried over byte for
+-- byte. A release that reads the configuration from the blob changes the copy
+-- without touching version fields it does not know, so no version label tells how
+-- old the copy's content is; overwriting it could undo a change that release
+-- served, after a rollback for good. Only the PATCH copy writes the copy of an
+-- existing blob.
+local configurationFields = {
+    allowSending = true, allowReceiving = true, allowOverdraft = true,
+    overdraftLimitEnabled = true, overdraftLimit = true, balanceScope = true, blocked = true
+}
+
 -- encodeBalance serializes the final live state in both current and legacy field
 -- shapes so readers on either side of the rollout observe the same balance.
+--
+-- Money, version and identity always come from the execution. The configuration
+-- copy follows the rule above: an existing blob keeps its own; a seeded blob takes
+-- the decided configuration, and the decided version of each family when it is
+-- above 0 (a version-0 copy writes no version field, as before versions existed).
 local function encodeBalance(item)
-    local blob = item.blob and clone(item.blob) or object()
+    local existing = item.blob ~= nil
+    local blob = existing and clone(item.blob) or object()
     for field, compatible in pairs(cacheCompatibilityFieldNames) do
-        local value = item.current[field]
-        blob[field] = value
-        if field == "version" then blob[compatible] = numberToken(value)
-        elseif type(value) == "boolean" then blob[compatible] = value and 1 or 0
-        else blob[compatible] = value end
+        if not (existing and configurationFields[field]) then
+            local value = item.current[field]
+            blob[field] = value
+            if field == "version" then blob[compatible] = numberToken(value)
+            elseif type(value) == "boolean" then blob[compatible] = value and 1 or 0
+            else blob[compatible] = value end
+        end
+    end
+    if not existing then
+        if item.configVersions.balance ~= "0" then blob[balanceConfigVersionField] = item.configVersions.balance end
+        if item.configVersions.account ~= "0" then blob[accountConfigVersionField] = item.configVersions.account end
     end
     blob.SchemaVersion = 2
     return encodeJSON(blob)
