@@ -202,9 +202,8 @@ and miscorrelated rows independently, in linear time over the committed operatio
 proportional to those rows; its volume memory cost is not measured yet.
 
 Limits: no owner cache/fence, failover or throughput measurement. The earliest future deadline can turn a whole
-backlog batch unknown; that cost remains unmeasured. Sending/receiving flags and
-a refusal crossing its cutoff remain for the planned protection/admission gates. Two empty-array lock queries still
-run on replay-only batches. Eight concurrent sessions prove that interleaving, not freedom from all deadlocks.
+backlog batch unknown; that cost remains unmeasured. Two empty-array lock queries still run on replay-only batches.
+Eight concurrent sessions prove that interleaving, not freedom from all deadlocks.
 
 ## Ownerless queue and drain
 
@@ -219,7 +218,7 @@ each worker's first batch error after the join; a worker's batch error never can
 
 ```bash
 env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
-  timeout 960 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestOwnerlessWriter' -timeout 15m -v
+  timeout 960 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestOwnerlessWriter(Workers|Drain|ErrorIsolation|CallerLeaves|CloseDeadline|ExpiredEntry)$' -timeout 15m -v
 ```
 
 Six live tests cover 32 named backends waiting concurrently, cap-8 drain of nine queued attempts, reply correlation,
@@ -227,6 +226,30 @@ error isolation during Close, caller cancellation and remaining budget, forced C
 Checks run after drain and owned-resource cleanup; goleak checks for remaining goroutines. The tests do not exercise
 a full 8,192-attempt queue, 32 workers with cap 256 under load, or the five 200k-request correctness runs. Those volume
 and backlog gates remain pending; 32 concurrent backends alone prove no throughput target.
+
+## Ownerless correctness gates
+
+Four small gates repeat five reset rounds each. Identity races copies and divergent payloads over 32 workers,
+then replays the stored winner after its original cutoff. A separate spent-credit case proves that replay cannot
+fund a new debit. MultiKey exhausts one shared limit across two balance keys. Protection exhausts the hot balance
+and checks sending, receiving and blocked-account refusals. Admission crosses a new refusal's cutoff before COMMIT
+and verifies that the entire pass is discarded, including its approval.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 960 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestOwnerlessWriter(Identity|MultiKey|Protection|Admission)$' -timeout 15m -v
+```
+
+The verifier snapshots balances and controls once per fresh connection, after reset and fixture changes but before
+any request. After all callers return and Close joins workers, it checks first-operation and final-state anchors,
+per-posting floors and flags, shared limits and versions, captured answers and the exact winning posting multiset.
+Expected transaction IDs come from captured requests, including when the caller got unknown. Unknown does not
+prove rollback. `sql-approved/caller-unknown` counts SQL approvals without a new approved answer; a later replay
+does not remove that count. The existing exact outbox checker runs once, with no per-row SQL.
+
+Limits: these are small correctness fixtures, not the five 200k runs or a capacity result. Volume must use the
+workload's real process clock, a separate 30 s Close context, and a fresh baseline after each reset, before any request.
+The verifier's cost at 200k remains unmeasured.
 
 ## How it is built
 
