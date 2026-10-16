@@ -385,6 +385,36 @@ var (
 		Description: "Total tenant database connection failures.",
 	}
 
+	// TenantDependencyUp is 1 when the last background probe of one tenant
+	// dependency succeeded and 0 when it failed. Labels: tenant_id, dependency.
+	TenantDependencyUp = metrics.Metric{
+		Name:        "tenant_dependency_up",
+		Unit:        "1",
+		Description: "Result of the last background probe of a tenant dependency (1=up, 0=down), labelled by tenant_id and dependency.",
+	}
+
+	// TenantDependencyProbeFailures counts failed background probes. Labels: tenant_id, dependency.
+	TenantDependencyProbeFailures = metrics.Metric{
+		Name:        "tenant_dependency_probe_failures_total",
+		Unit:        "1",
+		Description: "Total failed background probes of a tenant dependency, labelled by tenant_id and dependency.",
+	}
+
+	// TenantHealthProbePassFailures counts pass-level failures. Label: reason (tenant_list, lease, budget).
+	TenantHealthProbePassFailures = metrics.Metric{
+		Name:        "tenant_health_probe_pass_failures_total",
+		Unit:        "1",
+		Description: "Total tenant health probe pass failures, labelled by reason (tenant_list, lease, budget).",
+	}
+
+	// TenantHealthProbeLeader is 1 when this pod held the tenant health probe
+	// lease on its last tick and 0 otherwise. No labels; per pod.
+	TenantHealthProbeLeader = metrics.Metric{
+		Name:        "tenant_health_probe_leader",
+		Unit:        "1",
+		Description: "1 when this pod held the tenant health probe lease on its last tick, 0 otherwise. Per-pod; use it to select the current leader's tenant_dependency_up series.",
+	}
+
 	// TenantConsumersActive tracks active message consumers.
 	TenantConsumersActive = metrics.Metric{
 		Name:        "tenant_consumers_active",

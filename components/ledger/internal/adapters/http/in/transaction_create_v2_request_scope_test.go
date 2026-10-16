@@ -444,49 +444,75 @@ func TestCreateTransactionV2Request_SameAliasAcrossLedgersIsNotOneAccount(t *tes
 }
 
 // TestCreateTransactionV2Request_SameAliasIsAmbiguousAtTheFunnel pins WHERE the same-account
-// guarantee lives, and it is later than a reader expects.
+// guarantee lives and WHEN it fires.
 //
 // Translate carries the legs forward without comparing the two sides: it has no single pair to
 // compare, and the array case needs the resolved balance-key entries only the funnel builds. So
 // the body clears Translate and the funnel owns the rule.
 //
-// The funnel validates TWICE, and only the second pass catches this. Its ambiguity loop probes a
-// map keyed on each leg's alias AS IT STANDS with a key built by ConcatAlias, so the two only meet
-// once MutateConcatAliases has rewritten the aliases in place — which happens between the two
-// validate calls. The consequence is that the rejection lands AFTER the idempotency claim, the
-// ledger-settings read and the fee engine, not before them. Both passes are asserted below so the
-// ordering is a tested fact rather than an assumption, and so that moving either mutator or either
-// validate call fails here.
+// The funnel validates TWICE, and the FIRST pass already refuses the collision. The ambiguity
+// check identifies an account as "alias#balanceKey" on both sides, independent of the alias form
+// (bare or concatenated) and of the position each leg holds in its list, so the refusal lands
+// before the ledger-settings read and the fee engine, and the second pass — after
+// MutateConcatAliases — answers the same code. Both passes are asserted on a same-index and on a
+// cross-index collision, so the position-independence and the ordering are tested facts rather
+// than assumptions, and so that moving either mutator or either validate call fails here.
 func TestCreateTransactionV2Request_SameAliasIsAmbiguousAtTheFunnel(t *testing.T) {
 	t.Parallel()
 
-	in := arrayV2Input(
-		[]TransactionV2LegRequest{{Alias: "@shared", Amount: "1000"}},
-		[]TransactionV2LegRequest{{Alias: "@shared", Amount: "1000"}},
-	)
+	tests := []struct {
+		name  string
+		input CreateTransactionV2Request
+	}{
+		{
+			name: "same index",
+			input: arrayV2Input(
+				[]TransactionV2LegRequest{{Alias: "@shared", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@shared", Amount: "1000"}},
+			),
+		},
+		{
+			name: "cross index",
+			input: arrayV2Input(
+				[]TransactionV2LegRequest{{Alias: "@shared", Amount: "1000"}},
+				[]TransactionV2LegRequest{{Alias: "@other", Amount: "400"}, {Alias: "@shared", Amount: "600"}},
+			),
+		},
+	}
 
-	transaction, scope, err := in.Translate(false)
-	require.NoError(t, err, "Translate does not compare the two sides, so a shared alias clears it")
-	assert.Equal(t, testScope(), scope)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// The state the FIRST validate sees: balance keys applied, aliases not yet concatenated.
-	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Source.From)
-	mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Distribute.To)
+			transaction, scope, err := tt.input.Translate(false)
+			require.NoError(t, err, "Translate does not compare the two sides, so a shared alias clears it")
+			assert.Equal(t, testScope(), scope)
 
-	_, err = mtransaction.ValidateSendSourceAndDistribute(context.Background(), transaction, constant.CREATED)
-	require.NoError(t, err,
-		"the first validate cannot see the collision: the probe is concatenated and the map keys are not")
+			// The state the FIRST validate sees: balance keys applied, aliases not yet concatenated.
+			mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Source.From)
+			mtransaction.ApplyDefaultBalanceKeys(transaction.Send.Distribute.To)
 
-	// What the funnel does between its two validate calls.
-	transaction.Send.Source.From = mtransaction.MutateConcatAliases(transaction.Send.Source.From)
-	transaction.Send.Distribute.To = mtransaction.MutateConcatAliases(transaction.Send.Distribute.To)
+			_, err = mtransaction.ValidateSendSourceAndDistribute(context.Background(), transaction, constant.CREATED)
+			require.Error(t, err, "the first validate must refuse the same account on both sides")
 
-	_, err = mtransaction.ValidateSendSourceAndDistribute(context.Background(), transaction, constant.CREATED)
-	require.Error(t, err, "the same account on both sides must be rejected as ambiguous")
+			var firstErr pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &firstErr)
+			assert.Equal(t, constant.ErrTransactionAmbiguous.Error(), firstErr.Code,
+				"the raw-alias pass answers the ambiguity code, before settings and fees")
 
-	var uoErr pkg.UnprocessableOperationError
-	require.ErrorAs(t, err, &uoErr)
-	assert.Equal(t, constant.ErrTransactionAmbiguous.Error(), uoErr.Code)
+			// What the funnel does between its two validate calls.
+			transaction.Send.Source.From = mtransaction.MutateConcatAliases(transaction.Send.Source.From)
+			transaction.Send.Distribute.To = mtransaction.MutateConcatAliases(transaction.Send.Distribute.To)
+
+			_, err = mtransaction.ValidateSendSourceAndDistribute(context.Background(), transaction, constant.CREATED)
+			require.Error(t, err, "the same account on both sides must be rejected as ambiguous")
+
+			var secondErr pkg.UnprocessableOperationError
+			require.ErrorAs(t, err, &secondErr)
+			assert.Equal(t, constant.ErrTransactionAmbiguous.Error(), secondErr.Code,
+				"the normalized-alias pass answers the same code as the raw pass")
+		})
+	}
 }
 
 // mutateV2Legs applies mutate to a built input and hands it back, so a table case can plant a

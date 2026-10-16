@@ -55,7 +55,7 @@ func (uc *UseCase) CreateWriteBehindTransaction(ctx context.Context, organizatio
 	// TTL is 86400 seconds (24 h). SetBytes multiplies the raw value by
 	// time.Second internally, so we pass a unitless duration here.
 	if err := uc.TransactionRedisRepo.SetBytes(ctx, key, data, time.Duration(86400)); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to store transaction in write-behind cache", err)
+		// SetBytes already recorded the failure on this span (T8); the use case only logs it.
 		logger.Log(ctx, libLog.LevelWarn, "Failed to store transaction in write-behind cache", libLog.Err(err))
 
 		return

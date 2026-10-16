@@ -199,7 +199,7 @@ Binding standard: `docs/standards/telemetry.md` (T1–T13). The span-error helpe
 Span lifecycle:
 
 - Always `defer span.End()` immediately after `tracer.Start`.
-- Open a child I/O span only where the driver is not auto-instrumented: MongoDB and RabbitMQ yes, PostgreSQL and Redis/Valkey no — `lib-commons` instruments both of those pools (`sqlobs`/`redisobs`), so a hand-rolled `postgres.<op>.query`/`.exec` or one-command `redis.<cmd>` span only duplicates the driver's. See T2 for the full table.
+- Open a child I/O span only where T2 requires it: RabbitMQ yes; MongoDB, PostgreSQL and Redis/Valkey no. MongoDB has one domain span per repository operation and no driver child; `lib-commons` instruments the PostgreSQL and Redis pools (`sqlobs`/`redisobs`), so a hand-rolled `postgres.<op>.query`/`.exec` or one-command `redis.<cmd>` span only duplicates the driver's. See T2 for the full table.
 - When a child I/O span is not opened, its error handling and attributes belong on the parent domain span — the driver span carries no business-vs-technical class and does not see client-side scan/mapping failures.
 - For the child I/O spans that remain, preserve parent context: use `_, spanInsert := tracer.Start(ctx, "...")`, not `ctx, spanInsert := ...`.
 - Do not create child spans for in-memory mapping/validation.
@@ -315,6 +315,7 @@ Drift discipline: wire-contract change updates (a) Payload struct, (b) construct
 - Tenant ID comes from JWT via auth middleware.
 - Tenant DB resolution uses tenant middleware and lib-commons tenant managers.
 - Modules `onboarding` and `transaction` have independent PostgreSQL and MongoDB managers.
+- `/readyz` never probes a tenant's databases: one unreachable tenant must not take the pod out of rotation for every tenant. In multi-tenant mode `postgres_onboarding` and `postgres_transaction` report `n/a` (the static connection belongs to no tenant) and no per-tenant MongoDB check exists. Per-tenant health comes from the `TenantHealthProber` (`bootstrap/tenant_health.prober.go`), which runs on the leader pod only (Redis lease) and publishes `tenant_dependency_up{tenant_id,dependency}` plus failure counters; every pod publishes `tenant_health_probe_leader`, the selector for the current leader's series (an ex-leader's gauges keep their last value until restart); knobs `TENANT_HEALTH_PROBE_*`. See `docs/infra/tenant-health-probe.md`.
 - Multi-tenant code uses `MT` suffix for names (`NewFooMT`, `runFooMT`, `mtEnabled`, `isMTReady`). Single-tenant code uses no qualifier.
 - Under CRM envelope encryption, key material is per-organization; a single shared Vault Transit engine holds all KEKs and tenant isolation lives in the key NAME (`{tenant}_org-{id}`), not in per-tenant mounts. See `## CRM Field Encryption / KMS`.
 

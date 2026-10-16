@@ -18,6 +18,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/accounttype"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -76,7 +77,7 @@ func TestResolveTypeDefaultDirection_ClassifiesLookupErrors(t *testing.T) {
 
 			uc := &UseCase{AccountTypeRepo: repo}
 
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 			logger := &capturingLogger{}
 			ctx = libObservability.ContextWithLogger(ctx, logger)
 
@@ -100,10 +101,10 @@ func TestResolveTypeDefaultDirection_ClassifiesLookupErrors(t *testing.T) {
 				assert.NotContains(t, line.Fields, tt.findErr.Error(), "an expected miss must not carry the error")
 			}
 
-			recorded := findSpan(t, recorder, parentSpan)
+			recorded := spantest.FindSpan(t, recorder, parentSpan)
 			require.Equal(t, tt.wantStatus, recorded.Status().Code, "a tolerated fallback must not change the span status")
 
-			_, hasEvent := findEvent(recorded, message)
+			_, hasEvent := spantest.FindEvent(recorded, message)
 			assert.Equal(t, tt.wantEvent, hasEvent, "only a tolerated infrastructure failure records the event")
 		})
 	}

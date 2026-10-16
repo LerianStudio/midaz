@@ -394,6 +394,15 @@ func TestEngineRecoveryCleanupLockKey(t *testing.T) {
 		"cleanup passes must not wait for the recovery cycle lock")
 }
 
+func TestTenantHealthProbeLockKey(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "lock:{transactions}:tenant-health-probe", TenantHealthProbeLockKey(),
+		"every pod must elect the tenant health probe leader on the same key")
+	assert.NotEqual(t, BalanceReconcilerLockKey(), TenantHealthProbeLockKey(),
+		"the tenant health probe must not share leadership with the balance reconciler")
+}
+
 func TestCacheKeyConstants(t *testing.T) {
 	t.Parallel()
 

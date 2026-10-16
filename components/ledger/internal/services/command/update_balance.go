@@ -37,6 +37,10 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 	ctxProcessBalances, spanUpdateBalances := tracer.Start(ctx, "command.update_balances_new")
 	defer spanUpdateBalances.End()
 
+	// The batch is a count on this span, not one child span per balance: computing a
+	// balance is a step without I/O, and a per-balance failure is already recorded here.
+	spanUpdateBalances.SetAttributes(attribute.Int("app.request.balances_count", len(balances)))
+
 	newBalances := make([]*mmodel.Balance, 0, len(balances))
 
 	if len(balancesAfter) > 0 {
@@ -80,13 +84,10 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 		}
 
 		for _, balance := range balances {
-			_, spanBalance := tracer.Start(ctx, "command.update_balances_new.balance")
-
 			txBal, tErr := balance.ToTransactionBalance()
 			if tErr != nil {
 				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Corrupted balance for fallback path", tErr)
 				logger.Log(ctx, libLog.LevelError, "Corrupted balance OverdraftLimit in fallback path", libLog.Err(tErr))
-				spanBalance.End()
 
 				return tErr
 			}
@@ -95,7 +96,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 			if err != nil {
 				libOpentelemetry.HandleSpanError(spanUpdateBalances, "Failed to update balances on database", err)
 				logger.Log(ctx, libLog.LevelError, "Failed to update balances on database", libLog.Err(err))
-				spanBalance.End()
 
 				return err
 			}
@@ -107,8 +107,6 @@ func (uc *UseCase) UpdateBalances(ctx context.Context, organizationID, ledgerID 
 				OnHold:    calculateBalances.OnHold,
 				Version:   balance.Version + 1,
 			})
-
-			spanBalance.End()
 		}
 	}
 

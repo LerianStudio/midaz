@@ -40,7 +40,7 @@ func (uc *UseCase) UpdateWriteBehindTransaction(ctx context.Context, organizatio
 
 	// 86400 seconds = 24 hours (SetBytes multiplies by time.Second internally)
 	if err := uc.TransactionRedisRepo.SetBytes(ctx, key, data, time.Duration(86400)); err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to update transaction in write-behind cache", err)
+		// SetBytes already recorded the failure on this span (T8); the use case only logs it.
 		logger.Log(ctx, libLog.LevelWarn, "Failed to update transaction in write-behind cache", libLog.Err(err))
 
 		return

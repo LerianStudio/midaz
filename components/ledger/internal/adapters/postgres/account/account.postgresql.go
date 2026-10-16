@@ -859,7 +859,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
+	ctx, span := tracer.Start(ctx, "postgres.list_portfolio_accounts_by_ids")
 	defer span.End()
 
 	db, err := r.getDB(ctx)
@@ -952,7 +952,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
+	ctx, span := tracer.Start(ctx, "postgres.list_portfolio_accounts_by_alias")
 	defer span.End()
 
 	db, err := r.getDB(ctx)

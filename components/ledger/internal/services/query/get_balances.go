@@ -628,11 +628,14 @@ func (uc *UseCase) hydrateAccountBlocked(ctx context.Context, organizationID, le
 // getBalancesFromCache checks Redis for cached balances. Returns two slices:
 // the balances found in cache, and the aliases that were not found (cache misses)
 // which need to be fetched from the database.
+//
+// The cache read opens no span of its own: each lookup is one Redis command the
+// driver already traces, so a deserialization failure is recorded on the caller's
+// query.get_balances span.
 func (uc *UseCase) getBalancesFromCache(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Balance, []string) {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "query.get_balances.cache_read")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	cached := make([]*mmodel.Balance, 0, len(aliases))
 	misses := make([]string, 0, len(aliases))

@@ -199,12 +199,15 @@ func TestRevertV2_NeverAppliesFees(t *testing.T) {
 
 // TestValidateSendSourceAndDistribute_RunsTwiceOnEveryTransactionPipeline locks the
 // double validation on the four pipelines that build a send: a raw-alias pass followed
-// by a normalized-alias pass. Collapsing either call to one would change which error
-// code a same-alias, mismatched-totals send receives — the raw pass answers 0073
-// (ErrTransactionValueMismatch), the normalized pass would instead answer 0090
-// (ErrTransactionAmbiguous) — because the ambiguity check inside
-// ValidateSendSourceAndDistribute cannot key against raw aliases. See the corpus in
-// pkg/mtransaction/validations_normalization_differential_test.go.
+// by a normalized-alias pass. The first pass refuses malformed input — mismatched
+// totals, a non-positive remainder, the same account on both sides — before the
+// ledger-settings read (and, on v2, before the fee engine runs); the second validates
+// the send as it stands after normalization and, on v2, after fees. Both passes answer
+// the same code for the same send (see the corpus in
+// pkg/mtransaction/validations_normalization_differential_test.go), so collapsing
+// either call would not change the code but WHERE the refusal lands: dropping the
+// first lets settings be read and, on v2, the fee engine run over invalid input;
+// dropping the second leaves the normalized, fee-inclusive send unvalidated.
 func TestValidateSendSourceAndDistribute_RunsTwiceOnEveryTransactionPipeline(t *testing.T) {
 	for _, tc := range []struct {
 		file string
@@ -226,7 +229,7 @@ func TestValidateSendSourceAndDistribute_RunsTwiceOnEveryTransactionPipeline(t *
 		}
 
 		if got != 2 {
-			t.Errorf("%s calls ValidateSendSourceAndDistribute %d times, want exactly 2 — the first pass is what preserves 0073 (ErrTransactionValueMismatch) instead of 0090 (ErrTransactionAmbiguous) on a same-alias, mismatched-totals send; see pkg/mtransaction/validations_normalization_differential_test.go", tc.fn, got)
+			t.Errorf("%s calls ValidateSendSourceAndDistribute %d times, want exactly 2 — the first pass refuses malformed input before the ledger-settings read and the fee engine, the second validates the normalized, fee-inclusive send; collapsing either moves where the refusal happens; see pkg/mtransaction/validations_normalization_differential_test.go", tc.fn, got)
 		}
 	}
 }

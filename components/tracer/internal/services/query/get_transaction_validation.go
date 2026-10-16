@@ -34,7 +34,7 @@ func NewGetTransactionValidationQuery(repo TransactionValidationRepository) *Get
 func (q *GetTransactionValidationQuery) Execute(ctx context.Context, validationID uuid.UUID) (*model.TransactionValidation, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.transaction-validation.get")
+	ctx, span := tracer.Start(ctx, "service.transaction_validation.get")
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)

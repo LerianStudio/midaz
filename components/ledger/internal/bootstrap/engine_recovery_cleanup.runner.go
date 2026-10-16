@@ -21,6 +21,7 @@ import (
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	"github.com/LerianStudio/lib-observability/v4/metrics"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
@@ -75,6 +76,8 @@ type EngineRecoveryCleanupRunner struct {
 	metrics    *metrics.MetricsFactory
 	// rotation advances the first tenant of each multi-tenant pass.
 	rotation int
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer trace.Tracer
 }
 
 // NewEngineRecoveryCleanupRunner builds a single-tenant runner over the
@@ -137,6 +140,18 @@ func (r *EngineRecoveryCleanupRunner) WithMetricsFactory(factory *metrics.Metric
 	return r
 }
 
+// WithServiceTracer sets the tracer the runner's spans are opened with, so they carry the
+// ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (r *EngineRecoveryCleanupRunner) WithServiceTracer(tracer trace.Tracer) *EngineRecoveryCleanupRunner {
+	if r == nil {
+		return nil
+	}
+
+	r.tracer = tracer
+
+	return r
+}
+
 // WithClock injects the clock that decides which executions are due and when
 // a pass's budget ends. A nil clock leaves the existing clock unchanged.
 func (r *EngineRecoveryCleanupRunner) WithClock(clock func() time.Time) *EngineRecoveryCleanupRunner {
@@ -150,7 +165,7 @@ func (r *EngineRecoveryCleanupRunner) WithClock(clock func() time.Time) *EngineR
 // Run executes a pass immediately and then one per tick until SIGTERM/SIGINT.
 // The Launcher parameter is unused, as for the other Midaz workers.
 func (r *EngineRecoveryCleanupRunner) Run(_ *libCommons.Launcher) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(r.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	r.logger.Log(ctx, libLog.LevelInfo, "Engine recovery cleanup runner started",
@@ -435,4 +450,9 @@ func (r *EngineRecoveryCleanupRunner) acquireLock(ctx context.Context) (func(), 
 	}
 
 	return release, true
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (r *EngineRecoveryCleanupRunner) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), r.tracer)
 }

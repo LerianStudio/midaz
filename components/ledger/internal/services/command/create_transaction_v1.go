@@ -97,19 +97,16 @@ func (uc *UseCase) CreateTransactionV1(ctx context.Context, in CreateTransaction
 		return replay, true, nil
 	}
 
-	// This pass runs over raw aliases, which the ambiguity check inside
-	// ValidateSendSourceAndDistribute cannot key against, so a send with the same
-	// alias on both sides and mismatched totals is answered here as 0073
-	// (ErrTransactionValueMismatch); the pass below, over concatenated aliases, would
-	// instead answer 0090 (ErrTransactionAmbiguous).
-	//
-	// First validate: rejects malformed source/distribute before the legs are
-	// normalized. Its Responses value is superseded by the re-validation below, so
-	// only the error is consumed here.
+	// First validate: runs over the raw aliases and refuses malformed input —
+	// mismatched totals, a non-positive remainder, the same account on both sides —
+	// before the ledger settings are read. The pass below, after normalizeSendLegs,
+	// validates the normalized send. Both passes answer the same code for the same
+	// send; this one only decides WHERE a malformed request is refused. Its
+	// Responses value is superseded by the re-validation below, so only the error
+	// is consumed here.
 	//nolint:staticcheck,wastedassign,ineffassign // first validate's value is deliberately superseded by the re-validation; only its error gates malformed input.
 	validate, err := mtransaction.ValidateSendSourceAndDistribute(ctx, run.input, run.status)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate send source and distribute", err)
 		logger.Log(ctx, libLog.LevelWarn, "Failed to validate send source and distribute", libLog.Err(err))
 
 		err = pkg.HandleKnownBusinessValidationErrors(err)

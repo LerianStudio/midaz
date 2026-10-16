@@ -50,29 +50,24 @@ func (r *BillingPackageMongoDBRepository) Update(ctx context.Context, id, organi
 	filter := billingPackageScopeFilter(id, organizationID, ledgerID)
 	opts := options.FindOneAndUpdate().SetReturnDocument(options.After)
 
-	_, spanUpdate := tracer.Start(ctx, "repository.billing_package.update.find_one_and_update")
-	defer spanUpdate.End()
-
-	spanUpdate.SetAttributes(attributes...)
-
 	var record BillingPackageMongoDBModel
 
 	if err = coll.FindOneAndUpdate(ctx, filter, updateFields, opts).Decode(&record); err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			bizErr := pkg.ValidateBusinessError(constant.ErrEntityNotFound, "BillingPackage", feeconstant.BillingPackageCollection)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "No document matched for update", bizErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "No document matched for update", bizErr)
 
 			return nil, bizErr
 		}
 
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update billing package", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update billing package", err)
 
 		return nil, err
 	}
 
 	entity, err := record.ToEntity()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to map updated billing package", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to map updated billing package", err)
 
 		return nil, err
 	}

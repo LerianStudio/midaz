@@ -53,6 +53,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	midazhttp "github.com/LerianStudio/midaz/v4/pkg/net/http"
 	pkgsd "github.com/LerianStudio/midaz/v4/pkg/servicediscovery"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 const ApplicationName = "ledger"
@@ -320,6 +321,18 @@ type Config struct {
 	BalanceReconcilerPageSize int `env:"BALANCE_RECONCILER_PAGE_SIZE"`
 	// BalanceReconcilerPassBudgetMs caps the wall time of one pass, shared by every tenant it visits.
 	BalanceReconcilerPassBudgetMs int `env:"BALANCE_RECONCILER_PASS_BUDGET_MS"`
+
+	// --- Tenant health probe (multi-tenant only, leader pod only) ---
+	// TenantHealthProbeEnabled turns the background per-tenant database probe on;
+	// unset or empty means true. Single-tenant deployments never start it.
+	TenantHealthProbeEnabled bool `env:"TENANT_HEALTH_PROBE_ENABLED"`
+	// TenantHealthProbeIntervalMs is the time between two probe passes.
+	TenantHealthProbeIntervalMs int `env:"TENANT_HEALTH_PROBE_INTERVAL_MS"`
+	// TenantHealthProbeTimeoutMs bounds one probe of one tenant dependency.
+	TenantHealthProbeTimeoutMs int `env:"TENANT_HEALTH_PROBE_TIMEOUT_MS"`
+	// TenantHealthProbePassBudgetMs caps the wall time of one pass; tenants left
+	// over are probed first on the next pass.
+	TenantHealthProbePassBudgetMs int `env:"TENANT_HEALTH_PROBE_PASS_BUDGET_MS"`
 
 	// --- Streaming (lib-streaming producer) ---
 	// Default for all streaming knobs is OFF — a service with
@@ -1343,17 +1356,28 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.
+	// Workers, crons and consumers start from context.Background(); the service tracer on
+	// their root context keeps their spans under the ledger's instrumentation scope.
+	workerTracer := serviceTracer(telemetry)
+
 	redisConsumer.
 		WithQuarantineRepository(txnPG.quarantineRepo).
-		WithMetricsFactory(metricsFactory)
+		WithMetricsFactory(metricsFactory).
+		WithServiceTracer(workerTracer)
 
-	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory)
+	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory).
+		WithServiceTracer(workerTracer)
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
-	balanceSyncWorker.WithMetricsFactory(metricsFactory)
+	balanceSyncWorker.WithMetricsFactory(metricsFactory).WithServiceTracer(workerTracer)
 
-	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, metricsFactory)
+	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, tenantClient, tenantServiceName, metricsFactory).
+		WithServiceTracer(workerTracer)
+
+	tenantHealthProber := initTenantHealthProber(cfg, logger, redisConnection, cfg.MultiTenantEnabled, tenantCache, tenantClient, tenantServiceName,
+		onbPG, txnPG, onbMgo, txnMgo, crmMgo, metricsFactory).
+		WithServiceTracer(workerTracer)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
 	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.
@@ -1361,7 +1385,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BatchSize:      cfg.BalanceSyncBatchSize,
 		FlushTimeoutMs: 2000,
 		PollIntervalMs: 1000,
-	})
+	}).WithServiceTracer(workerTracer)
 
 	// SaaS TLS gate for the RI declaration publisher's IdP dial. Placed before the
 	// success log so an explicit http:// IDP_HOST under DEPLOYMENT_MODE=saas refuses
@@ -1410,6 +1434,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		EngineRecoveryCleanup:    engineRecoveryCleanup,
 		BalanceSyncWorker:        balanceSyncWorker,
 		BalanceReconciler:        balanceReconciler,
+		TenantHealthProber:       tenantHealthProber,
 		LegacyBalanceSyncDrainer: legacyDrainer,
 		EventListener:            eventListener,
 		CircuitBreakerManager:    rmq.circuitBreakerManager,
@@ -1579,6 +1604,175 @@ func initRedisConnection(cfg *Config, logger libLog.Logger) (*libRedis.Client, e
 	}
 
 	return redisConnection, nil
+}
+
+const (
+	defaultTenantHealthProbeIntervalMs   = 60000
+	defaultTenantHealthProbeTimeoutMs    = 2000
+	defaultTenantHealthProbePassBudgetMs = 30000
+
+	minTenantHealthProbeIntervalMs   = 5000
+	minTenantHealthProbeTimeoutMs    = 100
+	minTenantHealthProbePassBudgetMs = 1000
+
+	// tenantHealthProbeTenantListAllowance is the tenant-manager client's default HTTP timeout.
+	tenantHealthProbeTenantListAllowance = 30 * time.Second
+)
+
+// clampTenantHealthProbeConfig replaces each setting below its minimum: a
+// non-positive value takes the default, a positive one too small takes the
+// minimum. Every replacement is logged with the env var it came from.
+func clampTenantHealthProbeConfig(logger libLog.Logger, cfg TenantHealthProbeConfig) TenantHealthProbeConfig {
+	cfg.Interval = clampTenantHealthProbeKnob(logger, "TENANT_HEALTH_PROBE_INTERVAL_MS", cfg.Interval,
+		defaultTenantHealthProbeIntervalMs, minTenantHealthProbeIntervalMs)
+	cfg.Timeout = clampTenantHealthProbeKnob(logger, "TENANT_HEALTH_PROBE_TIMEOUT_MS", cfg.Timeout,
+		defaultTenantHealthProbeTimeoutMs, minTenantHealthProbeTimeoutMs)
+	cfg.PassBudget = clampTenantHealthProbeKnob(logger, "TENANT_HEALTH_PROBE_PASS_BUDGET_MS", cfg.PassBudget,
+		defaultTenantHealthProbePassBudgetMs, minTenantHealthProbePassBudgetMs)
+
+	return cfg
+}
+
+func clampTenantHealthProbeKnob(logger libLog.Logger, env string, value time.Duration, defaultMs, minMs int64) time.Duration {
+	valueMs := value.Milliseconds()
+
+	var replacementMs int64
+
+	switch {
+	case value <= 0:
+		replacementMs = defaultMs
+	case valueMs < minMs:
+		replacementMs = minMs
+	default:
+		return value
+	}
+
+	logger.Log(context.Background(), libLog.LevelWarn, "Invalid tenant health probe setting; using a valid value",
+		libLog.String("env", env), libLog.Any("value_ms", valueMs), libLog.Any("replacement_ms", replacementMs),
+		libLog.Any("min_ms", minMs))
+
+	return time.Duration(replacementMs) * time.Millisecond
+}
+
+// initTenantHealthProber builds the background per-tenant database probe. It
+// yields no prober in single-tenant mode, when disabled, when there is neither
+// a tenant cache nor a tenant-manager client to list tenants from, or when no
+// lock manager can be built over the Redis client: the probe runs on the leader
+// pod only, and without a lease every pod would probe every tenant.
+func initTenantHealthProber(
+	cfg *Config,
+	logger libLog.Logger,
+	redisClient *libRedis.Client,
+	multiTenantEnabled bool,
+	tenants *tenantcache.TenantCache,
+	tenantClient *tmclient.Client,
+	tenantServiceName string,
+	onbPG *onboardingPostgresComponents,
+	txnPG *transactionPostgresComponents,
+	onbMgo *onboardingMongoComponents,
+	txnMgo *transactionMongoComponents,
+	crmMgo *crmComponents,
+	metricsFactory *metrics.MetricsFactory,
+) *TenantHealthProber {
+	ctx := context.Background()
+
+	if !multiTenantEnabled {
+		logger.Log(ctx, libLog.LevelInfo, "Tenant health prober not started: single-tenant mode")
+		return nil
+	}
+
+	if !cfg.TenantHealthProbeEnabled {
+		logger.Log(ctx, libLog.LevelInfo, "Tenant health prober disabled")
+		return nil
+	}
+
+	if tenants == nil && tenantClient == nil {
+		logger.Log(ctx, libLog.LevelWarn, "Tenant health prober is unavailable: multi-tenant mode without tenant cache or tenant-manager client")
+		return nil
+	}
+
+	lockManager, err := libRedis.NewRedisLockManager(redisClient)
+	if err != nil {
+		logger.Log(ctx, libLog.LevelWarn, "Tenant health prober is unavailable: failed to build the Redis lock manager", libLog.Err(err))
+		return nil
+	}
+
+	probeCfg := clampTenantHealthProbeConfig(logger, TenantHealthProbeConfig{
+		Interval:   time.Duration(cfg.TenantHealthProbeIntervalMs) * time.Millisecond,
+		Timeout:    time.Duration(cfg.TenantHealthProbeTimeoutMs) * time.Millisecond,
+		PassBudget: time.Duration(cfg.TenantHealthProbePassBudgetMs) * time.Millisecond,
+	})
+
+	// The lock outlives one missed pass: the next renewal is one interval away,
+	// and a pass may list tenants, run its whole budget and then wait for the
+	// last tenant's three sequential probes before renewing again.
+	leaseExpiry := 2*probeCfg.Interval + probeCfg.PassBudget +
+		3*probeCfg.Timeout + tenantHealthProbeTenantListAllowance
+	lease := newRedisReconcilerLease(lockManager, logger, utils.TenantHealthProbeLockKey(), leaseExpiry)
+
+	prober := NewTenantHealthProber(logger, lease, probeCfg).WithMetricsFactory(metricsFactory)
+
+	// Typed nils stay out of the prober's interfaces.
+	if tenants != nil {
+		prober.WithTenantCache(tenants)
+	}
+
+	if tenantClient != nil {
+		prober.WithActiveTenantLister(tenantClient, tenantServiceName)
+	}
+
+	if onbPG != nil && onbPG.pgManager != nil {
+		prober.WithPostgres(tenantDependencyPostgresOnboarding, onbPG.pgManager)
+	}
+
+	if txnPG != nil && txnPG.pgManager != nil {
+		prober.WithPostgres(tenantDependencyPostgresTransaction, txnPG.pgManager)
+	}
+
+	// Every module's Mongo manager reaches the same per-tenant cluster, so one
+	// ping through the first available manager covers all of them.
+	if mongoManager := firstTenantMongoManager(onbMgo, txnMgo, crmMgo); mongoManager != nil {
+		prober.WithMongo(mongoManager)
+	}
+
+	tenantSource := "cache"
+	if prober.tenantLister != nil {
+		tenantSource = "tenant_manager"
+	}
+
+	dependencies := make([]string, 0, len(prober.postgres)+1)
+	for _, registered := range prober.postgres {
+		dependencies = append(dependencies, registered.dependency)
+	}
+
+	if prober.mongo != nil {
+		dependencies = append(dependencies, tenantDependencyMongo)
+	}
+
+	logger.Log(ctx, libLog.LevelInfo, "Tenant health prober configured",
+		libLog.String("tenant_source", tenantSource),
+		libLog.Any("dependencies", dependencies),
+		libLog.Any("interval_ms", probeCfg.Interval.Milliseconds()),
+		libLog.Any("timeout_ms", probeCfg.Timeout.Milliseconds()),
+		libLog.Any("pass_budget_ms", probeCfg.PassBudget.Milliseconds()),
+		libLog.Any("lease_expiry_ms", leaseExpiry.Milliseconds()))
+
+	return prober
+}
+
+// firstTenantMongoManager returns the first non-nil per-tenant Mongo manager in
+// onboarding, transaction, CRM order, or nil when none is wired.
+func firstTenantMongoManager(onbMgo *onboardingMongoComponents, txnMgo *transactionMongoComponents, crmMgo *crmComponents) *tmmongo.Manager {
+	switch {
+	case onbMgo != nil && onbMgo.mongoManager != nil:
+		return onbMgo.mongoManager
+	case txnMgo != nil && txnMgo.mongoManager != nil:
+		return txnMgo.mongoManager
+	case crmMgo != nil && crmMgo.mongoManager != nil:
+		return crmMgo.mongoManager
+	default:
+		return nil
+	}
 }
 
 // initBalanceSyncWorker creates the balance sync worker (multi-tenant or single-tenant).
@@ -2259,6 +2453,16 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceReconcilerGraceMs, defaultBalanceReconcilerGraceMs)
 	intDefault(&cfg.BalanceReconcilerPageSize, defaultBalanceReconcilerPageSize)
 	intDefault(&cfg.BalanceReconcilerPassBudgetMs, defaultBalanceReconcilerPassBudgetMs)
+
+	// Tenant health probe defaults. TenantHealthProbeEnabled follows
+	// BALANCE_RECONCILER_ENABLED: unset or empty means true, explicit "false" opts out.
+	if os.Getenv("TENANT_HEALTH_PROBE_ENABLED") == "" {
+		cfg.TenantHealthProbeEnabled = true
+	}
+
+	intDefault(&cfg.TenantHealthProbeIntervalMs, defaultTenantHealthProbeIntervalMs)
+	intDefault(&cfg.TenantHealthProbeTimeoutMs, defaultTenantHealthProbeTimeoutMs)
+	intDefault(&cfg.TenantHealthProbePassBudgetMs, defaultTenantHealthProbePassBudgetMs)
 
 	// OtelServiceName defaults to the roster name so /version, the OTel resource
 	// and the streaming manifest name the same process even with no OTEL_* env.

@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	midazpkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
@@ -174,7 +175,7 @@ func TestAdministrativeOperations_RefusedAsBusyByAHolderOtherThanAClosing(t *tes
 	for _, op := range administrativeOperations {
 		t.Run(op.name, func(t *testing.T) {
 			m := newProtectionMocks(t)
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID).
 				Return("", false, nil).Times(2)
@@ -188,7 +189,7 @@ func TestAdministrativeOperations_RefusedAsBusyByAHolderOtherThanAClosing(t *tes
 			var conflict midazpkg.EntityConflictError
 			require.True(t, errors.As(err, &conflict))
 			assert.Equal(t, constant.ErrAccountAdministrativeOperationInProgress.Error(), conflict.Code)
-			assert.Equal(t, codes.Unset, findSpan(t, recorder, op.span).Status().Code)
+			assert.Equal(t, codes.Unset, spantest.FindSpan(t, recorder, op.span).Status().Code)
 		})
 	}
 }
@@ -201,7 +202,7 @@ func TestAdministrativeOperations_RecordAnUnreadableProtectionAsTechnical(t *tes
 	for _, op := range administrativeOperations {
 		t.Run(op.name, func(t *testing.T) {
 			m := newProtectionMocks(t)
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			m.redis.EXPECT().GetAccountClosingMarker(gomock.Any(), protectionOrgID, protectionLedgerID, protectionAccountID).
 				Return("", false, nil)
@@ -215,7 +216,7 @@ func TestAdministrativeOperations_RecordAnUnreadableProtectionAsTechnical(t *tes
 			var unavailable midazpkg.ServiceUnavailableError
 			require.True(t, errors.As(err, &unavailable))
 			assert.Equal(t, constant.ErrAccountClosingProtectionIndeterminate.Error(), unavailable.Code)
-			assert.Equal(t, codes.Error, findSpan(t, recorder, op.span).Status().Code)
+			assert.Equal(t, codes.Error, spantest.FindSpan(t, recorder, op.span).Status().Code)
 		})
 	}
 }

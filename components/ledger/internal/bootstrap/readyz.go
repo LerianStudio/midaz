@@ -59,6 +59,10 @@ const (
 	DefaultDrainDelay = 12 * time.Second
 )
 
+// tenantReadyzCarveOutReason is the fixed reason reported by the PostgreSQL
+// readiness checks in multi-tenant mode.
+const tenantReadyzCarveOutReason = "multi-tenant: per-tenant databases are probed in the background; see tenant_dependency_up"
+
 // DependencyCheck represents the health check result for a single dependency.
 type DependencyCheck struct {
 	Status       DependencyStatus `json:"status"`
@@ -415,15 +419,7 @@ func buildReadyzHandler(
 	var checkers []DependencyChecker
 
 	// PostgreSQL checkers
-	if onbPG.connection != nil {
-		checkers = append(checkers,
-			NewPostgresChecker("postgres_onboarding", onbPG.connection, onbPGDSN))
-	}
-
-	if txnPG.connection != nil {
-		checkers = append(checkers,
-			NewPostgresChecker("postgres_transaction", txnPG.connection, txnPGDSN))
-	}
+	checkers = appendPostgresCheckers(checkers, cfg, onbPG, txnPG, onbPGDSN, txnPGDSN)
 
 	// MongoDB checkers
 	if onbMgo.connection != nil {
@@ -474,13 +470,8 @@ func buildReadyzHandler(
 		NewRabbitMQChecker("rabbitmq", cfg.RabbitMQHealthCheckURL, rmqURI, cfg.RabbitMQUser, cfg.RabbitMQPass, cbManager))
 
 	// Build TLS validation results from already-created checkers.
-	tlsResults := make([]TLSValidationResult, 0, len(checkers))
-	for _, checker := range checkers {
-		tlsResults = append(tlsResults, TLSValidationResult{
-			Name:       checker.Name(),
-			TLSEnabled: checker.TLSEnabled(),
-		})
-	}
+	tlsResults := buildTLSValidationResults(checkers)
+	tlsResults = appendFallbackPostgresTLS(tlsResults, cfg, onbPG, txnPG, onbPGDSN, txnPGDSN)
 
 	// ValidateSaaSTLS returns error ONLY for DEPLOYMENT_MODE=saas with insecure deps.
 	if err := ValidateSaaSTLS(cfg.DeploymentMode, tlsResults); err != nil {
@@ -505,6 +496,89 @@ func buildReadyzHandler(
 		DeploymentMode: cfg.DeploymentMode,
 		MetricsFactory: metricsFactory,
 	}), nil
+}
+
+// appendPostgresCheckers registers the PostgreSQL readiness checks.
+func appendPostgresCheckers(
+	checkers []DependencyChecker,
+	cfg *Config,
+	onbPG *onboardingPostgresComponents,
+	txnPG *transactionPostgresComponents,
+	onbPGDSN, txnPGDSN string,
+) []DependencyChecker {
+	if cfg.MultiTenantEnabled {
+		// In multi-tenant mode the static connection is a fallback that belongs to
+		// no tenant, so probing it says nothing about tenant databases. Per-tenant
+		// health is a background signal, never a readiness gate: one tenant's
+		// outage must not take the pod out of rotation for every other tenant.
+		return append(checkers,
+			NewNotApplicableChecker("postgres_onboarding", tenantReadyzCarveOutReason),
+			NewNotApplicableChecker("postgres_transaction", tenantReadyzCarveOutReason))
+	}
+
+	if onbPG.connection != nil {
+		checkers = append(checkers,
+			NewPostgresChecker("postgres_onboarding", onbPG.connection, onbPGDSN))
+	}
+
+	if txnPG.connection != nil {
+		checkers = append(checkers,
+			NewPostgresChecker("postgres_transaction", txnPG.connection, txnPGDSN))
+	}
+
+	return checkers
+}
+
+// buildTLSValidationResults collects the TLS posture of each checker. A
+// not-applicable checker holds no connection, so it has no transport to
+// secure and is left out of the TLS gate.
+func buildTLSValidationResults(checkers []DependencyChecker) []TLSValidationResult {
+	tlsResults := make([]TLSValidationResult, 0, len(checkers))
+
+	for _, checker := range checkers {
+		if _, notApplicable := checker.(*NotApplicableChecker); notApplicable {
+			continue
+		}
+
+		tlsResults = append(tlsResults, TLSValidationResult{
+			Name:       checker.Name(),
+			TLSEnabled: checker.TLSEnabled(),
+		})
+	}
+
+	return tlsResults
+}
+
+// appendFallbackPostgresTLS keeps the multi-tenant fallback PostgreSQL
+// connections under the TLS gate. Their readiness checks are not applicable,
+// but the connections are still opened at boot, so their transport posture
+// must be validated exactly as in single-tenant mode.
+func appendFallbackPostgresTLS(
+	tlsResults []TLSValidationResult,
+	cfg *Config,
+	onbPG *onboardingPostgresComponents,
+	txnPG *transactionPostgresComponents,
+	onbPGDSN, txnPGDSN string,
+) []TLSValidationResult {
+	if !cfg.MultiTenantEnabled {
+		return tlsResults
+	}
+
+	if onbPG != nil && onbPG.connection != nil {
+		tlsResults = append(tlsResults, TLSValidationResult{
+			Name:       "postgres_onboarding",
+			TLSEnabled: detectPostgresTLS(onbPGDSN),
+		})
+	}
+
+	if txnPG != nil && txnPG.connection != nil {
+		tlsResults = append(tlsResults, TLSValidationResult{
+			Name:       "postgres_transaction",
+			TLSEnabled: detectPostgresTLS(txnPGDSN),
+		})
+	}
+
+	return tlsResults
 }
 
 // warnRabbitMQHealthURL logs a boot-time Warn when RABBITMQ_HEALTH_CHECK_URL

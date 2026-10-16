@@ -463,7 +463,15 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 	mtransaction.ApplyDefaultBalanceKeys(item.input.Send.Source.From)
 	mtransaction.ApplyDefaultBalanceKeys(item.input.Send.Distribute.To)
 
-	if _, err := mtransaction.ValidateSendSourceAndDistribute(ctx, item.input, item.status); err != nil {
+	// A revert item is rebuilt from the persisted operations of a settled
+	// transaction, so it must stay possible even when that transaction carried one
+	// account on both sides; every other item keeps the shared-account rule.
+	var validateOpts []mtransaction.ValidateOption
+	if item.action == constant.ActionRevert {
+		validateOpts = append(validateOpts, mtransaction.ForReversal())
+	}
+
+	if _, err := mtransaction.ValidateSendSourceAndDistribute(ctx, item.input, item.status, validateOpts...); err != nil {
 		return pkg.HandleKnownBusinessValidationErrors(err)
 	}
 
@@ -491,7 +499,7 @@ func (uc *UseCase) prepareAtomicTransactionBatchItem(
 
 	normalizeTransactionSendLegs(&item.input)
 
-	item.validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, item.input, item.status)
+	item.validate, err = mtransaction.ValidateSendSourceAndDistribute(ctx, item.input, item.status, validateOpts...)
 	if err != nil {
 		return pkg.HandleKnownBusinessValidationErrors(err)
 	}

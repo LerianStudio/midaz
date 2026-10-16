@@ -15,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -79,7 +80,7 @@ func TestUpdateLedgerSettings_SpanClassContract(t *testing.T) {
 				MetricsFactory: factory,
 			}
 
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 			organizationID, ledgerID := uuid.New(), uuid.New()
 
 			mockLedgerRepo.EXPECT().
@@ -96,15 +97,15 @@ func TestUpdateLedgerSettings_SpanClassContract(t *testing.T) {
 			require.Equal(t, tt.wantMetricResult == "business_error", pkg.IsBusinessError(err),
 				"case must exercise the error class it claims")
 
-			span := findSpan(t, recorder, "command.update_ledger_settings")
+			span := spantest.FindSpan(t, recorder, "command.update_ledger_settings")
 
 			assert.Equal(t, tt.wantSpanStatus, span.Status().Code,
 				"span status must follow the error class (T5)")
-			event, ok := findEvent(span, tt.wantSpanEvent)
+			event, ok := spantest.FindEvent(span, tt.wantSpanEvent)
 			require.True(t, ok, "the failure must be recorded as span event %q; got %v", tt.wantSpanEvent, span.Events())
 
 			if tt.wantEventDetail != "" {
-				assert.Contains(t, eventText(event), tt.wantEventDetail,
+				assert.Contains(t, spantest.EventText(event), tt.wantEventDetail,
 					"the recorded event must name the failing operation")
 			}
 

@@ -60,12 +60,7 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 	skip := int64(query.Page*query.Limit - query.Limit)
 	opts := options.Find().SetLimit(limit).SetSkip(skip).SetSort(bson.D{{Key: "_id", Value: 1}})
 
-	_, spanFind := tracer.Start(ctx, "mongodb.find_all_instruments.find")
-	defer spanFind.End()
-
-	spanFind.SetAttributes(attributes...)
-
-	spanFind.SetAttributes(
+	span.SetAttributes(
 		attribute.Int("app.request.query.limit", query.Limit),
 		attribute.Int("app.request.query.page", query.Page),
 		attribute.String("app.request.query.sort_order", query.SortOrder),
@@ -79,13 +74,13 @@ func (am *MongoDBRepository) FindAll(ctx context.Context, organizationID string,
 
 	filter, err := am.buildInstrumentFilter(ctx, organizationID, query, holderID, includeDeleted)
 	if err != nil {
-		recordSpanError(spanFind, "Invalid metadata value", err)
+		recordSpanError(span, "Invalid metadata value", err)
 		return nil, err
 	}
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find instruments", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find instruments", err)
 
 		return nil, err
 	}
@@ -295,11 +290,6 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	_, spanCount := tracer.Start(ctx, "mongodb.count_instruments.count")
-	defer spanCount.End()
-
-	spanCount.SetAttributes(attributes...)
-
 	filter := bson.D{
 		{Key: "holder_id", Value: holderID},
 		{Key: "deleted_at", Value: nil},
@@ -307,7 +297,7 @@ func (am *MongoDBRepository) Count(ctx context.Context, organizationID string, h
 
 	count, err := coll.CountDocuments(ctx, filter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanCount, "Failed to count aliases by holder", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to count aliases by holder", err)
 
 		return 0, err
 	}
@@ -350,11 +340,6 @@ func (am *MongoDBRepository) FindLiveRefsByAccount(ctx context.Context, organiza
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	_, spanFind := tracer.Start(ctx, "mongodb.find_live_instrument_refs_by_account.find")
-	defer spanFind.End()
-
-	spanFind.SetAttributes(attributes...)
-
 	filter := bson.D{
 		{Key: "ledger_id", Value: ledgerID.String()},
 		{Key: "account_id", Value: accountID.String()},
@@ -367,7 +352,7 @@ func (am *MongoDBRepository) FindLiveRefsByAccount(ctx context.Context, organiza
 
 	cursor, err := coll.Find(ctx, filter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find instrument refs by account", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find instrument refs by account", err)
 
 		return nil, err
 	}

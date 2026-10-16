@@ -29,6 +29,7 @@ type Service struct {
 	EngineRecoveryCleanup    *EngineRecoveryCleanupRunner
 	BalanceSyncWorker        *BalanceSyncWorker
 	BalanceReconciler        *BalanceReconcilerRunner
+	TenantHealthProber       *TenantHealthProber
 	LegacyBalanceSyncDrainer *LegacyBalanceSyncDrainer
 	EventListener            *tmevent.TenantEventListener
 	CircuitBreakerManager    *CircuitBreakerManager
@@ -132,7 +133,7 @@ func (s *Service) launcherApps() []launcherApp {
 	if s.MultiTenantConsumer != nil {
 		apps = append(apps, launcherApp{
 			"Multi-Tenant RabbitMQ Consumer",
-			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory},
+			&multiTenantConsumerRunnable{consumer: s.MultiTenantConsumer, metricsFactory: s.metricsFactory, tracer: serviceTracer(s.Telemetry)},
 		})
 	}
 
@@ -153,6 +154,11 @@ func (s *Service) launcherApps() []launcherApp {
 	// Balance reconciler (optional, started when enabled)
 	if s.BalanceReconciler != nil {
 		apps = append(apps, launcherApp{"Balance Reconciler", s.BalanceReconciler})
+	}
+
+	// Tenant health prober (multi-tenant only, started when enabled)
+	if s.TenantHealthProber != nil {
+		apps = append(apps, launcherApp{"Tenant Health Prober", s.TenantHealthProber})
 	}
 
 	// Legacy balance sync drainer — drains pre-v3.6.2 ZSET entries

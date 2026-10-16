@@ -343,7 +343,13 @@ func (uc *UseCase) finalizeCreatedTransaction(ctx context.Context, span trace.Sp
 		return nil, sanitizedErr
 	}
 
-	bgCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
+	// T10: the background writes derive from the request context without its
+	// cancellation and deadline, the reason this used to be context.Background():
+	// a client that disconnects after the response must not cancel them. Its values
+	// (tenant, logger, tracer and the command span) are kept, so the writes stay in
+	// the request trace under the service scope. The tenant is set again explicitly
+	// so the writes do not depend on how it was placed on ctx.
+	bgCtx := tmcore.ContextWithTenantID(context.WithoutCancel(ctx), tmcore.GetTenantIDContext(ctx))
 
 	go uc.SetTransactionIdempotencyValue(bgCtx, run.organizationID, run.ledgerID, run.idempotencyKey, run.idempotencyHash, run.idempotencyFingerprint, *tran, run.idempotencyTTL)
 

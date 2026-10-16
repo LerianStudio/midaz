@@ -28,6 +28,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	pgoperation "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -933,8 +934,12 @@ func (r *BalancePostgreSQLRepository) listByAliasesWithKeys(ctx context.Context,
 func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "postgres.update_balances")
+	// Sequential nesting (T3): the per-balance UPDATEs, traced by the driver, run under
+	// this span. The batch is a count here, not one span per balance.
+	ctx, span := tracer.Start(ctx, "postgres.update_balances")
 	defer span.End()
+
+	span.SetAttributes(attribute.Int("app.request.balances_count", len(balances)))
 
 	db, err := r.getDB(ctx)
 	if err != nil {
@@ -965,8 +970,6 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 	}()
 
 	for _, balance := range balances {
-		ctxBalance, spanUpdate := tracer.Start(ctx, "postgres.update_balance")
-
 		updates := make([]string, 0, 4)
 
 		args := make([]any, 0, 8)
@@ -990,16 +993,16 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 			` AND version < $` + strconv.Itoa(len(args)) +
 			` AND deleted_at IS NULL`
 
-		result, err := tx.ExecContext(ctxBalance, queryUpdate, args...)
+		result, err := tx.ExecContext(ctx, queryUpdate, args...)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(spanUpdate, "Err on result exec content", err)
+			libOpentelemetry.HandleSpanError(span, "Err on result exec content", err)
 
 			return err
 		}
 
 		rowsAffected, err := result.RowsAffected()
 		if err != nil {
-			libOpentelemetry.HandleSpanError(spanUpdate, "Err ", err)
+			libOpentelemetry.HandleSpanError(span, "Err ", err)
 
 			return err
 		}
@@ -1009,8 +1012,6 @@ func (r *BalancePostgreSQLRepository) BalancesUpdate(ctx context.Context, organi
 
 			continue
 		}
-
-		spanUpdate.End()
 	}
 
 	return nil

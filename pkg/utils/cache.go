@@ -491,6 +491,14 @@ func BalanceReconcilerLockKey() string {
 	return "lock:" + cachepolicy.HashTag + ":balance-reconciler"
 }
 
+// TenantHealthProbeLockKey returns the distributed lock key that elects the
+// single pod probing every tenant's databases in the background; the leader
+// keeps it between passes.
+// Format: "lock:{transactions}:tenant-health-probe"
+func TenantHealthProbeLockKey() string {
+	return "lock:" + cachepolicy.HashTag + ":tenant-health-probe"
+}
+
 // LedgerSettingsInternalKey returns a key with the following format to be used on redis cluster:
 // "ledger_settings:{organizationID:ledgerID}"
 func LedgerSettingsInternalKey(organizationID, ledgerID uuid.UUID) string {

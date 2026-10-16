@@ -25,6 +25,14 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 )
 
+// Step names of the validation steps without I/O inside ValidateAccountingRules. They
+// open no span of their own; a failure is a business event named after the step on the
+// usecase.validate_accounting_rules span, with the detail in the event's error attribute.
+const (
+	validateAccountRulesStep    = "usecase.validate_account_rules"
+	validateOverdraftRoutesStep = "usecase.validate_overdraft_routes"
+)
+
 // ValidateAccountingRules validates the accounting rules for the given operations.
 // It is the central gate that enforces route correctness for every transaction type.
 //
@@ -199,11 +207,11 @@ func (uc *UseCase) loadTransactionRouteCache(ctx context.Context, span trace.Spa
 // overdraft rubric, the leg would post with no GL classification — so this
 // rejects with ErrOverdraftRouteNotConfigured instead. Non-overdraft
 // transactions never enter the per-companion loop, so behavior is unchanged.
+//
+// It is a step without I/O, so it opens no span of its own: a failure is recorded
+// on the caller's usecase.validate_accounting_rules span through the context.
 func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "usecase.validate_overdraft_routes")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	for _, op := range operations {
 		if op.Balance == nil || op.Balance.Key != constant.OverdraftBalanceKey {
@@ -228,7 +236,7 @@ func validateOverdraftRoutes(ctx context.Context, cache mmodel.TransactionRouteC
 				attribute.String("app.request.operation_route_id", routeID),
 				attribute.String("app.request.operation_direction", op.Amount.Direction),
 			)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Overdraft route not configured", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateOverdraftRoutesStep, err)
 
 			return err
 		}
@@ -501,11 +509,11 @@ func resolveTransactionRouteID(validate *mtransaction.Responses) (uuid.UUID, err
 // validateAccountRules validates each operation against its corresponding route rule.
 // Route existence, direction matching, and account rules (alias/account_type) are
 // always enforced when validateRoutes is active.
+//
+// It is a step without I/O, so it opens no span of its own: a failure is recorded
+// on the caller's usecase.validate_accounting_rules span through the context.
 func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, bidirectionalRoutes map[string]mmodel.OperationRouteCache, validate *mtransaction.Responses, operations []mmodel.BalanceOperation) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "usecase.validate_account_rules")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	for _, operation := range operations {
 		// Get route ID and determine if operation is source or destination
@@ -540,7 +548,7 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 		if !found {
 			err := pkg.ValidateBusinessError(constant.ErrAccountingRouteNotFound, constant.EntityOperationRoute, routeID, operation.Alias)
 			span.SetAttributes(attribute.String("app.request.operation_route_id", routeID))
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting route not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRulesStep, err)
 
 			return err
 		}
@@ -550,7 +558,7 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 				attribute.String("app.request.operation_direction", operation.Amount.Direction),
 				attribute.String("app.request.operation_route_type", cacheRule.OperationType),
 			)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direction does not match route operation type", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRulesStep, err)
 
 			return err
 		}
@@ -560,7 +568,7 @@ func validateAccountRules(ctx context.Context, sourceRoutes, destinationRoutes, 
 		// creation/update validation only, not the transactional route rules.
 		if cacheRule.Account != nil {
 			if err := validateSingleOperationRule(operation, cacheRule.Account); err != nil {
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Operation failed validation against route rules", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRulesStep, err)
 
 				return err
 			}

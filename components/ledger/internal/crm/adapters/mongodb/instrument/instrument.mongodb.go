@@ -139,32 +139,27 @@ func (am *MongoDBRepository) Create(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
-	_, spanInsert := tracer.Start(ctx, "mongodb.create_instrument.insert")
-	defer spanInsert.End()
-
-	spanInsert.SetAttributes(attributes...)
-
-	spanInsert.SetAttributes(repositoryInputAttributes(record)...)
+	span.SetAttributes(repositoryInputAttributes(record)...)
 
 	_, err = coll.InsertOne(ctx, record)
 	if err != nil {
 		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok {
 			if indexName == bankAccountIndexName {
 				businessErr := pkg.ValidateBusinessError(cn.ErrBankAccountAlreadyRegistered, cn.EntityInstrument)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanInsert, "Bank account already registered to another instrument", businessErr)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bank account already registered to another instrument", businessErr)
 
 				return nil, businessErr
 			}
 
 			if strings.HasPrefix(indexName, "account_id") || strings.HasPrefix(indexName, "ledger_id_1_account_id") {
 				businessErr := pkg.ValidateBusinessError(cn.ErrAccountAlreadyAssociated, cn.EntityInstrument)
-				libOpentelemetry.HandleSpanBusinessErrorEvent(spanInsert, "Account already associated with an instrument", businessErr)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account already associated with an instrument", businessErr)
 
 				return nil, businessErr
 			}
 		}
 
-		libOpentelemetry.HandleSpanError(spanInsert, "Failed to insert instrument", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to insert instrument", err)
 
 		return nil, err
 	}
@@ -272,11 +267,6 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	_, spanUpdate := tracer.Start(ctx, "mongodb.update_instrument.update_by_id")
-	defer spanUpdate.End()
-
-	spanUpdate.SetAttributes(attributes...)
-
 	// Build encryption context for this instrument
 	encryptionCtx := encryption.EncryptionContext{
 		TenantID:       encryption.ExtractTenantID(ctx),
@@ -287,23 +277,23 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	instrumentToUpdate := &MongoDBModel{}
 
 	if err := instrumentToUpdate.FromEntity(ctx, instrument, am.FieldEncryptor, encryptionCtx); err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to convert instrument to model", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert instrument to model", err)
 
 		return nil, err
 	}
 
-	spanUpdate.SetAttributes(repositoryInputAttributes(instrumentToUpdate)...)
+	span.SetAttributes(repositoryInputAttributes(instrumentToUpdate)...)
 
 	bsonData, err := bson.Marshal(instrumentToUpdate)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to marshal instrument", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to marshal instrument", err)
 
 		return nil, err
 	}
 
 	var updateDocument bson.M
 	if err := bson.Unmarshal(bsonData, &updateDocument); err != nil {
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to unmarshal instrument", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to unmarshal instrument", err)
 
 		return nil, err
 	}
@@ -325,40 +315,35 @@ func (am *MongoDBRepository) Update(ctx context.Context, organizationID string, 
 	if err != nil {
 		if indexName, ok := dupkey.ClassifyDuplicateKey(err); ok && indexName == bankAccountIndexName {
 			businessErr := pkg.ValidateBusinessError(cn.ErrBankAccountAlreadyRegistered, cn.EntityInstrument)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "Bank account already registered to another instrument", businessErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Bank account already registered to another instrument", businessErr)
 
 			return nil, businessErr
 		}
 
-		libOpentelemetry.HandleSpanError(spanUpdate, "Failed to update instrument", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to update instrument", err)
 
 		return nil, err
 	}
 
 	if updateResult.MatchedCount == 0 {
 		businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
-		libOpentelemetry.HandleSpanBusinessErrorEvent(spanUpdate, "Instrument not found", businessErr)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Instrument not found", businessErr)
 
 		return nil, businessErr
 	}
 
 	var record MongoDBModel
 
-	_, spanFind := tracer.Start(ctx, "mongodb.update_instrument.find_by_id")
-	defer spanFind.End()
-
-	spanFind.SetAttributes(attributes...)
-
 	err = coll.FindOne(ctx, filter).Decode(&record)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find instrument after update", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find instrument after update", err)
 
 		return nil, err
 	}
 
 	result, err := record.ToEntity(ctx, am.FieldEncryptor, encryptionCtx)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to convert instrument to model", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert instrument to model", err)
 
 		return nil, err
 	}
@@ -394,11 +379,6 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 	coll := db.Collection(strings.ToLower("aliases_" + organizationID))
 
-	_, spanDelete := tracer.Start(ctx, "mongodb.delete_instrument.delete_one")
-	defer spanDelete.End()
-
-	spanDelete.SetAttributes(attributes...)
-
 	filter := bson.D{
 		{Key: "_id", Value: id},
 		{Key: "holder_id", Value: holderID},
@@ -408,14 +388,14 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 	if hardDelete {
 		deleted, err := coll.DeleteOne(ctx, filter, opts)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete instrument", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to delete instrument", err)
 
 			return err
 		}
 
 		if deleted.DeletedCount == 0 {
 			businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Instrument not found", businessErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Instrument not found", businessErr)
 
 			return businessErr
 		}
@@ -428,14 +408,14 @@ func (am *MongoDBRepository) Delete(ctx context.Context, organizationID string, 
 
 		updateResult, err := coll.UpdateOne(ctx, filter, update)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(spanDelete, "Failed to delete instrument", err)
+			libOpentelemetry.HandleSpanError(span, "Failed to delete instrument", err)
 
 			return err
 		}
 
 		if updateResult.MatchedCount == 0 {
 			businessErr := pkg.ValidateBusinessError(cn.ErrInstrumentNotFound, cn.EntityInstrument)
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanDelete, "Instrument not found", businessErr)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Instrument not found", businessErr)
 
 			return businessErr
 		}

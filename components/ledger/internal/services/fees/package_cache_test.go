@@ -98,12 +98,14 @@ func cacheTestFeeInput(ledgerID uuid.UUID) *model.FeeCalculate {
 				Value: decimal.NewFromInt(1000),
 				Source: transaction.Source{
 					From: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@source",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 				Distribute: transaction.Distribute{
 					To: []transaction.FromTo{{
-						Amount: &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
+						AccountAlias: "@destination",
+						Amount:       &transaction.Amount{Asset: "BRL", Value: decimal.NewFromInt(1000)},
 					}},
 				},
 			},
