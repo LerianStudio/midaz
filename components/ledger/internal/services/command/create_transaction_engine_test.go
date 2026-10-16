@@ -528,8 +528,8 @@ func TestCreateTransactionV2ReserveCarriesSourceAccountScope(t *testing.T) {
 
 	accountRepo := account.NewMockRepository(ctrl)
 	accountRepo.EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, (*uuid.UUID)(nil), uuid.MustParse(source.AccountID), mmodel.HolderOffV1).
-		Return(&mmodel.Account{ID: source.AccountID, SegmentID: &segmentID, PortfolioID: &portfolioID}, nil).
+		ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{uuid.MustParse(source.AccountID)}).
+		Return([]*mmodel.Account{{ID: source.AccountID, SegmentID: &segmentID, PortfolioID: &portfolioID}}, nil).
 		Times(1)
 
 	settings := mmodel.LedgerSettings{}
@@ -578,7 +578,7 @@ func TestCreateTransactionV2EnforceSourceScopeReadFailureStopsBeforeReserve(t *t
 
 	accountRepo := account.NewMockRepository(ctrl)
 	accountRepo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, readFailure).
 		Times(1)
 

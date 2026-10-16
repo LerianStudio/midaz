@@ -216,12 +216,12 @@ func TestReserveAtomicTransactionBatch_ForwardsSourceAccountScope(t *testing.T) 
 	ctrl := gomock.NewController(t)
 	accountRepo := account.NewMockRepository(ctrl)
 	accountRepo.EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, (*uuid.UUID)(nil), atomicTransactionBatchScopedAccountID(0), mmodel.HolderOffV1).
-		Return(&mmodel.Account{SegmentID: &segmentID}, nil).
+		ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(0)}).
+		Return([]*mmodel.Account{{ID: atomicTransactionBatchScopedAccountID(0).String(), SegmentID: &segmentID}}, nil).
 		Times(1)
 	accountRepo.EXPECT().
-		Find(gomock.Any(), organizationID, ledgerID, (*uuid.UUID)(nil), atomicTransactionBatchScopedAccountID(1), mmodel.HolderOffV1).
-		Return(&mmodel.Account{PortfolioID: &portfolioID}, nil).
+		ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(1)}).
+		Return([]*mmodel.Account{{ID: atomicTransactionBatchScopedAccountID(1).String(), PortfolioID: &portfolioID}}, nil).
 		Times(1)
 
 	uc := &UseCase{TracerReserver: fake, AccountRepo: accountRepo}
@@ -252,10 +252,10 @@ func TestReserveAtomicTransactionBatch_EnforceScopeReadFailureReleasesPriorItems
 	accountRepo := account.NewMockRepository(ctrl)
 	gomock.InOrder(
 		accountRepo.EXPECT().
-			Find(gomock.Any(), organizationID, ledgerID, (*uuid.UUID)(nil), atomicTransactionBatchScopedAccountID(0), mmodel.HolderOffV1).
-			Return(&mmodel.Account{}, nil),
+			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(0)}).
+			Return([]*mmodel.Account{{ID: atomicTransactionBatchScopedAccountID(0).String()}}, nil),
 		accountRepo.EXPECT().
-			Find(gomock.Any(), organizationID, ledgerID, (*uuid.UUID)(nil), atomicTransactionBatchScopedAccountID(1), mmodel.HolderOffV1).
+			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(1)}).
 			Return(nil, readFailure),
 	)
 

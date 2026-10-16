@@ -6,7 +6,6 @@ package command
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	libLog "github.com/LerianStudio/lib-observability/v4/log"
@@ -16,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -37,7 +35,10 @@ func reservationActive(reserver TracerReserver, settings mmodel.TracerSettings, 
 // of the first internal source balance plus that account's segment and
 // portfolio, which the balance row does not hold and both change by an account
 // update, so they are read from the account at reserve time. The account is
-// read in the organization and ledger the balance belongs to.
+// read in the organization and ledger the balance belongs to, from the
+// primary: a lagging replica would hand back the grouping the account had
+// before it was moved, and the reserve would be counted against the wrong
+// limit.
 //
 // The read is best effort except for one case:
 //
@@ -80,11 +81,13 @@ func (uc *UseCase) reserveSourceAccount(
 		return account, nil
 	}
 
-	found, err := uc.AccountRepo.Find(ctx, organizationID, ledgerID, nil, accountID, mmodel.HolderOffV1)
+	// ListAccountsByIDs forces the primary whatever the read-routing setting.
+	accounts, err := uc.AccountRepo.ListAccountsByIDs(ctx, organizationID, ledgerID, []uuid.UUID{accountID})
 	if err != nil {
 		return uc.handleSourceAccountReadError(ctx, span, logger, settings, account, err)
 	}
 
+	found := sourceAccountByID(accounts, balance.AccountID)
 	if found == nil {
 		logger.Log(ctx, libLog.LevelWarn, "Source account not found; reserving without segment and portfolio",
 			libLog.String("account_id", balance.AccountID))
@@ -109,8 +112,8 @@ func (uc *UseCase) reserveSourceAccount(
 }
 
 // handleSourceAccountReadError applies the failure policy of the source
-// account read. A missing account is a fact about the account, never a reason
-// to fail the create; any other failure blocks only under enforce.
+// account read. A missing account is not an error here (the read returns no
+// row); a failed read blocks only under enforce.
 func (uc *UseCase) handleSourceAccountReadError(
 	ctx context.Context,
 	span trace.Span,
@@ -119,14 +122,6 @@ func (uc *UseCase) handleSourceAccountReadError(
 	account tracer.ReserveAccount,
 	err error,
 ) (tracer.ReserveAccount, error) {
-	var notFound pkg.EntityNotFoundError
-	if errors.As(err, &notFound) {
-		logger.Log(ctx, libLog.LevelWarn, "Source account not found; reserving without segment and portfolio",
-			libLog.String("account_id", account.AccountID))
-
-		return account, nil
-	}
-
 	if settings.Mode == mmodel.TracerModeAdvisory {
 		span.AddEvent(reserveSourceScopeUnresolvedEvent, trace.WithAttributes(
 			attribute.String("app.tracer.source_account_id", account.AccountID),
@@ -166,4 +161,16 @@ func parseSourceBalanceIDs(balance *mmodel.Balance) (uuid.UUID, uuid.UUID, uuid.
 	}
 
 	return organizationID, ledgerID, accountID, nil
+}
+
+// sourceAccountByID returns the account with the given id from a read that
+// asked for that id alone, or nil when the read found none.
+func sourceAccountByID(accounts []*mmodel.Account, accountID string) *mmodel.Account {
+	for _, acc := range accounts {
+		if acc != nil && acc.ID == accountID {
+			return acc
+		}
+	}
+
+	return nil
 }

@@ -17,7 +17,6 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
@@ -95,7 +94,7 @@ func TestReserveSourceAccount_InactiveSeamReadsNothing(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			repo := account.NewMockRepository(ctrl)
-			repo.EXPECT().Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			repo.EXPECT().ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 			uc := &UseCase{TracerReserver: tc.reserver, AccountRepo: repo}
 
@@ -111,7 +110,7 @@ func TestReserveSourceAccount_NoInternalSourceReadsNothing(t *testing.T) {
 	ctx, span, logger := anchorDeps()
 	ctrl := gomock.NewController(t)
 	repo := account.NewMockRepository(ctrl)
-	repo.EXPECT().Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+	repo.EXPECT().ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 	uc := &UseCase{TracerReserver: &stubReserver{}, AccountRepo: repo}
 
@@ -159,7 +158,7 @@ func TestReserveSourceAccount_InvalidIDSendsNoScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			repo := account.NewMockRepository(ctrl)
-			repo.EXPECT().Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
+			repo.EXPECT().ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 
 			uc := &UseCase{TracerReserver: &stubReserver{}, AccountRepo: repo}
 			balances := tc.balances()
@@ -191,8 +190,8 @@ func TestReserveSourceAccount_ResolvesScopeFromBalanceLedger(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			repo := account.NewMockRepository(ctrl)
 			repo.EXPECT().
-				Find(gomock.Any(), scopeTestOrganizationID, scopeTestLedgerID, (*uuid.UUID)(nil), scopeTestAccountID, mmodel.HolderOffV1).
-				Return(&mmodel.Account{ID: scopeTestAccountID.String(), SegmentID: tc.segmentID, PortfolioID: tc.portfolioID}, nil).
+				ListAccountsByIDs(gomock.Any(), scopeTestOrganizationID, scopeTestLedgerID, []uuid.UUID{scopeTestAccountID}).
+				Return([]*mmodel.Account{{ID: scopeTestAccountID.String(), SegmentID: tc.segmentID, PortfolioID: tc.portfolioID}}, nil).
 				Times(1)
 
 			uc := &UseCase{TracerReserver: &stubReserver{}, AccountRepo: repo}
@@ -219,8 +218,8 @@ func TestReserveSourceAccount_NotFoundSendsNoScope(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			repo := account.NewMockRepository(ctrl)
 			repo.EXPECT().
-				Find(gomock.Any(), scopeTestOrganizationID, scopeTestLedgerID, (*uuid.UUID)(nil), scopeTestAccountID, mmodel.HolderOffV1).
-				Return(nil, pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)).
+				ListAccountsByIDs(gomock.Any(), scopeTestOrganizationID, scopeTestLedgerID, []uuid.UUID{scopeTestAccountID}).
+				Return([]*mmodel.Account{}, nil).
 				Times(1)
 
 			uc := &UseCase{TracerReserver: &stubReserver{}, AccountRepo: repo}
@@ -238,7 +237,7 @@ func TestReserveSourceAccount_TechnicalErrorAdvisorySendsNoScope(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := account.NewMockRepository(ctrl)
 	repo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("connection reset")).
 		Times(1)
 
@@ -266,7 +265,7 @@ func TestReserveSourceAccount_TechnicalErrorEnforceFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	repo := account.NewMockRepository(ctrl)
 	repo.EXPECT().
-		Find(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(nil, cause).
 		Times(1)
 
