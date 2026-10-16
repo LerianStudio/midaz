@@ -412,3 +412,61 @@ func TestScope_Matches(t *testing.T) {
 		})
 	}
 }
+
+// TestScope_GroupingScopeShared_AcrossAccounts pins that a limit scoped by a
+// portfolio or segment matches every request carrying that grouping whatever
+// its account, never matches a request without it, and resolves to one usage
+// counter key derived from the limit scope, so distinct accounts of the same
+// grouping draw on the same counter.
+func TestScope_GroupingScopeShared_AcrossAccounts(t *testing.T) {
+	accountA := testutil.MustDeterministicUUID(101)
+	accountB := testutil.MustDeterministicUUID(102)
+	groupID := testutil.MustDeterministicUUID(103)
+
+	tests := []struct {
+		name       string
+		limitScope Scope
+		withGroup  func(r *ValidationRequest)
+		wantKey    string
+	}{
+		{
+			name:       "portfolio",
+			limitScope: Scope{PortfolioID: testutil.UUIDPtr(groupID)},
+			withGroup:  func(r *ValidationRequest) { r.Portfolio = &PortfolioContext{ID: groupID} },
+			wantKey:    "port:" + groupID.String(),
+		},
+		{
+			name:       "segment",
+			limitScope: Scope{SegmentID: testutil.UUIDPtr(groupID)},
+			withGroup:  func(r *ValidationRequest) { r.Segment = &SegmentContext{ID: groupID} },
+			wantKey:    "seg:" + groupID.String(),
+		},
+	}
+
+	request := func(accountID uuid.UUID, withGroup func(r *ValidationRequest)) *Scope {
+		r := &ValidationRequest{Account: AccountContext{ID: accountID}}
+		if withGroup != nil {
+			withGroup(r)
+		}
+
+		return r.ToTransactionScope()
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			inGroupA := request(accountA, tc.withGroup)
+			inGroupB := request(accountB, tc.withGroup)
+			outsideGroup := request(accountA, nil)
+
+			require.NotEqual(t, *inGroupA.AccountID, *inGroupB.AccountID)
+			assert.True(t, tc.limitScope.Matches(inGroupA), "account A carrying the grouping must match")
+			assert.True(t, tc.limitScope.Matches(inGroupB), "account B carrying the grouping must match")
+			assert.False(t, tc.limitScope.Matches(outsideGroup), "a request without the grouping must not match")
+
+			key := CalculateScopeKey(&tc.limitScope)
+			assert.Equal(t, tc.wantKey, key)
+			assert.NotContains(t, key, accountA.String())
+			assert.NotContains(t, key, accountB.String())
+		})
+	}
+}
