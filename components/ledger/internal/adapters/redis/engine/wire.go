@@ -32,6 +32,11 @@ type Limits struct {
 	MaxPreparedBytes       int
 }
 
+// engineProtocolVersion is the Go-to-Lua request protocol. Every pod runs the
+// script of its own release, by SHA, against the same Redis, so a script refuses
+// any other protocol version.
+const engineProtocolVersion = 4
+
 const (
 	maxTransactionsPerExecution = 50
 	maxPostingsPerExecution     = 10_000
@@ -74,10 +79,13 @@ type resolvedCoordinationKeys struct {
 	Receipts, Guards, Protection, TransactionIndex, Evidence string
 }
 
+// resolvedBalanceKeys carries the physical keys of one balance of the pool: its
+// live blob, both deletion-marker forms and its configuration key.
 type resolvedBalanceKeys struct {
 	Balance       string
 	Deleted       string
 	LegacyDeleted string
+	Config        string
 }
 
 // resolvedAccountKeys carries the account-scoped closing controls of one account
@@ -90,12 +98,16 @@ type resolvedAccountKeys struct {
 	Closing        string
 	Closed         string
 	Ownership      string
+	Config         string
 	AdmissionToken string
 }
 
 type preparedExecution struct {
-	Keys    []string
-	Payload []byte
+	Keys []string
+	// BalanceKeys are the live balance blobs of the pool, in balance order: the
+	// only keys a limit normalization request may name.
+	BalanceKeys []string
+	Payload     []byte
 }
 
 type wireRequest struct {
@@ -132,13 +144,18 @@ type wireScopeKeys struct {
 }
 
 // wireAccount declares the account-scoped closing controls of one account of the
-// balance pool, in the same order as the key block it indexes.
+// balance pool, in the same order as the key block it indexes, with the index of
+// the account's configuration key and the account configuration the request was
+// composed with: its blocked flag and that configuration's version.
 type wireAccount struct {
 	AccountID         string `json:"accountId"`
 	ClosingKeyIndex   int    `json:"closingKeyIndex"`
 	ClosedKeyIndex    int    `json:"closedKeyIndex"`
 	OwnershipKeyIndex int    `json:"ownershipKeyIndex"`
+	ConfigKeyIndex    int    `json:"configKeyIndex"`
 	AdmissionToken    string `json:"admissionToken"`
+	Blocked           bool   `json:"blocked"`
+	ConfigVersion     string `json:"configVersion"`
 }
 
 type wireTransaction struct {
@@ -191,6 +208,12 @@ type wirePosting struct {
 	Refunds          []wireFeeDebtRefund      `json:"refunds,omitempty"`
 }
 
+// wireBalance declares one balance of the pool. Its key indexes are explicit, so
+// no consumer derives a balance's keys from its position in the pool. The
+// snapshot carries the balance configuration the request was composed with, and
+// BalanceConfigVersion its version: the version stays outside the snapshot, which
+// is also the shape of the engine's result and of the evidence previous releases
+// decode.
 type wireBalance struct {
 	OrganizationID       string              `json:"organizationId"`
 	LedgerID             string              `json:"ledgerId"`
@@ -198,6 +221,8 @@ type wireBalance struct {
 	KeyIndex             int                 `json:"keyIndex"`
 	DeleteKeyIndex       int                 `json:"deleteKeyIndex"`
 	LegacyDeleteKeyIndex int                 `json:"legacyDeleteKeyIndex"`
+	ConfigKeyIndex       int                 `json:"configKeyIndex"`
+	BalanceConfigVersion string              `json:"balanceConfigVersion"`
 	Snapshot             wireBalanceSnapshot `json:"snapshot"`
 }
 
@@ -262,6 +287,11 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 
 	wireAccounts := prepareAccounts(input.Execution, resolved, accounts)
 
+	configKeys, err := prepareConfigKeys(input.Execution, resolved, accounts, len(keys)+len(feeDebtKeys), wireBalances, wireAccounts, limits.MaxRequestBytes)
+	if err != nil {
+		return nil, err
+	}
+
 	request := input.Execution
 
 	retentionSeconds, err := effectiveRetentionSeconds(input.RetentionSeconds)
@@ -270,7 +300,7 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 	}
 
 	wire := wireRequest{
-		ProtocolVersion: 3, TenantID: resolved.TenantID,
+		ProtocolVersion: engineProtocolVersion, TenantID: resolved.TenantID,
 		OrganizationID: request.OrganizationID.String(), LedgerID: request.LedgerID.String(), ExecutionID: request.ExecutionID.String(),
 		IntentFingerprint: input.IntentFingerprint, ScheduleKeyIndex: 1, RecoveryKeyIndex: 2, ReceiptKeyIndex: 3, GuardKeyIndex: 4, ProtectionKeyIndex: 5, TransactionIndexKeyIndex: 6, EvidenceKeyIndex: 7,
 		ReceiptField: request.ExecutionID.String(), RetentionSeconds: retentionSeconds, Transactions: transactions, Balances: wireBalances,
@@ -288,7 +318,12 @@ func prepareExecution(ctx context.Context, input command.EngineExecution, limits
 		return nil, fmt.Errorf("accounting execution exceeds request byte limit")
 	}
 
-	return &preparedExecution{Keys: append(keys, feeDebtKeys...), Payload: encoded}, nil
+	balanceKeys := make([]string, 0, len(wireBalances))
+	for _, balance := range wireBalances {
+		balanceKeys = append(balanceKeys, keys[balance.KeyIndex-1])
+	}
+
+	return &preparedExecution{Keys: append(append(keys, feeDebtKeys...), configKeys...), BalanceKeys: balanceKeys, Payload: encoded}, nil
 }
 
 const (
@@ -450,11 +485,16 @@ func prepareBalances(ctx context.Context, request accounting.Execution, limits L
 			return nil, nil, err
 		}
 
+		if balance.ConfigVersion < 0 || balance.AccountConfigVersion < 0 {
+			return nil, nil, fmt.Errorf("invalid accounting configuration version")
+		}
+
 		balances[scopeRef], identities[balance.ID], accounts[balance.AccountID], aliases[scopeAlias] = balance, true, balance, balance.AccountID
 		prepared = append(prepared, wireBalance{
 			OrganizationID: organizationID.String(), LedgerID: ledgerID.String(),
 			BalanceRef: balance.BalanceRef, KeyIndex: 8 + 3*i,
-			DeleteKeyIndex: 9 + 3*i, LegacyDeleteKeyIndex: 10 + 3*i, Snapshot: snapshot,
+			DeleteKeyIndex: 9 + 3*i, LegacyDeleteKeyIndex: 10 + 3*i,
+			BalanceConfigVersion: strconv.FormatInt(balance.ConfigVersion, 10), Snapshot: snapshot,
 		})
 	}
 
@@ -690,22 +730,130 @@ func accountProtectionKeyBase(request accounting.Execution) int {
 }
 
 // prepareAccounts declares the closing controls of every account of the pool and
-// the administrative token the caller holds over it, matching the tail key block
-// position for position.
+// the administrative token the caller holds over it, matching the account key
+// block position for position, together with the account configuration the
+// request carries.
 func prepareAccounts(request accounting.Execution, resolved resolvedExecutionKeys, accounts []uuid.UUID) []wireAccount {
 	base := accountProtectionKeyBase(request)
+	configurations := requestAccountConfigurations(request)
 	prepared := make([]wireAccount, 0, len(accounts))
 
 	for i, accountID := range accounts {
 		keys := resolved.Accounts[accountID]
+		configuration := configurations[accountID]
 		prepared = append(prepared, wireAccount{
 			AccountID:       accountID.String(),
 			ClosingKeyIndex: base + 3*i + 1, ClosedKeyIndex: base + 3*i + 2, OwnershipKeyIndex: base + 3*i + 3,
 			AdmissionToken: keys.AdmissionToken,
+			Blocked:        configuration.Blocked, ConfigVersion: strconv.FormatInt(configuration.Version, 10),
 		})
 	}
 
 	return prepared
+}
+
+// requestAccountConfigurations derives, for each account of the pool, the
+// account configuration the request carries. The snapshots of one account carry
+// the same configuration when the balance load resolved it; should they differ,
+// the newest version wins and, within one version, a block wins, so a divergent
+// request can never unblock an account.
+func requestAccountConfigurations(request accounting.Execution) map[uuid.UUID]accounting.AccountConfig {
+	configurations := make(map[uuid.UUID]accounting.AccountConfig, len(request.Balances))
+
+	for _, balance := range request.Balances {
+		current, exists := configurations[balance.AccountID]
+		if !exists || balance.AccountConfigVersion > current.Version ||
+			(balance.AccountConfigVersion == current.Version && balance.Blocked) {
+			configurations[balance.AccountID] = accounting.AccountConfig{
+				AccountID: balance.AccountID, Version: balance.AccountConfigVersion, Blocked: balance.Blocked,
+			}
+		}
+	}
+
+	return configurations
+}
+
+// prepareConfigKeys closes the key inventory with the configuration block: one
+// configuration key per balance, in balance order, then one per account, in the
+// account order of the protection block. It follows every other block, so no
+// index of those blocks moves, and records each key's index on its declaration.
+func prepareConfigKeys(
+	request accounting.Execution,
+	resolved resolvedExecutionKeys,
+	accounts []uuid.UUID,
+	base int,
+	balances []wireBalance,
+	declared []wireAccount,
+	maxBytes int,
+) ([]string, error) {
+	if len(balances) != len(request.Balances) || len(declared) != len(accounts) {
+		return nil, fmt.Errorf("accounting configuration inventory does not match the balance pool")
+	}
+
+	keys := make([]string, 0, len(balances)+len(accounts))
+
+	for i, balance := range request.Balances {
+		organizationID, ledgerID, ok := effectiveBalanceScope(request, balance)
+		if !ok {
+			return nil, fmt.Errorf("invalid accounting balance scope")
+		}
+
+		pair, exists := findResolvedBalanceKeys(request, resolved, balance, organizationID, ledgerID)
+		if !exists || pair.Config != balanceConfigKeyOf(pair.Balance) {
+			return nil, fmt.Errorf("invalid resolved accounting balance configuration key")
+		}
+
+		keys = append(keys, pair.Config)
+		balances[i].ConfigKeyIndex = base + len(keys)
+	}
+
+	for i, accountID := range accounts {
+		protection := resolved.Accounts[accountID]
+		if protection.Config == "" || protection.Config != accountConfigKeyOf(protection.Closing) {
+			return nil, fmt.Errorf("invalid resolved accounting account configuration key")
+		}
+
+		keys = append(keys, protection.Config)
+		declared[i].ConfigKeyIndex = base + len(keys)
+	}
+
+	total := 0
+
+	for _, key := range keys {
+		if !strings.Contains(key, cachepolicy.HashTag) || strings.Count(key, "{") != 1 || strings.Count(key, "}") != 1 || len(key) > maxBytes-total {
+			return nil, fmt.Errorf("invalid or oversized resolved accounting configuration key")
+		}
+
+		total += len(key)
+	}
+
+	return keys, nil
+}
+
+// Configuration keys share the scope, logical identity and Redis slot of the key
+// they are derived from; only the namespace differs. The engine verifies the same
+// derivation, so a configuration key can never be served for another balance or
+// account.
+const (
+	balanceConfigNamespacePrefix  = "balance-config:" + cachepolicy.HashTag + ":"
+	accountClosingNamespacePrefix = "account-closing:" + cachepolicy.HashTag + ":"
+	accountConfigNamespacePrefix  = "account-config:" + cachepolicy.HashTag + ":"
+)
+
+func balanceConfigKeyOf(balanceKey string) string {
+	return replaceNamespace(balanceKey, cachepolicy.BalanceNamespacePrefix, balanceConfigNamespacePrefix)
+}
+
+func accountConfigKeyOf(closingKey string) string {
+	return replaceNamespace(closingKey, accountClosingNamespacePrefix, accountConfigNamespacePrefix)
+}
+
+func replaceNamespace(key, from, to string) string {
+	if !strings.Contains(key, from) {
+		return ""
+	}
+
+	return strings.Replace(key, from, to, 1)
 }
 
 //nolint:gocyclo // validates the full ordered Lua key inventory and the optional multi-scope tail

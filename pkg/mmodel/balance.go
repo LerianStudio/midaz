@@ -89,6 +89,20 @@ type Balance struct {
 	// resource is the public surface for the blocked flag.
 	Blocked bool `json:"-"`
 
+	// ConfigVersion is the balance row's configuration version (balance.config_version):
+	// it rises by one, in commit order, on every change of Settings, AllowSending or
+	// AllowReceiving, and orders copies of the configuration of this one balance. It is
+	// excluded from JSON because this struct is also serialized into formats that the
+	// previous release decodes strictly (the completion plan's operation balance), where
+	// an unknown field would be refused; it is not part of the API contract either.
+	ConfigVersion int64 `json:"-"`
+
+	// AccountConfigVersion is the owning account's configuration version
+	// (account.config_version) of the Blocked value this balance carries. It orders
+	// copies of that one account's Blocked flag, is never compared with ConfigVersion,
+	// and stays out of JSON for the same reason as ConfigVersion.
+	AccountConfigVersion int64 `json:"-"`
+
 	// Direction is the accounting direction of the balance. One of
 	// "credit" or "debit". Empty string denotes legacy rows predating the
 	// overdraft feature and is treated as "credit" by the engine.
@@ -447,10 +461,12 @@ type Balances struct {
 // marshal BalanceRedis directly into the cache: its JSON tags are the new
 // lowerCamel representation, not the complete dual wire format.
 //
-// Settings writes use scripts/update_balance_settings.lua through
-// UpdateBalanceCacheSettings in adapters/redis/transaction/consumer.redis.go.
-// They preserve live monetary state and emit the legacy fields required by the
-// accounting script. The shared codec owns the dual wire format.
+// A configuration PATCH does not rewrite this blob: it writes the configuration
+// keys the engine decides with, then confirms a copy of the configuration in the
+// blob for earlier releases (CopyBalanceConfig and CopyAccountConfig in the
+// ledger's adapters/redis/balancecache). The copy replaces only the configuration
+// fields and carries live monetary state over byte for byte. The shared codec
+// owns the dual wire format.
 type BalanceRedis struct {
 	// Unique identifier for the balance (UUID format)
 	ID string `json:"id"`

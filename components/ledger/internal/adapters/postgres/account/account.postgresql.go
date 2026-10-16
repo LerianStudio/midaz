@@ -123,6 +123,9 @@ type Repository interface {
 	FindByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) (bool, error)
 	ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
 	ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error)
+	// Update returns the row as written (RETURNING), with its config_version; the
+	// holder columns are never projected, so HolderID and HolderCheckSkipped are
+	// left at their zero values.
 	Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error)
 	Delete(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID) error
 	// CloseAccount records the closing instant of one live, open account and
@@ -145,6 +148,8 @@ type Repository interface {
 	// row in the scope and therefore no closing to report. Soft-deleted rows are
 	// included, so a closing survives a later deletion of the account.
 	ListClosedAtByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]*time.Time, error)
+	// ListAccountsByIDs reads the live accounts from the PRIMARY (read-only
+	// transaction), whatever the read-routing setting, each with its config_version.
 	ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error)
 	ListAccountsByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, aliases []string) ([]*mmodel.Account, error)
 	// ListExternalAccountsByAssetCode returns the live (not soft-deleted) accounts of
@@ -1079,7 +1084,12 @@ func applyNullableFields(builder squirrel.UpdateBuilder, acc *mmodel.Account, re
 	return builder
 }
 
-// Update an Account entity into Postgresql and returns the Account updated.
+// Update an Account entity into Postgresql and returns the row as written.
+//
+// The returned account comes from RETURNING, so it carries the stored identity,
+// the blocked flag and the config_version the database trigger assigned. Update
+// takes no holder policy, so the projection never names the holder columns: the
+// returned HolderID is nil and HolderCheckSkipped false, whatever is stored.
 func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID *uuid.UUID, id uuid.UUID, acc *mmodel.Account) (*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1098,8 +1108,7 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 
 	builder := applyAccountUpdateFields(squirrel.Update(r.tableName), acc, record)
 
-	record.UpdatedAt = time.Now()
-	builder = builder.Set("updated_at", record.UpdatedAt)
+	builder = builder.Set("updated_at", time.Now())
 
 	builder = builder.Where(squirrel.Eq{"organization_id": organizationID})
 	builder = builder.Where(squirrel.Eq{"ledger_id": ledgerID})
@@ -1110,7 +1119,9 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		builder = builder.Where(squirrel.Expr("portfolio_id = ?", *portfolioID))
 	}
 
-	builder = builder.PlaceholderFormat(squirrel.Dollar)
+	builder = builder.
+		Suffix("RETURNING " + strings.Join(accountConfigColumns(), ", ")).
+		PlaceholderFormat(squirrel.Dollar)
 
 	query, args, err := builder.ToSql()
 	if err != nil {
@@ -1119,8 +1130,16 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	result, err := db.ExecContext(ctx, query, args...)
+	written, err := scanAccountWithConfigVersion(db.QueryRowContext(ctx, query, args...))
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
+
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account", err)
+
+			return nil, err
+		}
+
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			schemaDrift := services.IsSchemaDrift(err)
@@ -1143,22 +1162,47 @@ func (r *AccountPostgreSQLRepository) Update(ctx context.Context, organizationID
 		return nil, err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get rows affected", err)
+	return written.ToEntity(), nil
+}
 
+// accountConfigColumns is the holder-free account projection followed by
+// config_version. It serves the reads and writes whose result orders cached
+// copies of the blocked flag, which need the version next to the flag.
+func accountConfigColumns() []string {
+	return append(accountColumns(false), "config_version")
+}
+
+// scanAccountWithConfigVersion reads one row of accountConfigColumns.
+func scanAccountWithConfigVersion(row interface{ Scan(dest ...any) error }) (*AccountPostgreSQLModel, error) {
+	var acc AccountPostgreSQLModel
+
+	if err := row.Scan(
+		&acc.ID,
+		&acc.Name,
+		&acc.ParentAccountID,
+		&acc.EntityID,
+		&acc.HolderID,
+		&acc.AssetCode,
+		&acc.OrganizationID,
+		&acc.LedgerID,
+		&acc.PortfolioID,
+		&acc.SegmentID,
+		&acc.Status,
+		&acc.StatusDescription,
+		&acc.Alias,
+		&acc.Type,
+		&acc.CreatedAt,
+		&acc.UpdatedAt,
+		&acc.DeletedAt,
+		&acc.Blocked,
+		&acc.HolderCheckSkipped,
+		&acc.ClosedAt,
+		&acc.ConfigVersion,
+	); err != nil {
 		return nil, err
 	}
 
-	if rowsAffected == 0 {
-		err := pkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to update account", err)
-
-		return nil, err
-	}
-
-	return record.ToEntity(), nil
+	return &acc, nil
 }
 
 // Delete an Account entity from the database (soft delete) using the provided ID.
@@ -1394,7 +1438,13 @@ func (r *AccountPostgreSQLRepository) ListClosedAtByIDs(ctx context.Context, org
 	return closingStates, nil
 }
 
-// ListAccountsByIDs list Accounts entity from the database using the provided IDs.
+// ListAccountsByIDs lists the live accounts with the given IDs, read from the
+// PRIMARY inside a read-only transaction, each with its config_version.
+//
+// The transaction flow hydrates the blocked flag from this read and caches it
+// keyed by version, so a lagging replica would install an older flag that the
+// cache then keeps. The primary is therefore forced whatever the read-routing
+// setting, and a failure to open the read-only transaction fails the read.
 func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -1408,9 +1458,7 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 		return nil, err
 	}
 
-	var accounts []*mmodel.Account
-
-	findAll := squirrel.Select(accountColumns(false)...).
+	findAll := squirrel.Select(accountConfigColumns()...).
 		From(r.tableName).
 		Where(squirrel.Expr("organization_id = ?", organizationID)).
 		Where(squirrel.Expr("ledger_id = ?", ledgerID)).
@@ -1426,7 +1474,22 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 		return nil, err
 	}
 
-	rows, err := db.QueryContext(ctx, query, args...)
+	readCtx := readrouting.WithPrimaryRead(ctx)
+
+	reader, release, _, err := readseam.AcquireReadFrom(readCtx, db, true)
+	if err != nil {
+		libOpentelemetry.HandleSpanError(span, "Failed to acquire the primary read", err)
+
+		return nil, err
+	}
+
+	defer func() {
+		if releaseErr := release(); releaseErr != nil {
+			libOpentelemetry.HandleSpanError(span, "Failed to release the primary read", releaseErr)
+		}
+	}()
+
+	rows, err := reader.QueryContext(readCtx, query, args...)
 	if err != nil {
 		mapped := mapReadError(err)
 
@@ -1436,30 +1499,11 @@ func (r *AccountPostgreSQLRepository) ListAccountsByIDs(ctx context.Context, org
 	}
 	defer rows.Close()
 
+	var accounts []*mmodel.Account
+
 	for rows.Next() {
-		var acc AccountPostgreSQLModel
-		if err := rows.Scan(
-			&acc.ID,
-			&acc.Name,
-			&acc.ParentAccountID,
-			&acc.EntityID,
-			&acc.HolderID,
-			&acc.AssetCode,
-			&acc.OrganizationID,
-			&acc.LedgerID,
-			&acc.PortfolioID,
-			&acc.SegmentID,
-			&acc.Status,
-			&acc.StatusDescription,
-			&acc.Alias,
-			&acc.Type,
-			&acc.CreatedAt,
-			&acc.UpdatedAt,
-			&acc.DeletedAt,
-			&acc.Blocked,
-			&acc.HolderCheckSkipped,
-			&acc.ClosedAt,
-		); err != nil {
+		acc, err := scanAccountWithConfigVersion(rows)
+		if err != nil {
 			mapped := mapReadError(err)
 
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", mapped)

@@ -29,6 +29,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -308,8 +309,10 @@ func registryPatchHandler(t *testing.T, blocked bool) *AccountHandler {
 	if blocked {
 		balanceRepo.EXPECT().ListByAccountID(gomock.Any(), registryOrgID, registryLedgerID, registryAccountID).
 			Return([]*mmodel.Balance{{Alias: registryAlias, Key: cn.DefaultBalanceKey}}, nil).Times(1)
-		redisRepo.EXPECT().UpdateBalanceCacheBlocked(gomock.Any(), registryOrgID, registryLedgerID, gomock.Any(), false).
-			Return(nil).Times(1)
+		redisRepo.EXPECT().WriteAccountConfig(gomock.Any(), registryOrgID, registryLedgerID, gomock.Any()).
+			Return(accounting.AccountConfig{}, txRedis.ConfigWritten, nil).Times(1)
+		redisRepo.EXPECT().CopyAccountConfigToBlobs(gomock.Any(), registryOrgID, registryLedgerID, gomock.Any(), gomock.Any()).
+			Return(map[string]txRedis.BlobCopyOutcome{}, nil).Times(1)
 	}
 
 	return &AccountHandler{

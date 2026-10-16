@@ -58,8 +58,8 @@ func raceTestFixture(t *testing.T) (uuid.UUID, uuid.UUID, uuid.UUID, *mmodel.Bal
 // TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess verifies
 // that when BalanceRepo.Create returns a PostgreSQL unique_violation
 // (SQLSTATE 23505), ensureOverdraftBalance treats it as idempotent success
-// as long as the second FindByAccountIDAndKey resolves the peer-created
-// row. This is the core race-condition guarantee: two concurrent PATCH
+// as long as a read of the PRIMARY resolves the peer-created row (a lagging
+// replica may not have it yet). This is the core race-condition guarantee: two concurrent PATCH
 // requests flipping AllowOverdraft MUST both succeed, with exactly one
 // overdraft balance materialised in the end.
 func TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess(t *testing.T) {
@@ -93,17 +93,15 @@ func TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess(t *testing
 		Times(1)
 
 	// First lookup: peer request has not yet committed → not found.
-	// Second lookup (after the 23505 from Create): peer's row is visible.
-	gomock.InOrder(
-		mockBalanceRepo.EXPECT().
-			FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, gomock.Any(), constant.OverdraftBalanceKey).
-			Return(nil, nil).
-			Times(1),
-		mockBalanceRepo.EXPECT().
-			FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, gomock.Any(), constant.OverdraftBalanceKey).
-			Return(peerOverdraft, nil).
-			Times(1),
-	)
+	// After the 23505 from Create, the primary shows the peer's row.
+	mockBalanceRepo.EXPECT().
+		FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, gomock.Any(), constant.OverdraftBalanceKey).
+		Return(nil, nil).
+		Times(1)
+	mockBalanceRepo.EXPECT().
+		ListByAliasesWithKeysOnPrimary(gomock.Any(), orgID, ledgerID, []string{"@race#overdraft"}).
+		Return([]*mmodel.Balance{peerOverdraft}, nil).
+		Times(1)
 
 	// Simulate the partial UNIQUE index rejecting our insert.
 	mockBalanceRepo.EXPECT().
@@ -113,15 +111,11 @@ func TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess(t *testing
 
 	mockBalanceRepo.EXPECT().
 		Update(gomock.Any(), orgID, ledgerID, balanceID, update).
-		Return(&expected, nil).
+		Return(&expected, false, nil).
 		Times(1)
 
 	mockRedisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).AnyTimes()
-	// Cache settings are rewritten in-place after a settings update (live
-	// transactional state is preserved — no Del).
-	mockRedisRepo.EXPECT().
-		UpdateBalanceCacheSettings(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(nil).AnyTimes()
+	expectBalanceConfigurationWrite(t, mockRedisRepo, orgID, ledgerID, "@race#default", redis.BlobCopyWritten)
 
 	uc := UseCase{
 		BalanceRepo:          mockBalanceRepo,
@@ -137,10 +131,10 @@ func TestEnsureOverdraftBalance_ConcurrentCreate_ReturnsBenignSuccess(t *testing
 }
 
 // TestEnsureOverdraftBalance_UniqueViolation_WithMissingRow_PropagatesError
-// covers the defensive branch: a 23505 was raised but the follow-up Find
-// still returns nil. That almost certainly means the unique violation came
-// from a DIFFERENT index than the one guarding our tuple, so we must NOT
-// silently swallow the error — the caller needs to see it.
+// covers the defensive branch: a 23505 was raised but the primary holds no
+// companion of the parent's account. That almost certainly means the unique
+// violation came from a DIFFERENT index than the one guarding our tuple, so we
+// must NOT silently swallow the error — the caller needs to see it.
 func TestEnsureOverdraftBalance_UniqueViolation_WithMissingRow_PropagatesError(t *testing.T) {
 	t.Parallel()
 
@@ -157,12 +151,17 @@ func TestEnsureOverdraftBalance_UniqueViolation_WithMissingRow_PropagatesError(t
 		Return(current, nil).
 		Times(1)
 
-	// Both lookups return nil — peer did not actually create the row, so
-	// the 23505 did not come from our target tuple.
+	// Neither lookup finds a companion of this account — the primary only
+	// holds one of another account under the alias — so the 23505 did not come
+	// from our target tuple.
 	mockBalanceRepo.EXPECT().
 		FindByAccountIDAndKey(gomock.Any(), orgID, ledgerID, gomock.Any(), constant.OverdraftBalanceKey).
 		Return(nil, nil).
-		Times(2)
+		Times(1)
+	mockBalanceRepo.EXPECT().
+		ListByAliasesWithKeysOnPrimary(gomock.Any(), orgID, ledgerID, []string{"@race#overdraft"}).
+		Return([]*mmodel.Balance{{ID: uuid.NewString(), AccountID: uuid.NewString(), Alias: "@race", Key: constant.OverdraftBalanceKey}}, nil).
+		Times(1)
 
 	pgErr := &pgconn.PgError{Code: constant.UniqueViolationCode}
 	mockBalanceRepo.EXPECT().

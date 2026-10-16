@@ -194,7 +194,7 @@ func AccountBlockExceptionInternalKey(organizationID, ledgerID, exceptionID uuid
 // The {transactions} hash tag is the SAME literal tag BalanceInternalKey uses, so
 // the marker of an account lands in the slot its balance keys already occupy.
 func AccountClosingMarkerKey(organizationID, ledgerID, accountID uuid.UUID) string {
-	return accountProtectionKey("account-closing", organizationID, ledgerID, accountID)
+	return accountScopedKey("account-closing", organizationID, ledgerID, accountID)
 }
 
 // AccountClosedMarkerKey returns a key with the following format to be used on redis cluster:
@@ -204,7 +204,7 @@ func AccountClosingMarkerKey(organizationID, ledgerID, accountID uuid.UUID) stri
 // PostgreSQL stays the source of truth, so its expiry never reopens anything. It
 // spares the authoritative read for an account that was already proven closed.
 func AccountClosedMarkerKey(organizationID, ledgerID, accountID uuid.UUID) string {
-	return accountProtectionKey("account-closed", organizationID, ledgerID, accountID)
+	return accountScopedKey("account-closed", organizationID, ledgerID, accountID)
 }
 
 // AccountAdminOwnershipKey returns a key with the following format to be used on redis cluster:
@@ -218,13 +218,53 @@ func AccountClosedMarkerKey(organizationID, ledgerID, accountID uuid.UUID) strin
 // never with an exclusive owner. The key exists only while an operation is active
 // or awaiting reconciliation.
 func AccountAdminOwnershipKey(organizationID, ledgerID, accountID uuid.UUID) string {
-	return accountProtectionKey("account-admin-ownership", organizationID, ledgerID, accountID)
+	return accountScopedKey("account-admin-ownership", organizationID, ledgerID, accountID)
 }
 
-// accountProtectionKey assembles one account-scoped protection key. The scope is
-// always complete — organization, ledger and account — so a key can never be
-// resolved from the account alone, and it never carries a balance alias suffix.
-func accountProtectionKey(namespace string, organizationID, ledgerID, accountID uuid.UUID) string {
+// BalanceConfigKey returns a key with the following format to be used on redis cluster:
+// "balance-config:{transactions}:organizationID:ledgerID:alias#key"
+//
+// The key holds the configuration of one balance, apart from its live balance
+// blob, with the balance row's configuration version. It is named by alias#key
+// so it is read together with the blob, and its value carries the balance ID,
+// because a balance deleted and recreated under the same alias#key is another
+// balance (see balancecache for the value contract).
+//
+// The {transactions} hash tag is the SAME literal tag BalanceInternalKey uses, so
+// the configuration of a balance lands in the slot of its blob and the engine can
+// read both in one EVAL.
+func BalanceConfigKey(organizationID, ledgerID uuid.UUID, balanceRef string) string {
+	var builder strings.Builder
+
+	builder.Grow(104 + len(balanceRef)) // "balance-config:{transactions}:" + 2×UUID + ":" + ref
+
+	builder.WriteString("balance-config")
+	builder.WriteString(keySeparator)
+	builder.WriteString(cachepolicy.HashTag)
+	builder.WriteString(keySeparator)
+	builder.WriteString(organizationID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(ledgerID.String())
+	builder.WriteString(keySeparator)
+	builder.WriteString(balanceRef)
+
+	return builder.String()
+}
+
+// AccountConfigKey returns a key with the following format to be used on redis cluster:
+// "account-config:{transactions}:organizationID:ledgerID:accountID"
+//
+// The key holds the account's blocked flag with the account row's configuration
+// version, once for every balance of the account. The {transactions} hash tag is
+// the SAME literal tag BalanceInternalKey uses.
+func AccountConfigKey(organizationID, ledgerID, accountID uuid.UUID) string {
+	return accountScopedKey("account-config", organizationID, ledgerID, accountID)
+}
+
+// accountScopedKey assembles one account-scoped key. The scope is always
+// complete — organization, ledger and account — so a key can never be resolved
+// from the account alone, and it never carries a balance alias suffix.
+func accountScopedKey(namespace string, organizationID, ledgerID, accountID uuid.UUID) string {
 	var builder strings.Builder
 
 	// namespace + ":" + "{transactions}" + 3×UUID + 3×":"

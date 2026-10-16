@@ -172,13 +172,14 @@ local function validateFeeDebtTransaction(transaction, refs, feeDebtKeys)
     end
 end
 
--- decodeFeeDebtInventory validates the fee-debt keys that close KEYS at base, one
--- live list per declared debtor, and with them the total key count.
+-- decodeFeeDebtInventory validates the fee-debt keys that follow KEYS at base, one
+-- live list per declared debtor, and with them the total key count: only the
+-- configuration block, one key per balance and per account, follows them.
 local function decodeFeeDebtInventory(request, base)
     local feeDebts, feeDebtKeys = request.feeDebts or array(), {}
     requireArray(feeDebts)
     if request.feeDebts ~= nil and #feeDebts == 0 then technical("invalid_protocol", "empty fee-debt inventory") end
-    if #KEYS ~= base + #feeDebts then technical("invalid_protocol", "invalid execution cardinality") end
+    if #KEYS ~= base + #feeDebts + #request.balances + #request.accounts then technical("invalid_protocol", "invalid execution cardinality") end
     for i, entry in ipairs(feeDebts) do
         requireObject(entry)
         uuid(entry.organizationId)
@@ -192,7 +193,21 @@ local function decodeFeeDebtInventory(request, base)
         entry.keyIndex, feeDebtKeys[scoped] = base + i, entry
     end
     request.feeDebts = feeDebts
-    return feeDebtKeys
+    return feeDebtKeys, base + #feeDebts
+end
+
+-- Configuration keys share the scope, logical identity and Redis slot of the key
+-- they derive from; only the namespace differs. Go builds them the same way.
+local balance_config_namespace_prefix = "balance-config:" .. transaction_hash_tag .. ":"
+local account_closing_namespace_prefix = "account-closing:" .. transaction_hash_tag .. ":"
+local account_config_namespace_prefix = "account-config:" .. transaction_hash_tag .. ":"
+
+-- replaceNamespace swaps the first occurrence of one literal namespace prefix,
+-- keeping any tenant prefix in front of it; nil when the key lacks the prefix.
+local function replaceNamespace(key, from, to)
+    local first, last = key:find(from, 1, true)
+    if not first then return nil end
+    return key:sub(1, first - 1) .. to .. key:sub(last + 1)
 end
 
 -- decodeRequest validates the entire Go-to-Lua contract before live state is
@@ -202,7 +217,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
     local request = decodeJSON(raw)
     requireObject(request)
     -- Validate the execution envelope and the fixed positions of shared keys.
-    if smallInteger(request.protocolVersion, 3) ~= 3 then technical("invalid_protocol", "unsupported protocol version") end
+    if smallInteger(request.protocolVersion, 4) ~= 4 then technical("invalid_protocol", "unsupported protocol version") end
     text(request.tenantId, true)
     uuid(request.organizationId)
     uuid(request.ledgerId)
@@ -233,7 +248,7 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         if #declaredScopes < 2 then technical("invalid_protocol", "invalid scope key inventory") end
         extraScopes = #declaredScopes - 1
     end
-    local feeDebtKeys = decodeFeeDebtInventory(request, 7 + 3 * #request.balances + grantCount + 3 * #request.accounts + 5 * extraScopes)
+    local feeDebtKeys, configBase = decodeFeeDebtInventory(request, 7 + 3 * #request.balances + grantCount + 3 * #request.accounts + 5 * extraScopes)
     -- All physical keys must be unique and use the same transaction hash tag so
     -- the complete execution belongs to one Redis Cluster slot.
     local seenKeys = {}
@@ -255,13 +270,18 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         logicalRef(balance.balanceRef)
         local scopeRef = scopedBalanceRef(balance.organizationId, balance.ledgerId, balance.balanceRef)
         if refs[scopeRef] then technical("invalid_protocol", "duplicate balance reference") end
-        if smallInteger(balance.keyIndex, #KEYS) ~= 5 + 3 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 6 + 3 * i or smallInteger(balance.legacyDeleteKeyIndex, #KEYS) ~= 7 + 3 * i then
+        if smallInteger(balance.keyIndex, #KEYS) ~= 5 + 3 * i or smallInteger(balance.deleteKeyIndex, #KEYS) ~= 6 + 3 * i or smallInteger(balance.legacyDeleteKeyIndex, #KEYS) ~= 7 + 3 * i or smallInteger(balance.configKeyIndex, #KEYS) ~= configBase + i then
             technical("invalid_protocol", "invalid balance key indices")
         end
-        local expectedMarker, replacements = KEYS[5 + 3 * i]:gsub(balance_cache_namespace_prefix, balance_deletion_marker_namespace_prefix, 1)
-        if replacements ~= 1 or KEYS[6 + 3 * i] ~= expectedMarker or KEYS[7 + 3 * i] ~= KEYS[5 + 3 * i] .. balance_deletion_marker_suffix then
+        balance.keyIndex, balance.deleteKeyIndex, balance.legacyDeleteKeyIndex, balance.configKeyIndex = 5 + 3 * i, 6 + 3 * i, 7 + 3 * i, configBase + i
+        local expectedMarker, replacements = KEYS[balance.keyIndex]:gsub(balance_cache_namespace_prefix, balance_deletion_marker_namespace_prefix, 1)
+        if replacements ~= 1 or KEYS[balance.deleteKeyIndex] ~= expectedMarker or KEYS[balance.legacyDeleteKeyIndex] ~= KEYS[balance.keyIndex] .. balance_deletion_marker_suffix then
             technical("invalid_protocol", "invalid deletion marker key")
         end
+        if KEYS[balance.configKeyIndex] ~= replaceNamespace(KEYS[balance.keyIndex], balance_cache_namespace_prefix, balance_config_namespace_prefix) then
+            technical("invalid_protocol", "invalid balance configuration key")
+        end
+        integerText(balance.balanceConfigVersion, maximumConfigVersion)
         local seed = balance.snapshot
         requireObject(seed)
         if seed.organizationId ~= balance.organizationId or seed.ledgerId ~= balance.ledgerId then
@@ -302,6 +322,14 @@ local function decodeRequest(raw, maximumTransactions, maximumPostings, maximumB
         for offset = 1, 3 do
             if KEYS[base + offset]:sub(-#suffix) ~= suffix then technical("invalid_protocol", "invalid account protection key") end
         end
+        local configKeyIndex = configBase + #request.balances + i
+        if smallInteger(account.configKeyIndex, #KEYS) ~= configKeyIndex or
+            KEYS[configKeyIndex] ~= replaceNamespace(KEYS[base + 1], account_closing_namespace_prefix, account_config_namespace_prefix) then
+            technical("invalid_protocol", "invalid account configuration key")
+        end
+        account.configKeyIndex = configKeyIndex
+        bool(account.blocked)
+        integerText(account.configVersion, maximumConfigVersion)
         -- An empty token is the normal declaration of a caller that owns no
         -- admission; it may then use only balances the cache already holds.
         text(account.admissionToken, true)

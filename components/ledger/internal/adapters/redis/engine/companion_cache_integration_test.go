@@ -9,6 +9,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -167,11 +168,11 @@ func TestIntegrationEngineCompanionCacheRefreshesACachedCompanion(t *testing.T) 
 	require.False(t, f.scheduled(t, f.companionKey()), "an unchanged cached companion has nothing to synchronize")
 }
 
-// A balance load stamps its seeds with the account's blocked flag as the account
-// row held it at load time, while an account PATCH rewrites the flag only on the
-// balances already cached. The published companion must therefore carry the flag
-// of the live balance its account wrote, not the flag its seed was read with.
-func TestIntegrationEngineCompanionCachePublishesTheAccountsLiveBlockedFlag(t *testing.T) {
+// blocked is an account-level flag: the engine decides it once per account, with
+// the newest of the account configuration key, the request and the copies in the
+// account's blobs, and every balance of the account carries that decision. A
+// published companion therefore carries the decided flag, whatever its seed says.
+func TestIntegrationEngineCompanionCachePublishesTheAccountsDecidedBlockedFlag(t *testing.T) {
 	if testing.Short() {
 		t.Skip("requires Valkey")
 	}
@@ -179,29 +180,34 @@ func TestIntegrationEngineCompanionCachePublishesTheAccountsLiveBlockedFlag(t *t
 	container := redistestutil.SetupReusableContainer(t)
 	ctx := context.Background()
 
-	publishedCompanionBlocked := func(t *testing.T, f *integrationFixture) bool {
+	publishedCompanion := func(t *testing.T, f *integrationFixture) (bool, string) {
 		t.Helper()
 
 		cached, err := container.Client.Get(ctx, f.companionKey()).Bytes()
 		require.NoError(t, err, "a committed execution publishes the companion it seeded")
 		companion, err := balancecache.Decode(cached)
 		require.NoError(t, err)
+		_, accountVersion, err := balancecache.BlobConfigVersions(cached)
+		require.NoError(t, err)
 
-		return companion.Blocked
+		return companion.Blocked, strconv.FormatInt(accountVersion, 10)
 	}
 
-	t.Run("an unblock that reached only the cached primary is kept", func(t *testing.T) {
+	t.Run("an unblock in the account key reaches the companion seed", func(t *testing.T) {
 		f := newCompanionCacheFixture(t, container.Client)
 		f.input.Execution.Transactions[0].RejectBlockedBalances = true
-		// The load read the account while it was blocked; the unblock then rewrote
-		// the cached primary and skipped the companion, which was not cached.
+		// The load read the account while it was blocked; the unblock committed
+		// afterwards and reached the account configuration key.
 		f.input.Execution.Balances[0].Blocked = true
 		f.input.Execution.Balances[1].Blocked = true
+		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: f.input.Execution.Balances[0].AccountID, Version: 1})
 
 		raw, err := f.run(t)
 		require.NoError(t, err, "a movement within funds does not touch the companion")
 		requireOnlyPrimaryResult(t, raw)
-		require.False(t, publishedCompanionBlocked(t, f), "the companion takes the flag of the live primary, not of its seed")
+		blocked, version := publishedCompanion(t, f)
+		require.False(t, blocked, "the companion carries the account's decided flag, not its seed's")
+		require.Equal(t, "1", version)
 
 		f.rotateExecution()
 		f.input.Execution.Transactions[0].Postings[0].Amount = decimal.NewFromInt(150)
@@ -215,42 +221,36 @@ func TestIntegrationEngineCompanionCachePublishesTheAccountsLiveBlockedFlag(t *t
 		require.Equal(t, integrationState{Available: "80", OnHold: "0", OverdraftUsed: "0", Version: "5"}, result.Movements[1].After)
 	})
 
-	t.Run("a block that reached only the cached primary is kept", func(t *testing.T) {
+	t.Run("a block in the account key reaches the companion seed", func(t *testing.T) {
 		f := newCompanionCacheFixture(t, container.Client)
 		// An action that the block control does not refuse, such as a cancellation,
-		// still writes the blocked primary.
+		// still writes the blocked account's balances.
+		f.writeAccountConfig(t, accounting.AccountConfig{AccountID: f.input.Execution.Balances[0].AccountID, Version: 1, Blocked: true})
+
+		raw, err := f.run(t)
+		require.NoError(t, err)
+		requireOnlyPrimaryResult(t, raw)
+		blocked, version := publishedCompanion(t, f)
+		require.True(t, blocked)
+		require.Equal(t, "1", version)
+	})
+
+	t.Run("a blob copy newer than the request decides when the key is gone", func(t *testing.T) {
+		f := newCompanionCacheFixture(t, container.Client)
+		f.input.Execution.Balances[0].AccountConfigVersion = 1
+		f.input.Execution.Balances[1].AccountConfigVersion = 1
+		// A PATCH confirmed version 2 on the cached primary; its key then expired
+		// before the execution read it.
 		primary := f.input.Execution.Balances[0]
-		primary.Blocked = true
+		primary.Blocked, primary.AccountConfigVersion = true, 2
 		f.seed(t, 0, primary)
 
 		raw, err := f.run(t)
 		require.NoError(t, err)
 		requireOnlyPrimaryResult(t, raw)
-		require.True(t, publishedCompanionBlocked(t, f), "the companion takes the flag of the live primary, not of its seed")
-	})
-
-	t.Run("a balance of the account read from Redis decides over a seeded one", func(t *testing.T) {
-		f := newCompanionCacheFixture(t, container.Client)
-		f.input.Execution.Balances[1].Blocked = true
-
-		// A second balance of the same account, seeded with the stale flag, is
-		// written before the cached primary.
-		sibling := f.input.Execution.Balances[0]
-		sibling.ID = uuid.MustParse("3c9d7e21-4b6a-4f0e-8a2d-5e1f0b7c9d34")
-		sibling.Key, sibling.BalanceRef, sibling.Blocked = "savings", "@source#savings", true
-		f.input.Execution.Balances = append(f.input.Execution.Balances, sibling)
-		f.resolved.Balances[sibling.BalanceRef] = testResolvedBalanceKeys(
-			strings.Replace(f.resolved.Balances["@source#default"].Balance, "@source#default", sibling.BalanceRef, 1),
-		)
-		first := f.input.Execution.Transactions[0].Postings[0]
-		first.Ref, first.BalanceRef, first.Amount = "debit-savings", sibling.BalanceRef, decimal.NewFromInt(10)
-		postings := f.input.Execution.Transactions[0].Postings
-		f.input.Execution.Transactions[0].Postings = append([]accounting.Posting{first}, postings...)
-
-		raw, err := f.run(t)
-		require.NoError(t, err)
-		require.Len(t, decodeIntegrationResult(t, raw).Movements, 2)
-		require.False(t, publishedCompanionBlocked(t, f), "only a balance read from Redis carries the flag the account PATCH keeps current")
+		blocked, version := publishedCompanion(t, f)
+		require.True(t, blocked)
+		require.Equal(t, "2", version)
 	})
 }
 

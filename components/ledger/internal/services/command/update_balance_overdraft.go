@@ -94,19 +94,17 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 	return nil
 }
 
-// ensureOverdraftBalance auto-creates the system-managed overdraft balance
-// when AllowOverdraft transitions from false to true. The operation is
-// idempotent: if a balance with key="overdraft" already exists for the
-// account, no new row is created.
+// ensureOverdraftBalance returns the system-managed overdraft companion of the
+// account whenever nextSettings asks for AllowOverdraft, creating it when it does
+// not exist yet. It runs BEFORE the parent's settings are persisted, whatever the
+// current read says about the parent: another PATCH may switch the overdraft off
+// between that read and this PATCH's UPDATE, so the companion — and the payload of
+// balance.config_changed{overdraft_enabled} — must be ready for the UPDATE that
+// actually switches it on. A failure here keeps the parent untouched.
 //
-// Returns the *persisted* companion balance whenever this call actually
-// materialized a new one (so the caller can publish
-// balance.config_changed{changeType=overdraft_enabled} for the companion
-// row that just came into being). Returns nil when nothing was created —
-// either because the transition was a no-op (overdraft already allowed,
-// or nextSettings.AllowOverdraft == false), because the companion
-// already exists, or because the concurrent-insert race resolved as
-// idempotent success (the peer request emitted the event).
+// created reports whether this call materialized the companion. Callers that
+// announce the companion's creation use it; the PATCH announces the overdraft
+// switching on instead, which only the UPDATE that made the transition knows.
 //
 // The auto-created balance is:
 //   - key        = "overdraft"
@@ -117,49 +115,23 @@ func enforceOverdraftTransition(ctx context.Context, logger libLog.Logger, span 
 //
 // Concurrency model:
 //
-// Two concurrent PATCH requests flipping AllowOverdraft from false→true on
-// the same account would each observe "no overdraft balance" in the initial
-// Find lookup and race to Create. Application-level locking cannot close
-// this window cleanly across replicas, so the invariant is enforced at the
-// storage layer: a partial UNIQUE index on
-// (organization_id, ledger_id, account_id, asset_code, key) rejects the
-// second insert with SQLSTATE 23505.
-//
-// When that happens we treat the race as benign — the peer request already
-// created the balance we were about to create — and re-fetch it so the
-// caller sees the same state it would have in the single-request case.
-// In the race-loser path we return nil for the created balance: the peer
-// request will have emitted balance.config_changed{overdraft_enabled},
-// and the loser must not double-emit for the same materialization.
-// Any other Create failure (connectivity, constraint violations we did not
-// trigger, etc.) is propagated unchanged.
-func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) (*mmodel.Balance, error) {
-	// Concurrency model: auto-creation is idempotent. Two concurrent
-	// PATCH-enable requests on the same account will both attempt to
-	// create the overdraft companion balance. The partial unique index
-	// idx_unique_balance_account_key (migration 000032) on
-	// (organization_id, ledger_id, account_id, asset_code, key)
-	// WHERE deleted_at IS NULL guarantees only one row survives.
-	// isUniqueViolation (line ~247) catches the duplicate-key error
-	// and treats it as a no-op — the second caller proceeds with the
-	// companion that the first caller created.
-	if current == nil || nextSettings == nil {
-		return nil, nil
-	}
-
-	if !nextSettings.AllowOverdraft {
-		return nil, nil
-	}
-
-	// Only act on the false→true transition. Anything else is a no-op.
-	if current.Settings != nil && current.Settings.AllowOverdraft {
-		return nil, nil
+// Two concurrent requests enabling the overdraft on the same account would each
+// observe "no overdraft balance" in the initial lookup and race to Create.
+// Application-level locking cannot close this window cleanly across replicas, so
+// the invariant is enforced at the storage layer: a partial UNIQUE index on
+// (organization_id, ledger_id, account_id, asset_code, key) rejects the second
+// insert with SQLSTATE 23505. The loser reads the winner's companion back from
+// the PRIMARY — a lagging replica would not have it yet — and returns it with
+// created=false. Any other Create failure (connectivity, constraint violations we
+// did not trigger, etc.) is propagated unchanged.
+func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Logger, span trace.Span, organizationID, ledgerID uuid.UUID, current *mmodel.Balance, nextSettings *mmodel.BalanceSettings) (companion *mmodel.Balance, created bool, err error) {
+	if current == nil || nextSettings == nil || !nextSettings.AllowOverdraft {
+		return nil, false, nil
 	}
 
 	// An empty AccountID can only occur in tests that seed a minimal
 	// balance fixture. We fall back to uuid.Nil rather than failing the
-	// update because the overdraft auto-creation is a best-effort extension
-	// of the settings update — the parent balance has already been persisted.
+	// update.
 	var accountID uuid.UUID
 
 	if current.AccountID != "" {
@@ -168,7 +140,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 			libOpentelemetry.HandleSpanError(span, "Invalid account id on current balance", perr)
 			logger.Log(ctx, libLog.LevelError, "Invalid account id on current balance", libLog.String("accountID", current.AccountID), libLog.Err(perr))
 
-			return nil, perr
+			return nil, false, perr
 		}
 
 		accountID = parsed
@@ -186,15 +158,14 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		if !errors.As(ferr, &notFound) {
 			recordCommandError(ctx, span, logger, "Failed to check for existing overdraft balance", ferr)
 
-			return nil, ferr
+			return nil, false, ferr
 		}
 
 		existing = nil
 	}
 
 	if existing != nil {
-		// Idempotent: the overdraft balance already exists.
-		return nil, nil
+		return existing, false, nil
 	}
 
 	// The companion balance participates as BOTH a source (DEBIT grows the
@@ -210,7 +181,7 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		libOpentelemetry.HandleSpanError(span, "Failed to generate UUID for overdraft balance", uuidErr)
 		logger.Log(ctx, libLog.LevelError, "Failed to generate UUID for overdraft balance", libLog.Err(uuidErr))
 
-		return nil, uuidErr
+		return nil, false, uuidErr
 	}
 
 	now := time.Now()
@@ -235,38 +206,52 @@ func (uc *UseCase) ensureOverdraftBalance(ctx context.Context, logger libLog.Log
 		UpdatedAt: now,
 	}
 
-	created, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance)
+	persisted, cerr := uc.BalanceRepo.Create(ctx, overdraftBalance)
 	if cerr != nil {
-		// Benign race: a concurrent request won the Create. The partial
-		// UNIQUE index idx_unique_balance_account_key surfaces this as a
-		// PostgreSQL unique_violation (SQLSTATE 23505). Treat it as
-		// idempotent success — the peer request materialized the same row
-		// we were about to create. Verify with a follow-up Find so we
-		// never silently swallow a 23505 triggered by an unrelated index.
-		// The race-loser returns nil for the created balance so the caller
-		// does not publish a duplicate balance.config_changed event for the
-		// same companion row — the race-winner emits it.
+		// Benign race: a concurrent request won the Create. Read its companion
+		// back so we never silently swallow a 23505 triggered by an unrelated
+		// index.
 		if isUniqueViolation(cerr) {
-			reloaded, reloadErr := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.OverdraftBalanceKey)
-			if reloadErr == nil && reloaded != nil {
+			winner, reloadErr := uc.findOverdraftCompanionOnPrimary(ctx, organizationID, ledgerID, current)
+			if reloadErr == nil {
 				logger.Log(ctx, libLog.LevelDebug, "Overdraft balance created concurrently by peer request, treating as idempotent success", libLog.String("account_id", current.AccountID))
 
-				return nil, nil
+				return winner, false, nil
 			}
 			// Fall through and surface the original Create error if the
-			// reload failed or still returned nil — that means the 23505
-			// did not come from our target tuple.
+			// reload failed or found nothing — that means the 23505 did not
+			// come from our target tuple.
 		}
 
 		recordCommandError(ctx, span, logger, "Failed to auto-create overdraft balance", cerr)
 
-		return nil, cerr
+		return nil, false, cerr
 	}
 
 	logger.Log(ctx, libLog.LevelDebug, "Auto-created overdraft balance", libLog.String("account_id", current.AccountID))
 
-	return created, nil
+	return persisted, true, nil
 }
+
+// findOverdraftCompanionOnPrimary reads the overdraft companion of the parent's
+// account from the PRIMARY. The companion shares the parent's alias under the
+// overdraft key; the account check keeps the read on the parent's own account.
+func (uc *UseCase) findOverdraftCompanionOnPrimary(ctx context.Context, organizationID, ledgerID uuid.UUID, parent *mmodel.Balance) (*mmodel.Balance, error) {
+	balances, err := uc.BalanceRepo.ListByAliasesWithKeysOnPrimary(ctx, organizationID, ledgerID, []string{parent.Alias + "#" + constant.OverdraftBalanceKey})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, candidate := range balances {
+		if candidate != nil && candidate.AccountID == parent.AccountID {
+			return candidate, nil
+		}
+	}
+
+	return nil, errOverdraftCompanionNotOnPrimary
+}
+
+var errOverdraftCompanionNotOnPrimary = errors.New("overdraft companion not found on the primary")
 
 // isUniqueViolation reports whether err is a PostgreSQL unique_violation
 // (SQLSTATE 23505). Used by ensureOverdraftBalance to distinguish a benign

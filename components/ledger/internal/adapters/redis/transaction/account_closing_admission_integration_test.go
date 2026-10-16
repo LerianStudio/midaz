@@ -8,20 +8,21 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
 
 // TestIntegration_AccountClosingRepairNeverRecreatesAnEvictedBalance covers AS-06
 // and AS-17 on the cache-writer side: once a closing has evicted the balances of an
-// account, the in-place writers that a PATCH or a repair triggers must leave the
-// key absent. Recreating it would readmit a balance of a closed account through a
+// account, the configuration copies that a PATCH triggers must leave the key
+// absent. Recreating it would readmit a balance of a closed account through a
 // path that never asked whether the account is still open.
 func TestIntegration_AccountClosingRepairNeverRecreatesAnEvictedBalance(t *testing.T) {
 	if testing.Short() {
@@ -47,37 +48,24 @@ func TestIntegration_AccountClosingRepairNeverRecreatesAnEvictedBalance(t *testi
 
 	requireAbsent(t, "the fixture")
 
-	t.Run("a settings PATCH leaves the key absent", func(t *testing.T) {
-		limit := "100"
-		err := infra.repo.UpdateBalanceCacheSettings(ctx, organizationID, ledgerID, cacheKey, &mmodel.BalanceSettings{
-			BalanceScope:          mmodel.BalanceScopeTransactional,
-			AllowOverdraft:        true,
-			OverdraftLimitEnabled: true,
-			OverdraftLimit:        &limit,
-		})
+	t.Run("a balance configuration copy leaves the key absent", func(t *testing.T) {
+		outcome, err := infra.repo.CopyBalanceConfigToBlob(ctx, organizationID, ledgerID, cacheKey, balanceConfigAt(uuid.New(), 1, true))
 		require.NoError(t, err)
+		assert.Equal(t, BlobCopyBlobAbsent, outcome)
 
-		requireAbsent(t, "a settings update")
+		requireAbsent(t, "a balance configuration copy")
 	})
 
-	t.Run("a blocked propagation leaves the key absent", func(t *testing.T) {
-		require.NoError(t, infra.repo.UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, []string{cacheKey}, true))
+	for _, blocked := range []bool{true, false} {
+		t.Run(fmt.Sprintf("an account configuration copy with blocked=%t leaves the key absent", blocked), func(t *testing.T) {
+			outcomes, err := infra.repo.CopyAccountConfigToBlobs(ctx, organizationID, ledgerID, []string{cacheKey},
+				accounting.AccountConfig{AccountID: uuid.New(), Version: 1, Blocked: blocked})
+			require.NoError(t, err)
+			assert.Equal(t, map[string]BlobCopyOutcome{cacheKey: BlobCopyBlobAbsent}, outcomes)
 
-		requireAbsent(t, "a blocked propagation")
-	})
-
-	t.Run("an unblock leaves the key absent", func(t *testing.T) {
-		require.NoError(t, infra.repo.UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, []string{cacheKey}, false))
-
-		requireAbsent(t, "an unblock")
-	})
-
-	t.Run("an allow-flags PATCH leaves the key absent", func(t *testing.T) {
-		allow := true
-		require.NoError(t, infra.repo.UpdateBalanceCacheAllowFlags(ctx, organizationID, ledgerID, cacheKey, &allow, &allow))
-
-		requireAbsent(t, "an allow-flags update")
-	})
+			requireAbsent(t, "an account configuration copy")
+		})
+	}
 
 	t.Run("reading the balance reports a miss rather than a fabricated blob", func(t *testing.T) {
 		balances, err := infra.repo.GetBalancesByKeys(ctx, []string{internalKey})
@@ -106,13 +94,17 @@ func TestIntegration_AccountClosingWritersPreserveALiveBalance(t *testing.T) {
 	cacheKey := alias + "#default"
 	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, cacheKey)
 
-	blob := `{"ID":"` + uuid.NewString() + `","AccountID":"` + uuid.NewString() + `","Alias":"` + alias + `",` +
+	accountID := uuid.New()
+	blob := `{"ID":"` + uuid.NewString() + `","AccountID":"` + accountID.String() + `","Alias":"` + alias + `",` +
 		`"Key":"default","Available":"120","OnHold":"5","Version":3,"AccountType":"deposit",` +
 		`"AllowSending":1,"AllowReceiving":1,"AssetCode":"BRL","Blocked":false,"OverdraftUsed":"0"}`
 
 	require.NoError(t, infra.redisContainer.Client.Set(ctx, internalKey, blob, 0).Err())
 
-	require.NoError(t, infra.repo.UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, []string{cacheKey}, true))
+	outcomes, err := infra.repo.CopyAccountConfigToBlobs(ctx, organizationID, ledgerID, []string{cacheKey},
+		accounting.AccountConfig{AccountID: accountID, Version: 1, Blocked: true})
+	require.NoError(t, err)
+	require.Equal(t, map[string]BlobCopyOutcome{cacheKey: BlobCopyWritten}, outcomes)
 
 	fields := readCachedBalanceFields(t, infra, internalKey)
 

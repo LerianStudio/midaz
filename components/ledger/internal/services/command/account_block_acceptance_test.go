@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 )
 
@@ -84,7 +85,7 @@ func (f *blockPatchFixture) expectStoredBlocked(accountID uuid.UUID, storedBlock
 // TestRF02_UnblockingAnUnblockedAccountIsAnIdempotentNoOp covers the second RF-02
 // criterion: the command does not care what the account's previous state was.
 // Unblocking one that was never blocked runs the same path, reports success, and
-// its only side effect is a cache rewrite that writes the value already there.
+// its only side effect is a configuration write of the value already there.
 //
 // Repeating it changes nothing, which is what makes the operation safe to retry
 // after a timeout — the caller cannot tell the second call from the first.
@@ -105,9 +106,15 @@ func TestRF02_UnblockingAnUnblockedAccountIsAnIdempotentNoOp(t *testing.T) {
 		Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: "@never_blocked", Key: "default"}}, nil).
 		Times(passes)
 
+	unblocked := accounting.AccountConfig{AccountID: accountID, Blocked: false}
+
 	f.redis.EXPECT().
-		UpdateBalanceCacheBlocked(gomock.Any(), organizationID, ledgerID, []string{"@never_blocked#default"}, false).
-		Return(nil).
+		WriteAccountConfig(gomock.Any(), organizationID, ledgerID, unblocked).
+		Return(unblocked, txRedis.ConfigUnchanged, nil).
+		Times(passes)
+	f.redis.EXPECT().
+		CopyAccountConfigToBlobs(gomock.Any(), organizationID, ledgerID, []string{"@never_blocked#default"}, unblocked).
+		Return(map[string]txRedis.BlobCopyOutcome{"@never_blocked#default": txRedis.BlobCopyAlreadyCurrent}, nil).
 		Times(passes)
 
 	unblock := false
@@ -298,8 +305,11 @@ func TestAccountBlockCommands_LeaveNoGoroutines(t *testing.T) {
 		ListByAccountID(gomock.Any(), organizationID, ledgerID, accountID).
 		Return([]*mmodel.Balance{{ID: uuid.New().String(), Alias: alias, Key: "default"}}, nil)
 	patch.redis.EXPECT().
-		UpdateBalanceCacheBlocked(gomock.Any(), organizationID, ledgerID, []string{alias + "#default"}, true).
-		Return(nil)
+		WriteAccountConfig(gomock.Any(), organizationID, ledgerID, gomock.Any()).
+		Return(accounting.AccountConfig{}, txRedis.ConfigWritten, nil)
+	patch.redis.EXPECT().
+		CopyAccountConfigToBlobs(gomock.Any(), organizationID, ledgerID, []string{alias + "#default"}, gomock.Any()).
+		Return(map[string]txRedis.BlobCopyOutcome{alias + "#default": txRedis.BlobCopyWritten}, nil)
 
 	block := true
 

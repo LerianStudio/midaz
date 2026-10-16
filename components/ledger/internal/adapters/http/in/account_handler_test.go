@@ -7,6 +7,7 @@ package in
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -29,6 +30,8 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/balance"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/ledger"
+	redis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/query"
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -602,6 +605,54 @@ func TestUpdateAccount_Success(t *testing.T) {
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, "Updated Account Name", got["name"])
 	assert.Equal(t, accountID.String(), got["id"])
+}
+
+// TestUpdateAccount_BlockedConfigurationWriteFailure_Internal500 pins the status a
+// blocked PATCH answers when PostgreSQL committed but the account configuration
+// could not be written where transactions read it: the technical error, so the
+// client retries, without the infrastructure detail.
+func TestUpdateAccount_BlockedConfigurationWriteFailure_Internal500(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	ctrl := gomock.NewController(t)
+	t.Cleanup(ctrl.Finish)
+
+	orgID := uuid.Must(libCommons.GenerateUUIDv7())
+	ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+	accountID := uuid.Must(libCommons.GenerateUUIDv7())
+
+	blocked := true
+	accountRepo := account.NewMockRepository(ctrl)
+	redisRepo := redis.NewMockRedisRepository(ctrl)
+
+	accountRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit", Name: "Original"}, nil).Times(1)
+	accountRepo.EXPECT().Update(gomock.Any(), orgID, ledgerID, gomock.Nil(), accountID, gomock.Any()).
+		Return(&mmodel.Account{ID: accountID.String(), Type: "deposit", Name: "Original", Blocked: &blocked, ConfigVersion: 1}, nil).Times(1)
+	redisRepo.EXPECT().WriteAccountConfig(gomock.Any(), orgID, ledgerID, gomock.Any()).
+		Return(accounting.AccountConfig{}, redis.ConfigWriteOutcome(0), errors.New("redis connection refused")).Times(1)
+
+	handler := &AccountHandler{
+		Command: &command.UseCase{AccountRepo: accountRepo, TransactionRedisRepo: redisRepo},
+		Query:   &query.UseCase{AccountRepo: accountRepo},
+	}
+
+	app := buildHumaAccountApp(t, handler, true)
+
+	body, _ := json.Marshal(map[string]any{"blocked": true})
+	req := httptest.NewRequest(http.MethodPatch, "/v1/organizations/"+orgID.String()+"/ledgers/"+ledgerID.String()+"/accounts/"+accountID.String(), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode, "body: %s", string(respBody))
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+	assert.Equal(t, cn.ErrInternalServer.Error(), got["code"])
+	assert.NotContains(t, string(respBody), "redis", "the infrastructure detail must not leak")
 }
 
 func TestUpdateAccount_NotFound_Canonical404(t *testing.T) {

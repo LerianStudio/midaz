@@ -175,6 +175,9 @@ func seedProtocolNoncanonicalLimit(t *testing.T, ctx context.Context, inspector 
 	hot.Available = decimal.NewFromInt(120)
 	hot.OverdraftLimitEnabled = true
 	hot.OverdraftLimit = decimal.NewFromInt(1000)
+	// The blob's own configuration copy is newer than the request and no
+	// configuration key is live, so the blob decides and its limit needs repair.
+	hot.ConfigVersion = 1
 	raw, err := balancecache.Encode(hot, balancecache.FormatDual)
 	require.NoError(t, err)
 	require.Equal(t, 1, bytes.Count(raw, []byte(`"OverdraftLimit":"1000"`)))

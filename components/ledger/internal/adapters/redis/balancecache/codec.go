@@ -177,6 +177,9 @@ func (r *fieldReader) version() int64 {
 }
 
 // Decode chooses legacy fields whenever present, independent of SchemaVersion.
+// The versions of the configuration copies (BlobBalanceConfigVersionField and
+// BlobAccountConfigVersionField) land in ConfigVersion and AccountConfigVersion,
+// 0 when the blob carries no copy.
 // A malformed authoritative value is never replaced by a lower-camel fallback.
 // Unknown fields are ignored; callers rewriting live blobs must preserve their
 // extension fields separately rather than treating this projection as raw JSON.
@@ -253,6 +256,10 @@ func decode(raw []byte, allowNoncanonicalLimit bool) (accounting.BalanceSnapshot
 		return accounting.BalanceSnapshot{}, r.err
 	}
 
+	if snapshot.ConfigVersion, snapshot.AccountConfigVersion, err = blobConfigVersions(fields); err != nil {
+		return accounting.BalanceSnapshot{}, err
+	}
+
 	if err := validateSnapshot(&snapshot, missingLegacyAlias); err != nil {
 		return accounting.BalanceSnapshot{}, err
 	}
@@ -282,6 +289,16 @@ func Encode(snapshot accounting.BalanceSnapshot, format Format) ([]byte, error) 
 		"version":      strconv.FormatInt(snapshot.Version, 10),
 		"allowSending": snapshot.AllowSending, "allowReceiving": snapshot.AllowReceiving, "blocked": snapshot.Blocked,
 		"allowOverdraft": snapshot.AllowOverdraft, "overdraftLimitEnabled": snapshot.OverdraftLimitEnabled,
+	}
+
+	// The configuration copy versions are written only once a copy exists: a blob
+	// without them reads as version 0, which is what an absent field means.
+	if snapshot.ConfigVersion != 0 {
+		fields[BlobBalanceConfigVersionField] = strconv.FormatInt(snapshot.ConfigVersion, 10)
+	}
+
+	if snapshot.AccountConfigVersion != 0 {
+		fields[BlobAccountConfigVersionField] = strconv.FormatInt(snapshot.AccountConfigVersion, 10)
 	}
 
 	if format == FormatDual {

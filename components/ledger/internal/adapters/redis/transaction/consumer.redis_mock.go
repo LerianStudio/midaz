@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 	time "time"
 
+	accounting "github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
 	mmodel "github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	mtransaction "github.com/LerianStudio/midaz/v4/pkg/mtransaction"
 	uuid "github.com/google/uuid"
@@ -131,6 +132,36 @@ func (m *MockRedisRepository) CompareAndDeleteBackupRecord(ctx context.Context, 
 func (mr *MockRedisRepositoryMockRecorder) CompareAndDeleteBackupRecord(ctx, field, expected any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompareAndDeleteBackupRecord", reflect.TypeOf((*MockRedisRepository)(nil).CompareAndDeleteBackupRecord), ctx, field, expected)
+}
+
+// CopyAccountConfigToBlobs mocks base method.
+func (m *MockRedisRepository) CopyAccountConfigToBlobs(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string, config accounting.AccountConfig) (map[string]BlobCopyOutcome, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CopyAccountConfigToBlobs", ctx, organizationID, ledgerID, balanceRefs, config)
+	ret0, _ := ret[0].(map[string]BlobCopyOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CopyAccountConfigToBlobs indicates an expected call of CopyAccountConfigToBlobs.
+func (mr *MockRedisRepositoryMockRecorder) CopyAccountConfigToBlobs(ctx, organizationID, ledgerID, balanceRefs, config any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CopyAccountConfigToBlobs", reflect.TypeOf((*MockRedisRepository)(nil).CopyAccountConfigToBlobs), ctx, organizationID, ledgerID, balanceRefs, config)
+}
+
+// CopyBalanceConfigToBlob mocks base method.
+func (m *MockRedisRepository) CopyBalanceConfigToBlob(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRef string, config accounting.BalanceConfig) (BlobCopyOutcome, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CopyBalanceConfigToBlob", ctx, organizationID, ledgerID, balanceRef, config)
+	ret0, _ := ret[0].(BlobCopyOutcome)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CopyBalanceConfigToBlob indicates an expected call of CopyBalanceConfigToBlob.
+func (mr *MockRedisRepositoryMockRecorder) CopyBalanceConfigToBlob(ctx, organizationID, ledgerID, balanceRef, config any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CopyBalanceConfigToBlob", reflect.TypeOf((*MockRedisRepository)(nil).CopyBalanceConfigToBlob), ctx, organizationID, ledgerID, balanceRef, config)
 }
 
 // CreateAccountBlockExceptions mocks base method.
@@ -433,6 +464,21 @@ func (mr *MockRedisRepositoryMockRecorder) ReadAllMessagesFromQueue(ctx any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadAllMessagesFromQueue", reflect.TypeOf((*MockRedisRepository)(nil).ReadAllMessagesFromQueue), ctx)
 }
 
+// ReadConfigKeys mocks base method.
+func (m *MockRedisRepository) ReadConfigKeys(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRefs []string, accountIDs []uuid.UUID) (ConfigKeyValues, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadConfigKeys", ctx, organizationID, ledgerID, balanceRefs, accountIDs)
+	ret0, _ := ret[0].(ConfigKeyValues)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadConfigKeys indicates an expected call of ReadConfigKeys.
+func (mr *MockRedisRepositoryMockRecorder) ReadConfigKeys(ctx, organizationID, ledgerID, balanceRefs, accountIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadConfigKeys", reflect.TypeOf((*MockRedisRepository)(nil).ReadConfigKeys), ctx, organizationID, ledgerID, balanceRefs, accountIDs)
+}
+
 // ReadMessageFromQueue mocks base method.
 func (m *MockRedisRepository) ReadMessageFromQueue(ctx context.Context, key string) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -670,44 +716,34 @@ func (mr *MockRedisRepositoryMockRecorder) SetNX(ctx, key, value, ttl any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetNX", reflect.TypeOf((*MockRedisRepository)(nil).SetNX), ctx, key, value, ttl)
 }
 
-// UpdateBalanceCacheAllowFlags mocks base method.
-func (m *MockRedisRepository) UpdateBalanceCacheAllowFlags(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, allowSending, allowReceiving *bool) error {
+// WriteAccountConfig mocks base method.
+func (m *MockRedisRepository) WriteAccountConfig(ctx context.Context, organizationID, ledgerID uuid.UUID, config accounting.AccountConfig) (accounting.AccountConfig, ConfigWriteOutcome, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBalanceCacheAllowFlags", ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "WriteAccountConfig", ctx, organizationID, ledgerID, config)
+	ret0, _ := ret[0].(accounting.AccountConfig)
+	ret1, _ := ret[1].(ConfigWriteOutcome)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
-// UpdateBalanceCacheAllowFlags indicates an expected call of UpdateBalanceCacheAllowFlags.
-func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheAllowFlags(ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving any) *gomock.Call {
+// WriteAccountConfig indicates an expected call of WriteAccountConfig.
+func (mr *MockRedisRepositoryMockRecorder) WriteAccountConfig(ctx, organizationID, ledgerID, config any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheAllowFlags", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheAllowFlags), ctx, organizationID, ledgerID, cacheKey, allowSending, allowReceiving)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteAccountConfig", reflect.TypeOf((*MockRedisRepository)(nil).WriteAccountConfig), ctx, organizationID, ledgerID, config)
 }
 
-// UpdateBalanceCacheBlocked mocks base method.
-func (m *MockRedisRepository) UpdateBalanceCacheBlocked(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKeys []string, blocked bool) error {
+// WriteBalanceConfig mocks base method.
+func (m *MockRedisRepository) WriteBalanceConfig(ctx context.Context, organizationID, ledgerID uuid.UUID, balanceRef string, config accounting.BalanceConfig) (accounting.BalanceConfig, ConfigWriteOutcome, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBalanceCacheBlocked", ctx, organizationID, ledgerID, cacheKeys, blocked)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "WriteBalanceConfig", ctx, organizationID, ledgerID, balanceRef, config)
+	ret0, _ := ret[0].(accounting.BalanceConfig)
+	ret1, _ := ret[1].(ConfigWriteOutcome)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
-// UpdateBalanceCacheBlocked indicates an expected call of UpdateBalanceCacheBlocked.
-func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheBlocked(ctx, organizationID, ledgerID, cacheKeys, blocked any) *gomock.Call {
+// WriteBalanceConfig indicates an expected call of WriteBalanceConfig.
+func (mr *MockRedisRepositoryMockRecorder) WriteBalanceConfig(ctx, organizationID, ledgerID, balanceRef, config any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheBlocked", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheBlocked), ctx, organizationID, ledgerID, cacheKeys, blocked)
-}
-
-// UpdateBalanceCacheSettings mocks base method.
-func (m *MockRedisRepository) UpdateBalanceCacheSettings(ctx context.Context, organizationID, ledgerID uuid.UUID, cacheKey string, settings *mmodel.BalanceSettings) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateBalanceCacheSettings", ctx, organizationID, ledgerID, cacheKey, settings)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateBalanceCacheSettings indicates an expected call of UpdateBalanceCacheSettings.
-func (mr *MockRedisRepositoryMockRecorder) UpdateBalanceCacheSettings(ctx, organizationID, ledgerID, cacheKey, settings any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateBalanceCacheSettings", reflect.TypeOf((*MockRedisRepository)(nil).UpdateBalanceCacheSettings), ctx, organizationID, ledgerID, cacheKey, settings)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteBalanceConfig", reflect.TypeOf((*MockRedisRepository)(nil).WriteBalanceConfig), ctx, organizationID, ledgerID, balanceRef, config)
 }
