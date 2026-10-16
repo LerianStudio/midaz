@@ -150,6 +150,23 @@ Limits: runs are count-bounded and end on the count or the caller's context. A t
 needs a graceful stop separate from abort, which a later task adds. The recorder preallocates five latency series,
 40 B per scheduled request (576 MB for 14.4 M requests).
 
+## SQL session
+
+`sql_session.go` is one writer's only connection, used by one goroutine at a time: a one-connection `*sql.DB`
+over pgx `stdlib`, which runs COMMIT under the `BeginTx` context. `commit` returns nil only when COMMIT returned
+no error and no notice; anything else is an unknown outcome and nothing retries it. The session pins
+`client_min_messages=warning`, overriding the tested `options`/`PGOPTIONS` setting that suppresses warnings.
+`TestSQLSessionCommit` rebuilds the schema, which drops seeded balances:
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 360 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestSQLSessionCommit$' -timeout 5m -v
+```
+
+Limits: a row visible on the primary is a local commit, never a replicated one. A run killed before cleanup can
+leave standby replay paused: `remote_apply` commits then wait and standby reads go stale, while ordinary
+`synchronous_commit=on` commits still succeed. Resume with `SELECT pg_wal_replay_resume()` on the bench standby only.
+
 ## How it is built
 
 - `init-primary.sql` runs once on a fresh primary volume. It writes the marker and
