@@ -34,9 +34,8 @@ type BalanceTrailHead struct {
 	// created_at). Unlike created_at it cannot be back-dated by the client.
 	RecordedAt time.Time
 	// ValidatedCancelCredit marks the CREDIT row of a cancelled pending
-	// transaction. Its after-state is a historical projection that can differ
-	// from the real balance when the cancel repaid overdraft debt, so only its
-	// version is comparable.
+	// transaction. Rows written before the trail fix can project an after-state
+	// that differs from the balance, so only its version is comparable.
 	ValidatedCancelCredit bool
 }
 

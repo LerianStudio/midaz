@@ -497,26 +497,28 @@ func TestTransactionCompletionDeterministicOperationIDs(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidTransactionCompletionRecord)
 }
 
+// A pending holds 30 of an available 50; a debit of 40 while it is open draws 20 of overdraft;
+// the cancel's credit of 30 repays those 20 first and leaves 10 available.
 func TestTransactionCompletionCancelProjection(t *testing.T) {
 	payload, _ := recoveryContractFixture(t)
 	payload.Action, payload.TransactionStatus = "cancel", constant.CANCELED
 	context := payload.OperationSpecs[0]
 	context.OriginRef, context.PostingRef = "source-leg:0", "source-leg:0:release"
 	context.RowType, context.CompatibilityPath = constant.RELEASE, OperationRecordValidatedCancelRelease
-	context.RequestedAmount = decimal.NewFromInt(50)
-	context.Balance.Available, context.Balance.OnHold, context.Balance.OverdraftUsed = decimal.Zero, decimal.NewFromInt(50), decimal.NewFromInt(50)
-	context.Balance.Version = 2
+	context.RequestedAmount = decimal.NewFromInt(30)
+	context.Balance.Available, context.Balance.OnHold, context.Balance.OverdraftUsed = decimal.Zero, decimal.NewFromInt(30), decimal.NewFromInt(20)
+	context.Balance.Version = 4
 	credit := context
 	credit.PostingRef, credit.RowType, credit.Direction, credit.CompatibilityPath = "source-leg:0:credit", constant.CREDIT, constant.DirectionCredit, OperationRecordValidatedCancelCredit
 	payload.OperationSpecs = []OperationRecordSpec{context, credit}
 	result := accounting.ExecutionResult{Movements: []accounting.Movement{
 		{
 			Ref: "release", TransactionID: payload.TransactionID, PostingRef: context.PostingRef, BalanceRef: context.BalanceRef, Role: accounting.RolePrimary,
-			Type: accounting.PostingUnreserve, Amount: decimal.NewFromInt(50), Before: accounting.BalanceState{OnHold: decimal.NewFromInt(50), OverdraftUsed: decimal.NewFromInt(50), Version: 2}, After: accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(50), Version: 3},
+			Type: accounting.PostingUnreserve, Amount: decimal.NewFromInt(30), Before: accounting.BalanceState{OnHold: decimal.NewFromInt(30), OverdraftUsed: decimal.NewFromInt(20), Version: 4}, After: accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(20), Version: 5},
 		},
 		{
 			Ref: "credit", TransactionID: payload.TransactionID, PostingRef: credit.PostingRef, BalanceRef: credit.BalanceRef, Role: accounting.RolePrimary,
-			Type: accounting.PostingCredit, Amount: decimal.Zero, OverdraftDelta: decimal.NewFromInt(-50), Before: accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(50), Version: 3}, After: accounting.BalanceState{Version: 4},
+			Type: accounting.PostingCredit, Amount: decimal.NewFromInt(10), OverdraftDelta: decimal.NewFromInt(-20), Before: accounting.BalanceState{OverdraftUsed: decimal.NewFromInt(20), Version: 5}, After: accounting.BalanceState{Available: decimal.NewFromInt(10), Version: 6},
 		},
 	}}
 	recoveryContractAddRepaymentCompanion(&payload, &result, 1)
@@ -525,13 +527,20 @@ func TestTransactionCompletionCancelProjection(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 	want := []rowContractGolden{
-		{constant.RELEASE, "@source", "default", "50", constant.DirectionDebit, *context.RouteID, rowContractState{"0", "50", "50", 2}, rowContractState{"0", "0", "0", 3}, "50", "0", true},
-		{constant.CREDIT, "@source", "default", "50", constant.DirectionCredit, *context.RouteID, rowContractState{"0", "0", "50", 3}, rowContractState{"50", "0", "0", 4}, "50", "0", true},
+		{constant.RELEASE, "@source", "default", "30", constant.DirectionDebit, *context.RouteID, rowContractState{"0", "30", "20", 4}, rowContractState{"0", "0", "0", 5}, "20", "0", true},
+		{constant.CREDIT, "@source", "default", "10", constant.DirectionCredit, *context.RouteID, rowContractState{"0", "0", "20", 5}, rowContractState{"10", "0", "0", 6}, "20", "0", true},
+		{constant.OVERDRAFT, "@source", "overdraft", "20", constant.DirectionCredit, *context.RouteID, rowContractState{"20", "0", "20", 0}, rowContractState{"0", "0", "0", 1}, "20", "0", true},
 	}
-	for i, row := range rows[:2] {
+	debits, credits := decimal.Zero, decimal.Zero
+	for i, row := range rows {
 		assert.Equal(t, want[i], rowContractObserved(t, row))
+		if row.Direction == constant.DirectionDebit {
+			debits = debits.Add(*row.Amount.Value)
+		} else {
+			credits = credits.Add(*row.Amount.Value)
+		}
 	}
-	assert.True(t, result.Final[0].Available.IsZero(), "real state must not be replaced by the synthetic credit row")
+	assert.True(t, debits.Equal(credits), "the cancel's rows must balance: %s debited, %s credited", debits, credits)
 	encoded, err := EncodeTransactionCompletionRecord(recoveryContractEnvelope(t, payload, result))
 	require.NoError(t, err)
 	decoded, err := DecodeTransactionCompletionRecord(encoded)

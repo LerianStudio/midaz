@@ -16,8 +16,8 @@ import (
 // Grace is measured against the newest of the balance update and the moment the trail
 // head was recorded; a non-positive grace disables deferral. A trail head at version 0
 // predates the operation version columns, so a balance that has moved since cannot be
-// compared and is unverifiable. The values of a validated-cancel CREDIT head are a
-// historical projection, so only its version is compared.
+// compared and is unverifiable. The values of a validated-cancel CREDIT head written
+// before the trail fix are a historical projection, so only its version is compared.
 func ClassifyBalanceTrailPair(pair mmodel.BalanceTrailPair, now time.Time, grace time.Duration) mmodel.BalanceTrailDirection {
 	newest := pair.UpdatedAt
 	if pair.Trail != nil && pair.Trail.RecordedAt.After(newest) {
