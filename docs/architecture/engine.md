@@ -388,7 +388,7 @@ In this table, ON/OFF means route validation enabled/disabled.
 | Commit OFF | `unreserve` | `credit` | Source row remains DEBIT |
 | Commit ON | `unreserve` | `credit` | Source row remains ON_HOLD |
 | Cancel OFF | `release` | None | No general repayment; preserve legacy override |
-| Cancel ON | `unreserve`, `credit` | None | Credit may repay debt; historical projection is separate |
+| Cancel ON | `unreserve`, `credit` | None | Credit may repay debt; rows record the engine movements |
 | NOTED / annotation | Do not call engine | Do not call engine | Produce annotation rows with BalanceAffected=false |
 
 Deferred destinations still undergo Go input validation even though they produce
@@ -402,11 +402,13 @@ aliases, snapshot information, and relevant metadata. Companions inherit the
 originating RouteID but preserve empty Metadata and ChartOfAccounts unless a
 separate business change explicitly changes that behavior.
 
-Validated cancellation with repayment has a historical row projection that can
-differ from the actual Lua monetary state. Preserve its observable Amount and
-BalanceAfter in a named Go compatibility projection; never overwrite truthful
-movement state to imitate a row. Normal completion and recovery use the same
-projector and must produce identical operation IDs, rows, and versions.
+A validated cancellation's CREDIT row records its engine movement like any other
+credit: when the credit repays overdraft debt, the row carries only the remainder
+and the companion row carries the repayment, so the cancel's rows balance. Rows
+written earlier recorded the requested amount and `available + amount`; the
+balance-trail reconciler compares such a head by version only. Normal completion
+and recovery use the same projector and must produce identical operation IDs,
+rows, and versions.
 
 The production engine transaction paths compose three preparation boundaries:
 
@@ -1290,6 +1292,12 @@ blob must carry the coordinated admission before the close route is exposed, and
 there is no key to backfill for the accounts that stay open. A rollback never clears
 `closed_at`. Operational procedures for rollout, rollback, and reconciliation are
 maintained outside this repository.
+
+A validated cancel whose credit repays overdraft, or whose source is a
+debit-direction balance, is projected differently by releases before and after
+the trail fix. If one release persisted its rows and the
+other recovers the same record, row verification fails and the record is
+quarantined after bounded retries; the balance is already correct.
 
 Deferrable fees are one-way for a rolling deploy. A completion record that carries
 fee debt fails the strict decoder of an older binary, which quarantines it instead
