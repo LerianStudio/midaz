@@ -384,6 +384,45 @@ func TestPendingCancelIgnoresProgrammaticGrantIdentifier(t *testing.T) {
 	assert.Nil(t, executor.requests[0].Execution.Transactions[0].AccountBlockException)
 }
 
+// crossSidePendingBody names @source as the whole debit side and again as the second credit
+// leg: the shape an earlier build accepted as pending and the ambiguity rule now refuses.
+func crossSidePendingBody(body mtransaction.Transaction) mtransaction.Transaction {
+	four, six := decimal.NewFromInt(4), decimal.NewFromInt(6)
+	body.Send.Distribute.To = []mtransaction.FromTo{
+		{AccountAlias: "@target", Amount: &mtransaction.Amount{Asset: "USD", Value: four}},
+		{AccountAlias: "@source", Amount: &mtransaction.Amount{Asset: "USD", Value: six}},
+	}
+
+	return body
+}
+
+// TestPendingCancelReleasesACrossSideHold keeps a pending transaction persisted with one account
+// on both sides releasable: the cancel reaches the engine instead of answering the ambiguity code.
+func TestPendingCancelReleasesACrossSideHold(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.CANCELED)
+	reader.persisted.Body = crossSidePendingBody(reader.persisted.Body)
+
+	got, err := uc.CancelTransactionV2(context.Background(), in)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Len(t, executor.requests, 1, "the cancel must reach the engine to release the hold")
+}
+
+// TestPendingCommitRefusesACrossSideBody keeps the commit of the same body refused: settling it
+// would debit and credit one account in a single transaction.
+func TestPendingCommitRefusesACrossSideBody(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	reader.persisted.Body = crossSidePendingBody(reader.persisted.Body)
+
+	_, err := uc.CommitTransactionV2(context.Background(), in)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), constant.ErrTransactionAmbiguous.Error())
+	assert.Empty(t, executor.requests)
+	assert.Empty(t, finalizer.envelopes)
+}
+
 func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T) {
 	uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.CANCELED)
 	historicalUsage := decimal.NewFromInt(4)

@@ -445,6 +445,24 @@ func AppendIfNotExist(slice []string, s []string) []string {
 	return slice
 }
 
+// validateConfig holds the optional behaviour ValidateSendSourceAndDistribute
+// accepts through ValidateOption.
+type validateConfig struct {
+	reversal bool
+}
+
+// ValidateOption adjusts how ValidateSendSourceAndDistribute validates a send.
+type ValidateOption func(*validateConfig)
+
+// ForReversal marks the send as the reversal of a transaction that already
+// settled, which lifts the shared-account (ambiguity) check and nothing else.
+// New sends never pass this option.
+func ForReversal() ValidateOption {
+	return func(cfg *validateConfig) {
+		cfg.reversal = true
+	}
+}
+
 // ValidateSendSourceAndDistribute resolves the amounts for each source and
 // destination entry, then verifies that the transaction is balanced:
 //
@@ -456,9 +474,13 @@ func AppendIfNotExist(slice []string, s []string) []string {
 //     send value.
 //     - Remaining: whatever is left after all other entries are subtracted.
 //
-//  2. Ambiguity check: the same account alias must not appear as both source
-//     and destination within the same positional index. This prevents
-//     self-transfer loops that would be no-ops.
+//  2. Ambiguity check: the same account, identified by "alias#balanceKey", must
+//     not appear as both a source and a destination, whatever position each
+//     entry holds in its list. This prevents self-transfer loops that would be
+//     no-ops. A pending cancel (CANCELED) skips it: releasing a hold moves no value.
+//     A reversal (ForReversal) skips it too: the reversal is rebuilt from
+//     operations already persisted, so it must stay possible for a transaction
+//     recorded before this rule existed.
 //
 //  3. Remainder check: a "remaining" entry must resolve to a positive amount.
 //
@@ -474,8 +496,8 @@ func AppendIfNotExist(slice []string, s []string) []string {
 // It is a step without I/O, so it opens no span of its own. A rejection is recorded
 // as a business event, named after the step, on the caller's span (the command or
 // use case that runs the validation); an accepted send leaves no trace.
-func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transaction, transactionType string) (*Responses, error) {
-	response, err := validateSendSourceAndDistribute(ctx, transaction, transactionType)
+func ValidateSendSourceAndDistribute(ctx context.Context, transaction Transaction, transactionType string, opts ...ValidateOption) (*Responses, error) {
+	response, err := validateSendSourceAndDistribute(ctx, transaction, transactionType, opts...)
 	if err != nil {
 		// Every rejection here is a business error (pkg.ValidateBusinessError), so it is
 		// an event that keeps the caller's span status unset (telemetry T5).
@@ -493,11 +515,18 @@ const validateSendSourceAndDistributeStep = "transaction.validate_send_source_an
 
 // validateSendSourceAndDistribute holds the checks ValidateSendSourceAndDistribute
 // documents; the exported wrapper only records a rejection on the caller's span.
-func validateSendSourceAndDistribute(ctx context.Context, transaction Transaction, transactionType string) (*Responses, error) {
+func validateSendSourceAndDistribute(ctx context.Context, transaction Transaction, transactionType string, opts ...ValidateOption) (*Responses, error) {
 	var (
 		sourcesTotal      decimal.Decimal
 		destinationsTotal decimal.Decimal
+		cfg               validateConfig
 	)
+
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
 
 	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -548,20 +577,29 @@ func validateSendSourceAndDistribute(ctx context.Context, transaction Transactio
 	response.OperationRoutesTo = <-orTo
 	response.Aliases = AppendIfNotExist(response.Aliases, response.Destinations)
 
-	// Ambiguity check: reject if the same alias appears as both source and destination.
-	for i, source := range response.Sources {
-		if _, ok := response.To[ConcatAlias(i, source)]; ok {
-			logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: source alias also appears as destination", libLog.String("alias", source))
-
-			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+	// Ambiguity check: reject if the same account appears as both source and
+	// destination. Sources and Destinations already carry each account as
+	// "alias#balanceKey", whether the caller sent bare aliases or entry keys, so
+	// the two lists are compared as sets: the position an entry holds in either
+	// list is irrelevant, and the same alias on different balance keys is not a
+	// collision.
+	//
+	// Cancelling a pending send only releases its hold and cannot move value between
+	// the two sides, so a body persisted before this rule existed stays cancellable.
+	// A reversal is rebuilt from operations already persisted, so it must stay
+	// possible for a transaction recorded before this rule existed.
+	if transactionType != pkgConstant.CANCELED && !cfg.reversal {
+		sources := make(map[string]struct{}, len(response.Sources))
+		for _, source := range response.Sources {
+			sources[source] = struct{}{}
 		}
-	}
 
-	for i, destination := range response.Destinations {
-		if _, ok := response.From[ConcatAlias(i, destination)]; ok {
-			logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: destination alias also appears as source", libLog.String("alias", destination))
+		for _, destination := range response.Destinations {
+			if _, ok := sources[destination]; ok {
+				logger.Log(ctx, libLog.LevelError, "Ambiguous transaction: source alias also appears as destination", libLog.String("alias", destination))
 
-			return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+				return nil, pkg.ValidateBusinessError(pkgConstant.ErrTransactionAmbiguous, "ValidateSendSourceAndDistribute")
+			}
 		}
 	}
 

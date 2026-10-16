@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	redisadapter "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
+	"github.com/LerianStudio/midaz/v4/internal/cachepolicy"
 	cn "github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 	postgrestestutil "github.com/LerianStudio/midaz/v4/tests/utils/postgres"
@@ -2117,36 +2118,12 @@ func TestIntegration_TransactionV2Advanced_PercentageOfPercentageResolvesNarrowe
 	requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, balances.srcB), "@srcB is named by no leg and must be untouched")
 }
 
-// operationsByAliasAndType keys an operation set by "<alias>/<type>". Unlike indexOpsByAlias
-// it tolerates one alias appearing more than once in a transaction, which is exactly the shape
-// the same-account-on-both-sides pin below records.
-func operationsByAliasAndType(t *testing.T, ops []operationEconomicRow) map[string]operationEconomicRow {
-	t.Helper()
-
-	out := make(map[string]operationEconomicRow, len(ops))
-
-	for _, op := range ops {
-		key := op.AccountAlias + "/" + op.Type
-
-		_, dup := out[key]
-		require.Falsef(t, dup, "two operations share alias %s and type %s", op.AccountAlias, op.Type)
-
-		out[key] = op
-	}
-
-	return out
-}
-
 // =============================================================================
 // 17. SAME ACCOUNT ON BOTH SIDES OF ONE TRANSACTION. Translate names no ambiguity rule of its
-//     own — the funnel's ambiguity guard is the only check that runs, and it compares the two
-//     sides INDEX-POSITIONALLY, so it fires when the alias sits at the same index on both sides
-//     and not otherwise.
-//
-//     Both outcomes are pinned. The caught row records a guarantee that no refactor should be
-//     free to drop silently. The escaping row is a KNOWN-DEFECT pin: it asserts the CURRENT
-//     WRONG behavior on purpose, so tightening the funnel guard goes red here and this is the
-//     place to record the corrected contract.
+//     own — the funnel's ambiguity guard is the only check that runs. It identifies an account by
+//     "alias#balanceKey" and refuses the send when any debit and any credit share that identity,
+//     whatever position each leg holds in its list. The refusal comes from the first validation
+//     pass, so nothing is persisted and no balance moves.
 // =============================================================================
 
 func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
@@ -2177,51 +2154,136 @@ func TestIntegration_TransactionV2_SameAccountOnBothSides(t *testing.T) {
 		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, otherID), "@other must be untouched")
 	})
 
-	t.Run("known defect same alias at different indexes is accepted and both debited and credited", func(t *testing.T) {
+	t.Run("same alias at different indexes is ambiguous", func(t *testing.T) {
 		// NOT parallel: process-global huma state (see file header).
 		t.Setenv("ALLOW_INSECURE_TLS", "true")
 
 		infra := setupTestInfra(t)
 		t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
 
-		ctx := context.Background()
-
 		selfID, otherID := seedTransfer(t, infra.pgContainer.DB, infra.orgID, infra.ledgerID, "@self", "@other", 1000)
 
 		v2App := buildHumaV2DirectApp(t, infra.handler)
 
-		// @self is the whole source side and ALSO the second destination leg. The guard misses
-		// it because it does not sit at index 0 of the destination array.
+		// @self is the whole debit side and ALSO the second credit leg: the two legs sit at
+		// different indexes, which does not make the send any less ambiguous.
 		body := `{"description":"self at index one","asset":"USD","amount":"100","debits":[{"alias":"@self",` + v2ScopeJSON + `,"amount":"100"}],` +
 			`"credits":[{"alias":"@other",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@self",` + v2ScopeJSON + `,"amount":"40"}]}`
 
-		resp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
-		txID := uuid.MustParse(resp["id"].(string))
+		resp := postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, "")
+		respBody := drainBody(t, resp)
 
-		assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, infra.pgContainer.DB, txID),
-			"the transaction is committed despite naming one account on both sides")
-		drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+		assert.Equal(t, nethttp.StatusUnprocessableEntity, resp.StatusCode,
+			"one alias on both sides at different indexes is an ambiguous transaction -> 422; body: %s", string(respBody))
+		requireProblemCode(t, respBody, "0090")
 
-		// @self carries BOTH a debit and a credit inside one transaction — the defect.
-		byKey := operationsByAliasAndType(t, fetchOperationRows(t, infra.pgContainer.DB, txID))
-
-		selfDebit, ok := byKey["@self/"+cn.DEBIT]
-		require.True(t, ok, "@self is the source side and must carry a debit")
-		requireDecimalEqual(t, decimal.NewFromInt(100), selfDebit.Amount, "@self debit is the whole total")
-
-		selfCredit, ok := byKey["@self/"+cn.CREDIT]
-		require.True(t, ok, "@self is also a destination leg and carries a credit in the SAME transaction")
-		requireDecimalEqual(t, decimal.NewFromInt(40), selfCredit.Amount, "@self credit is its destination leg's value")
-
-		otherCredit, ok := byKey["@other/"+cn.CREDIT]
-		require.True(t, ok, "@other must carry its own credit")
-		requireDecimalEqual(t, decimal.NewFromInt(60), otherCredit.Amount, "@other credit")
-
-		// Net effect: @self loses 100 and regains 40.
-		requireDecimalEqual(t, decimal.NewFromInt(940), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, selfID),
-			"@self is debited 100 and credited 40 in one transaction — this is the behavior being pinned")
-		requireDecimalEqual(t, decimal.NewFromInt(60), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, otherID), "@other available")
+		assert.Equal(t, 0, countTransactionsInLedger(t, infra.pgContainer.DB, infra.ledgerID),
+			"an ambiguous transaction must not persist")
+		requireDecimalEqual(t, decimal.NewFromInt(1000), postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, selfID), "@self must be untouched")
+		requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, infra.pgContainer.DB, otherID), "@other must be untouched")
 	})
+}
+
+// TestIntegration_TransactionV2Revert_SameAccountOnBothSidesOrigin proves a settled
+// transaction that carries one account on both sides, as an older build could record,
+// stays reversible. The origin is posted as a three-account transfer and its third leg is
+// then rewritten onto the payer, which is the persisted shape such a build left behind.
+// The revert rebuilds that shape from the operations, carries @payer on both sides, and
+// must still post; each account's operations across origin and reversal net to zero.
+func TestIntegration_TransactionV2Revert_SameAccountOnBothSidesOrigin(t *testing.T) {
+	// NOT parallel: process-global huma state (see file header).
+	t.Setenv("ALLOW_INSECURE_TLS", "true")
+
+	infra := setupTestInfra(t)
+	t.Setenv("RABBITMQ_TRANSACTION_ASYNC", "false")
+
+	ctx := context.Background()
+	db := infra.pgContainer.DB
+
+	payerID, payeeID := seedTransfer(t, db, infra.orgID, infra.ledgerID, "@payer", "@payee", 1000)
+	_, otherID := seedTransfer(t, db, infra.orgID, infra.ledgerID, "@unused", "@other", 0)
+
+	v2App := buildHumaV2DirectApp(t, infra.handler)
+
+	body := `{"description":"three account transfer","asset":"USD","amount":"100","debits":[{"alias":"@payer",` + v2ScopeJSON + `,"amount":"100"}],` +
+		`"credits":[{"alias":"@payee",` + v2ScopeJSON + `,"amount":"60"},{"alias":"@other",` + v2ScopeJSON + `,"amount":"40"}]}`
+
+	originResp := decodeTxResponse(t, postV2Create(t, v2App, "direct", infra.orgID, infra.ledgerID, body, ""), nethttp.StatusCreated)
+	originID := uuid.MustParse(originResp["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+
+	// Rewrite the @other credit onto @payer, keeping every column that identifies the
+	// account consistent with the payer's own debit row.
+	res, err := db.ExecContext(ctx, `
+		UPDATE operation AS o
+		   SET account_id = p.account_id, account_alias = p.account_alias, balance_id = p.balance_id
+		  FROM operation AS p
+		 WHERE o.transaction_id = $1 AND o.account_alias = '@other'
+		   AND p.transaction_id = $1 AND p.account_alias = '@payer'`, originID)
+	require.NoError(t, err)
+
+	rewritten, err := res.RowsAffected()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), rewritten, "exactly the @other credit must be rewritten onto @payer")
+
+	// Drop the cached views of the origin, as for a transaction settled long ago, so the
+	// revert rebuilds it from the rewritten primary rows.
+	redisClient := infra.redisContainer.Client
+	indexKey := "engine:" + cachepolicy.HashTag + ":transaction-index:" + infra.orgID.String() + ":" + infra.ledgerID.String()
+
+	removed, err := redisClient.HDel(ctx, indexKey, originID.String()).Result()
+	require.NoError(t, err)
+	require.Equal(t, int64(1), removed, "the origin's engine index entry must exist before its removal")
+	require.NoError(t, redisClient.Del(ctx, utils.WriteBehindTransactionKey(infra.orgID, infra.ledgerID, originID.String())).Err())
+
+	revertRaw := postTransaction(t, v2App, v2RevertURL(infra.orgID, infra.ledgerID, originID), "", "")
+	revertResp := decodeTxResponse(t, revertRaw, nethttp.StatusCreated)
+	revertID := uuid.MustParse(revertResp["id"].(string))
+	drainBalanceSync(t, ctx, infra.handler.Command, infra.redisRepo, infra.orgID, infra.ledgerID)
+	assert.Equal(t, cn.APPROVED, postgrestestutil.GetTransactionStatus(t, db, revertID), "the reversal should be APPROVED")
+
+	// Signed per-account sum over origin and reversal: credits add, debits subtract.
+	rows, err := db.QueryContext(ctx, `
+		SELECT account_alias,
+		       COUNT(*) FILTER (WHERE transaction_id = $2 AND type = 'DEBIT'),
+		       COUNT(*) FILTER (WHERE transaction_id = $2 AND type = 'CREDIT'),
+		       SUM(CASE WHEN type = 'CREDIT' THEN amount ELSE -amount END)::TEXT
+		  FROM operation
+		 WHERE transaction_id IN ($1, $2)
+		 GROUP BY account_alias`, originID, revertID)
+	require.NoError(t, err)
+
+	defer rows.Close()
+
+	net := map[string]string{}
+	revertLegs := map[string][2]int{}
+
+	for rows.Next() {
+		var (
+			alias          string
+			debits, credit int
+			sum            string
+		)
+
+		require.NoError(t, rows.Scan(&alias, &debits, &credit, &sum))
+
+		net[alias] = sum
+		revertLegs[alias] = [2]int{debits, credit}
+	}
+
+	require.NoError(t, rows.Err())
+
+	assert.Equal(t, map[string]string{"@payer": "0", "@payee": "0"}, net,
+		"every account's operations across origin and reversal must net to zero")
+	assert.Equal(t, [2]int{1, 1}, revertLegs["@payer"], "the reversal must carry @payer on both sides")
+	assert.Equal(t, [2]int{1, 0}, revertLegs["@payee"], "the reversal must debit @payee")
+
+	// The balances move by exactly the reversal of the persisted operations: @payee gives
+	// back its 60 and @payer receives a net 60. @other keeps the 40 the rewrite hid from
+	// the history, which is the drift a rewritten row leaves and not the reversal's doing.
+	requireDecimalEqual(t, decimal.NewFromInt(960), postgrestestutil.GetBalanceAvailable(t, db, payerID), "@payer after the reversal")
+	requireDecimalEqual(t, decimal.Zero, postgrestestutil.GetBalanceAvailable(t, db, payeeID), "@payee after the reversal")
+	requireDecimalEqual(t, decimal.NewFromInt(40), postgrestestutil.GetBalanceAvailable(t, db, otherID), "@other untouched by the reversal")
 }
 
 // =============================================================================
@@ -2899,9 +2961,6 @@ const advancedLegPermutedV2Body = `{"description":"v2 advanced multi-leg","asset
 // responseOperationsByAliasAndType projects a transaction RESPONSE's operations array into a map
 // keyed by "<accountAlias>/<type>", each value the operation object with its identity, timestamp
 // and route keys stripped by stripVolatile — so what remains is the economic content of the leg.
-// It is the response-JSON counterpart of operationsByAliasAndType, which does the same join over
-// the persisted rows; the two cannot share an implementation because they read different shapes.
-//
 // Keying by (alias, type) rather than comparing the arrays index-for-index keeps the comparison
 // independent of the order the operations are serialised in.
 func responseOperationsByAliasAndType(t *testing.T, resp map[string]any) map[string]any {
