@@ -63,7 +63,8 @@ type writer interface {
 	// one attempt per identity gets a new decision, none if callers time out; others replay it or, on a different
 	// payload, conflict.
 	Submit(ctx context.Context, req request) result
-	// Close ends the writer; later Submits answer unknown. The caller closes once after its last run, on every path.
+	// Close ends the writer; later Submits answer unknown. The caller closes once, after its last run and so after
+	// every Submit returned, on every path.
 	Close(ctx context.Context) error
 }
 

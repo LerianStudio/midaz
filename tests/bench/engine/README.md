@@ -145,8 +145,8 @@ sizes. Trace-carrier and multi-tenant variants, relay and Kafka/CloudEvents reco
 ## Workload and metrics
 
 `writer.go`, `workload.go` and `metrics.go` hold the request contract, the deterministic workload, the open and
-closed loops and the recorder. The generator tests drive a null writer with simulated approvals; they do not yet
-feed the direct SQL batch below. Open-loop rates report the offered rate sustained with the logged dispatch lag,
+closed loops and the recorder. The generator tests drive a null writer with simulated approvals; the worker tests
+exercise the SQL writer below. Open-loop rates report the offered rate sustained with the logged dispatch lag,
 never financial TPS.
 
 ```bash
@@ -184,7 +184,7 @@ the whole pass, including decisions funded by that pass, and recomputes from fre
 
 Each run has a 10 s cap; a pass also uses the earliest future response deadline in the batch. A pre-COMMIT deadlock
 allows one retry. Any error or notice after invoking COMMIT makes every answer unknown, without retrying money.
-The caller sets the batch size; the upcoming worker drain will enforce the experimental cap of 256.
+The worker drain sets the batch size, up to the configured experimental cap of 256.
 
 ```bash
 env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
@@ -196,10 +196,32 @@ money-lock wait, the earliest response deadline, whole-pass rollback, a cancelle
 WAL barrier, eight concurrent sessions exhausting one shared limit, and a real deadlock with one retry. The replay
 test keeps standby replay paused until the retry itself waits in SyncRep, then resumes it before checking the result.
 
-Limits: no Submit/Close queue, 32-worker run, owner cache/fence, failover or throughput measurement. The earliest
-future deadline can turn a whole backlog batch unknown; that cost remains unmeasured. Sending/receiving flags and
+Limits: no owner cache/fence, failover or throughput measurement. The earliest future deadline can turn a whole
+backlog batch unknown; that cost remains unmeasured. Sending/receiving flags and
 a refusal crossing its cutoff remain for the planned protection/admission gates. Two empty-array lock queries still
 run on replay-only batches. Eight concurrent sessions prove that interleaving, not freedom from all deadlocks.
+
+## Ownerless queue and drain
+
+`writer_ownerless.go` starts one worker per prepared SQL batcher over a fixed 8,192-attempt queue. Each caller has
+its own buffered reply. Workers take only attempts already queued, up to the configured batch cap, without waiting
+to coalesce. `Submit` counts late entry and limits the caller's wait to the remaining response budget. A caller
+leaving after enqueue gets unknown; accepted work may still commit, but the financial admission cutoff never moves.
+
+Call `Close` once, after all `Submit` calls return. Normal Close drains accepted work and joins workers before the
+harness closes sessions or outbox resources. The writer lifetime or Close's own deadline can abort SQL. Close reports
+each worker's first batch error after the join; a worker's batch error never cancels another worker's drain.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 960 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestOwnerlessWriter' -timeout 15m -v
+```
+
+Six live tests cover 32 named backends waiting concurrently, cap-8 drain of nine queued attempts, reply correlation,
+error isolation during Close, caller cancellation and remaining budget, forced Close, expired entry and known replay.
+Checks run after drain and owned-resource cleanup; goleak checks for remaining goroutines. The tests do not exercise
+a full 8,192-attempt queue, 32 workers with cap 256 under load, or the five 200k-request correctness runs. Those volume
+and backlog gates remain pending; 32 concurrent backends alone prove no throughput target.
 
 ## How it is built
 
