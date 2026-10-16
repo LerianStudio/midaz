@@ -157,25 +157,48 @@ type benchLeg struct {
 	metadata map[string]any
 }
 
-// buildObligations returns what request n of the fixture owes: transaction.posted, one balance.changed per
-// operation, fee_charge.applied when a fee was charged, one metadata document per non-nil metadata (transaction
-// first) and the Tracer confirm. No fixture opens fee debt.
-func buildObligations(ctx context.Context, in createV2Input, fx obligationFixture, n int) (requestObligations, error) {
+// fixtureObligations returns what request n of the fixture owes, its legs recorded on their seeded balances.
+func fixtureObligations(ctx context.Context, in createV2Input, fx obligationFixture, n int) (requestObligations, error) {
 	requestID := uuid.NewSHA1(benchNS, fmt.Appendf(nil, "request/%s/%d", fx.name, n))
-	txID := obligationID(requestID, "transaction", 0).String()
 	legs, metadata := fixtureLegs(in, fx)
-
-	var docs []metadataUpsert
-	if metadata != nil {
-		docs = append(docs, metadataUpsert{EntityName: constant.EntityTransaction, EntityID: txID, Data: metadata, CreatedAt: benchTxTime, UpdatedAt: benchTxTime})
+	approved := constant.APPROVED
+	tx := events.TransactionSource{
+		ID: obligationID(requestID, "transaction", 0).String(), OrganizationID: benchOrgID.String(), LedgerID: benchLedgerID.String(),
+		Status: mmodel.Status{Code: approved, Description: &approved}, Amount: &in.Amount, AssetCode: in.Asset,
+		Description: in.Description, Metadata: metadata, CreatedAt: benchTxTime, UpdatedAt: benchTxTime,
 	}
-
-	ob := requestObligations{requestID: requestID, events: make([]libStreaming.EmitRequest, 1, len(legs)+2)}
-	operations := make([]json.RawMessage, 0, len(legs))
+	ops := make([]benchOperation, len(legs))
 
 	for i, leg := range legs {
-		op := leg.operation(in, txID, obligationID(requestID, "operation", i).String())
+		ops[i] = leg.operation(in, tx.ID, obligationID(requestID, "operation", i).String())
 
+		if leg.debit {
+			tx.Source = append(tx.Source, leg.alias)
+		} else {
+			tx.Destination = append(tx.Destination, leg.alias)
+		}
+	}
+
+	return buildObligations(ctx, requestID, tx, ops)
+}
+
+// buildObligations returns what a decided v2 create owes: transaction.posted with its operations, one balance.changed
+// per operation at its after state, fee_charge.applied under send_transaction_events.go's metadata gate, one metadata
+// document per non-nil metadata (transaction first) dated at tx.CreatedAt, and the Tracer confirm. No fee debt opens.
+func buildObligations(ctx context.Context, requestID uuid.UUID, tx events.TransactionSource, ops []benchOperation) (requestObligations, error) {
+	var docs []metadataUpsert
+
+	addDoc := func(entity, id string, data map[string]any) { // frozenMetadataRecords: a v2 create's TransactionDate
+		if data != nil {
+			docs = append(docs, metadataUpsert{EntityName: entity, EntityID: id, Data: data, CreatedAt: tx.CreatedAt, UpdatedAt: tx.CreatedAt})
+		}
+	}
+	addDoc(constant.EntityTransaction, tx.ID, tx.Metadata)
+
+	ob := requestObligations{requestID: requestID, events: make([]libStreaming.EmitRequest, 1, len(ops)+2)}
+	tx.Operations = make([]json.RawMessage, 0, len(ops))
+
+	for i, op := range ops {
 		raw, err := json.Marshal(op)
 		if err != nil {
 			return requestObligations{}, fmt.Errorf("marshal operation %d: %w", i, err)
@@ -186,35 +209,21 @@ func buildObligations(ctx context.Context, in createV2Input, fx obligationFixtur
 			return requestObligations{}, err
 		}
 
-		operations, ob.events = append(operations, raw), append(ob.events, changed)
+		tx.Operations, ob.events = append(tx.Operations, raw), append(ob.events, changed)
 
-		if op.Metadata != nil {
-			docs = append(docs, metadataUpsert{
-				EntityName: constant.EntityOperation, EntityID: op.ID, Data: op.Metadata, CreatedAt: benchTxTime, UpdatedAt: benchTxTime,
-			})
-		}
+		addDoc(constant.EntityOperation, op.ID, op.Metadata)
 	}
 
-	approved, destination := constant.APPROVED, make([]string, 0, len(legs)-1)
-	for _, leg := range legs[1:] {
-		destination = append(destination, leg.alias)
-	}
-
-	posted, err := events.NewTransactionPosted(events.TransactionSource{
-		ID: txID, OrganizationID: benchOrgID.String(), LedgerID: benchLedgerID.String(),
-		Status: mmodel.Status{Code: approved, Description: &approved}, Amount: &in.Amount, AssetCode: in.Asset,
-		Description: in.Description, Source: []string{in.Debits[0].Alias}, Destination: destination,
-		Operations: operations, Metadata: metadata, CreatedAt: benchTxTime, UpdatedAt: benchTxTime,
-	}).ToEmitRequestPosted("", benchTxTime)
+	posted, err := events.NewTransactionPosted(tx).ToEmitRequestPosted("", tx.CreatedAt)
 	if err != nil {
 		return requestObligations{}, err
 	}
 
 	ob.events[0] = posted
 
-	if fx.fee.IsPositive() {
-		applied, err := events.NewFeesApplied(txID, benchOrgID.String(), benchLedgerID.String(), benchFeePackage.String(), benchTxTime).
-			ToEmitRequest("", benchTxTime)
+	feeApplied, _ := tx.Metadata["feeApplied"].(string)
+	if packageID, _ := tx.Metadata["packageAppliedID"].(string); feeApplied == "true" && packageID != "" {
+		applied, err := events.NewFeesApplied(tx.ID, tx.OrganizationID, tx.LedgerID, packageID, tx.CreatedAt).ToEmitRequest("", tx.CreatedAt)
 		if err != nil {
 			return requestObligations{}, err
 		}
@@ -226,7 +235,7 @@ func buildObligations(ctx context.Context, in createV2Input, fx obligationFixtur
 		ob.events[i].EventID = obligationID(requestID, ob.events[i].DefinitionKey, i).String()
 	}
 
-	return ob.withPrivate(ctx, docs, tracerConfirm{TransactionID: txID, ReservationID: obligationID(requestID, "reservation", 0).String()})
+	return ob.withPrivate(ctx, docs, tracerConfirm{TransactionID: tx.ID, ReservationID: obligationID(requestID, "reservation", 0).String()})
 }
 
 // fixtureLegs returns the posted legs and transaction metadata. A deductible fee is carved out of the credit,

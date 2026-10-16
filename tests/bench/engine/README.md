@@ -105,8 +105,12 @@ reservation. Only `metadata` keeps the body's client metadata; `exact2leg` and `
 without it, so the three inputs differ. Events come from the public `pkg/streaming/events` builders; the
 operation inside `transaction.posted` mirrors the ledger's internal `operation.Operation` keys, which
 `tests/bench` cannot import, and takes the transaction description as the ledger does for legs without
-one. IDs derive from request, kind and ordinal. Timestamps carry nanoseconds, as product values do;
-builders that format RFC3339 keep doing so.
+one. `buildObligations` maps an explicit request id, the transaction (`events.TransactionSource`) and its
+already-decided operations; the fixtures wrap it with legs on seeded balances. It emits `fee_charge.applied`
+only when the transaction metadata carries `feeApplied` = `"true"` and a `packageAppliedID`, for that package,
+as `send_transaction_events.go` does. Event and private row IDs
+derive from request, kind and ordinal. Timestamps carry nanoseconds, as product values do; builders that
+format RFC3339 keep doing so.
 
 | Fixture | posted | balance.changed | fee_charge.applied | metadata | Tracer confirm | Outbox rows |
 |---|---|---|---|---|---|---|
@@ -121,12 +125,14 @@ ID (UUIDv7) and derives `aggregate_id` from the partition key, and the bench set
 transport counts and refuses `Publish`: the test proves zero external delivery.
 
 Bench-defined parts: the metadata row freezes the fields `frozenMetadataRecords` sets (entity, id, data,
-`createdAt` = `updatedAt`; Mongo generates `_id`); the Tracer row is the known reservation's correlation
-with its transaction, not the `Confirm` RPC body. The `feeLeg` fee is an assumed deductible, non-deferrable
-fee without accounting route: no fee configuration, fee engine or financial writer runs here.
+`createdAt` = `updatedAt` = the transaction's creation, a v2 create's `TransactionDate`; Mongo generates
+`_id`); the Tracer row is the known reservation's correlation with its transaction, not the `Confirm` RPC
+body. Its reservation id is derived locally from the request for one representative obligation: no Tracer
+call, reservation or skip flow runs. The `feeLeg` fee is an assumed deductible, non-deferrable fee without
+accounting route: no fee configuration, fee engine or financial writer runs here.
 
 ```bash
-go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestObligation' -v
+go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestObligation|TestBuildObligations' -v
 env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
   go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestOutboxOnlyEmitBatch$' -timeout 10m -v
 ```

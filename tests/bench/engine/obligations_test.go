@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/streaming/events"
 )
 
@@ -76,7 +78,7 @@ func TestObligationCatalog(t *testing.T) {
 			tc, ok := want[fx.name]
 			require.True(t, ok)
 
-			ob, err := buildObligations(t.Context(), in, fx, 0)
+			ob, err := fixtureObligations(t.Context(), in, fx, 0)
 			require.NoError(t, err)
 
 			got := decodeObligations(t, fx.name, ob)
@@ -84,7 +86,7 @@ func TestObligationCatalog(t *testing.T) {
 			assert.Equal(t, "100", got.posted.Amount.String())
 			require.Len(t, got.posted.Operations, tc.counts[keyChanged])
 
-			moved, available := map[string]string{}, map[string]string{}
+			moved := map[string]string{}
 
 			for _, raw := range got.posted.Operations {
 				var op benchOperation
@@ -97,11 +99,11 @@ func TestObligationCatalog(t *testing.T) {
 				}
 
 				moved[op.AccountAlias] = amount.String()
-				available[op.AccountAlias] = decimal.NewFromInt(benchFunds).Add(amount).String()
+				assert.Equal(t, decimal.NewFromInt(benchFunds).Add(amount).String(), got.changed[op.BalanceID].Available.String(),
+					"balance.changed available after the movement")
 			}
 
 			assert.Equal(t, tc.moved, moved, "operations move the debit to the credits")
-			assert.Equal(t, available, got.available, "balance.changed available after the movement")
 			assert.Equal(t, tc.metadata, got.metadata)
 
 			var txMetadata map[string]any
@@ -114,12 +116,89 @@ func TestObligationCatalog(t *testing.T) {
 	}
 }
 
+// A decided fee request owes what its records say: two keys of one account debited 30 + 20, credited 49 + fee 1,
+// each operation carried as recorded, the fee event under the package its metadata names, and metadata documents
+// dated at the transaction's creation, as frozenMetadataRecords dates a v2 create.
+func TestBuildObligations_DecidedFeeRequest_CarriesRecords(t *testing.T) {
+	t.Parallel()
+
+	requestID := uuid.MustParse("019a0f3e-7b2c-7d10-8a6e-5f0c2d9b1a01")
+	txID, feePackage := "019a0f3e-7b2c-7d10-8a6e-5f0c2d9b1a02", "019a0f3e-7b2c-7d10-8a6e-5f0c2d9b1a03"
+	createdAt := time.Date(2026, 10, 16, 14, 3, 7, 123456789, time.UTC)
+	txUpdatedAt, opUpdatedAt := createdAt.Add(2*time.Second), createdAt.Add(3*time.Second) // separate captures
+
+	decided := func(n int, class, key string, debit bool, amount, before, after string, version int64) benchOperation {
+		opType, direction := constant.CREDIT, constant.DirectionCredit
+		if debit {
+			opType, direction = constant.DEBIT, constant.DirectionDebit
+		}
+
+		return benchOperation{
+			ID: fmt.Sprintf("019a0f3e-7b2c-7d10-8a6e-5f0c2d9b1b0%d", n), TransactionID: txID, Type: opType, AssetCode: "BRL",
+			Amount:       benchAmount{Value: decimal.RequireFromString(amount)},
+			Balance:      benchBalance{Available: decimal.RequireFromString(before), OnHold: decimal.NewFromInt(7), Version: version},
+			BalanceAfter: benchBalance{Available: decimal.RequireFromString(after), OnHold: decimal.NewFromInt(7), Version: version + 1},
+			AccountID:    accountID(class, 0).String(), AccountAlias: benchAlias(class, 0), BalanceKey: key,
+			BalanceID: balanceID(class, 0, key).String(), OrganizationID: benchOrgID.String(), LedgerID: benchLedgerID.String(),
+			BalanceAffected: true, Direction: direction, CreatedAt: createdAt, UpdatedAt: opUpdatedAt,
+		}
+	}
+	payer, payee, feeAccount := benchAlias(classMultikey, 0), benchAlias(classHot, 0), benchAlias(classFee, 0)
+	ops := []benchOperation{
+		decided(1, classMultikey, constant.DefaultBalanceKey, true, "30", "41.5", "11.5", 7),
+		decided(2, classMultikey, keySecondary, true, "20", "20.25", "0.25", 3),
+		decided(3, classHot, constant.DefaultBalanceKey, false, "49", "900", "949", 41),
+		decided(4, classFee, constant.DefaultBalanceKey, false, "1", "12", "13", 9),
+	}
+	ops[3].Metadata = map[string]any{constant.MetadataKeyFeeLeg: constant.MetadataValueFeeLeg, "source": payee}
+
+	amount, approved := decimal.NewFromInt(50), constant.APPROVED
+	txMetadata := map[string]any{"packageAppliedID": feePackage, "feeApplied": "true"}
+
+	ob, err := buildObligations(t.Context(), requestID, events.TransactionSource{
+		ID: txID, OrganizationID: benchOrgID.String(), LedgerID: benchLedgerID.String(), Status: mmodel.Status{Code: approved, Description: &approved},
+		Amount: &amount, AssetCode: "BRL", Source: []string{payer, payer}, Destination: []string{payee, feeAccount}, Metadata: txMetadata,
+		CreatedAt: createdAt, UpdatedAt: txUpdatedAt,
+	}, ops)
+	require.NoError(t, err)
+
+	got := decodeObligations(t, "decided", ob)
+	assert.Equal(t, map[string]int{keyPosted: 1, keyChanged: 4, keyApplied: 1, kindMetadataUpsert: 2, kindTracerConfirm: 1}, got.counts)
+	assert.Equal(t, []string{createdAt.Format(time.RFC3339), txUpdatedAt.Format(time.RFC3339)}, []string{got.posted.CreatedAt, got.posted.UpdatedAt})
+	require.Len(t, got.posted.Operations, len(ops))
+
+	for i, want := range ops {
+		recorded, err := json.Marshal(want)
+		require.NoError(t, err)
+		assert.JSONEq(t, string(recorded), string(got.posted.Operations[i]), "posted operation %d is its record", i)
+
+		changed, ok := got.changed[want.BalanceID]
+		require.True(t, ok, "balance.changed for %s", want.BalanceID)
+		assert.Equal(t,
+			[]any{
+				want.ID, txID, want.AccountID, want.AccountAlias, want.BalanceKey, want.Amount.Value.String(),
+				want.BalanceAfter.Available.String(), want.BalanceAfter.OnHold.String(), want.BalanceAfter.Version, createdAt.Format(time.RFC3339),
+			},
+			[]any{
+				changed.OperationID, changed.TransactionID, changed.AccountID, changed.Alias, changed.BalanceKey, changed.Amount.String(),
+				changed.Available.String(), changed.OnHold.String(), changed.Version, changed.OccurredAt,
+			},
+			"balance.changed %d reports its balance after the operation", i)
+	}
+
+	assert.Equal(t, []metadataUpsert{
+		{EntityName: constant.EntityTransaction, EntityID: txID, Data: txMetadata, CreatedAt: createdAt, UpdatedAt: createdAt},
+		{EntityName: constant.EntityOperation, EntityID: ops[3].ID, Data: ops[3].Metadata, CreatedAt: createdAt, UpdatedAt: createdAt},
+	}, got.docs, "metadata documents carry the transaction's creation, not later updates")
+}
+
 // decodedObligations is one request's obligations read back from their payloads.
 type decodedObligations struct {
-	counts    map[string]int
-	posted    events.TransactionPayload
-	available map[string]string // balance.changed available by alias
-	metadata  []map[string]any  // metadata documents' data in row order
+	counts   map[string]int
+	posted   events.TransactionPayload
+	changed  map[string]events.BalanceChangedPayload // by balance id: one account's aliases repeat across keys
+	metadata []map[string]any                        // metadata documents' data in row order
+	docs     []metadataUpsert
 }
 
 // decodeObligations decodes every payload and logs its size, checking fee_charge.applied, the request grouping
@@ -127,7 +206,7 @@ type decodedObligations struct {
 func decodeObligations(t *testing.T, fixture string, ob requestObligations) decodedObligations {
 	t.Helper()
 
-	got := decodedObligations{counts: map[string]int{}, available: map[string]string{}}
+	got := decodedObligations{counts: map[string]int{}, changed: map[string]events.BalanceChangedPayload{}}
 
 	for _, ev := range ob.events {
 		t.Logf("%s %s payload=%dB", fixture, ev.DefinitionKey, len(ev.Payload))
@@ -140,11 +219,12 @@ func decodeObligations(t *testing.T, fixture string, ob requestObligations) deco
 			var changed events.BalanceChangedPayload
 			require.NoError(t, json.Unmarshal(ev.Payload, &changed))
 
-			got.available[changed.Alias] = changed.Available.String()
+			got.changed[changed.BalanceID] = changed
 		case keyApplied:
 			var applied events.FeesAppliedPayload
 			require.NoError(t, json.Unmarshal(ev.Payload, &applied))
-			assert.Equal(t, benchFeePackage.String(), applied.FeePackageID)
+			assert.Equal(t, []any{got.posted.ID, got.posted.Metadata["packageAppliedID"], got.posted.CreatedAt},
+				[]any{applied.TransactionID, applied.FeePackageID, applied.AppliedAt}, "fee_charge.applied for the package and time the transaction carries")
 		}
 	}
 
@@ -158,7 +238,7 @@ func decodeObligations(t *testing.T, fixture string, ob requestObligations) deco
 			var doc metadataUpsert
 			require.NoError(t, json.Unmarshal(row.Payload, &doc))
 
-			got.metadata = append(got.metadata, doc.Data)
+			got.metadata, got.docs = append(got.metadata, doc.Data), append(got.docs, doc)
 		case kindTracerConfirm:
 			var confirm tracerConfirm
 			require.NoError(t, json.Unmarshal(row.Payload, &confirm))
@@ -230,10 +310,10 @@ func TestOutboxOnlyEmitBatch(t *testing.T) {
 	fx := obligationFixtures[2]
 	require.Equal(t, "feeLeg", fx.name)
 
-	committed, err := buildObligations(ctx, in, fx, 0)
+	committed, err := fixtureObligations(ctx, in, fx, 0)
 	require.NoError(t, err)
 
-	rolledBack, err := buildObligations(ctx, in, fx, 1)
+	rolledBack, err := fixtureObligations(ctx, in, fx, 1)
 	require.NoError(t, err)
 
 	for i, ob := range []requestObligations{committed, rolledBack} {
