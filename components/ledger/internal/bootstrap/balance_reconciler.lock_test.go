@@ -81,7 +81,7 @@ func (m *fakeLockManager) TryLockWithOptions(_ context.Context, key string, opts
 func TestReconcilerLeaseFirstHoldAcquiresFresh(t *testing.T) {
 	handle := &fakeLeaseHandle{extendRenewed: true}
 	manager := &fakeLockManager{handles: []libRedis.LockHandle{handle}}
-	lease := newRedisReconcilerLease(manager, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(manager, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	held, fresh, err := lease.Hold(t.Context())
 
@@ -96,7 +96,7 @@ func TestReconcilerLeaseFirstHoldAcquiresFresh(t *testing.T) {
 func TestReconcilerLeaseSecondHoldExtends(t *testing.T) {
 	handle := &fakeLeaseHandle{extendRenewed: true}
 	manager := &fakeLockManager{handles: []libRedis.LockHandle{handle}}
-	lease := newRedisReconcilerLease(manager, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(manager, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	_, _, err := lease.Hold(t.Context())
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestReconcilerLeaseLostLeaseIsReacquiredFresh(t *testing.T) {
 	lost := &fakeLeaseHandle{extendRenewed: false}
 	next := &fakeLeaseHandle{extendRenewed: true}
 	manager := &fakeLockManager{handles: []libRedis.LockHandle{lost, next}}
-	lease := newRedisReconcilerLease(manager, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(manager, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	_, _, err := lease.Hold(t.Context())
 	require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestReconcilerLeaseLostLeaseIsReacquiredFresh(t *testing.T) {
 func TestReconcilerLeaseLostLeaseTakenElsewhereIsNotHeld(t *testing.T) {
 	lost := &fakeLeaseHandle{extendRenewed: false}
 	manager := &fakeLockManager{handles: []libRedis.LockHandle{lost}}
-	lease := newRedisReconcilerLease(manager, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(manager, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	_, _, err := lease.Hold(t.Context())
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestReconcilerLeaseLostLeaseTakenElsewhereIsNotHeld(t *testing.T) {
 func TestReconcilerLeaseExtendErrorKeepsTheHandle(t *testing.T) {
 	handle := &fakeLeaseHandle{extendErr: errors.New("redis did not answer")}
 	manager := &fakeLockManager{handles: []libRedis.LockHandle{handle}}
-	lease := newRedisReconcilerLease(manager, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(manager, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	_, _, err := lease.Hold(t.Context())
 	require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestReconcilerLeaseExtendErrorKeepsTheHandle(t *testing.T) {
 }
 
 func TestReconcilerLeaseBusyAndErrorAreNotHeld(t *testing.T) {
-	busy := newRedisReconcilerLease(&fakeLockManager{busy: true}, libLog.NewNop(), time.Minute)
+	busy := newRedisReconcilerLease(&fakeLockManager{busy: true}, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	held, fresh, err := busy.Hold(t.Context())
 	require.NoError(t, err)
@@ -184,7 +184,7 @@ func TestReconcilerLeaseBusyAndErrorAreNotHeld(t *testing.T) {
 	assert.False(t, fresh)
 
 	failing := &fakeLockManager{err: errors.New("redis unavailable")}
-	broken := newRedisReconcilerLease(failing, libLog.NewNop(), time.Minute)
+	broken := newRedisReconcilerLease(failing, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	held, fresh, err = broken.Hold(t.Context())
 	require.ErrorIs(t, err, failing.err)
@@ -194,7 +194,7 @@ func TestReconcilerLeaseBusyAndErrorAreNotHeld(t *testing.T) {
 
 func TestReconcilerLeaseRejectsAHandleThatCannotBeExtended(t *testing.T) {
 	handle := &unextendableHandle{}
-	lease := newRedisReconcilerLease(&fakeLockManager{handles: []libRedis.LockHandle{handle}}, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(&fakeLockManager{handles: []libRedis.LockHandle{handle}}, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	held, _, err := lease.Hold(t.Context())
 
@@ -205,7 +205,7 @@ func TestReconcilerLeaseRejectsAHandleThatCannotBeExtended(t *testing.T) {
 
 func TestReconcilerLeaseReleaseUnlocksOnce(t *testing.T) {
 	handle := &fakeLeaseHandle{extendRenewed: true}
-	lease := newRedisReconcilerLease(&fakeLockManager{handles: []libRedis.LockHandle{handle}}, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(&fakeLockManager{handles: []libRedis.LockHandle{handle}}, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	_, _, err := lease.Hold(t.Context())
 	require.NoError(t, err)
@@ -221,14 +221,14 @@ func TestReconcilerLeaseReleaseUnlocksOnce(t *testing.T) {
 }
 
 func TestReconcilerLeaseReleaseWithoutLeadershipIsANoOp(t *testing.T) {
-	lease := newRedisReconcilerLease(&fakeLockManager{busy: true}, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(&fakeLockManager{busy: true}, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	require.NotPanics(t, func() { lease.Release(t.Context()) })
 }
 
 func TestReconcilerLeaseReleaseFailureIsOnlyLogged(t *testing.T) {
 	handle := &fakeLeaseHandle{unlockErr: errors.New("lock not held")}
-	lease := newRedisReconcilerLease(&fakeLockManager{handles: []libRedis.LockHandle{handle}}, libLog.NewNop(), time.Minute)
+	lease := newRedisReconcilerLease(&fakeLockManager{handles: []libRedis.LockHandle{handle}}, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
 
 	_, _, err := lease.Hold(t.Context())
 	require.NoError(t, err)
@@ -246,10 +246,28 @@ func TestReconcilerLeaseExpiryFollowsTheConfiguration(t *testing.T) {
 	assert.Equal(t, 15*time.Minute+time.Minute+30*time.Second+15*time.Second, expiry)
 
 	manager := &fakeLockManager{handles: []libRedis.LockHandle{&fakeLeaseHandle{}}}
-	lease := newRedisReconcilerLease(manager, libLog.NewNop(), expiry)
+	lease := newRedisReconcilerLease(manager, libLog.NewNop(), utils.BalanceReconcilerLockKey(), expiry)
 
 	_, _, err := lease.Hold(t.Context())
 	require.NoError(t, err)
 	require.Len(t, manager.opts, 1)
 	assert.Equal(t, expiry, manager.opts[0].Expiry)
+}
+
+func TestReconcilerLeaseLocksTheKeyItWasBuiltWith(t *testing.T) {
+	reconcilerManager := &fakeLockManager{handles: []libRedis.LockHandle{&fakeLeaseHandle{}}}
+	probeManager := &fakeLockManager{handles: []libRedis.LockHandle{&fakeLeaseHandle{}}}
+
+	reconciler := newRedisReconcilerLease(reconcilerManager, libLog.NewNop(), utils.BalanceReconcilerLockKey(), time.Minute)
+	probe := newRedisReconcilerLease(probeManager, libLog.NewNop(), utils.TenantHealthProbeLockKey(), time.Minute)
+
+	_, _, err := reconciler.Hold(t.Context())
+	require.NoError(t, err)
+
+	_, _, err = probe.Hold(t.Context())
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{utils.BalanceReconcilerLockKey()}, reconcilerManager.keys)
+	assert.Equal(t, []string{utils.TenantHealthProbeLockKey()}, probeManager.keys)
+	assert.NotEqual(t, utils.BalanceReconcilerLockKey(), utils.TenantHealthProbeLockKey())
 }
