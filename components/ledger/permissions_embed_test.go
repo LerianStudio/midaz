@@ -155,3 +155,43 @@ func TestMidazManifest_DeclaresTheTracerM2MEdge(t *testing.T) {
 	require.True(t, manifest.M2M.Exposed, "midaz keeps exposing its own M2M surface")
 	require.Equal(t, []string{"tracer"}, manifest.M2M.Needs)
 }
+
+// ledgerCoveredRoutes are the accounting-route collections whose items belong to a
+// ledger. They are written at the organization level, so their v2 paths name no
+// ledger; covering them under ledgerId keeps a ledger-scoped partner off those
+// organization-wide paths, while an organization-scoped partner keeps them.
+var ledgerCoveredRoutes = []string{"operation-routes", "transaction-routes"}
+
+// TestMidazManifest_LedgerDimensionCoversAccountingRoutes derives the scope
+// catalog exactly as the publisher sends it to the access manager and fails
+// unless the ledgerId dimension covers every accounting-route collection.
+func TestMidazManifest_LedgerDimensionCoversAccountingRoutes(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest),
+		"embedded manifest must parse as a declaration manifest")
+
+	catalog, ok, err := declaration.ScopeCatalogFor(&manifest, midazSlug, nil)
+	require.NoError(t, err)
+	require.True(t, ok, "the manifest declares a scope catalog")
+
+	var covers []string
+
+	found := false
+
+	for _, d := range catalog.Dimensions {
+		if d.Name == "ledgerId" {
+			covers, found = d.Covers, true
+		}
+	}
+
+	require.True(t, found, "the catalog declares a ledgerId dimension")
+
+	for _, collection := range ledgerCoveredRoutes {
+		require.Contains(t, covers, collection,
+			"ledgerId must cover %q: a ledger-scoped partner would otherwise be granted the "+
+				"organization-wide %s paths", collection, collection)
+	}
+}
