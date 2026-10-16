@@ -1,0 +1,25 @@
+{
+  "description": "balance-engine bench transfer",
+  "asset": "BRL",
+  "amount": "100",
+  "debits": [
+    {
+      "alias": "@bench_ordinary_0000000",
+      "organizationId": "d03f19d5-d97c-57f6-91ff-1d92b1ceaef9",
+      "ledgerId": "bfedf4ab-d62c-5ace-a00c-8c1915c7e9c3",
+      "amount": "100"
+    }
+  ],
+  "credits": [
+    {
+      "alias": "@bench_ordinary_0000001",
+      "organizationId": "d03f19d5-d97c-57f6-91ff-1d92b1ceaef9",
+      "ledgerId": "bfedf4ab-d62c-5ace-a00c-8c1915c7e9c3",
+      "amount": "100"
+    }
+  ],
+  "metadata": {
+    "channel": "bench",
+    "externalId": "bench-transfer-0001"
+  }
+}

@@ -97,6 +97,45 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
   go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestBootstrap$' -timeout 30m -v
 ```
 
+## Obligation catalog
+
+`obligations.go` builds what completion owes after one approved v2 create of
+`testdata/create_v2_body.json` (610 B; seeded aliases, org and ledger), with one known Tracer
+reservation. Only `metadata` keeps the body's client metadata; `exact2leg` and `feeLeg` post the body
+without it, so the three inputs differ. Events come from the public `pkg/streaming/events` builders; the
+operation inside `transaction.posted` mirrors the ledger's internal `operation.Operation` keys, which
+`tests/bench` cannot import, and takes the transaction description as the ledger does for legs without
+one. IDs derive from request, kind and ordinal. Timestamps carry nanoseconds, as product values do;
+builders that format RFC3339 keep doing so.
+
+| Fixture | posted | balance.changed | fee_charge.applied | metadata | Tracer confirm | Outbox rows |
+|---|---|---|---|---|---|---|
+| `exact2leg` | 1 | 2 | 0 | 0 | 1 | 4 |
+| `metadata` (body metadata) | 1 | 2 | 0 | 1 | 1 | 5 |
+| `feeLeg` (deductible fee 2: credit 98 + fee 2) | 1 | 3 | 1 | 2 | 1 | 8 |
+
+Events go through the lib-streaming producer's `EmitBatch` with `WithOutboxTx`; the lib writes the row
+ID (UUIDv7) and derives `aggregate_id` from the partition key, and the bench sets `EventID`. Metadata
+(`ledger.metadata.upsert`) and Tracer (`tracer.reservation.confirm`) rows go through the lib-commons
+`CreateManyWithTx` in the same `*sql.Tx`, with `aggregate_id` = request id. The producer's only
+transport counts and refuses `Publish`: the test proves zero external delivery.
+
+Bench-defined parts: the metadata row freezes the fields `frozenMetadataRecords` sets (entity, id, data,
+`createdAt` = `updatedAt`; Mongo generates `_id`); the Tracer row is the known reservation's correlation
+with its transaction, not the `Confirm` RPC body. The `feeLeg` fee is an assumed deductible, non-deferrable
+fee without accounting route: no fee configuration, fee engine or financial writer runs here.
+
+```bash
+go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestObligation' -v
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestOutboxOnlyEmitBatch$' -timeout 10m -v
+```
+
+The live test rebuilds the schema (dropping any seeded balances: it needs no seed and leaves the database
+unseeded with eight outbox rows), commits one `feeLeg` request and rolls back another. It logs each
+payload, the stored `payload::text` and `pg_column_size` for this fixture; these are not general product
+sizes. Trace-carrier and multi-tenant variants, relay and Kafka/CloudEvents record bytes are not measured.
+
 ## How it is built
 
 - `init-primary.sql` runs once on a fresh primary volume. It writes the marker and
@@ -112,6 +151,7 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
 
 ## What this proves
 
-Environment readiness, guarded schema rebuild and deterministic seed fixtures. The synchronous
+Environment readiness, guarded schema rebuild, deterministic seed fixtures and the obligation
+catalog written outbox-only through the libraries. The synchronous
 standby streams through the proxy and inherits the primary's settings. Seed timing is setup cost,
 not transaction throughput. Financial correctness, failover survival and unknown replay are untested.

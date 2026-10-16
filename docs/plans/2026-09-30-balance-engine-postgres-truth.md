@@ -15,7 +15,7 @@
 
 **Execução:** worktree única `/srv/worktrees/balance-engine`, branch única `feature/balance-engine`. Nenhuma outra branch ou PR sem pedido do Fred. Subagents `claude-opus-5-5[1m]`, com revisão independente e contrarian. Uma lane escreve por vez; pesquisa e revisão read-only rodam em paralelo. A sessão coordenadora integra, verifica, faz commits assinados e pushes com `X-Lerian-Ref: 0x1`.
 
-**Lanes atuais:** ambiente HA (1.1.1), bootstrap guardado/schema (1.1.2a) e COPY/fixtures de 10k e 1M (1.1.2b) implementados, verificados e revisados. Próximo: catálogo de obrigações (1.1.2c), com contrato pesquisado. Epic 1.1 ainda Doing; nenhuma medição de TPS ou prova de falha financeira.
+**Lanes atuais:** Epic 1.1 Done: ambiente HA, bootstrap guardado, fixtures 10k/1M e catálogo real de obrigações via libs, com suite integrada (9 testes, 21 subtests, zero skips) e revisão independente. Próximo: gerador/métricas (1.2.1), com screening read-only em curso. Nenhum escritor financeiro implementado; nenhuma medição de TPS ou prova de falha financeira.
 
 **Fontes:** alfarrábio `https://alfarrabio.lerian.net/reports/fred/midaz-motor-de-saldo`; `docs/architecture/engine.md`; reunião "Direcionamento Midaz" de 2026-10-14. Direção aprovada: intenção/recusa visíveis, corte antecipado inclusive sem gateway, autorizador por lote independente do transporte, nenhuma infraestrutura nova obrigatória, Redpanda dedicado quando usado, Tracer como módulo, alias por id, telemetria enxuta, estudo de leitura e desenho/migração de particionamento com prova de compatibilidade. As definições pendentes não são decisões aprovadas.
 
@@ -173,7 +173,7 @@ O bench mantém `unknown` em timeout, perda de resposta ou aviso de cancelamento
 **Scope:** `tests/bench/engine/`.
 **Dependencies:** autorização de execução da Fase 1, concedida em 2026-10-16.
 **Done when:** bootstrap reproduzível, standby em `sync` e esquema validado.
-**Status:** Doing
+**Status:** Done
 
 #### Task 1.1.1: Compose com primário, standby e toxiproxy
 
@@ -201,13 +201,13 @@ Primário com `wal_level=replica`, `max_wal_senders=5`, `max_connections=300`, `
 
 #### Task 1.1.2: Bootstrap do esquema e fixtures reais
 
-- [ ] Done
+- [x] Done
 
 **Context:** `components/ledger/migrations/transaction/` chega a 000046 neste HEAD. 44 acrescenta scheme; 45, optional em operation_transaction_route; 46, índice parcial não único de operation por balance_id/balance_version_after. A 46 usa `CREATE INDEX CONCURRENTLY`: executar cada arquivo via `golang-migrate`, sem transação externa nem concatenar outros DDL no mesmo Exec, seguindo `tests/integration/ledger_migrations_integration_test.go:110-113`. `operation.snapshot`, em `pkg/mmodel/operation.go`, contém `overdraftUsedBefore` e `overdraftUsedAfter`, não um create de 1 KB.
 
 **Implementation vision:** todos os Go novos usam tag `bench` e cabeçalho de licença. `requireDB(t)` pula testes DB apenas quando toda configuração está ausente; configuração parcial/inválida falha. Testes puros continuam executáveis sem banco. Variáveis `BENCH_PG_PRIMARY_DSN`, `BENCH_PG_CLIENT_PROXY_DSN`, `BENCH_PG_STANDBY_DSN` e `BENCH_TOXIPROXY_URL` apontam ao compose descartável. Antes de reset, validar DSNs loopback, banco/usuário `bench_transaction`/`bench`, marcador `midaz-bench-engine:disposable`, `cluster_name`, recovery e mesmo `system_identifier` nas três conexões. Exigir réplica `standby1 | streaming | sync` no primário e WAL receiver streaming no standby, com limite de 120 s. Só então recriar `public`, aplicar migrations via `lib-commons` Migrator, SQL da outbox da lib e DDL bench-local, depois COPY. Sem terminar sessões alheias nem reduzir durabilidade; perda de réplica no setup falha o run, limitado também pelo timeout do processo.
 
-**Unidades de execução:** 1.1.2a concluída em 2026-10-16: duas reconstruções do schema até migration 46, outbox da lib e três tabelas experimentais. Guard recusa marcador errado, portas primary/standby trocadas e `synchronous_commit=local`, preservando probe. Seis testes e 18 subtests passaram contra a stack; supervisor repetiu cinco rodadas em ordem variável. Quatro revisores e contrarian sem Critical/High; testes redundantes removidos. 1.1.2b concluída: 10k duas vezes com hashes iguais; 1M uma vez por run, 1.000.004 saldos e 1.000.003 controles. Seed inclui guard, COPY, commit síncrono e VACUUM: 316–350 ms em 10k e 21,43–23,90 s em 1M nos runs registrados. Supervisor repetiu o teste completo; suite tem sete testes e 18 subtests. Em 1M, contagens/somas/colunas fixas cobrem todas as linhas; IDs/aliases têm amostra nomeada. Quatro revisores e contrarian sem Critical/High; assert redundante removido. 1.1.2c entrega catálogo de obrigações/bytes. A task só termina após as três provas.
+**Unidades de execução:** 1.1.2a concluída em 2026-10-16: duas reconstruções do schema até migration 46, outbox da lib e três tabelas experimentais. Guard recusa marcador errado, portas primary/standby trocadas e `synchronous_commit=local`, preservando probe. Seis testes e 18 subtests passaram contra a stack; supervisor repetiu cinco rodadas em ordem variável. Quatro revisores e contrarian sem Critical/High; testes redundantes removidos. 1.1.2b concluída: 10k duas vezes com hashes iguais; 1M uma vez por run, 1.000.004 saldos e 1.000.003 controles. Seed inclui guard, COPY, commit síncrono e VACUUM: 316–350 ms em 10k e 21,43–23,90 s em 1M nos runs registrados. Supervisor repetiu o teste completo; suite tem sete testes e 18 subtests. Em 1M, contagens/somas/colunas fixas cobrem todas as linhas; IDs/aliases têm amostra nomeada. Quatro revisores e contrarian sem Critical/High; assert redundante removido. 1.1.2c concluída: fixtures 4/5/8 obrigações; caso feeLeg grava cinco eventos e três obrigações privadas via libs na mesma SQL, zero publish externo; rollback não deixa linhas. Payload `transaction.posted`: 2311/2377/3375 B nas três fixtures corrigidas, sem padding. `payload::text` e `pg_column_size` medidos separadamente; não são bytes Kafka. Suite integrada final: nove testes e 21 subtests passaram, sem skips; supervisor repetiu com ordem variável. Quatro revisores e contrarian sem Critical/High; corrigidos description/fração temporal e removidos testes redundantes. Não exercitados: writers financeiros, fee engine real, rotas, MT, trace carrier, relay, failover ou TPS.
 
 Semear N saldos ordinários, mais saldo quente e saldo de tarifa identificados separadamente; registrar o total exato esperado, sem chamar N de total quando há extras. Valores iniciais devem sustentar aquecimento, medição e soak sem esgotamento acidental. Controles têm saldo de limite suficiente, exceto na célula de esgotamento. A fixture multikey é separada e tem IDs estáveis. Fence inicial sem dono e lease já expirado pelo relógio do banco. `fillfactor=70` é hipótese anotada.
 
@@ -254,10 +254,11 @@ Usar a representação efetivamente persistida: create direto grava `transaction
 - Create: `tests/bench/engine/env.go`, `tests/bench/engine/env_test.go`
 - Create: `tests/bench/engine/bootstrap.go`, `tests/bench/engine/schema_bench.sql`
 - Create: `tests/bench/engine/seed.go`, `tests/bench/engine/seed_test.go`
+- Create: `tests/bench/engine/obligations.go`, `tests/bench/engine/obligations_test.go`
 - Create: `tests/bench/engine/testdata/create_v2_body.json`; snapshot usa `mmodel.OperationSnapshot`, sem fixture duplicada
 - Test: `tests/bench/engine/bootstrap_test.go`
 
-**Verification:** schema/guard já executados: `go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestBenchEnv|TestBootstrapSchema|TestBootstrapRejects' -timeout 10m -v`. Após 1.1.2b: `go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestBootstrap$' -timeout 30m -v`, com DSNs do compose. Conferir migração 46 e seu índice parcial válido, três tabelas bench, `outbox_events` da lib com enum e quatro índices, totais de saldos/controles e duas execuções internas do bootstrap.
+**Verification:** suite integrada executada: `go test -count=1 -shuffle=on -tags bench ./tests/bench/engine/ -timeout 30m -v`; obrigações: `-run 'TestObligationCatalog|TestOutboxOnlyEmitBatch'`; schema/guard: `-run 'TestBenchEnv|TestBootstrapSchema|TestBootstrapRejects'`. Seed isolado: `go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestBootstrap$' -timeout 30m -v`, com DSNs do compose. Conferir migração 46 e seu índice parcial válido, três tabelas bench, `outbox_events` da lib com enum e quatro índices, totais de saldos/controles e duas execuções internas do bootstrap.
 
 **Done when:** bootstrap repetível; tempos de 10k e 1M registrados, com limites por execução de 60 s e 10 min para a semeadura.
 
