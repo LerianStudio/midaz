@@ -12,6 +12,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/asset"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -40,17 +41,20 @@ func TestGetAllAssets(t *testing.T) {
 		Page:  1,
 	}
 
+	errMetadata := errors.New("failed to retrieve metadata")
+
 	tests := []struct {
 		name           string
 		setupMocks     func()
 		expectedErr    error
+		technicalErr   bool
 		expectedAssets []*mmodel.Asset
 	}{
 		{
 			name: "success - assets retrieved with metadata",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter).
 					Return([]*mmodel.Asset{
 						{ID: "asset1"},
 						{ID: "asset2"},
@@ -75,7 +79,7 @@ func TestGetAllAssets(t *testing.T) {
 			name: "failure - assets not found",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter).
 					Return(nil, services.ErrDatabaseItemNotFound).
 					Times(1)
 			},
@@ -86,7 +90,7 @@ func TestGetAllAssets(t *testing.T) {
 			name: "failure - repository error retrieving assets",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter).
 					Return(nil, errors.New("failed to retrieve assets")).
 					Times(1)
 			},
@@ -94,10 +98,10 @@ func TestGetAllAssets(t *testing.T) {
 			expectedAssets: nil,
 		},
 		{
-			name: "failure - metadata retrieval error",
+			name: "failure - metadata failure is returned as a technical error",
 			setupMocks: func() {
 				mockAssetRepo.EXPECT().
-					FindAll(gomock.Any(), organizationID, ledgerID, filter.ToOffsetPagination()).
+					FindAll(gomock.Any(), organizationID, ledgerID, filter).
 					Return([]*mmodel.Asset{
 						{ID: "asset1"},
 						{ID: "asset2"},
@@ -106,10 +110,11 @@ func TestGetAllAssets(t *testing.T) {
 
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), "Asset", []string{"asset1", "asset2"}).
-					Return(nil, errors.New("failed to retrieve metadata")).
+					Return(nil, errMetadata).
 					Times(1)
 			},
-			expectedErr:    errors.New("No assets were found in the search. Please review the search criteria and try again."),
+			expectedErr:    errMetadata,
+			technicalErr:   true,
 			expectedAssets: nil,
 		},
 	}
@@ -120,7 +125,14 @@ func TestGetAllAssets(t *testing.T) {
 
 			result, err := uc.GetAllAssets(ctx, organizationID, ledgerID, filter)
 
-			if tt.expectedErr != nil {
+			if tt.technicalErr {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+
+				var nf pkg.EntityNotFoundError
+				assert.False(t, errors.As(err, &nf))
+				assert.Nil(t, result)
+			} else if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)

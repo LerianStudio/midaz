@@ -62,7 +62,7 @@ scope:
   dimensions:
     - { name: organizationId,     from: path, param: organization_id,      required: true,  multi: false, collection: organizations,      label: "Midaz organization" }
     - { name: ledgerId,           from: path, param: ledger_id,            required: false, multi: true,  collection: ledgers,            label: "ledger",
-        covers: [holders, instruments, protection], parent: organizationId }
+        covers: [holders, instruments, protection, operation-routes, transaction-routes], parent: organizationId }
     - { name: accountTypeId,      from: path, param: account_type_id,      required: false, multi: true,  collection: account-types,      label: "account type", parent: ledgerId }
     - { name: accountId,          from: path, param: account_id,           required: false, multi: true,  collection: accounts,           label: "account",
         covers: [balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments, holders], parent: ledgerId }

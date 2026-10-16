@@ -4,8 +4,6 @@ Related operational references:
 
 - [`engine/scripts/engine/README.md`](../../components/ledger/internal/adapters/redis/engine/scripts/engine/README.md)
   explains the assembled Lua call chain and maintenance rules.
-- [`transaction-recovery-inventory.md`](../runbooks/transaction-recovery-inventory.md)
-  defines safe drain/inventory evidence for both recovery generations.
 - [`engine-report.md`](../performance/engine-report.md) records the bounded local
   performance characterization and its evidence limits.
 - [`type-ownership.md`](type-ownership.md) defines where engine contracts and
@@ -694,8 +692,7 @@ Before the first write, the engine must:
    took the admissions release them.
    Companions repeat the check at their mutation site, and an unused pool balance
    never causes a refusal. A proven receipt replay is answered before any of this,
-   so a recorded outcome survives the closing of its account. See
-   `docs/runbooks/account-closing-protection.md`.
+   so a recorded outcome survives the closing of its account.
 6. Execute transactions and postings in stable order against working state.
    Later transactions observe earlier intermediate results.
 7. Serialize all final blobs, per-transaction recovery envelopes, receipts,
@@ -807,7 +804,8 @@ failover to a replica that missed the last writes is data loss, not a cache miss
 later credits stop settling the lost debts, and a revert that must refund one
 fails with `fee_debt_conflict` instead of refunding from a guess. Verify the
 production instance's persistence and eviction policy before enabling deferrable
-fees, and detect divergence with `docs/runbooks/fee-debt-divergence.md`.
+fees, and compare the receivable lists with the `fee_debt` projection to detect
+divergence; the projection is never a source for rebuilding a lost list.
 
 A fee defers only when its package sets `deferrable: true` on it, which only a
 non-deductible fee accepts; without it an unfunded fee is still refused with
@@ -1039,6 +1037,38 @@ Malformed legacy records enter quarantine only when their canonical physical
 field matches the authenticated tenant scope. Untrusted fields remain untouched.
 Invalid version-2 records are retained rather than passed to legacy processing.
 
+A legacy record that carries its operations replays them as recorded, and the
+write path deduplicates them by ID. A record without operations rebuilds them
+from its balance snapshots, which mints new IDs, so the rebuilt legs are first
+reconciled with the operations already persisted for the same transaction, read
+from the primary. Legs are compared only by exact key: transaction, balance,
+balance key, operation type, starting version, and decimal amount, with
+multiplicity. A rebuilt leg with a persisted exact match takes the persisted ID;
+a rebuilt leg with no persisted leg on its key is written. Any ambiguity (a
+different count for one key, a persisted leg left unpaired on the balance and
+starting version of a rebuilt leg, or a rebuilt leg without type, version, or
+amount) writes nothing and counts toward quarantine as
+`persisted_operations_mismatch`. A failed primary read leaves the record for the
+next cycle without counting an attempt. After reconciliation, the final IDs are
+stored in the record by compare-and-set against the exact value read, replacing
+only its `operations` key, before anything reaches PostgreSQL. Every later replay
+of that record then takes the materialized path with the same IDs. A record
+removed or rewritten since it was read, or a Redis failure, writes nothing and
+counts no attempt.
+
+The physical field of a legacy record is already tenant-scoped in multi-tenant
+operation, so record replacement and quarantine removal use it exactly as read
+and namespace only the hash. After a durable quarantine insert, the record is
+removed only while it still holds the quarantined payload; a record rewritten in
+between stays for its own replay.
+
+A field holds one record per transaction, but a later lifecycle stage or a
+rewrite can replace it with a different payload. The legacy quarantine key
+therefore combines the field with the SHA-256 digest of the payload, as engine
+recovery does: every distinct payload gets its own row, and the same payload
+quarantined again stays one row. A key that already holds a different payload
+is refused rather than treated as stored, so that record stays in Redis.
+
 The engine recovery consumer reads only `engine:{transactions}:recover` and
 accepts only a strictly validated version-two envelope;
 unversioned, malformed, and unsupported records remain there and never enter the
@@ -1146,9 +1176,9 @@ readers and both recovery consumers until legacy in-flight work has drained.
 Account closing has a rollout order of its own, because the protection is only as
 strong as the least current writer: every binary that admits or rewrites a balance
 blob must carry the coordinated admission before the close route is exposed, and
-there is no key to backfill for the accounts that stay open. The procedure, the
-rollback that keeps `closed_at`, and the reconciliation an operator can run are in
-`docs/runbooks/account-closing-protection.md`.
+there is no key to backfill for the accounts that stay open. A rollback never clears
+`closed_at`. Operational procedures for rollout, rollback, and reconciliation are
+maintained outside this repository.
 
 Deferrable fees are one-way for a rolling deploy. A completion record that carries
 fee debt fails the strict decoder of an older binary, which quarantines it instead
@@ -1203,6 +1233,70 @@ enforce the live account-block flag, deletion markers are never bypassed, and
 cancellation remains exempt without reading a grant. HOLD rejects a presented
 identifier with 0509 at the transport. NOTED remains on its nonmonetary path and
 does not consume a grant; rejecting that combination is tracked separately.
+
+### Pending and revert lifecycle beside 4.0.x pods
+
+A 4.0.x pod commits, cancels, and reverts without the engine guard. It applies
+the movement with its own script and records the new status on the primary row
+only, so the engine index and guard of a hold created by a current pod still read
+`PENDING` afterwards. The current release cannot observe that transition in the
+engine state, so two protections cover singular `/v1` and `/v2` commit and cancel
+from the windows it can observe on its own:
+
+- **Primary row of a durable hold.** When the engine index names a durable
+  execution whose view is still `PENDING`, commit and cancel read the primary
+  row before the guard is seeded or balances are loaded. A row that no longer
+  reads `PENDING` answers `0099`; a missing row fails closed as an invalid
+  completion record (a technical 500). The row is not consulted while the
+  hold's execution is still pending projection, because it may not exist yet.
+  The same check applies to each member of a cross-ledger group transition.
+- **Pending lock after success.** A successful commit or cancel keeps the
+  per-transaction pending lock for its 300 s TTL. A 4.0.x pod takes the same
+  key, so its opposite transition on that hold answers `0486` during that time.
+  A failed or indeterminate transition releases the lock at once, so its retry
+  is answered from the transaction state. A repeat after a success answers
+  `0486` until the TTL elapses and `0099` afterwards.
+
+Keep 4.0.x and the current release side by side for less than the 300 s lock
+TTL, or replace the pods without overlap (a `Recreate` rollout). A prolonged
+mixed fleet is not supported, and a rollback follows the drain requirements of
+the sequence below. In single-tenant mode, a 4.0.x consumer cannot read the
+write-behind envelope of the current release and sends it to the dead-letter
+queue; that transaction reaches the primary only through the current release's
+recovery cycle, which can run after the mixed fleet is gone.
+
+A commit, cancel, or revert sent to a current pod for a transaction that a 4.0.x
+pod created and has not yet projected answers `0007`; a cancel of a row
+projected without its operations fails as an invalid completion record. The
+current release prepares a transition only from the engine index or the primary,
+never from the 4.0.x write-behind entry. The caller retries once the projection
+lands.
+
+These protections leave the following unguarded:
+
+- A 4.0.x transition that follows a current commit or cancel that failed, was
+  indeterminate, or answered after the lock TTL.
+- A 4.0.x transition after the lock TTL on a hold whose current commit or
+  cancel is not yet projected to the primary: the row still reads `PENDING`.
+- A 4.0.x transition applied before the hold's execution became durable.
+- A 4.0.x commit or cancel whose primary status write failed: the row reads
+  `PENDING` until its write-behind lands.
+- A 4.0.x pod can still commit or cancel one member of a cross-ledger group on
+  its own. A later group transition on a current pod refuses that member
+  (`0099`) instead of applying it a second time, so the group no longer accepts
+  commit or cancel: its other members keep their funds on hold until an
+  operator resolves the group.
+- Revert. Both releases key a revert's idempotency slot on the hash of the
+  reversal payload, in the same slot format, and each replays the other's slot.
+  The hash matches when the origin was created by a 4.0.x pod (the current
+  release then reads it from the primary, as 4.0.x does) and carries no
+  object-shaped `feeExemption` metadata, or when the origin has one leg on each
+  side, no leg metadata, and no declared scheme. Otherwise, a
+  second revert on the other release is refused only once the first reversal is
+  projected to the primary (`0087`); the guard's revert marker is not read by
+  4.0.x. A reversal of the current release whose envelope a 4.0.x consumer
+  dead-lettered is projected only by the recovery cycle, so in single-tenant
+  mode the window can stay open for the whole mixed fleet.
 
 ### Cache writer compatibility
 

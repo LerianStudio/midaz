@@ -130,10 +130,19 @@ func (handler *TransactionHandler) createTransactionV2(ctx context.Context, rawB
 			return nil, pkgHTTP.HumaProblem(err)
 		}
 
+		keyedFingerprint, err := v2IdempotencyFingerprint(rawBody, pending, operationTypeOverride)
+		if err != nil {
+			return nil, pkgHTTP.HumaProblem(err)
+		}
+
 		crossLedgerInput := command.CreateCrossLedgerTransactionV2Input{
-			Transaction: transactionInput, Scopes: scopes, AccountBlockExceptionID: exceptionID,
-			CanonicalRequest: []byte(v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)), IdempotencyKey: idempotencyKey,
-			IdempotencyTTL: pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
+			Transaction:             transactionInput,
+			Scopes:                  scopes,
+			AccountBlockExceptionID: exceptionID,
+			CanonicalRequest:        []byte(v2IdempotencyHashSource(rawBody, pending, operationTypeOverride)),
+			KeyedRequestFingerprint: keyedFingerprint,
+			IdempotencyKey:          idempotencyKey,
+			IdempotencyTTL:          pkgHTTP.ParseIdempotencyTTL(idempotencyTTL),
 		}
 
 		var result *command.CreateAtomicTransactionBatchV2Result

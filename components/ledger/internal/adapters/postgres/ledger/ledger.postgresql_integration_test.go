@@ -1254,3 +1254,37 @@ func TestIntegration_LedgerRepository_Create_ForwardCompat_NewColumns(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, "sentinel", marker)
 }
+
+// TestIntegration_LedgerRepository_Create_PreservesPresetID guards the contract
+// that metadata written under a pre-assigned ID stays attached: Create must
+// persist the caller's ID instead of minting a new one.
+func TestIntegration_LedgerRepository_Create_PreservesPresetID(t *testing.T) {
+	container := pgtestutil.SetupMigratedContainer(t, "onboarding")
+
+	repo := createRepository(t, container)
+	ctx := context.Background()
+
+	orgID := pgtestutil.CreateTestOrganization(t, container.DB)
+	presetID := uuid.Must(libCommons.GenerateUUIDv7())
+	now := time.Now().Truncate(time.Microsecond)
+
+	ledger := &mmodel.Ledger{
+		ID:             presetID.String(),
+		OrganizationID: orgID.String(),
+		Name:           "Preset ID Ledger",
+		Status:         mmodel.Status{Code: "ACTIVE"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+
+	created, err := repo.Create(ctx, ledger)
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.Equal(t, presetID.String(), created.ID, "Create must keep the preset ID")
+
+	found, err := repo.Find(ctx, orgID, presetID)
+	require.NoError(t, err, "ledger should be retrievable by the preset ID")
+	require.NotNil(t, found)
+	assert.Equal(t, presetID.String(), found.ID)
+	assert.Equal(t, "Preset ID Ledger", found.Name)
+}

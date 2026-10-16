@@ -160,6 +160,21 @@ func (mr *MockRepositoryMockRecorder) FindByEntityIDs(ctx, collection, entityIDs
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByEntityIDs", reflect.TypeOf((*MockRepository)(nil).FindByEntityIDs), ctx, collection, entityIDs)
 }
 
+// FindEntityIDs mocks base method.
+func (m *MockRepository) FindEntityIDs(ctx context.Context, collection string, filter http.QueryHeader, after string, limit int) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindEntityIDs", ctx, collection, filter, after, limit)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindEntityIDs indicates an expected call of FindEntityIDs.
+func (mr *MockRepositoryMockRecorder) FindEntityIDs(ctx, collection, filter, after, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindEntityIDs", reflect.TypeOf((*MockRepository)(nil).FindEntityIDs), ctx, collection, filter, after, limit)
+}
+
 // FindList mocks base method.
 func (m *MockRepository) FindList(ctx context.Context, collection string, filter http.QueryHeader) ([]*Metadata, error) {
 	m.ctrl.T.Helper()
@@ -173,6 +188,20 @@ func (m *MockRepository) FindList(ctx context.Context, collection string, filter
 func (mr *MockRepositoryMockRecorder) FindList(ctx, collection, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindList", reflect.TypeOf((*MockRepository)(nil).FindList), ctx, collection, filter)
+}
+
+// Purge mocks base method.
+func (m *MockRepository) Purge(ctx context.Context, collection, id string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Purge", ctx, collection, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Purge indicates an expected call of Purge.
+func (mr *MockRepositoryMockRecorder) Purge(ctx, collection, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Purge", reflect.TypeOf((*MockRepository)(nil).Purge), ctx, collection, id)
 }
 
 // Update mocks base method.

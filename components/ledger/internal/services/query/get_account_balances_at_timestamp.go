@@ -15,13 +15,11 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	// GetAccountBalancesAtTimestamp retrieves all balance states for an account at a specific point in time.
-	// It uses a single optimized query with LEFT JOIN to fetch balance states, avoiding multiple round-trips.
-	// Balances without operations at the timestamp are returned with zero values (initial state).
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAccountBalancesAtTimestamp retrieves all balance states for an account at a specific point in time.
+// It uses a single optimized query with LEFT JOIN to fetch balance states, avoiding multiple round-trips.
+// Balances without operations at the timestamp are returned with zero values (initial state).
 func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, timestamp time.Time) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -32,7 +30,6 @@ func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizati
 	if timestamp.After(time.Now().UTC()) {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidTimestamp, "Balance", timestamp.Format(time.RFC3339))
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Timestamp is in the future", err)
-		logger.Log(ctx, libLog.LevelWarn, "Timestamp is in the future", libLog.String("timestamp", timestamp.Format(time.RFC3339)))
 
 		return nil, err
 	}
@@ -41,8 +38,7 @@ func (uc *UseCase) GetAccountBalancesAtTimestamp(ctx context.Context, organizati
 	// This replaces the previous approach of 2 separate queries + in-memory merge
 	balances, err := uc.BalanceRepo.ListByAccountIDAtTimestamp(ctx, organizationID, ledgerID, accountID, timestamp)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get balances at timestamp", err)
-		logger.Log(ctx, libLog.LevelError, "Error getting balances at timestamp", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get balances at timestamp", err)
 
 		return nil, err
 	}

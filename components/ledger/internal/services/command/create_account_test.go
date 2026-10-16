@@ -785,53 +785,6 @@ func TestCreateAccountEdgeCases(t *testing.T) {
 			expectedName: "",
 		},
 		{
-			name: "metadata creation error",
-			input: &mmodel.CreateAccountInput{
-				Name:      "Test Account",
-				Type:      "deposit",
-				AssetCode: "USD",
-				Metadata: map[string]interface{}{
-					"key1": "value1",
-				},
-			},
-			mockSetup: func(mockAssetRepo *asset.MockRepository, mockPortfolioRepo *portfolio.MockRepository, mockAccountRepo *account.MockRepository, mockMetadataRepo *mongodb.MockRepository, mockAccountTypeRepo *accounttype.MockRepository, mockBalance *balance.MockRepository, mockLedgerRepo *ledger.MockRepository) {
-				mockLedgerRepo.EXPECT().
-					GetSettings(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(nil, nil).AnyTimes()
-
-				mockAssetRepo.EXPECT().
-					FindByNameOrCode(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(true, nil).AnyTimes()
-
-				mockAccountRepo.EXPECT().
-					FindByAlias(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(false, nil).AnyTimes()
-
-				mockAccountRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					DoAndReturn(func(_ context.Context, in *mmodel.Account) (*mmodel.Account, error) {
-						out := *in
-						out.ID = uuid.New().String()
-						return &out, nil
-					}).AnyTimes()
-
-				mockMetadataRepo.EXPECT().
-					Create(gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(errors.New("metadata creation error")).AnyTimes()
-
-				mockBalance.EXPECT().
-					ExistsByAccountIDAndKey(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-					Return(false, nil).AnyTimes()
-
-				mockBalance.EXPECT().
-					Create(gomock.Any(), gomock.Any()).
-					Return(nil, nil).AnyTimes()
-			},
-			expectError:  true,
-			expectedErr:  "metadata creation error",
-			expectedName: "",
-		},
-		{
 			name: "error - balance creation fails",
 			input: &mmodel.CreateAccountInput{
 				Name:      "Test Account",

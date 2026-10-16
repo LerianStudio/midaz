@@ -168,6 +168,12 @@ func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pend
 		return pendingEngineTransition{}, err
 	}
 
+	if resolution.ExecutionID != uuid.Nil && !resolution.Pending {
+		if err := uc.confirmDurableRowStillPending(ctx, run.organizationID, run.ledgerID, transactionID); err != nil {
+			return pendingEngineTransition{}, err
+		}
+	}
+
 	guardBootstrapper, ok := uc.Engine.(EngineGuardBootstrapper)
 	if !ok {
 		return pendingEngineTransition{}, fmt.Errorf("engine transition guard bootstrapper is not configured")
@@ -208,6 +214,32 @@ func (uc *UseCase) preparePendingEngineTransition(ctx context.Context, run *pend
 	}
 
 	return prepared, nil
+}
+
+// confirmDurableRowStillPending checks the primary row of a hold whose indexed
+// execution is already durable. A release without the engine guard commits or
+// cancels by writing that row alone, leaving the index and the guard at
+// PENDING, so only the row shows the hold is already closed. The completer wrote
+// the row before the index turned durable, so a missing row is a broken record,
+// not an open hold. Only the row is read: its metadata is irrelevant here, and a
+// metadata read would put MongoDB in front of every transition of a durable hold.
+func (uc *UseCase) confirmDurableRowStillPending(ctx context.Context, organizationID, ledgerID, transactionID uuid.UUID) error {
+	row, err := uc.TransactionRepo.Find(readrouting.WithPrimaryRead(ctx), organizationID, ledgerID, transactionID)
+
+	var notFound pkg.EntityNotFoundError
+	if errors.As(err, &notFound) || (err == nil && (row == nil || row.ID == "")) {
+		return fmt.Errorf("confirm durable pending transaction row: %w", ErrInvalidTransactionCompletionRecord)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if row.Status.Code != constant.PENDING {
+		return pkg.ValidateBusinessError(constant.ErrCommitTransactionNotPending, "ValidateTransactionNotPending")
+	}
+
+	return nil
 }
 
 func (uc *UseCase) preparePendingEngineIntent(ctx context.Context, run *pendingTransitionRun, persisted *transaction.Transaction, transactionID uuid.UUID) (pendingEngineTransition, error) {
@@ -477,7 +509,13 @@ func (uc *UseCase) finalizePendingEngineResult(ctx context.Context, logger libLo
 		}
 	}
 
-	tenantCtx := tmcore.ContextWithTenantID(context.Background(), tmcore.GetTenantIDContext(ctx))
+	// T10: the background writes derive from the request context without its
+	// cancellation and deadline, the reason this used to be context.Background():
+	// a client that disconnects after the response must not cancel them. Its values
+	// (tenant, logger, tracer and the command span) are kept, so the writes stay in
+	// the request trace under the service scope. The tenant is set again explicitly
+	// so the writes do not depend on how it was placed on ctx.
+	tenantCtx := tmcore.ContextWithTenantID(context.WithoutCancel(ctx), tmcore.GetTenantIDContext(ctx))
 	if shouldEmitEngineWriteBehindAudit(dispatched, projected) {
 		uc.sendLogTransactionAuditQueueAsync(tenantCtx, tran.Operations, record.OrganizationID, record.LedgerID, record.TransactionID)
 	}

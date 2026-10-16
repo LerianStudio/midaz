@@ -242,14 +242,14 @@ func buildCrossLedgerHoldBatchInput(
 	items[0].AccountBlockExceptionID = cloneUUIDPointer(in.AccountBlockExceptionID)
 
 	return CreateAtomicTransactionBatchV2Input{
-		Transactions:       items,
-		GroupID:            &groupID,
-		CrossLedgerGroup:   true,
-		HeldDestinations:   heldDestinations,
-		CanonicalRequest:   append([]byte(nil), in.CanonicalRequest...),
-		RequestFingerprint: in.RequestFingerprint,
-		IdempotencyKey:     in.IdempotencyKey,
-		IdempotencyTTL:     in.IdempotencyTTL,
+		Transactions:            items,
+		GroupID:                 &groupID,
+		CrossLedgerGroup:        true,
+		HeldDestinations:        heldDestinations,
+		CanonicalRequest:        append([]byte(nil), in.CanonicalRequest...),
+		KeyedRequestFingerprint: in.KeyedRequestFingerprint,
+		IdempotencyKey:          in.IdempotencyKey,
+		IdempotencyTTL:          in.IdempotencyTTL,
 	}, nil
 }
 

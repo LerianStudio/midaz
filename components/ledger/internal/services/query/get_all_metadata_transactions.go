@@ -6,24 +6,17 @@ package query
 
 import (
 	"context"
-	"errors"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
-
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
-	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
-	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	// GetAllMetadataTransactions fetch all Transactions from the repository
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllMetadataTransactions fetches the transactions whose metadata matches the filter.
 func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*transaction.Transaction, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -33,18 +26,16 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 	filter.ApplyDefaultDateRange()
 
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityTransaction, filter)
-	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo by metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting transactions on repo by metadata", libLog.Err(err))
+	if err != nil {
+		recordQueryError(ctx, span, logger, "Failed to get transaction metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	if len(metadata) == 0 {
-		return nil, libHTTP.CursorPagination{}, nil
+		span.AddEvent("No metadata matched the filter")
+
+		return []*transaction.Transaction{}, libHTTP.CursorPagination{}, nil
 	}
 
 	uuids := make([]uuid.UUID, len(metadata))
@@ -57,21 +48,13 @@ func (uc *UseCase) GetAllMetadataTransactions(ctx context.Context, organizationI
 
 	trans, cur, err := uc.TransactionRepo.FindOrListAllWithOperations(ctx, organizationID, ledgerID, uuids, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting transactions on repo", libLog.Err(err))
-
-		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoTransactionsFound, constant.EntityTransaction)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting transactions on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
-		}
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transactions on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get transactions on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if trans == nil {
+		trans = []*transaction.Transaction{}
 	}
 
 	if err := uc.enrichTransactionsWithOperationMetadata(ctx, trans); err != nil {
@@ -115,9 +98,7 @@ func (uc *UseCase) enrichTransactionsWithOperationMetadata(ctx context.Context, 
 
 	operationMetadata, err := uc.TransactionMetadataRepo.FindByEntityIDs(ctx, constant.EntityOperation, operationIDsAll)
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operation metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operation metadata", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get operation metadata on repo", err)
 
 		return err
 	}

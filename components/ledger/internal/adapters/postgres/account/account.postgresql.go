@@ -854,7 +854,7 @@ func (r *AccountPostgreSQLRepository) FindByAlias(ctx context.Context, organizat
 func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, portfolioID, segmentID *uuid.UUID, ids []uuid.UUID, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_ids")
+	ctx, span := tracer.Start(ctx, "postgres.list_portfolio_accounts_by_ids")
 	defer span.End()
 
 	db, err := r.getDB(ctx)
@@ -947,7 +947,7 @@ func (r *AccountPostgreSQLRepository) ListByIDs(ctx context.Context, organizatio
 func (r *AccountPostgreSQLRepository) ListByAlias(ctx context.Context, organizationID, ledgerID, portfolioID uuid.UUID, alias []string, holderPolicy mmodel.HolderPolicy) ([]*mmodel.Account, error) {
 	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "postgres.list_accounts_by_alias")
+	ctx, span := tracer.Start(ctx, "postgres.list_portfolio_accounts_by_alias")
 	defer span.End()
 
 	db, err := r.getDB(ctx)
@@ -1580,8 +1580,6 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to get database connection", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to get database connection", libLog.Err(err))
-
 		return nil, err
 	}
 
@@ -1601,8 +1599,6 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to build query", err)
 
-		logger.Log(ctx, libLog.LevelError, "Failed to build query", libLog.Err(err))
-
 		return nil, err
 	}
 
@@ -1611,8 +1607,6 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to execute query", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to execute query", libLog.Err(err))
 
 		return nil, err
 	}
@@ -1644,8 +1638,6 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 		); err != nil {
 			libOpentelemetry.HandleSpanError(span, "Failed to scan row", err)
 
-			logger.Log(ctx, libLog.LevelError, "Failed to scan row", libLog.Err(err))
-
 			return nil, err
 		}
 
@@ -1654,8 +1646,6 @@ func (r *AccountPostgreSQLRepository) ListExternalAccountsByAssetCode(ctx contex
 
 	if err := rows.Err(); err != nil {
 		libOpentelemetry.HandleSpanError(span, "Failed to iterate rows", err)
-
-		logger.Log(ctx, libLog.LevelError, "Failed to iterate rows", libLog.Err(err))
 
 		return nil, err
 	}

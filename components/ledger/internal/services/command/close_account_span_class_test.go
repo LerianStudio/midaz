@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	midazpkg "github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
@@ -25,7 +26,7 @@ import (
 // unclassified error through to a generic failure.
 func TestCloseAccount_ReadsAnUnavailableAccountStoreAsTechnical(t *testing.T) {
 	m := newCloseAccountMocks(t)
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 
 	m.account.EXPECT().Find(gomock.Any(), closeOrgID, closeLedgerID, nil, closeAccountID, gomock.Any()).
 		Return(nil, errors.New("connection reset by peer"))
@@ -35,7 +36,7 @@ func TestCloseAccount_ReadsAnUnavailableAccountStoreAsTechnical(t *testing.T) {
 	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 	assert.True(t, closedAt.IsZero())
 
-	span := findSpan(t, recorder, "command.close_account")
+	span := spantest.FindSpan(t, recorder, "command.close_account")
 	assert.Equal(t, codes.Error, span.Status().Code)
 }
 
@@ -44,7 +45,7 @@ func TestCloseAccount_ReadsAnUnavailableAccountStoreAsTechnical(t *testing.T) {
 // it keeps its own code and leaves the span green.
 func TestCloseAccount_ReadsAMissingAccountAsBusiness(t *testing.T) {
 	m := newCloseAccountMocks(t)
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 
 	notFound := midazpkg.ValidateBusinessError(constant.ErrEntityNotFound, constant.EntityAccount)
 
@@ -56,7 +57,7 @@ func TestCloseAccount_ReadsAMissingAccountAsBusiness(t *testing.T) {
 	require.ErrorIs(t, err, notFound)
 	assert.True(t, closedAt.IsZero())
 
-	span := findSpan(t, recorder, "command.close_account")
+	span := spantest.FindSpan(t, recorder, "command.close_account")
 	assert.Equal(t, codes.Unset, span.Status().Code)
 }
 
@@ -66,7 +67,7 @@ func TestCloseAccount_ReadsAMissingAccountAsBusiness(t *testing.T) {
 // outcome would leave this span green over the red one the guard already recorded.
 func TestCloseAccount_RecordsAnUnreadableProtectionAsTechnical(t *testing.T) {
 	m := newCloseAccountMocks(t)
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
 	gomock.InOrder(
@@ -80,7 +81,7 @@ func TestCloseAccount_RecordsAnUnreadableProtectionAsTechnical(t *testing.T) {
 	requireClosingCode(t, err, constant.ErrAccountClosingProtectionIndeterminate)
 	assert.True(t, closedAt.IsZero())
 
-	span := findSpan(t, recorder, "command.close_account")
+	span := spantest.FindSpan(t, recorder, "command.close_account")
 	assert.Equal(t, codes.Error, span.Status().Code)
 }
 
@@ -93,7 +94,7 @@ func TestCloseAccount_RecordsAnUnreadableProtectionAsTechnical(t *testing.T) {
 // test on any account update, ownership release or second marker read.
 func TestCloseAccount_RecordsAContendedAccountAsBusiness(t *testing.T) {
 	m := newCloseAccountMocks(t)
-	ctx, recorder := recordingContext()
+	ctx, recorder := spantest.RecordingContext()
 
 	m.expectAccountRead(closeAccountEntity("deposit", nil), nil)
 	gomock.InOrder(
@@ -110,6 +111,6 @@ func TestCloseAccount_RecordsAContendedAccountAsBusiness(t *testing.T) {
 	requireClosingCode(t, err, constant.ErrAccountAdministrativeOperationInProgress)
 	assert.True(t, closedAt.IsZero())
 
-	span := findSpan(t, recorder, "command.close_account")
+	span := spantest.FindSpan(t, recorder, "command.close_account")
 	assert.Equal(t, codes.Unset, span.Status().Code)
 }

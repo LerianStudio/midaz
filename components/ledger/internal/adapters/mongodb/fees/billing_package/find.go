@@ -45,26 +45,21 @@ func (r *BillingPackageMongoDBRepository) FindByID(ctx context.Context, id, orga
 
 	var record BillingPackageMongoDBModel
 
-	_, spanFindOne := tracer.Start(ctx, "repository.billing_package.find_by_id.find_one")
-	defer spanFindOne.End()
-
-	spanFindOne.SetAttributes(attributes...)
-
 	if err = coll.FindOne(ctx, billingPackageScopeFilter(id, organizationID, ledgerID)).Decode(&record); err != nil {
 		if err == mongo.ErrNoDocuments {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(spanFindOne, "Billing package not found", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Billing package not found", err)
 
 			return nil, err
 		}
 
-		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to find billing package by ID", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to find billing package by ID", err)
 
 		return nil, err
 	}
 
 	entity, err := record.ToEntity()
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFindOne, "Failed to convert billing package record to entity", err)
+		libOpentelemetry.HandleSpanError(span, "Failed to convert billing package record to entity", err)
 
 		return nil, err
 	}
@@ -113,19 +108,12 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 	}
 
 	// Count total documents
-	_, spanCount := tracer.Start(ctx, "repository.billing_package.find_all.count")
-
-	spanCount.SetAttributes(attributes...)
-
 	total, err := coll.CountDocuments(ctx, queryFilter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanCount, "Failed to count billing packages", err)
-		spanCount.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to count billing packages", err)
 
 		return nil, 0, err
 	}
-
-	spanCount.End()
 
 	if page < 1 {
 		page = 1
@@ -143,20 +131,13 @@ func (r *BillingPackageMongoDBRepository) FindAll(ctx context.Context, organizat
 		SetSkip(skip).
 		SetSort(bson.D{{Key: "created_at", Value: -1}})
 
-	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_all.find")
-
-	spanFind.SetAttributes(attributes...)
-
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find billing packages", err)
-		spanFind.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to find billing packages", err)
 
 		return nil, 0, err
 	}
 	defer cur.Close(ctx)
-
-	spanFind.End()
 
 	var results []*BillingPackageMongoDBModel
 
@@ -225,20 +206,13 @@ func (r *BillingPackageMongoDBRepository) FindMatchingPackages(ctx context.Conte
 		"deleted_at":                     bson.M{"$eq": nil},
 	}
 
-	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_matching_packages.find")
-
-	spanFind.SetAttributes(attributes...)
-
 	cur, err := coll.Find(ctx, queryFilter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find matching billing packages", err)
-		spanFind.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to find matching billing packages", err)
 
 		return nil, err
 	}
 	defer cur.Close(ctx)
-
-	spanFind.End()
 
 	var results []*BillingPackageMongoDBModel
 
@@ -307,20 +281,13 @@ func (r *BillingPackageMongoDBRepository) FindActiveByType(ctx context.Context, 
 		"deleted_at":      bson.M{"$eq": nil},
 	}
 
-	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_active_by_type.find")
-
-	spanFind.SetAttributes(attributes...)
-
 	cur, err := coll.Find(ctx, queryFilter)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find active billing packages by type", err)
-		spanFind.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to find active billing packages by type", err)
 
 		return nil, err
 	}
 	defer cur.Close(ctx)
-
-	spanFind.End()
 
 	var results []*BillingPackageMongoDBModel
 
@@ -388,20 +355,13 @@ func (r *BillingPackageMongoDBRepository) FindNotDeletedByLedger(ctx context.Con
 
 	opts := options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: 1}})
 
-	_, spanFind := tracer.Start(ctx, "repository.billing_package.find_not_deleted_by_ledger.find")
-
-	spanFind.SetAttributes(attributes...)
-
 	cur, err := coll.Find(ctx, queryFilter, opts)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(spanFind, "Failed to find not deleted billing packages by ledger", err)
-		spanFind.End()
+		libOpentelemetry.HandleSpanError(span, "Failed to find not deleted billing packages by ledger", err)
 
 		return nil, err
 	}
 	defer cur.Close(ctx)
-
-	spanFind.End()
 
 	var results []*BillingPackageMongoDBModel
 

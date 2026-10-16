@@ -180,6 +180,22 @@ func (mr *MockRepositoryMockRecorder) ListAllByAccountID(ctx, organizationID, le
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAllByAccountID", reflect.TypeOf((*MockRepository)(nil).ListAllByAccountID), ctx, organizationID, ledgerID, accountID, filter)
 }
 
+// ListBalanceTrailPairs mocks base method.
+func (m *MockRepository) ListBalanceTrailPairs(ctx context.Context, cursor uuid.UUID, pageSize int) ([]mmodel.BalanceTrailPair, uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListBalanceTrailPairs", ctx, cursor, pageSize)
+	ret0, _ := ret[0].([]mmodel.BalanceTrailPair)
+	ret1, _ := ret[1].(uuid.UUID)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ListBalanceTrailPairs indicates an expected call of ListBalanceTrailPairs.
+func (mr *MockRepositoryMockRecorder) ListBalanceTrailPairs(ctx, cursor, pageSize any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBalanceTrailPairs", reflect.TypeOf((*MockRepository)(nil).ListBalanceTrailPairs), ctx, cursor, pageSize)
+}
+
 // ListByAccountID mocks base method.
 func (m *MockRepository) ListByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID) ([]*mmodel.Balance, error) {
 	m.ctrl.T.Helper()

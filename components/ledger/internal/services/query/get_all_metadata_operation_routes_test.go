@@ -110,6 +110,8 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 	})
 
 	t.Run("metadata_repo_error", func(t *testing.T) {
+		repoErr := errors.New("metadata repository error")
+
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -122,19 +124,20 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
-			Return(nil, errors.New("metadata repository error"))
+			Return(nil, repoErr)
 
 		result, cursor, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, repoErr)
+
+		var nf pkg.EntityNotFoundError
+		assert.False(t, errors.As(err, &nf))
 		assert.Nil(t, result)
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
-
-		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
-		assert.Equal(t, "0102", entityNotFoundError.Code)
 	})
 
-	t.Run("metadata_returns_nil", func(t *testing.T) {
+	t.Run("metadata_returns_empty", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -147,16 +150,41 @@ func TestGetAllMetadataOperationRoutes(t *testing.T) {
 
 		mockMetadataRepo.EXPECT().
 			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
-			Return(nil, nil)
+			Return([]*mongodb.Metadata{}, nil)
 
+		// No expectation on the PostgreSQL repository: gomock fails the test if it is called.
 		result, cursor, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
 
-		assert.Nil(t, result)
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 		assert.Equal(t, libHTTP.CursorPagination{}, cursor)
+	})
 
-		var entityNotFoundError pkg.EntityNotFoundError
-		assert.True(t, errors.As(err, &entityNotFoundError))
-		assert.Equal(t, "0102", entityNotFoundError.Code)
+	t.Run("metadata_matches_no_page_row_returns_empty", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		defer ctrl.Finish()
+
+		mockOperationRouteRepo := operationroute.NewMockRepository(ctrl)
+		mockMetadataRepo := mongodb.NewMockRepository(ctrl)
+		uc := &UseCase{
+			OperationRouteRepo:      mockOperationRouteRepo,
+			TransactionMetadataRepo: mockMetadataRepo,
+		}
+
+		mockMetadataRepo.EXPECT().
+			FindList(gomock.Any(), constant.EntityOperationRoute, gomock.Any()).
+			Return([]*mongodb.Metadata{{EntityID: operationRouteID1.String(), Data: map[string]any{"key": "value"}}}, nil)
+
+		mockOperationRouteRepo.EXPECT().
+			FindAll(gomock.Any(), organizationID, &ledgerID, gomock.Any()).
+			Return([]*mmodel.OperationRoute{{ID: operationRouteID2}}, expectedCursor, nil)
+
+		result, _, err := uc.GetAllMetadataOperationRoutes(context.Background(), organizationID, &ledgerID, filter)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result, "an empty page must serialize as [], not null")
+		assert.Len(t, result, 0)
 	})
 
 	t.Run("operation_route_repo_error", func(t *testing.T) {

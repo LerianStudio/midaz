@@ -10,7 +10,6 @@ import (
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
@@ -18,11 +17,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-
-	// GetAllMetadataOperations fetch all Operations from the repository
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllMetadataOperations fetch all Operations from the repository
 func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*operation.Operation, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -32,14 +29,16 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 	filter.ApplyDefaultDateRange()
 
 	metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityOperation, filter)
-	if err != nil || metadata == nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo by metadata", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Error getting operations on repo by metadata", libLog.Err(err))
+	if err != nil {
+		recordQueryError(ctx, span, logger, "Failed to get operation metadata on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
+	}
+
+	if len(metadata) == 0 {
+		span.AddEvent("No metadata matched the filter")
+
+		return []*operation.Operation{}, libHTTP.CursorPagination{}, nil
 	}
 
 	metadataMap := make(map[string]map[string]any, len(metadata))
@@ -57,24 +56,16 @@ func (uc *UseCase) GetAllMetadataOperations(ctx context.Context, organizationID,
 
 	oper, cur, err := uc.OperationRepo.FindAllByAccount(ctx, organizationID, ledgerID, accountID, opFilter, filter.ToCursorPagination())
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting operations on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting operations on repo", libLog.Err(err))
-
-			return nil, libHTTP.CursorPagination{}, err
+			err = pkg.ValidateBusinessError(constant.ErrNoOperationsFound, constant.EntityOperation)
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get operations on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get operations on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
-	var operations []*operation.Operation
+	operations := make([]*operation.Operation, 0, len(oper))
 
 	for _, o := range oper {
 		if data, ok := metadataMap[o.ID]; ok {

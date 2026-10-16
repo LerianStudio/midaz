@@ -24,6 +24,7 @@ import (
 	"github.com/bxcodec/dbresolver/v2"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	redisTransaction "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services/command"
@@ -91,6 +92,8 @@ type BalanceSyncWorker struct {
 	// flushBatchFn is the flush body the collectors call. It defaults to
 	// flushBatch; tests replace it to observe the context a flush receives.
 	flushBatchFn func(ctx context.Context, keys []redisTransaction.SyncKey) bool
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer trace.Tracer
 }
 
 // tenantCollector tracks a running BalanceSyncCollector goroutine for a specific tenant.
@@ -215,6 +218,18 @@ func NewBalanceSyncWorkerMT(
 	if pgManager != nil {
 		w.pgResolver = pgManager
 	}
+
+	return w
+}
+
+// WithServiceTracer sets the tracer the worker's spans are opened with, so they carry the
+// ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (w *BalanceSyncWorker) WithServiceTracer(tracer trace.Tracer) *BalanceSyncWorker {
+	if w == nil {
+		return nil
+	}
+
+	w.tracer = tracer
 
 	return w
 }
@@ -414,7 +429,7 @@ func (w *BalanceSyncWorker) Run(_ *libCommons.Launcher) error {
 // runWorker runs the default balance sync loop using the shared database connection.
 // Uses the dual-trigger collector (size OR timeout) for near-real-time balance persistence.
 func (w *BalanceSyncWorker) runWorker() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(w.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	w.logger.Log(
@@ -440,9 +455,7 @@ func (w *BalanceSyncWorker) runWorker() error {
 			return w.flushBatchFn(flushCtx, keys)
 		},
 		// FetchKeysFunc: claims due keys from the ZSET via Lua (ZRANGEBYSCORE + SET NX)
-		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
-			return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
-		},
+		w.fetchSyncKeys,
 		// WaitForNextFunc: fixed backoff when idle (ZSET empty)
 		func(waitCtx context.Context) bool {
 			return waitOrDone(waitCtx, w.idleWait)
@@ -464,7 +477,7 @@ func (w *BalanceSyncWorker) runWorker() error {
 // collector as a goroutine. When the parent context is cancelled (SIGTERM/SIGINT),
 // all tenant collectors are stopped and their remaining buffers are flushed.
 func (w *BalanceSyncWorker) runWorkerMT() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(w.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	w.logger.Log(
@@ -697,9 +710,7 @@ func (w *BalanceSyncWorker) startTenantCollector(parentCtx context.Context, tena
 				return w.flushBatchFn(pgCtx, keys)
 			},
 			// FetchKeysFunc: tenant context enables Redis key namespacing via tmvalkey.GetKeyContext
-			func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
-				return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(fetchCtx, limit)
-			},
+			w.fetchSyncKeys,
 			// WaitForNextFunc: fixed backoff when idle (ZSET empty for this tenant)
 			func(waitCtx context.Context) bool {
 				return waitOrDone(waitCtx, w.idleWait)
@@ -844,6 +855,13 @@ type orgLedgerGroup struct {
 	keys     []redisTransaction.SyncKey
 }
 
+// fetchSyncKeys is the collectors' FetchKeysFunc: it claims due keys from the ZSET via
+// Lua (ZRANGEBYSCORE + SET NX). The claim runs under unsampledPollContext so an empty
+// poll exports no trace; the flush gets the collector's own context and stays traced.
+func (w *BalanceSyncWorker) fetchSyncKeys(ctx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
+	return w.useCase.TransactionRedisRepo.GetBalanceSyncKeys(unsampledPollContext(ctx), limit)
+}
+
 // flushBatch groups keys by (orgID, ledgerID) and processes each group via SyncBalancesBatch.
 // This is the flush callback used by the BalanceSyncCollector.
 func (w *BalanceSyncWorker) flushBatch(ctx context.Context, keys []redisTransaction.SyncKey) bool {
@@ -976,6 +994,15 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 		return false
 	}
 
+	// The batch outcome rides the span, not an INFO line per batch: it is set on
+	// every completed batch, including one that synced nothing.
+	span.SetAttributes(
+		attribute.Int("app.balance_sync.keys_processed", result.KeysProcessed),
+		attribute.Int("app.balance_sync.balances_aggregated", result.BalancesAggregated),
+		attribute.Int64("app.balance_sync.balances_synced", result.BalancesSynced),
+		attribute.Int64("app.balance_sync.keys_removed", result.KeysRemoved),
+	)
+
 	// A batch that ran to completion is a sign of life even when it synced nothing,
 	// so the timestamp is recorded before the synced-count branch.
 	w.recordSyncSuccess(ctx, metricFactory, organizationID, ledgerID, tenantID)
@@ -996,16 +1023,6 @@ func (w *BalanceSyncWorker) processSyncBatch(ctx context.Context, organizationID
 					libLog.String("tenant_id", tenantID), libLog.Err(metricErr))
 			}
 		}
-	}
-
-	if result.KeysProcessed > 0 {
-		w.logger.Log(
-			ctx, libLog.LevelInfo, "BalanceSyncWorker: batch sync completed",
-			libLog.Int("processed", result.KeysProcessed),
-			libLog.Int("aggregated", result.BalancesAggregated),
-			libLog.Int("synced", int(result.BalancesSynced)),
-			libLog.Int("removed", int(result.KeysRemoved)),
-		)
 	}
 
 	return result.BalancesSynced > 0 || result.BalancesAggregated > 0 || result.KeysRemoved > 0
@@ -1078,6 +1095,20 @@ type LegacyBalanceSyncDrainer struct {
 	idleWait time.Duration
 	useCase  *command.UseCase
 	syncCfg  BalanceSyncConfig
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer trace.Tracer
+}
+
+// WithServiceTracer sets the tracer the drainer's spans are opened with, so they carry
+// the ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (d *LegacyBalanceSyncDrainer) WithServiceTracer(tracer trace.Tracer) *LegacyBalanceSyncDrainer {
+	if d == nil {
+		return nil
+	}
+
+	d.tracer = tracer
+
+	return d
 }
 
 // NewLegacyBalanceSyncDrainer creates a drainer for the pre-v3.6.2 balance-sync ZSET.
@@ -1102,9 +1133,15 @@ func NewLegacyBalanceSyncDrainer(logger libLog.Logger, useCase *command.UseCase,
 	}
 }
 
+// fetchLegacySyncKeys is the drainer's FetchKeysFunc: it claims due keys from the legacy
+// ZSET under unsampledPollContext, like BalanceSyncWorker.fetchSyncKeys.
+func (d *LegacyBalanceSyncDrainer) fetchLegacySyncKeys(ctx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
+	return d.useCase.TransactionRedisRepo.GetBalanceSyncKeysLegacy(unsampledPollContext(ctx), limit)
+}
+
 // Run implements the Launcher interface for the legacy drainer.
 func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(d.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	d.logger.Log(ctx, libLog.LevelInfo, "LegacyBalanceSyncDrainer started — draining balance-sync (pre-v3.6.2)")
@@ -1126,9 +1163,7 @@ func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 		func(flushCtx context.Context, keys []redisTransaction.SyncKey) bool {
 			return worker.flushBatch(flushCtx, keys)
 		},
-		func(fetchCtx context.Context, limit int64) ([]redisTransaction.SyncKey, error) {
-			return d.useCase.TransactionRedisRepo.GetBalanceSyncKeysLegacy(fetchCtx, limit)
-		},
+		d.fetchLegacySyncKeys,
 		func(waitCtx context.Context) bool {
 			return waitOrDone(waitCtx, d.idleWait)
 		},
@@ -1137,4 +1172,14 @@ func (d *LegacyBalanceSyncDrainer) Run(_ *libCommons.Launcher) error {
 	d.logger.Log(ctx, libLog.LevelInfo, "LegacyBalanceSyncDrainer: shutting down...")
 
 	return nil
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (w *BalanceSyncWorker) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), w.tracer)
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (d *LegacyBalanceSyncDrainer) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), d.tracer)
 }

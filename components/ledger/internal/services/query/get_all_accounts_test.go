@@ -12,6 +12,7 @@ import (
 	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/onboarding"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
+	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/google/uuid"
@@ -42,12 +43,15 @@ func TestGetAllAccount(t *testing.T) {
 		Page:  1,
 	}
 
+	errMetadata := errors.New("failed to retrieve metadata")
+
 	tests := []struct {
 		name             string
 		portfolioID      *uuid.UUID
 		segmentID        *uuid.UUID
 		setupMocks       func()
 		expectedErr      error
+		technicalErr     bool
 		expectedAccounts []*mmodel.Account
 	}{
 		{
@@ -136,7 +140,7 @@ func TestGetAllAccount(t *testing.T) {
 			expectedAccounts: nil,
 		},
 		{
-			name:        "failure - metadata retrieval error",
+			name:        "failure - metadata failure is returned as a technical error",
 			portfolioID: &portfolioID,
 			segmentID:   nil,
 			setupMocks: func() {
@@ -150,10 +154,11 @@ func TestGetAllAccount(t *testing.T) {
 
 				mockMetadataRepo.EXPECT().
 					FindByEntityIDs(gomock.Any(), "Account", []string{"acc1", "acc2"}).
-					Return(nil, errors.New("failed to retrieve metadata")).
+					Return(nil, errMetadata).
 					Times(1)
 			},
-			expectedErr:      errors.New("No accounts were found in the search. Please review the search criteria and try again."),
+			expectedErr:      errMetadata,
+			technicalErr:     true,
 			expectedAccounts: nil,
 		},
 	}
@@ -164,7 +169,14 @@ func TestGetAllAccount(t *testing.T) {
 
 			result, err := uc.GetAllAccount(ctx, organizationID, ledgerID, tt.portfolioID, tt.segmentID, filter, mmodel.HolderOnV2)
 
-			if tt.expectedErr != nil {
+			if tt.technicalErr {
+				assert.Error(t, err)
+				assert.ErrorIs(t, err, tt.expectedErr)
+
+				var nf pkg.EntityNotFoundError
+				assert.False(t, errors.As(err, &nf))
+				assert.Nil(t, result)
+			} else if tt.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedErr.Error(), err.Error())
 				assert.Nil(t, result)

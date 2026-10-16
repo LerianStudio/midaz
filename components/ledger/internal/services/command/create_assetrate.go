@@ -13,7 +13,6 @@ import (
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
-	mongodb "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/mongodb/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -111,30 +110,22 @@ func (uc *UseCase) CreateOrUpdateAssetRate(ctx context.Context, organizationID, 
 		UpdatedAt:      time.Now(),
 	}
 
+	metadata, err := uc.CreateTransactionMetadata(ctx, constant.EntityAssetRate, assetRateDB.ID, cari.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create asset rate metadata", err)
+
+		return nil, err
+	}
+
 	assetRate, err := uc.AssetRateRepo.Create(ctx, assetRateDB)
 	if err != nil {
+		uc.discardStagedTransactionMetadata(ctx, span, logger, constant.EntityAssetRate, assetRateDB.ID, cari.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create asset rate on repository", err)
 
 		return nil, err
 	}
 
-	if len(cari.Metadata) > 0 {
-		meta := mongodb.Metadata{
-			EntityID:   assetRate.ID,
-			EntityName: constant.EntityAssetRate,
-			Data:       cari.Metadata,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-
-		if err := uc.TransactionMetadataRepo.Create(ctx, constant.EntityAssetRate, &meta); err != nil {
-			recordCommandError(ctx, span, logger, "Failed to create asset rate metadata", err)
-
-			return nil, err
-		}
-
-		assetRate.Metadata = cari.Metadata
-	}
+	assetRate.Metadata = metadata
 
 	return assetRate, nil
 }

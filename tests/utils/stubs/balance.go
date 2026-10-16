@@ -103,3 +103,7 @@ func (s *BalanceRepoStub) ListByAccountID(_ context.Context, _, _, _ uuid.UUID) 
 func (s *BalanceRepoStub) ListByAccountIDAtTimestamp(_ context.Context, _, _, _ uuid.UUID, _ time.Time) ([]*mmodel.Balance, error) {
 	return nil, nil
 }
+
+func (s *BalanceRepoStub) ListBalanceTrailPairs(_ context.Context, cursor uuid.UUID, _ int) ([]mmodel.BalanceTrailPair, uuid.UUID, error) {
+	return nil, cursor, nil
+}

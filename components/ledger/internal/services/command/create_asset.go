@@ -41,16 +41,7 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		utils.RecordDomainOperation(ctx, uc.MetricsFactory, logger, "ledger", "create_asset", start, err)
 	}()
 
-	var status mmodel.Status
-	if cii.Status.IsEmpty() || libCommons.IsNilOrEmpty(&cii.Status.Code) {
-		status = mmodel.Status{
-			Code: "ACTIVE",
-		}
-	} else {
-		status = cii.Status
-	}
-
-	status.Description = cii.Status.Description
+	status := resolveAssetStatus(cii.Status)
 
 	if err := utils.ValidateType(cii.Type); err != nil {
 		err := pkg.ValidateBusinessError(constant.ErrInvalidType, constant.EntityAsset)
@@ -81,7 +72,15 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		return nil, err
 	}
 
+	assetID, err := libCommons.GenerateUUIDv7()
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to generate asset ID", err)
+
+		return nil, err
+	}
+
 	asset := &mmodel.Asset{
+		ID:             assetID.String(),
 		Name:           cii.Name,
 		Type:           cii.Type,
 		Code:           cii.Code,
@@ -92,21 +91,24 @@ func (uc *UseCase) CreateAsset(ctx context.Context, organizationID, ledgerID uui
 		UpdatedAt:      time.Now(),
 	}
 
+	// Metadata is staged before the insert: a metadata failure leaves nothing in PostgreSQL,
+	// and an insert failure discards the staged document.
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAsset, asset.ID, cii.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create asset metadata", err)
+
+		return nil, err
+	}
+
 	inst, err := uc.AssetRepo.Create(ctx, asset)
 	if err != nil {
+		uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntityAsset, asset.ID, cii.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create asset", err)
 
 		return nil, err
 	}
 
 	uc.emitAssetCreatedEvent(ctx, span, logger, inst)
-
-	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntityAsset, inst.ID, cii.Metadata)
-	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create asset metadata", err)
-
-		return nil, err
-	}
 
 	inst.Metadata = metadata
 
@@ -216,14 +218,27 @@ func (uc *UseCase) validateAssetCode(ctx context.Context, code string) error {
 	return nil
 }
 
+// resolveAssetStatus defaults an empty status code to ACTIVE and keeps the
+// caller's description either way.
+func resolveAssetStatus(in mmodel.Status) mmodel.Status {
+	status := in
+	if in.IsEmpty() || libCommons.IsNilOrEmpty(&in.Code) {
+		status = mmodel.Status{Code: "ACTIVE"}
+	}
+
+	status.Description = in.Description
+
+	return status
+}
+
 // emitAssetCreatedEvent publishes the asset.created event for a
 // successfully persisted asset. IMPORTANT posture: build and emit
 // failures are span-recorded and logged at Warn, never returned.
 // The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
-// Anchor: invoked immediately after AssetRepo.Create succeeds and
-// before CreateOnboardingMetadata runs, so a downstream Mongo failure
-// cannot mask the event. The implicit external account / default
+// Anchor: invoked immediately after AssetRepo.Create succeeds. The asset
+// metadata was staged before the insert, so it is already durable when
+// the event is emitted, and no later step can mask the event. The implicit external account / default
 // balance created later in this use case go through AccountRepo and
 // BalancePort directly — NOT through UseCase.CreateAccount — so they
 // produce no account.created event.

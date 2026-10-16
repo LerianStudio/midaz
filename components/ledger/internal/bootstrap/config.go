@@ -34,12 +34,14 @@ import (
 	libRuntime "github.com/LerianStudio/lib-observability/v4/runtime"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	libZap "github.com/LerianStudio/lib-observability/v4/zap"
+	"github.com/bxcodec/dbresolver/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	httpin "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/http/in"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/tenantpool"
 	dashboardCache "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/dashboard"
 	onbRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/onboarding"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
@@ -307,6 +309,18 @@ type Config struct {
 	// resolved by the worker, which never fails to start on this knob.
 	BalanceSyncTTLKeepaliveIntervalMs int `env:"BALANCE_SYNC_TTL_KEEPALIVE_INTERVAL_MS"`
 
+	// --- Balance reconciler (balance row vs. operation trail) ---
+	// BalanceReconcilerEnabled turns the periodic reconciler on; unset or empty means true.
+	BalanceReconcilerEnabled bool `env:"BALANCE_RECONCILER_ENABLED"`
+	// BalanceReconcilerIntervalMs is the time between two reconciler passes.
+	BalanceReconcilerIntervalMs int `env:"BALANCE_RECONCILER_INTERVAL_MS"`
+	// BalanceReconcilerGraceMs skips balances updated more recently than this window.
+	BalanceReconcilerGraceMs int `env:"BALANCE_RECONCILER_GRACE_MS"`
+	// BalanceReconcilerPageSize is how many balances one keyset page reads.
+	BalanceReconcilerPageSize int `env:"BALANCE_RECONCILER_PAGE_SIZE"`
+	// BalanceReconcilerPassBudgetMs caps the wall time of one pass, shared by every tenant it visits.
+	BalanceReconcilerPassBudgetMs int `env:"BALANCE_RECONCILER_PASS_BUDGET_MS"`
+
 	// --- Streaming (lib-streaming producer) ---
 	// Default for all streaming knobs is OFF — a service with
 	// STREAMING_ENABLED=false (or unset) injects a NoopEmitter and never
@@ -404,28 +418,57 @@ func InitServers() (*Service, error) {
 	return InitServersWithOptions(nil)
 }
 
-// validateBootAuthGates enforces the auth-presence invariants that must hold
-// before any infrastructure opens. It runs before the logger exists, so it
-// returns errors rather than logging. Two independent gates:
+// Boot Warns returned by authPresenceWarning when PLUGIN_AUTH_ENABLED=false.
+const (
+	authDisabledLocalMsg    = "Authentication is DISABLED — every business route is open (acceptable for local development only)"
+	authDisabledNonLocalMsg = "Authentication is DISABLED — every business route is open; set PLUGIN_AUTH_ENABLED=true"
+)
+
+// authPresenceWarning decides whether the ledger may boot without the Access
+// Manager. lib-auth fail-opens when PLUGIN_AUTH_ENABLED=false, so every
+// business route then serves unauthenticated. The deployment mode decides,
+// not ENV_NAME: a customer-hosted production may run without the Access
+// Manager behind its own perimeter.
 //
-//  1. Multi-tenant mode requires auth in every environment — tenant identity
-//     comes from the JWT, so disabling auth allows cross-tenant data access.
-//  2. Production requires auth even single-tenant — lib-auth fail-opens when
-//     disabled, so a production deploy that forgets PLUGIN_AUTH_ENABLED=true
-//     would serve every business endpoint unauthenticated. Non-production
-//     (local/dev/staging) keeps Warn-free boot for developer onboarding.
-func validateBootAuthGates(cfg *Config) error {
-	if cfg.MultiTenantEnabled && !cfg.AuthEnabled {
-		return fmt.Errorf("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
+// rawAuthEnabled is PLUGIN_AUTH_ENABLED as set in the environment. The config
+// loader reads a value strconv.ParseBool rejects as false, so such a value is
+// refused in every mode instead of silently disabling authentication.
+//
+// With PLUGIN_AUTH_ENABLED=false:
+//   - MULTI_TENANT_ENABLED=true ⇒ error in every mode: the tenant comes from
+//     the JWT, so no auth means cross-tenant data access.
+//   - DEPLOYMENT_MODE=saas (normalized) ⇒ error: saas never serves an open API.
+//   - local or unset ⇒ the development Warn.
+//   - any other mode (byoc, undocumented values) ⇒ the Warn naming
+//     PLUGIN_AUTH_ENABLED.
+//
+// It returns the Warn message for the caller to log, "" when auth is enabled.
+// It must run before any connection opens.
+func authPresenceWarning(cfg *Config, rawAuthEnabled string) (string, error) {
+	if rawAuthEnabled != "" {
+		if _, err := strconv.ParseBool(rawAuthEnabled); err != nil {
+			return "", fmt.Errorf("PLUGIN_AUTH_ENABLED=%q is not a valid boolean; set true or false", rawAuthEnabled)
+		}
+	}
+
+	if cfg.AuthEnabled {
+		return "", nil
+	}
+
+	if cfg.MultiTenantEnabled {
+		return "", errors.New("MULTI_TENANT_ENABLED=true requires PLUGIN_AUTH_ENABLED=true; " +
 			"running multi-tenant mode without authentication allows cross-tenant data access")
 	}
 
-	if strings.EqualFold(strings.TrimSpace(cfg.EnvName), "production") && !cfg.AuthEnabled {
-		return fmt.Errorf("ENV_NAME=production requires PLUGIN_AUTH_ENABLED=true; " +
-			"a single-tenant production deployment without authentication serves every endpoint unauthenticated")
+	switch ResolveDeploymentMode(cfg.DeploymentMode) {
+	case DeploymentModeSaaS:
+		return "", errors.New("DEPLOYMENT_MODE=saas requires PLUGIN_AUTH_ENABLED=true; " +
+			"a saas deployment never serves the business routes without authentication")
+	case DeploymentModeLocal:
+		return authDisabledLocalMsg, nil
+	default:
+		return authDisabledNonLocalMsg, nil
 	}
-
-	return nil
 }
 
 // InitServersWithOptions initializes the unified ledger service with optional dependency injection.
@@ -443,10 +486,6 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	applyConfigDefaults(cfg)
 
 	if err := validateTransactionBatchConfig(cfg); err != nil {
-		return nil, err
-	}
-
-	if err := validateBootAuthGates(cfg); err != nil {
 		return nil, err
 	}
 
@@ -484,6 +523,11 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		libLog.String("env", cfg.EnvName),
 	)
 
+	authWarning, err := authPresenceWarning(cfg, os.Getenv("PLUGIN_AUTH_ENABLED"))
+	if err != nil {
+		return nil, err
+	}
+
 	// Telemetry
 	telemetry, err := libOpentelemetry.NewTelemetry(telemetryConfig(cfg, baseLogger))
 	if err != nil {
@@ -504,6 +548,15 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 	// (installed in the logger core) can forward log records to the OTLP exporter.
 	if err := telemetry.ApplyGlobals(); err != nil {
 		return nil, fmt.Errorf("failed to apply telemetry globals: %w", err)
+	}
+
+	// Logged after ApplyGlobals so the warning also reaches the OTLP log exporter.
+	if authWarning != "" {
+		logger.Log(
+			context.Background(), libLog.LevelWarn, authWarning,
+			libLog.String("config", "PLUGIN_AUTH_ENABLED"),
+			libLog.String("deployment_mode", ResolveDeploymentMode(cfg.DeploymentMode)),
+		)
 	}
 
 	// Multi-tenant client setup
@@ -1290,15 +1343,24 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 
 	// The quarantine repository is the durable sink for poison backup records;
 	// the metrics factory powers the backup-queue observability gauges/counter.
+	// Workers, crons and consumers start from context.Background(); the service tracer on
+	// their root context keeps their spans under the ledger's instrumentation scope.
+	workerTracer := serviceTracer(telemetry)
+
 	redisConsumer.
 		WithQuarantineRepository(txnPG.quarantineRepo).
-		WithMetricsFactory(metricsFactory)
+		WithMetricsFactory(metricsFactory).
+		WithServiceTracer(workerTracer)
 
-	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory)
+	engineRecoveryCleanup := initEngineRecoveryCleanupRunner(logger, commandUseCase.TransactionRedisRepo, cfg.MultiTenantEnabled, tenantCache, metricsFactory).
+		WithServiceTracer(workerTracer)
 
 	// BalanceSyncWorker: multi-tenant or single-tenant
 	balanceSyncWorker = initBalanceSyncWorker(internalOpts, cfg, logger, commandUseCase, txnPG.pgManager, tenantServiceName)
-	balanceSyncWorker.WithMetricsFactory(metricsFactory)
+	balanceSyncWorker.WithMetricsFactory(metricsFactory).WithServiceTracer(workerTracer)
+
+	balanceReconciler := initBalanceReconcilerRunner(cfg, logger, queryUseCase, redisConnection, cfg.MultiTenantEnabled, tenantCache, txnPG.pgManager, tenantClient, tenantServiceName, metricsFactory).
+		WithServiceTracer(workerTracer)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
 	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.
@@ -1306,7 +1368,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		BatchSize:      cfg.BalanceSyncBatchSize,
 		FlushTimeoutMs: 2000,
 		PollIntervalMs: 1000,
-	})
+	}).WithServiceTracer(workerTracer)
 
 	// SaaS TLS gate for the RI declaration publisher's IdP dial. Placed before the
 	// success log so an explicit http:// IDP_HOST under DEPLOYMENT_MODE=saas refuses
@@ -1354,6 +1416,7 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		RedisQueueConsumer:       redisConsumer,
 		EngineRecoveryCleanup:    engineRecoveryCleanup,
 		BalanceSyncWorker:        balanceSyncWorker,
+		BalanceReconciler:        balanceReconciler,
 		LegacyBalanceSyncDrainer: legacyDrainer,
 		EventListener:            eventListener,
 		CircuitBreakerManager:    rmq.circuitBreakerManager,
@@ -1737,6 +1800,10 @@ func buildUnifiedRouteSetup(
 	// via f.Use) would overwrite the tenant Mongo that ledger handlers resolve,
 	// leaking one tenant's CRM DB into a concurrent ledger request.
 	//
+	// This instance binds no PostgreSQL, so the CRM chain stays
+	// [authAssertion, WithTenantDB] in multi-tenant mode: it is the one tenant
+	// chain that does not carry WithTenantPoolResolution.
+	//
 	// Nothing else is bound here: the holder CRUD, the instrument reads and
 	// updates, encryption and audit touch no other store, and the middleware
 	// resolves every registered manager eagerly, so an extra store would make
@@ -1793,7 +1860,10 @@ func buildUnifiedRouteSetup(
 	// globally would overwrite the tenant Mongo that ledger handlers resolve.
 	// Route scoping keeps every key this instance writes off ledger routes, so
 	// the generic-key fees MB write cannot collide with the module-keyed
-	// onboarding/transaction injection ledger routes carry.
+	// onboarding/transaction injection ledger routes carry. The
+	// WithTenantPoolResolution that follows it on the fee chain replaces only
+	// the onboarding/transaction PG module keys this instance wrote, so it adds
+	// no key and never touches the generic one.
 	//
 	// WithMB(feesMongoManager) stays WITHOUT a module name (generic key): the fee
 	// pack/billing_package repos read tmcore.GetMBContext(ctx) on the GENERIC key,
@@ -1891,53 +1961,85 @@ func buildUnifiedRouteSetup(
 
 	authAssertion := midazhttp.MarkTrustedAuthAssertion()
 
+	// WithTenantDB pins the tenant's concrete PostgreSQL pool into the request
+	// context once, and the tenant manager may close that pool mid-request
+	// without draining. Every chain whose tenant middleware binds PostgreSQL
+	// therefore runs as [authAssertion, WithTenantDB, WithTenantPoolResolution]:
+	// the third element swaps each pinned module key for a lazy adapter that
+	// re-resolves the pool per operation (falling back to the pinned pool when
+	// resolution fails). It replaces only the module keys that chain's
+	// WithTenantDB already wrote — the same per-module keys, never a new one and
+	// never the generic key — so the per-chain isolation above is unchanged.
+	// Each handler lists exactly the PG modules its chain's middleware binds.
+	onboardingTransactionPoolResolution := midazhttp.WithTenantPoolResolution(
+		tenantPoolModule(constant.ModuleOnboarding, onboardingPGManager),
+		tenantPoolModule(constant.ModuleTransaction, transactionPGManager),
+	)
+	onboardingPoolResolution := midazhttp.WithTenantPoolResolution(
+		tenantPoolModule(constant.ModuleOnboarding, onboardingPGManager),
+	)
+
 	setup.onboardingRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	setup.transactionRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, tenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	setup.ledgerRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion},
 	}
 
-	// CRM routes get the CRM-only tenant middleware instance.
+	// CRM routes get the CRM-only tenant middleware instance. It binds no
+	// PostgreSQL, so this chain carries no WithTenantPoolResolution.
 	setup.crmRouteOptions = &midazhttp.ProtectedRouteOptions{
 		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmTenantMiddleware.WithTenantDB},
 	}
 
 	// Instrument create gets the CRM ledger-reads tenant middleware instance.
 	setup.crmLedgerReadsRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmLedgerReadsTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmLedgerReadsTenantMiddleware.WithTenantDB, onboardingPoolResolution},
 	}
 
 	// Holder delete gets the CRM holder-delete tenant middleware instance.
 	setup.crmHolderDeleteRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmHolderDeleteTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, crmHolderDeleteTenantMiddleware.WithTenantDB, onboardingPoolResolution},
 	}
 
 	// Fee routes get the fees-only tenant middleware instance.
 	setup.feesRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, feesTenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	// Composition routes get the cross-store composition tenant middleware
 	// instance, scoping the onboarding-PG + CRM-Mongo injection to composition
 	// routes only.
 	setup.compositionRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, compositionTenantMiddleware.WithTenantDB, onboardingTransactionPoolResolution},
 	}
 
 	// The holder-accounts route gets its own onboarding-only tenant middleware
 	// instance rather than the CRM one, which binds the CRM Mongo on the generic
 	// key and no onboarding PG at all.
 	setup.holderAccountsRouteOptions = &midazhttp.ProtectedRouteOptions{
-		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB},
+		PostAuthMiddlewares: []fiber.Handler{authAssertion, holderAccountsTenantMiddleware.WithTenantDB, onboardingPoolResolution},
 	}
 
 	return setup, nil
+}
+
+// tenantPoolModule builds the WithTenantPoolResolution entry for one PostgreSQL
+// module: a lazy adapter that re-resolves the tenant's pool from manager on
+// every operation, falling back to the pool WithTenantDB pinned. Only
+// buildUnifiedRouteSetup calls it, inside its multi-tenant branch.
+func tenantPoolModule(module string, manager *tmpostgres.Manager) midazhttp.TenantPoolModule {
+	return midazhttp.TenantPoolModule{
+		Name: module,
+		New: func(_ context.Context, tenantID string, pinned dbresolver.DB) dbresolver.DB {
+			return tenantpool.New(manager, tenantID, module, pinned)
+		},
+	}
 }
 
 // buildHumaMountDeps assembles the single Huma mount list from the auth client, every resource
@@ -2152,6 +2254,18 @@ func applyConfigDefaults(cfg *Config) {
 	intDefault(&cfg.BalanceSyncFlushTimeoutMs, 500)
 	intDefault(&cfg.BalanceSyncPollIntervalMs, 50)
 	intDefault(&cfg.BalanceSyncTTLKeepaliveIntervalMs, defaultKeepaliveIntervalMs)
+
+	// Balance reconciler defaults
+	// BalanceReconcilerEnabled defaults to true when the env var is not set or empty,
+	// following BULK_RECORDER_ENABLED. Explicit "false" is the opt-out.
+	if os.Getenv("BALANCE_RECONCILER_ENABLED") == "" {
+		cfg.BalanceReconcilerEnabled = true
+	}
+
+	intDefault(&cfg.BalanceReconcilerIntervalMs, defaultBalanceReconcilerIntervalMs)
+	intDefault(&cfg.BalanceReconcilerGraceMs, defaultBalanceReconcilerGraceMs)
+	intDefault(&cfg.BalanceReconcilerPageSize, defaultBalanceReconcilerPageSize)
+	intDefault(&cfg.BalanceReconcilerPassBudgetMs, defaultBalanceReconcilerPassBudgetMs)
 
 	// OtelServiceName defaults to the roster name so /version, the OTel resource
 	// and the streaming manifest name the same process even with no OTEL_* env.

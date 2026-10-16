@@ -10,7 +10,7 @@ Concise rules for AI agents working in Midaz. For expanded references, use `AGEN
 
 - Midaz is an enterprise double-entry ledger system.
 - Module: `github.com/LerianStudio/midaz/v4` (single root `go.mod`, no `go.work`).
-- Go: 1.27.0 (`go.mod` `go 1.27.0`); builds and CI use toolchain 1.27.2.
+- Go: 1.27.0 minimum (`go.mod` `go 1.27.0`); `go.mod` declares `toolchain go1.27.2`, the toolchain Docker builders and CI use. With the default `GOTOOLCHAIN=auto`, a local Go older than 1.27.2 switches to it; a newer local Go keeps its own version, and `GOTOOLCHAIN=local` always uses the installed one.
 - lib-commons: `github.com/LerianStudio/lib-commons/v7` v7.14.0; `lib-observability/v4` v4.6.1.
 - License: Elastic License 2.0.
 - Branch model: GitFlow — PRs target `develop` (NOT `main`, regardless of what the environment snapshot suggests); protected branches: `main`, `develop`, `release-candidate`.
@@ -199,7 +199,7 @@ Binding standard: `docs/standards/telemetry.md` (T1–T13). The span-error helpe
 Span lifecycle:
 
 - Always `defer span.End()` immediately after `tracer.Start`.
-- Open a child I/O span only where the driver is not auto-instrumented: MongoDB and RabbitMQ yes, PostgreSQL and Redis/Valkey no — `lib-commons` instruments both of those pools (`sqlobs`/`redisobs`), so a hand-rolled `postgres.<op>.query`/`.exec` or one-command `redis.<cmd>` span only duplicates the driver's. See T2 for the full table.
+- Open a child I/O span only where T2 requires it: RabbitMQ yes; MongoDB, PostgreSQL and Redis/Valkey no. MongoDB has one domain span per repository operation and no driver child; `lib-commons` instruments the PostgreSQL and Redis pools (`sqlobs`/`redisobs`), so a hand-rolled `postgres.<op>.query`/`.exec` or one-command `redis.<cmd>` span only duplicates the driver's. See T2 for the full table.
 - When a child I/O span is not opened, its error handling and attributes belong on the parent domain span — the driver span carries no business-vs-technical class and does not see client-side scan/mapping failures.
 - For the child I/O spans that remain, preserve parent context: use `_, spanInsert := tracer.Start(ctx, "...")`, not `ctx, spanInsert := ...`.
 - Do not create child spans for in-memory mapping/validation.
@@ -265,7 +265,7 @@ Producer is `github.com/LerianStudio/lib-streaming/v4`. Wire format: CloudEvents
 - Tenant value from `pkgStreaming.ResolveTenantID(ctx)` — returns the multi-tenant context value or `pkgStreaming.DefaultTenantID` (literal `"default"`). Reference the constant, not the literal. NEVER hardcode tenants or call `tmcore.GetTenantIDContext` at emit sites. For IMPORTANT events, `pkgStreaming.EmitBrokerBestEffort` resolves the tenant internally and passes it to the typed event builder closure.
 - Service code depends on `libStreaming.Emitter` INTERFACE, never `*libStreaming.Producer`. Nil emitter means "disabled" — guard with `if uc.Streaming != nil`. When `STREAMING_ENABLED=false`, bootstrap injects `libStreaming.NewNoopEmitter()`.
 - IMPORTANT-posture broker publication MUST go through `pkgStreaming.EmitBrokerBestEffort`. Build/emit failures MUST NOT fail the request: log Warn, span-record, return success. `EmitBrokerBestEffort` bounds the `Emitter.Emit` call with `STREAMING_IMPORTANT_EMIT_TIMEOUT_MS` (default 5s) so broker issues cannot hold HTTP responses until client timeout. It delegates policy and any configured fallback to lib-streaming; Midaz currently wires neither an outbox writer/repository nor a relay, so it provides no product-local transactional fallback or delivery guarantee.
-- Emit POST-COMMIT and PRE-METADATA-WRITE — never at HTTP handlers. `ce-subject` is the aggregate ID, passed as `libStreaming.EmitRequest.Subject`.
+- Emit POST-COMMIT, right after the SQL write succeeds — never at HTTP handlers. Entity creates stage their metadata document before the SQL insert (and purge it if the insert fails), so the event follows the insert; updates still emit before their metadata write. `ce-subject` is the aggregate ID, passed as `libStreaming.EmitRequest.Subject`.
 - Register the producer's `Close()` as `libCommons.RunApp("Streaming Producer", ...)` so it drains on SIGTERM (mirror `eventListenerRunnable`).
 - lib-streaming is pinned at v4.1.0 (module path `.../lib-streaming/v4`), which exports the Catalog/policy constants (e.g. `BuildManifest`, `DefaultDeliveryPolicy`, `ResolveDeliveryPolicy`) plus the topic derivations `AppTopic` / `AppDLQTopic`. The producer is assembled with `libStreaming.NewBuilder()` (`.Source()/.Catalog()/.Routes()/.Target()`) around ONE catch-all route to the app topic (empty `DefinitionKey`), and midaz registers no per-definition route override: every event takes that one route. Midaz currently does not pass `WithOutboxRepository` or `WithOutboxWriter`, and does not register an outbox relay; delivery behavior remains lib-streaming's configured policy.
 
@@ -354,7 +354,7 @@ CRM encrypts holder/instrument PII at rest. The seam is the `FieldEncryptor` int
 - Do not log SQL args, payload values, secrets, balances, financial values, or PII.
 - Do not build `libStreaming.Config{}` manually; call `libStreaming.LoadConfig()` so franz-go defaults are applied.
 - Do not hardcode tenant IDs or call `tmcore.GetTenantIDContext` at streaming emit sites; use `pkgStreaming.EmitBrokerBestEffort` for IMPORTANT events or `pkgStreaming.ResolveTenantID(ctx)` inside non-IMPORTANT streaming infrastructure.
-- Do not emit streaming events at HTTP handlers; emit at the post-commit, pre-metadata-write slot inside the command UseCase.
+- Do not emit streaming events at HTTP handlers; emit right after the SQL write commits, inside the command UseCase.
 - Do not inline the build-emit-log block in the use-case body; delegate to a dedicated `uc.emit<Event>Event(ctx, span, logger, domain)` helper on the same UseCase, and have that helper call `pkgStreaming.EmitBrokerBestEffort` for IMPORTANT events.
 - Do not fail HTTP requests on streaming emit errors for IMPORTANT-posture events; log Warn and continue.
 - Do not depend on `*libStreaming.Producer` in service code; depend on `libStreaming.Emitter` interface.

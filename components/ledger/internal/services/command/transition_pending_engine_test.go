@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/transaction"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/domain/accounting"
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/testutil/spantest"
 	"github.com/LerianStudio/midaz/v4/components/ledger/pkg/readrouting"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -352,7 +353,7 @@ func TestPendingTransitionV2ExecutesPreparedBalancesOnce(t *testing.T) {
 }
 
 func TestPendingCommitGrantBindingFailureUnlocksBeforeEngine(t *testing.T) {
-	uc, _, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+	uc, _, executor, finalizer, in, lock := newTransitionEngineUseCaseWithLock(t, constant.APPROVED)
 	exceptionID := uuid.MustParse("99999999-9999-4999-8999-999999999999")
 	in.AccountBlockExceptionID = &exceptionID
 	redisRepo := uc.TransactionRedisRepo.(*txRedis.MockRedisRepository)
@@ -367,6 +368,7 @@ func TestPendingCommitGrantBindingFailureUnlocksBeforeEngine(t *testing.T) {
 	assert.Empty(t, executor.requests)
 	assert.Len(t, executor.guardCalls, 1)
 	assert.Empty(t, finalizer.envelopes)
+	assert.Equal(t, 1, lock.releases, "a grant refusal must release the pending lock")
 }
 
 func TestPendingCancelIgnoresProgrammaticGrantIdentifier(t *testing.T) {
@@ -409,7 +411,65 @@ func TestPendingCancelUsesPersistedOverdraftCapAndOnlyLoadsSources(t *testing.T)
 	}
 }
 
-func TestPendingTransitionEngineFailureBoundariesReleaseLock(t *testing.T) {
+// TestPendingTransitionReleasesTheLockOnlyWhenTheTransitionFails keeps both
+// contracts on the same lock policy: a failed transition frees the lock for a
+// retry, while a transition that applied keeps it, because a release without
+// the engine guard is held back from repeating it only by this lock.
+func TestPendingTransitionReleasesTheLockOnlyWhenTheTransitionFails(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	indeterminate := testEngineTechnicalError{code: "transport", indeterminate: true, cause: errors.New("outcome unknown")}
+
+	for _, entry := range pendingTransitionEntries() {
+		otherStatus := constant.CANCELED
+		if entry.status == constant.CANCELED {
+			otherStatus = constant.APPROVED
+		}
+
+		for _, test := range []struct {
+			name            string
+			executorErr     error
+			finalizeErr     error
+			completedStatus string
+			wantErr         error
+		}{
+			{name: "indeterminate execution", executorErr: indeterminate, wantErr: indeterminate},
+			{name: "completion confirms another status", completedStatus: otherStatus, wantErr: ErrTransactionCompletionConflict},
+			{name: "projection deferred to recovery", finalizeErr: errors.New("projection unavailable")},
+			{name: "projected transition"},
+		} {
+			t.Run(entry.name+" "+test.name, func(t *testing.T) {
+				uc, _, executor, finalizer, in, lock := newTransitionEngineUseCaseWithLock(t, entry.status)
+				if test.executorErr != nil {
+					executor.before = func(EngineExecution) error { return test.executorErr }
+				}
+				finalizer.err = test.finalizeErr
+				if test.completedStatus != "" {
+					finalizer.outcome.TransactionStatus = test.completedStatus
+				}
+
+				err := entry.call(uc, tmcore.ContextWithTenantID(context.Background(), "tenant-lock-policy"), in)
+
+				require.Len(t, executor.requests, 1)
+				if test.wantErr != nil {
+					require.ErrorIs(t, err, test.wantErr)
+					assert.Equal(t, 1, lock.releases, "a failed transition must release its pending lock")
+
+					return
+				}
+
+				require.NoError(t, err)
+				assert.NotEmpty(t, lock.token, "the transition must hold the lock with an owner token")
+				assert.Zero(t, lock.releases, "a successful transition must keep its pending lock until the TTL")
+			})
+		}
+	}
+}
+
+// TestPendingTransitionEngineOutcomesReleaseLockOnlyOnFailure covers the same
+// policy over the outcomes a /v2 transition adds, a refused commit grant and the
+// tracer confirmation: a failure frees the lock, a success keeps it even when
+// its projection was deferred.
+func TestPendingTransitionEngineOutcomesReleaseLockOnlyOnFailure(t *testing.T) {
 	projectionErr := errors.New("projection unavailable")
 	indeterminate := testEngineTechnicalError{code: "transport", indeterminate: true, cause: errors.New("outcome unknown")}
 
@@ -433,7 +493,7 @@ func TestPendingTransitionEngineFailureBoundariesReleaseLock(t *testing.T) {
 		{name: "completion confirms another status", completedStatus: constant.CANCELED, wantErr: ErrTransactionCompletionConflict, wantProjected: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			uc, reader, executor, finalizer, in := newTransitionEngineUseCase(t, constant.APPROVED)
+			uc, reader, executor, finalizer, in, lock := newTransitionEngineUseCaseWithLock(t, constant.APPROVED)
 			exceptionID := uuid.MustParse("88888888-8888-4888-8888-888888888888")
 			in.AccountBlockExceptionID = &exceptionID
 			uc.TransactionRedisRepo.(*txRedis.MockRedisRepository).EXPECT().
@@ -458,9 +518,11 @@ func TestPendingTransitionEngineFailureBoundariesReleaseLock(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.wantErr.Error())
 				assert.Nil(t, tran)
+				assert.Equal(t, 1, lock.releases, "a failed transition must release its pending lock")
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, tran)
+				assert.Zero(t, lock.releases, "a successful transition must keep its pending lock")
 			}
 			if test.wantProjected {
 				assert.Len(t, finalizer.envelopes, 1)
@@ -651,7 +713,21 @@ func assertBusinessCode(t *testing.T, err error, code string) {
 	assert.Equal(t, code, conflict.Code)
 }
 
+// pendingLockRecorder stands in for the pending-transaction lock key: it keeps
+// the owner token a transition stored and counts the releases presenting it.
+type pendingLockRecorder struct {
+	token    string
+	releases int
+}
+
 func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, *transitionEngineReader, *transitionEngineExecutor, *createAppliedTransactionCompleter, PendingTransitionInput) {
+	t.Helper()
+	uc, reader, executor, finalizer, in, _ := newTransitionEngineUseCaseWithLock(t, terminalStatus)
+
+	return uc, reader, executor, finalizer, in
+}
+
+func newTransitionEngineUseCaseWithLock(t *testing.T, terminalStatus string) (*UseCase, *transitionEngineReader, *transitionEngineExecutor, *createAppliedTransactionCompleter, PendingTransitionInput, *pendingLockRecorder) {
 	t.Helper()
 	organizationID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	ledgerID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
@@ -684,16 +760,30 @@ func newTransitionEngineUseCase(t *testing.T, terminalStatus string) (*UseCase, 
 	finalizer := &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: terminalStatus}}
 	ctrl := gomock.NewController(t)
 	redisRepo := txRedis.NewMockRedisRepository(ctrl)
-	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
-	// A transition that takes the pending-transaction lock releases it exactly
-	// once, whatever its outcome.
-	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+	lock := &pendingLockRecorder{}
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _, token string, _ time.Duration) (bool, error) {
+			lock.token = token
+			return true, nil
+		},
+	).Times(1)
+	redisRepo.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, _, token string) (bool, error) {
+			assert.Equal(t, lock.token, token, "the release must present the token its acquisition stored")
+			lock.releases++
+			return true, nil
+		},
+	).AnyTimes()
+	t.Cleanup(func() {
+		assert.LessOrEqual(t, lock.releases, 1, "a transition releases its pending lock at most once")
+	})
 	uc := &UseCase{
 		TransactionRedisRepo: redisRepo, TransactionReader: reader,
 		Engine: executor, AppliedTransactionCompleter: finalizer,
+		TransactionRepo:            &transactionRowRepository{row: persisted},
 		EngineRecoveryAcknowledger: &recordingEngineRecoveryAcknowledger{},
 	}
-	return uc, reader, executor, finalizer, PendingTransitionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}
+	return uc, reader, executor, finalizer, PendingTransitionInput{OrganizationID: organizationID, LedgerID: ledgerID, TransactionID: transactionID}, lock
 }
 
 func transitionBalance(organizationID, ledgerID uuid.UUID, id, alias string, available decimal.Decimal) *mmodel.Balance {
@@ -913,7 +1003,7 @@ func TestPendingTransitionUnknownTransactionIsNotFoundBeforeLock(t *testing.T) {
 				TransactionReader:    &indexedPendingReader{transitionEngineReader: &transitionEngineReader{}},
 				TransactionRedisRepo: redisRepo, Engine: executor,
 			}
-			ctx, recorder := recordingContext()
+			ctx, recorder := spantest.RecordingContext()
 
 			_, err := test.call(uc, ctx, in)
 

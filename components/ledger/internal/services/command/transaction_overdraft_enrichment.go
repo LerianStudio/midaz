@@ -175,10 +175,12 @@ func enrichOverdraftOperations(
 	for _, s := range debits {
 		companion, ok := companionByAliasKey[s.companionAliasKey]
 		if !ok {
-			// No companion found — log and skip. This is recoverable at the
-			// Lua layer (default balance still gets overdraft_used accrual)
-			// but the overdraft balance will not see the liability increase
-			// until a future reconciliation path picks it up.
+			// No companion found — log and skip. The default balance still
+			// accrues overdraft_used in the Lua layer, but the overdraft
+			// balance will not see the liability increase: the companion
+			// gets neither an Operation row nor a balance change, so its
+			// balance and its trail stay in agreement and nothing compares
+			// them as divergent. The warning logged here is the only trace.
 			logger.Log(ctx, libLog.LevelWarn,
 				"Overdraft companion balance not found; skipping debit enrichment",
 				libLog.String("alias_key", s.companionAliasKey))

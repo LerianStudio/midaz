@@ -10,8 +10,6 @@ import (
 	"time"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
@@ -38,18 +36,10 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, 
 	ledgers, err := uc.LedgerRepo.FindAll(ctx, organizationID, filter)
 	if err != nil {
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, constant.EntityLedger)
-
-			logger.Log(ctx, libLog.LevelWarn, "No ledgers found")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledgers on repo", err)
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrNoLedgersFound, constant.EntityLedger)
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Error getting ledgers on repo")
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get ledgers on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get ledgers on repo", err)
 
 		return nil, err
 	}
@@ -65,9 +55,7 @@ func (uc *UseCase) GetAllLedgers(ctx context.Context, organizationID uuid.UUID, 
 
 	metadata, err := uc.OnboardingMetadataRepo.FindByEntityIDs(ctx, constant.EntityLedger, ledgerIDs)
 	if err != nil {
-		err := pkg.ValidateBusinessError(constant.ErrNoLedgersFound, constant.EntityLedger)
-
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to get ledger metadata on repo", err)
 
 		return nil, err
 	}

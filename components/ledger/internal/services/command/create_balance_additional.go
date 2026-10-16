@@ -17,6 +17,7 @@ import (
 	libStreaming "github.com/LerianStudio/lib-streaming/v4"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg"
@@ -38,6 +39,8 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 
 	ctx, span := tracer.Start(ctx, "command.create_additional_balance")
 	defer span.End()
+
+	span.SetAttributes(attribute.String("app.request.balance_key", strings.ToLower(cbi.Key)))
 
 	start := time.Now()
 
@@ -131,10 +134,10 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 	}
 
 	if existingBalance != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", nil)
-		logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", cbi.Key))
+		berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, cbi.Key)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", berr)
 
-		return nil, pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, cbi.Key)
+		return nil, berr
 	}
 
 	defaultBalance, err := uc.BalanceRepo.FindByAccountIDAndKey(ctx, organizationID, ledgerID, accountID, constant.DefaultBalanceKey)
@@ -220,20 +223,16 @@ func (uc *UseCase) CreateAdditionalBalance(ctx context.Context, organizationID, 
 			berr := pkg.ValidateBusinessError(constant.ErrDuplicatedAliasKeyValue, constant.EntityBalance, strings.ToLower(cbi.Key))
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Additional balance already exists", berr)
 
-			logger.Log(ctx, libLog.LevelWarn, "Additional balance already exists", libLog.String("key", strings.ToLower(cbi.Key)))
-
 			return nil, berr
 		}
 
 		if isPostgresUniqueViolation(err) {
-			libOpentelemetry.HandleSpanEvent(span, "Additional balance unique constraint violation")
-
-			logger.Log(ctx, libLog.LevelWarn, "Additional balance unique constraint violation")
+			recordCommandError(ctx, span, logger, "Additional balance unique constraint violation", err)
 
 			return nil, err
 		}
 
-		logger.Log(ctx, libLog.LevelError, "Error creating additional balance on repo", libLog.Err(err))
+		recordCommandError(ctx, span, logger, "Error creating additional balance on repo", err)
 
 		return nil, err
 	}

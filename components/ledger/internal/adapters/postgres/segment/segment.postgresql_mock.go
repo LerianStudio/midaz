@@ -133,7 +133,7 @@ func (mr *MockRepositoryMockRecorder) Find(ctx, organizationID, ledgerID, id any
 }
 
 // FindAll mocks base method.
-func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.Pagination) ([]*mmodel.Segment, error) {
+func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Segment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindAll", ctx, organizationID, ledgerID, filter)
 	ret0, _ := ret[0].([]*mmodel.Segment)
@@ -145,21 +145,6 @@ func (m *MockRepository) FindAll(ctx context.Context, organizationID, ledgerID u
 func (mr *MockRepositoryMockRecorder) FindAll(ctx, organizationID, ledgerID, filter any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAll", reflect.TypeOf((*MockRepository)(nil).FindAll), ctx, organizationID, ledgerID, filter)
-}
-
-// FindByIDs mocks base method.
-func (m *MockRepository) FindByIDs(ctx context.Context, organizationID, ledgerID uuid.UUID, ids []uuid.UUID) ([]*mmodel.Segment, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindByIDs", ctx, organizationID, ledgerID, ids)
-	ret0, _ := ret[0].([]*mmodel.Segment)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// FindByIDs indicates an expected call of FindByIDs.
-func (mr *MockRepositoryMockRecorder) FindByIDs(ctx, organizationID, ledgerID, ids any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByIDs", reflect.TypeOf((*MockRepository)(nil).FindByIDs), ctx, organizationID, ledgerID, ids)
 }
 
 // Update mocks base method.

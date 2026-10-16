@@ -8,16 +8,13 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/assetrate"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	// GetAssetRateByExternalID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAssetRateByExternalID gets data in the repository.
 func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID, ledgerID, externalID uuid.UUID) (*assetrate.AssetRate, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -26,9 +23,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 
 	assetRate, err := uc.AssetRateRepo.FindByExternalID(ctx, organizationID, ledgerID, externalID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get asset rate by external id on repository", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting asset rate", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get asset rate by external id on repository", err)
 
 		return nil, err
 	}
@@ -36,9 +31,7 @@ func (uc *UseCase) GetAssetRateByExternalID(ctx context.Context, organizationID,
 	if assetRate != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityAssetRate, assetRate.ID)
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb asset rate", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb asset rate", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb asset rate", err)
 
 			return nil, err
 		}

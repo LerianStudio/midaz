@@ -72,21 +72,24 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 		return nil, err
 	}
 
+	// Metadata is staged before the insert so a metadata-store failure aborts the create
+	// before anything is durable in PostgreSQL, keeping a retry safe.
+	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntitySegment, segment.ID, cpi.Metadata)
+	if err != nil {
+		recordCommandError(ctx, span, logger, "Failed to create segment metadata", err)
+
+		return nil, err
+	}
+
 	seg, err := uc.SegmentRepo.Create(ctx, segment)
 	if err != nil {
+		uc.discardStagedOnboardingMetadata(ctx, span, logger, constant.EntitySegment, segment.ID, cpi.Metadata)
 		recordCommandError(ctx, span, logger, "Failed to create segment", err)
 
 		return nil, err
 	}
 
 	uc.emitSegmentCreatedEvent(ctx, span, logger, seg)
-
-	metadata, err := uc.CreateOnboardingMetadata(ctx, constant.EntitySegment, seg.ID, cpi.Metadata)
-	if err != nil {
-		recordCommandError(ctx, span, logger, "Failed to create segment metadata", err)
-
-		return nil, err
-	}
 
 	seg.Metadata = metadata
 
@@ -98,9 +101,9 @@ func (uc *UseCase) CreateSegment(ctx context.Context, organizationID, ledgerID u
 // failures are span-recorded and logged at Warn, never returned.
 // The persisted database mutation is durable; this helper does not make broker delivery transactional.
 //
-// Anchor: invoked immediately after SegmentRepo.Create succeeds and
-// before CreateOnboardingMetadata runs, so a downstream Mongo failure
-// cannot mask the event.
+// Anchor: invoked immediately after SegmentRepo.Create succeeds. The
+// metadata document is already durable at that point, so the event is
+// published only for a segment whose create fully completed.
 //
 // Wire-format mapping lives in pkg/streaming/events/segment_created.go;
 // changes to the payload contract belong there, not here.

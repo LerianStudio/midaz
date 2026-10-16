@@ -28,8 +28,8 @@ import (
 )
 
 // This file pins the registrar -> ProtectedRouteOptions binding, the one relationship the
-// route-table golden cannot capture: eight of the nine route-scoped options carry exactly two
-// post-auth handlers, so a positional swap moves neither path nor handler count. The crm and
+// route-table golden cannot capture: seven of the nine route-scoped options carry exactly three
+// post-auth handlers, so a positional swap among them moves neither path nor handler count. The crm and
 // fees options both write the GENERIC tenant-context key over different Mongo managers, so
 // swapping that pair resolves CRM holder PII against the fees tenant database with every other
 // gate green.
@@ -83,23 +83,30 @@ func TestRouteOptionsBinding(t *testing.T) {
 	require.NoError(t, err, "multi-tenant setup must not error")
 	require.NotNil(t, mtSetup, "multi-tenant setup must be non-nil")
 
+	// wantPostAuth pins each chain's post-auth handler count. Every chain whose tenant
+	// middleware binds PostgreSQL is [authAssertion, WithTenantDB, WithTenantPoolResolution];
+	// crm binds only Mongo and keeps [authAssertion, WithTenantDB]; ledger is [authAssertion].
+	// A dropped, duplicated or misassigned pool-resolution handler changes one of these counts.
 	roleInstances := []struct {
-		role string
-		opt  *pkgHTTP.ProtectedRouteOptions
+		role         string
+		opt          *pkgHTTP.ProtectedRouteOptions
+		wantPostAuth int
 	}{
-		{"onboarding", mtSetup.onboardingRouteOptions},
-		{"transaction", mtSetup.transactionRouteOptions},
-		{"ledger", mtSetup.ledgerRouteOptions},
-		{"crm", mtSetup.crmRouteOptions},
-		{"fees", mtSetup.feesRouteOptions},
-		{"composition", mtSetup.compositionRouteOptions},
-		{"holder-accounts", mtSetup.holderAccountsRouteOptions},
-		{"crm-ledger-reads", mtSetup.crmLedgerReadsRouteOptions},
-		{"crm-holder-delete", mtSetup.crmHolderDeleteRouteOptions},
+		{"onboarding", mtSetup.onboardingRouteOptions, 3},
+		{"transaction", mtSetup.transactionRouteOptions, 3},
+		{"ledger", mtSetup.ledgerRouteOptions, 1},
+		{"crm", mtSetup.crmRouteOptions, 2},
+		{"fees", mtSetup.feesRouteOptions, 3},
+		{"composition", mtSetup.compositionRouteOptions, 3},
+		{"holder-accounts", mtSetup.holderAccountsRouteOptions, 3},
+		{"crm-ledger-reads", mtSetup.crmLedgerReadsRouteOptions, 3},
+		{"crm-holder-delete", mtSetup.crmHolderDeleteRouteOptions, 3},
 	}
 
 	for _, ri := range roleInstances {
 		require.NotNilf(t, ri.opt, "%s route options must be non-nil in multi-tenant mode", ri.role)
+		assert.Lenf(t, ri.opt.PostAuthMiddlewares, ri.wantPostAuth,
+			"%s route options must carry %d post-auth handlers in multi-tenant mode", ri.role, ri.wantPostAuth)
 	}
 
 	for i := 0; i < len(roleInstances); i++ {

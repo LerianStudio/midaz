@@ -295,13 +295,15 @@ func TestIntegration_EngineNormalAndRecoveryPersistenceAreEquivalent(t *testing.
 			func(context.Context, string, string, time.Duration) error { close(stored); return nil },
 		)
 		idempotency.EXPECT().SetNX(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
-		idempotency.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil).Times(1)
+		// The commit succeeds, so it keeps its pending lock until the TTL.
+		idempotency.EXPECT().DeleteIfValue(gomock.Any(), gomock.Any(), gomock.Any()).Times(0)
 		realAdapter, err := newAdapterWithLimits(&integrationClientProvider{client: client}, guardBootstrapLimits())
 		require.NoError(t, err)
 		executor := &pendingLifecycleAdapter{delegate: realAdapter}
 		uc := &command.UseCase{
 			TransactionRedisRepo: idempotency, TransactionReader: reader,
 			Engine: executor, AppliedTransactionCompleter: fixture.finalizer,
+			TransactionRepo: pendingLifecycleRows{reader: reader},
 			TransactionEvidenceResolver: &pendingLifecycleEvidenceResolver{
 				client:     client,
 				executions: func() []command.EngineExecution { return executor.executions },

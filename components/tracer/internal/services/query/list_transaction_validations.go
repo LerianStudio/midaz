@@ -48,7 +48,7 @@ type ListTransactionValidationsResult = model.ListTransactionValidationsResult
 func (q *ListTransactionValidationsQuery) Execute(ctx context.Context, filters *model.TransactionValidationFilters) (*ListTransactionValidationsResult, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	ctx, span := tracer.Start(ctx, "service.transaction-validation.list")
+	ctx, span := tracer.Start(ctx, "service.transaction_validation.list")
 	defer span.End()
 
 	logger = logging.WithTrace(ctx, logger)

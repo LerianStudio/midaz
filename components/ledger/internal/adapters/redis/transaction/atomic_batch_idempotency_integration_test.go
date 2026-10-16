@@ -9,6 +9,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -60,7 +61,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyClaim(t *testing.T) {
 				ready.Done()
 				<-start
 				result, err := repository.ClaimAtomicTransactionBatch(
-					ctx, organizationID, ledgerID, effectiveKey, claim,
+					ctx, organizationID, ledgerID, effectiveKey, claim, "",
 				)
 				outcomes <- outcome{result: result, err: err}
 			}()
@@ -114,7 +115,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyClaim(t *testing.T) {
 
 		replayClaim := atomicBatchIdempotencyClaim("c")
 		replay, err := repository.ClaimAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, effectiveKey, replayClaim,
+			ctx, organizationID, ledgerID, effectiveKey, replayClaim, "",
 		)
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchReplayed, replay.Outcome)
@@ -123,7 +124,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyClaim(t *testing.T) {
 
 		changedClaim := atomicBatchIdempotencyClaim("d")
 		conflictResult, err := repository.ClaimAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, effectiveKey, changedClaim,
+			ctx, organizationID, ledgerID, effectiveKey, changedClaim, "",
 		)
 		var conflict pkg.EntityConflictError
 		require.ErrorAs(t, err, &conflict)
@@ -133,6 +134,130 @@ func TestIntegrationAtomicTransactionBatchIdempotencyClaim(t *testing.T) {
 		unchanged, err := container.Client.Get(ctx, redisKey).Bytes()
 		require.NoError(t, err)
 		require.Equal(t, payload, unchanged)
+	})
+
+	t.Run("a legacy fingerprint match replays a complete record unchanged", func(t *testing.T) {
+		effectiveKey := "legacy-match-complete"
+		redisKey := atomicBatchNamespacedIdempotencyKey(t, ctx, organizationID, ledgerID, effectiveKey)
+		t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey).Err()) })
+
+		stored := atomicBatchIdempotencyComplete("f")
+		stored.FormatVersion = AtomicTransactionBatchIdempotencyFormatVersion
+		stored.InitialResponses = atomicBatchInitialResponses(stored.TransactionIDs)
+		payload, err := json.Marshal(stored)
+		require.NoError(t, err)
+		require.NoError(t, container.Client.Set(ctx, redisKey, payload, 0).Err())
+
+		result, err := repository.ClaimAtomicTransactionBatch(
+			ctx, organizationID, ledgerID, effectiveKey, atomicBatchIdempotencyClaim("c"), strings.Repeat("f", 64),
+		)
+		require.NoError(t, err)
+		require.Equal(t, AtomicTransactionBatchReplayed, result.Outcome)
+		require.Equal(t, stored, result.Record)
+
+		unchanged, err := container.Client.Get(ctx, redisKey).Bytes()
+		require.NoError(t, err)
+		require.Equal(t, payload, unchanged)
+	})
+
+	t.Run("a legacy fingerprint match is in progress in every nonterminal state", func(t *testing.T) {
+		effectiveKey := "legacy-match-in-progress"
+		redisKey := atomicBatchNamespacedIdempotencyKey(t, ctx, organizationID, ledgerID, effectiveKey)
+		indexKey := transitionNamespacedBatchExecutionIndexKey(
+			t, ctx, organizationID, ledgerID, *atomicBatchAppliedRecord().ExecutionID,
+		)
+		t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey, indexKey).Err()) })
+
+		legacy := atomicBatchIdempotencyClaim("a").RequestFingerprint
+		requireInProgressThroughLegacyMatch := func(t *testing.T, wantState AtomicTransactionBatchIdempotencyState) {
+			t.Helper()
+
+			before, err := container.Client.Get(ctx, redisKey).Bytes()
+			require.NoError(t, err)
+
+			result, err := repository.ClaimAtomicTransactionBatch(
+				ctx, organizationID, ledgerID, effectiveKey, atomicBatchIdempotencyClaim("c"), legacy,
+			)
+			var conflict pkg.EntityConflictError
+			require.ErrorAs(t, err, &conflict)
+			require.Equal(t, constant.ErrIdempotencyKey.Error(), conflict.Code)
+			require.Equal(t, AtomicTransactionBatchInProgress, result.Outcome)
+			require.Equal(t, wantState, result.Record.State)
+
+			after, err := container.Client.Get(ctx, redisKey).Bytes()
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+		}
+
+		claim := atomicBatchIdempotencyClaim("a")
+		claimed, err := repository.ClaimAtomicTransactionBatch(ctx, organizationID, ledgerID, effectiveKey, claim, "")
+		require.NoError(t, err)
+		require.Equal(t, AtomicTransactionBatchClaimed, claimed.Outcome)
+		requireInProgressThroughLegacyMatch(t, AtomicTransactionBatchStateClaimed)
+
+		_, err = repository.TransitionAtomicTransactionBatch(
+			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken,
+			AtomicTransactionBatchStateClaimed, atomicBatchPreparedRecord(false), 0,
+		)
+		require.NoError(t, err)
+		requireInProgressThroughLegacyMatch(t, AtomicTransactionBatchStatePrepared)
+
+		_, err = repository.HandoffAtomicTransactionBatchExecution(
+			ctx, organizationID, ledgerID, effectiveKey, claim.OwnerToken, atomicBatchAppliedRecord(),
+		)
+		require.NoError(t, err)
+		requireInProgressThroughLegacyMatch(t, AtomicTransactionBatchStateApplied)
+	})
+
+	t.Run("a legacy fingerprint that matches nothing conflicts", func(t *testing.T) {
+		for _, tt := range []struct {
+			name   string
+			legacy string
+		}{
+			{name: "different legacy fingerprint", legacy: strings.Repeat("e", 64)},
+			{name: "no legacy fingerprint", legacy: ""},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				effectiveKey := "legacy-mismatch-" + tt.name
+				redisKey := atomicBatchNamespacedIdempotencyKey(t, ctx, organizationID, ledgerID, effectiveKey)
+				t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey).Err()) })
+
+				payload, err := json.Marshal(atomicBatchIdempotencyComplete("f"))
+				require.NoError(t, err)
+				require.NoError(t, container.Client.Set(ctx, redisKey, payload, 0).Err())
+
+				result, err := repository.ClaimAtomicTransactionBatch(
+					ctx, organizationID, ledgerID, effectiveKey, atomicBatchIdempotencyClaim("c"), tt.legacy,
+				)
+				var conflict pkg.EntityConflictError
+				require.ErrorAs(t, err, &conflict)
+				require.Equal(t, constant.ErrIdempotencyKey.Error(), conflict.Code)
+				require.Equal(t, AtomicTransactionBatchFingerprintConflict, result.Outcome)
+
+				unchanged, err := container.Client.Get(ctx, redisKey).Bytes()
+				require.NoError(t, err)
+				require.Equal(t, payload, unchanged)
+			})
+		}
+	})
+
+	t.Run("a first claim stores its own fingerprint, never the legacy one", func(t *testing.T) {
+		effectiveKey := "legacy-first-claim"
+		redisKey := atomicBatchNamespacedIdempotencyKey(t, ctx, organizationID, ledgerID, effectiveKey)
+		t.Cleanup(func() { require.NoError(t, container.Client.Del(context.Background(), redisKey).Err()) })
+
+		claim := atomicBatchIdempotencyClaim("c")
+		result, err := repository.ClaimAtomicTransactionBatch(
+			ctx, organizationID, ledgerID, effectiveKey, claim, strings.Repeat("f", 64),
+		)
+		require.NoError(t, err)
+		require.Equal(t, AtomicTransactionBatchClaimed, result.Outcome)
+
+		storedJSON, err := container.Client.Get(ctx, redisKey).Bytes()
+		require.NoError(t, err)
+		var stored AtomicTransactionBatchIdempotencyRecord
+		require.NoError(t, json.Unmarshal(storedJSON, &stored))
+		require.Equal(t, claim, stored)
 	})
 
 	t.Run("batch namespace cannot collide with singular idempotency", func(t *testing.T) {
@@ -147,7 +272,7 @@ func TestIntegrationAtomicTransactionBatchIdempotencyClaim(t *testing.T) {
 
 		claim := atomicBatchIdempotencyClaim("e")
 		result, err := repository.ClaimAtomicTransactionBatch(
-			ctx, organizationID, ledgerID, effectiveKey, claim,
+			ctx, organizationID, ledgerID, effectiveKey, claim, "",
 		)
 		require.NoError(t, err)
 		require.Equal(t, AtomicTransactionBatchClaimed, result.Outcome)

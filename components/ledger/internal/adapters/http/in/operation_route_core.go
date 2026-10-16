@@ -244,7 +244,7 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 	if headerParams.Metadata != nil {
 		operationRoutes, cur, err := handler.Query.GetAllMetadataOperationRoutes(ctx, organizationID, nil, *headerParams)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to retrieve all operation routes by metadata", err)
+			handleSpanByErrorClass(span, "Failed to retrieve all operation routes by metadata", err)
 			logger.Log(ctx, libLog.LevelError, "Failed to retrieve all operation routes by metadata", libLog.Err(err))
 
 			return http.Pagination{}, err
@@ -272,15 +272,26 @@ func (handler *OperationRouteHandler) getAllOperationRoutes(ctx context.Context,
 	return pagination, nil
 }
 
+// Step names of the operation-route validators. They are steps without I/O and open no
+// span of their own; a failure is a business event named after the step on the calling
+// handler span, with the detail in the event's error attribute.
+const (
+	validateAccountRuleStep             = "handler.validate_account_rule"
+	validateAccountingEntriesStep       = "handler.validate_accounting_entries"
+	validateAccountingRulesMatrixStep   = "handler.validate_accounting_rules_matrix"
+	validateDirectionScenarioMatrixStep = "handler.validate_direction_scenario_matrix"
+	validateReserveGroupAtomicityStep   = "handler.validate_reserve_group_atomicity"
+	validateDirectMandatoryStep         = "handler.validate_direct_mandatory"
+	validateCrossLedgerEntryStep        = "handler.validate_cross_ledger_entry"
+	validateEntryFieldRequirementsStep  = "handler.validate_entry_field_requirements"
+)
+
 // validateAccountRule validates account rule configuration for operation routes.
 // It ensures proper pairing of ruleType and validIf, and validates data types based on rule type.
 func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, account *mmodel.AccountRule) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "handler.validate_account_rule")
-	defer span.End()
-
-	recordSafePayloadAttributes(span, account)
+	// A validation step without I/O: it opens no span of its own and records a
+	// failure on the calling handler span.
+	span := trace.SpanFromContext(ctx)
 
 	if account == nil {
 		return nil
@@ -289,7 +300,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	if account.RuleType != "" && account.ValidIf == nil {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.validIf")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account rule type provided but validIf is missing", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRuleStep, err)
 
 		return err
 	}
@@ -297,7 +308,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 	if account.RuleType == "" && account.ValidIf != nil {
 		err := pkg.ValidateBusinessError(constant.ErrMissingFieldsInRequest, constant.EntityOperationRoute, "account.ruleType")
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Account validIf provided but rule type is missing", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRuleStep, err)
 
 		return err
 	}
@@ -308,7 +319,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 			if _, ok := account.ValidIf.(string); !ok {
 				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for alias rule", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRuleStep, err)
 
 				return err
 			}
@@ -320,7 +331,7 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 					if _, ok := item.(string); !ok {
 						err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
-						libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf array element type", err)
+						libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRuleStep, err)
 
 						return err
 					}
@@ -328,14 +339,14 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 			default:
 				err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleValue, constant.EntityOperationRoute)
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid ValidIf type for account_type rule", err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRuleStep, err)
 
 				return err
 			}
 		default:
 			err := pkg.ValidateBusinessError(constant.ErrInvalidAccountRuleType, constant.EntityOperationRoute)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Invalid account rule type", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountRuleStep, err)
 
 			return err
 		}
@@ -349,12 +360,9 @@ func (handler *OperationRouteHandler) validateAccountRule(ctx context.Context, a
 // Note: This function validates STRUCTURE only. Field REQUIREMENTS (which fields are mandatory
 // based on direction+scenario) are validated by validateAccountingRulesMatrix.
 func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Context, entries *mmodel.AccountingEntries) error {
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "handler.validate_accounting_entries")
-	defer span.End()
-
-	recordSafePayloadAttributes(span, entries)
+	// A validation step without I/O: it opens no span of its own and records a
+	// failure on the calling handler span.
+	span := trace.SpanFromContext(ctx)
 
 	if entries == nil {
 		return nil
@@ -393,7 +401,7 @@ func (handler *OperationRouteHandler) validateAccountingEntries(ctx context.Cont
 
 			err := pkg.ValidateBusinessError(action.errCode, entityName, fieldPath)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting entry missing both debit and credit", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountingEntriesStep, err)
 
 			return err
 		}
@@ -431,7 +439,7 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 
 		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric code is empty", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountingEntriesStep, err)
 
 		return err
 	}
@@ -441,7 +449,7 @@ func (handler *OperationRouteHandler) validateRubricStructure(
 
 		err := pkg.ValidateBusinessError(errCode, entityName, fieldPath)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Accounting rubric description is empty", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateAccountingEntriesStep, err)
 
 		return err
 	}
@@ -575,10 +583,10 @@ func (handler *OperationRouteHandler) validateAccountingRulesMatrix(
 	operationType string,
 	entries *mmodel.AccountingEntries,
 ) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.validate_accounting_rules_matrix")
-	defer span.End()
+	// A validation step without I/O: it opens no span of its own, and each check
+	// below records its own failure on the calling handler span.
 
 	// If no entries, nothing to validate
 	if entries == nil {
@@ -623,10 +631,11 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.validate_direction_scenario_matrix")
-	defer span.End()
+	// A validation step without I/O: it opens no span of its own and records a
+	// failure on the calling handler span.
+	span := trace.SpanFromContext(ctx)
 
 	switch operationType {
 	case constant.OperationRouteTypeSource:
@@ -638,7 +647,7 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 				"revert is only allowed for bidirectional operation routes",
 			)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Revert not allowed for source direction", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateDirectionScenarioMatrixStep, err)
 			logger.Log(ctx, libLog.LevelWarn, "Revert scenario not allowed for source direction")
 
 			return err
@@ -662,7 +671,7 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 					fmt.Sprintf("%s scenario is not allowed for destination direction", scenario.name),
 				)
 
-				libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("%s not allowed for destination", scenario.name), err)
+				libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateDirectionScenarioMatrixStep, err)
 
 				return err
 			}
@@ -676,7 +685,7 @@ func (handler *OperationRouteHandler) validateDirectionScenarioMatrix(
 				"revert is only allowed for bidirectional operation routes",
 			)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Revert not allowed for destination direction", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateDirectionScenarioMatrixStep, err)
 			logger.Log(ctx, libLog.LevelWarn, "Revert scenario not allowed for destination direction")
 
 			return err
@@ -701,10 +710,11 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.validate_reserve_group_atomicity")
-	defer span.End()
+	// A validation step without I/O: it opens no span of its own and records a
+	// failure on the calling handler span.
+	span := trace.SpanFromContext(ctx)
 
 	// Reserve group only applies to source and bidirectional
 	if operationType == constant.OperationRouteTypeDestination {
@@ -734,7 +744,7 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 				fmt.Sprintf("reserve group incomplete: hold requires %s", strings.Join(missing, " and ")),
 			)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete", err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateReserveGroupAtomicityStep, err)
 
 			return err
 		}
@@ -748,7 +758,7 @@ func (handler *OperationRouteHandler) validateReserveGroupAtomicity(
 			"reserve group incomplete: commit and cancel require hold",
 		)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Reserve group incomplete - missing hold", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateReserveGroupAtomicityStep, err)
 		logger.Log(ctx, libLog.LevelWarn, "Reserve group incomplete: commit/cancel without hold")
 
 		return err
@@ -763,10 +773,11 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.validate_direct_mandatory")
-	defer span.End()
+	// A validation step without I/O: it opens no span of its own and records a
+	// failure on the calling handler span.
+	span := trace.SpanFromContext(ctx)
 
 	hasDirect := entries.Direct != nil
 	// Overdraft is a supplementary accounting scenario that still requires
@@ -786,7 +797,7 @@ func (handler *OperationRouteHandler) validateDirectMandatory(
 			"direct scenario is required when other scenarios are present",
 		)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Direct scenario required", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateDirectMandatoryStep, err)
 		logger.Log(ctx, libLog.LevelWarn, "Direct scenario is required when other scenarios are present")
 
 		return err
@@ -812,10 +823,9 @@ func (handler *OperationRouteHandler) validateCrossLedgerEntry(
 		return nil
 	}
 
-	_, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
-
-	_, span := tracer.Start(ctx, "handler.validate_cross_ledger_entry")
-	defer span.End()
+	// A validation step without I/O: it opens no span of its own and records a
+	// failure on the calling handler span.
+	span := trace.SpanFromContext(ctx)
 
 	if operationType != constant.OperationRouteTypeBidirectional {
 		err := pkg.ValidateBusinessError(
@@ -824,7 +834,7 @@ func (handler *OperationRouteHandler) validateCrossLedgerEntry(
 			fmt.Sprintf("%s scenario is only allowed for bidirectional operation routes", constant.ActionCrossLedger),
 		)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "crossLedger not allowed for a non-bidirectional route", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateCrossLedgerEntryStep, err)
 
 		return err
 	}
@@ -836,7 +846,7 @@ func (handler *OperationRouteHandler) validateCrossLedgerEntry(
 			"An operation route with a crossLedger entry cannot carry other accounting entries.",
 		)
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "crossLedger combined with other accounting entries", err)
+		libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateCrossLedgerEntryStep, err)
 
 		return err
 	}
@@ -854,10 +864,11 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 	entries *mmodel.AccountingEntries,
 	entityName string,
 ) error {
-	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
+	logger, _, _, _ := libObservability.NewTrackingFromContext(ctx)
 
-	_, span := tracer.Start(ctx, "handler.validate_entry_field_requirements")
-	defer span.End()
+	// A validation step without I/O: it opens no span of its own and records a
+	// failure on the calling handler span.
+	span := trace.SpanFromContext(ctx)
 
 	// If no entries, nothing to validate
 	if entries == nil {
@@ -894,7 +905,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 				fmt.Sprintf("%s is required for %s/%s", "debit", operationType, action.name),
 			)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Debit required for %s/%s", operationType, action.name), err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateEntryFieldRequirementsStep, err)
 
 			return err
 		}
@@ -907,7 +918,7 @@ func (handler *OperationRouteHandler) validateEntryFieldRequirements(
 				fmt.Sprintf("%s is required for %s/%s", "credit", operationType, action.name),
 			)
 
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, fmt.Sprintf("Credit required for %s/%s", operationType, action.name), err)
+			libOpentelemetry.HandleSpanBusinessErrorEvent(span, validateEntryFieldRequirementsStep, err)
 
 			return err
 		}

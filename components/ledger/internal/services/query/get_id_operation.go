@@ -8,16 +8,13 @@ import (
 	"context"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/operation"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	// GetOperationByID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetOperationByID gets data in the repository.
 func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerID, transactionID, operationID uuid.UUID) (*operation.Operation, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -26,9 +23,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 
 	o, err := uc.OperationRepo.Find(ctx, organizationID, ledgerID, transactionID, operationID)
 	if err != nil {
-		libOpentelemetry.HandleSpanError(span, "Failed to get operation on repo by id", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting operation", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get operation on repo by id", err)
 
 		return nil, err
 	}
@@ -36,9 +31,7 @@ func (uc *UseCase) GetOperationByID(ctx context.Context, organizationID, ledgerI
 	if o != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityOperation, operationID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb operation", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb operation", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb operation", err)
 
 			return nil, err
 		}

@@ -14,7 +14,6 @@ the repository root. Keep all `AGENTS.md` content in English.
 ## Read First
 
 - [Engine architecture](../../../docs/architecture/engine.md): accounting boundary, receipts, protection, and rollout.
-- [Recovery inventory](../../../docs/runbooks/transaction-recovery-inventory.md): record families, quarantine, and reprocessing.
 - [Batch contract](../../../docs/api/atomic-transaction-batch.md): identity, order, limits, and replay.
 - [Telemetry](../../../docs/standards/telemetry.md) and [error handling](../../../docs/standards/error-handling.md): binding standards.
 - [Performance report](../../../docs/performance/engine-report.md): measurements and evidence limitations.
@@ -131,6 +130,16 @@ turn incidental behavior into a new guarantee.
 - Deploy compatible readers/consumers/ACKs before new writers. Rollback requires
   demonstrated drain or continued compatible consumers. An empty inventory page
   does not prove all families and tenants have drained.
+
+## Error Logging
+
+- Use cases log a technical error once, at Error, via `recordQueryError`
+  (`services/query/errors.go`) or `recordCommandError` (`services/command/command.go`).
+  Business errors are span events only; the access log emits their single line.
+- Adapters record errors on the span and return; they never log them.
+- Exception: `adapters/http/in/metadata_core.go` calls the metadata repository
+  without a use case, so the handler owns the single Error line through its local
+  `recordMetadataIndexError` helper.
 
 ## Changes and Verification
 

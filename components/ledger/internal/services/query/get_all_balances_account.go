@@ -31,9 +31,7 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 
 	balance, cur, err := uc.BalanceRepo.ListAllByAccountID(ctx, organizationID, ledgerID, accountID, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balances on repo", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting balances on repo", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get balances on repo", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}

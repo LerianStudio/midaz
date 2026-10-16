@@ -265,20 +265,33 @@ type UseCase struct {
 	MetricsFactory *metrics.MetricsFactory
 }
 
-// recordCommandError records err on span and logs it with the helper and level that
-// match its class: business/4xx keeps the span green and logs at Warn (T5, T7); technical/5xx
-// flips the span red and logs at Error so it feeds error-rate SLOs and pages an operator.
-// fields are appended to the log call after the mandatory libLog.Err(err).
+// recordCommandError records err on span with the helper that matches its class and logs it
+// only when it is technical: business/4xx keeps the span green with a business event and is not
+// logged, because the HTTP access log already emits the single line for it (T5, T8); technical/5xx
+// flips the span red and logs at Error so it feeds error-rate SLOs and pages an operator (T7).
+// fields are appended to the log call before the mandatory libLog.Err(err).
 func recordCommandError(ctx context.Context, span trace.Span, logger libLog.Logger, message string, err error, fields ...libLog.Field) {
-	fields = append(fields, libLog.Err(err))
+	recordCommandSpanError(span, message, err)
 
 	if pkg.IsBusinessError(err) {
+		return
+	}
+
+	fields = append(fields, libLog.Err(err))
+
+	logger.Log(ctx, libLog.LevelError, message, fields)
+}
+
+// recordCommandSpanError records err on span with the helper that matches its class, without
+// logging: a business error becomes a span event and keeps the span green, a technical error
+// flips it red (T5). Helpers that return the error to a use case use it, because the use case
+// owns the single log line (T8).
+func recordCommandSpanError(span trace.Span, message string, err error) {
+	if pkg.IsBusinessError(err) {
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, message, err)
-		logger.Log(ctx, libLog.LevelWarn, message, fields)
 
 		return
 	}
 
 	libOpentelemetry.HandleSpanError(span, message, err)
-	logger.Log(ctx, libLog.LevelError, message, fields)
 }

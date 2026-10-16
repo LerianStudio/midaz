@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -105,7 +106,7 @@ func TestAssetPostgreSQLModel_FromEntity(t *testing.T) {
 		deletedAt := time.Now().Add(-24 * time.Hour)
 
 		entity := &mmodel.Asset{
-			ID:   "should-be-overwritten",
+			ID:   "01928f6e-4c3a-7b1d-9e2f-0a1b2c3d4e5f",
 			Name: "US Dollar",
 			Type: "currency",
 			Code: "USD",
@@ -123,8 +124,7 @@ func TestAssetPostgreSQLModel_FromEntity(t *testing.T) {
 		var model AssetPostgreSQLModel
 		model.FromEntity(entity)
 
-		assert.NotEmpty(t, model.ID, "ID should be generated")
-		assert.NotEqual(t, entity.ID, model.ID, "ID should be newly generated, not copied from entity")
+		assert.Equal(t, entity.ID, model.ID, "predefined ID should be preserved")
 		assert.Equal(t, entity.Name, model.Name)
 		assert.Equal(t, entity.Type, model.Type)
 		assert.Equal(t, entity.Code, model.Code)
@@ -156,7 +156,6 @@ func TestAssetPostgreSQLModel_FromEntity(t *testing.T) {
 		var model AssetPostgreSQLModel
 		model.FromEntity(entity)
 
-		assert.NotEmpty(t, model.ID, "ID should be generated")
 		assert.Equal(t, entity.Name, model.Name)
 		assert.Equal(t, entity.Type, model.Type)
 		assert.Equal(t, entity.Code, model.Code)
@@ -167,7 +166,7 @@ func TestAssetPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.False(t, model.DeletedAt.Valid, "DeletedAt should not be valid when entity.DeletedAt is nil")
 	})
 
-	t.Run("generates_uuid_v7", func(t *testing.T) {
+	t.Run("generates_uuid_v7_when_id_empty", func(t *testing.T) {
 		entity := &mmodel.Asset{
 			Name:           "UUID Test Asset",
 			Type:           "test",
@@ -188,5 +187,9 @@ func TestAssetPostgreSQLModel_FromEntity(t *testing.T) {
 		assert.NotEmpty(t, model2.ID)
 		assert.NotEqual(t, model1.ID, model2.ID, "Each call should generate a unique ID")
 		assert.Len(t, model1.ID, 36, "ID should be a valid UUID string (36 chars with hyphens)")
+
+		parsed, err := uuid.Parse(model1.ID)
+		require.NoError(t, err)
+		assert.Equal(t, uuid.Version(7), parsed.Version(), "generated ID should be a UUIDv7")
 	})
 }

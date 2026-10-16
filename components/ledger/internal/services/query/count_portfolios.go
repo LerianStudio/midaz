@@ -9,17 +9,14 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
-
-	// CountPortfolios returns the number of portfolios for the specified organization and ledger.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// CountPortfolios returns the number of portfolios for the specified organization and ledger.
 func (uc *UseCase) CountPortfolios(ctx context.Context, organizationID, ledgerID uuid.UUID) (int64, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -28,19 +25,11 @@ func (uc *UseCase) CountPortfolios(ctx context.Context, organizationID, ledgerID
 
 	count, err := uc.PortfolioRepo.Count(ctx, organizationID, ledgerID)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error counting portfolios on repo", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
 			err = pkg.ValidateBusinessError(constant.ErrNoPortfoliosFound, constant.EntityPortfolio)
-
-			logger.Log(ctx, libLog.LevelWarn, "No portfolios found for organization")
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count portfolios on repo", err)
-
-			return 0, err
 		}
 
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to count portfolios on repo", err)
+		recordQueryError(ctx, span, logger, "Failed to count portfolios on repo", err)
 
 		return 0, err
 	}

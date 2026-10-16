@@ -9,15 +9,12 @@ import (
 	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
-	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/services"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
 // GetTransactionRouteByID returns an active transaction route of the organization with its metadata,
@@ -30,19 +27,11 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 
 	transactionRoute, err := uc.TransactionRouteRepo.FindByID(ctx, organizationID, id)
 	if err != nil {
-		logger.Log(ctx, libLog.LevelError, "Error getting transaction route on repo by id", libLog.Err(err))
-
 		if errors.Is(err, services.ErrDatabaseItemNotFound) {
-			err := pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
-
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get transaction route", err)
-
-			logger.Log(ctx, libLog.LevelWarn, "Error getting transaction route on repo by id", libLog.Err(err))
-
-			return nil, err
+			err = pkg.ValidateBusinessError(constant.ErrTransactionRouteNotFound, constant.EntityTransactionRoute)
 		}
 
-		libOpentelemetry.HandleSpanError(span, "Failed to get transaction route", err)
+		recordQueryError(ctx, span, logger, "Failed to get transaction route", err)
 
 		return nil, err
 	}
@@ -50,9 +39,7 @@ func (uc *UseCase) GetTransactionRouteByID(ctx context.Context, organizationID, 
 	if transactionRoute != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindByEntity(ctx, constant.EntityTransactionRoute, transactionRoute.ID.String())
 		if err != nil {
-			libOpentelemetry.HandleSpanError(span, "Failed to get metadata on mongodb transaction route", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb transaction route", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb transaction route", err)
 
 			return nil, err
 		}

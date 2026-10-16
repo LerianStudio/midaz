@@ -17,11 +17,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetAllAssetRatesByAssetCode returns all asset rates by asset codes.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllAssetRatesByAssetCode returns all asset rates by asset codes.
 func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organizationID, ledgerID uuid.UUID, fromAssetCode string, filter http.QueryHeader) ([]*assetrate.AssetRate, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -33,8 +31,6 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'from' asset code", err)
 
-		logger.Log(ctx, libLog.LevelWarn, "Error validating 'from' asset code", libLog.Err(err))
-
 		return nil, libHTTP.CursorPagination{}, err
 	}
 
@@ -44,17 +40,13 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 
 			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to validate 'to' asset codes", err)
 
-			logger.Log(ctx, libLog.LevelWarn, "Error validating 'to' asset codes", libLog.Err(err))
-
 			return nil, libHTTP.CursorPagination{}, err
 		}
 	}
 
 	assetRates, cur, err := uc.AssetRateRepo.FindAllByAssetCodes(ctx, organizationID, ledgerID, fromAssetCode, filter.ToAssetCodes, filter.ToCursorPagination())
 	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get asset rate by asset codes on repository", err)
-
-		logger.Log(ctx, libLog.LevelError, "Error getting asset rate", libLog.Err(err))
+		recordQueryError(ctx, span, logger, "Failed to get asset rate by asset codes on repository", err)
 
 		return nil, libHTTP.CursorPagination{}, err
 	}
@@ -62,9 +54,7 @@ func (uc *UseCase) GetAllAssetRatesByAssetCode(ctx context.Context, organization
 	if assetRates != nil {
 		metadata, err := uc.TransactionMetadataRepo.FindList(ctx, constant.EntityAssetRate, filter)
 		if err != nil {
-			libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get metadata on mongodb asset rate", err)
-
-			logger.Log(ctx, libLog.LevelError, "Error get metadata on mongodb asset rate", libLog.Err(err))
+			recordQueryError(ctx, span, logger, "Failed to get metadata on mongodb asset rate", err)
 
 			return nil, libHTTP.CursorPagination{}, err
 		}
