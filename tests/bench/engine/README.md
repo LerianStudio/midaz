@@ -165,9 +165,9 @@ budget; the null count run has 1 min. The open loop stays count-bounded on its a
 which are not window rates. It also logs the window and counts approvals by `dbAckAt`, the host's observation after
 COMMIT returned: before stop, at or after it, and without one. Non-approvals count in none. A commit whose caller
 answered unknown is absent from these counts; only the post-run checker sees it, without a time. Late open-loop
-dispatch can also produce after-stop approvals, so that count is not only drain. No window rate is printed: a run
+dispatch can also produce after-stop approvals, so that count is not only drain. The summary prints no window rate: a run
 that ends on its count leaves the window a ceiling. First-touch page faults can still occur during the run; their
-cost is not measured. Results recorded below predate the window and this presize: their runs ended on the count.
+cost is not measured. The conservation results below predate the window and this presize: their runs ended on the count.
 
 ## SQL session
 
@@ -477,7 +477,7 @@ overrun alone need not fail the gate.
 
 ## Replication latency and SQL round trip
 
-Status: accepted preparation for the first timed cell (M3A). No timed cell uses it yet.
+Status: accepted preparation (M3A); the quick cell below uses it.
 
 `setReplLatency(env, ms)` in `toxiproxy.go` drives only `pg-repl` through the pinned Toxiproxy 2.12.0 SDK. It reads the
 proxy and refuses it unless it listens on port 5433, points at `bench-pg-primary:5432` and is enabled. It removes
@@ -524,8 +524,105 @@ caught that mutant. Outer CLI kill and SDK/server timeouts remain untested; the 
 probe failure were exercised. Process death skips test cleanup, so the next preflight must check for leftover toxics.
 The helper does not inspect `pg-client`; the stack state check reports its toxics. Final supervisor tests passed
 47 tests and 72 subtests in 103.629 s, with no failures or skips. The final cleanup saw one transient `engine.test`
-process of unknown origin; a separate recheck found none and confirmed a clean stack. No timed cell, 200k run or
-capacity result exists.
+process of unknown origin; a separate recheck found none and confirmed a clean stack. That unit ran no timed cell,
+200k run or capacity measurement.
+
+## First timed cell (quick)
+
+Status: accepted (M3B). One canonical 60 s + 20 s run passed; its result below is one closed-loop observation, not a
+capacity or sustained result. Plan Task 1.2.4 stays open.
+
+`TestBenchHotAccount` in `bench_test.go` runs the cell `BENCH_MATRIX` names. Unset, it skips, so ordinary regression
+selects it and runs nothing; `quick` runs the cell below; any other value fails as not implemented. The cell: one
+owner writer on a fresh 10k-counterpart seed, outflow without fee, 256 closed-loop producers, batch cap 256, the usual
+30 s response and 28 s admission budgets, and 1 ms downstream on `pg-repl`. A 60 s warm-up and a 20 s measured phase,
+each with its own workload label and recorder, share one process clock, one owner lease, one capture and one Close.
+
+1. Guard, rebuild, seed and record the baseline under a 60 s setup clock. Register cleanup, configure the delay,
+   probe idle and start the owner on its lifetime context. The owner's wait shares the setup clock with the delay
+   and probe, whose calls have their own bounds. Migrations ignore the context once `Up` starts.
+2. Allocate the capture for 960,000 + 320,000 calls and both recorders, then warm up. An invalid warm-up skips measurement.
+3. Read S1, run the measured phase, read S2 on the verification connection (`measure.go`). Each read is bounded at 10 s.
+4. Close once after every Submit returns, with a fresh 30 s bound. Probe, remove the delay and verify synchronous replication.
+5. Run the checker over all captured calls under a 5 min bound. The final test result, including cleanup, validates the run.
+
+The test fails, and prints no rate, on an invalid measurement:
+- a phase with a run error (a late answer included), an abort of its own bound (window + 30 s + 2 s), or admission
+  that ended on its count instead of its window;
+- a missing boundary read, or standby1 not streaming sync at S1 or S2;
+- a Close error, which also stops verification: an aborted backend may still commit.
+
+It also fails on any failed ledger, baseline or answer check, any publish, and any replay, conflict or refusal: new
+identities on funded, unblocked outflow produce none. Expired and unknown answers, and SQL approvals whose caller read
+unknown, are reported, not failed. A rate below 8k/s or a p99 above 15 ms is a measured result, not a failure. The
+window rate uses approvals with `dbAckAt` before stop over the 20 s window. A later cleanup failure invalidates a
+printed rate. Measurement starts after the warm-up join, so pipeline refill is inside the measured window.
+
+The caps are 16k attempts/s over each window, twice the target. They bound memory, not capacity: about 553 MB of
+recorders, capture and postings at full caps, before the checker, GC, SQL and slack. Reaching one invalidates the
+phase; nothing raises it or retries.
+
+The log also carries: both probes; each phase's summary; the warm-up's unknown count, an upper bound on carried-over
+attempts (zero proves none), and queue length at the join, with in-flight work unmeasured; the S1-to-S2 line; writer
+passes and deadlocks over its lifetime, warm-up included; entry-late; publishes; measured-window occupancy; stage
+timings and bounds; the checker's tally. The capture and in-process generator affect rate, CPU and GC; that effect is
+unmeasured. The pointer-bearing capture reserves about 400 MB, and its capacity affects GC even at lower volume.
+Postgres CPU and memory, cumulative lock wait, standby fsync, network RTT and in-run sampling remain unmeasured.
+Process memory is the S2 line's lifetime peak RSS on Linux; the checker's peak is not recorded.
+
+S1-to-S2 includes drain and background WAL. PG counter deltas are approximate because backends flush stats lazily;
+a reset invalidates only the affected view's deltas. `walWritten` is not per-request WAL. `flushLag@end` is one
+post-drain acknowledgement sample, not RTT. `checkpointerActivity=observed` means a wait other than idle
+`CheckpointerMain` at either read, `running` included, or a rising counter: checkpointer activity, not necessarily a
+checkpoint. `unobserved` never proves that no checkpoint overlapped.
+
+The canonical cell runs once, after review, on a clean stack: no toxics on either proxy, standby1 streaming sync and
+no foreign backends.
+
+```bash
+env BENCH_MATRIX=quick BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 960 go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestBenchHotAccount$' -timeout 15m -v
+```
+
+The run used no overlay, race, retry or tuning and passed in 325.69 s; source hashes matched before and after, and
+the stack was clean afterwards. A prior launch failed before Go ran: the planned `/usr/bin/time -v` wrapper is absent
+on the host, so it was dropped and the whole command's peak RSS is unmeasured. Settings: PG 17.11,
+`synchronous_commit=on`, `synchronous_standby_names=FIRST 1 (standby1)`, `wal_sync_method=fdatasync`,
+`full_page_writes=on`, `checkpoint_timeout=15min`, `max_wal_size=8GB`. The host was shared: 1 min load average 33.5
+before, 57.3 after.
+
+| Measure | Result |
+|---|---|
+| Answers, both phases | 148,702, all approved, no publish; the checker matched the ledger to every captured call |
+| Warm-up, excluded | 106,642 approved from 60 s of admission plus drain; 256 ACKs after stop; unknown 0 and queue 0 at the join |
+| Measured phase | 42,060 dispatched, answered and approved: 41,804 with `dbAckAt` before stop, 256 at or after it, 0 without |
+| Window rate | 41,804 / 20 s = 2,090.2 approvals/s; the 256 drain approvals are excluded |
+| Answer latency, measured | p50 119.441 ms, p99 209.937 ms, p99.9 286.555 ms, max 287.969 ms |
+| Batches taken in the window | 312 with 41,995 attempts, mean 134.6, largest 256: attempts taken, not dispatches or approvals |
+| Writer lifetime, warm-up included | 1,102 passes, 0 deadlocks, 0 entry-late; Close nil in 753.567 µs |
+| SQL round trip across the delay | median(lower) 1.140 ms before, 1.139 ms after; 1 ms configured, not network RTT |
+| S1 to S2, drain and background included | 20.059 s; write position +467,363,168 B; lazily flushed `pg_stat_wal` 482,472,321 B, 2,204,777 records, 5,687 FPI, 0 buffers full, 436 syncs in 278.119 ms |
+| Checkpointer and standby, same reads | `CheckpointWriteDelay` at both, 12,093 buffers written, 0 timed or requested: activity observed, no checkpoint proved; standby1 streaming sync at both; `flushLag@end` 2.792 ms, one sample |
+| Process, S1 to S2 | 14 GC cycles, 6,928,646,160 B heap allocated, 11.703 s user and 0.799 s system CPU; 622,472 KiB max RSS is the lifetime peak at S2 |
+| Bounds | checker 244.363 s of its 5 min; test 325.69 s under the 15 min Go timeout and the 960 s external limit |
+
+An independent SELECT-only check found the same 148,702 requests and transactions, 297,404 operations and 594,808
+PENDING outbox rows on primary and standby. Balance/control totals and operation chains matched the seed and postings.
+The in-memory request/answer payload checks remain evidence from the run; the independent read did not reproduce them.
+
+One 20 s closed-loop observation: below the 8k/s target, p99 far above the 15 ms hypothesis. That is a result, not a
+failure, and not a maximum, sustained, failover or capacity result. It is no controlled comparison with the
+conservation tables above, which ended on their count, on four counterparts, without the injected delay. Process
+figures cover the whole test process, generator, capture, writer, pgx and drain included, not the writer alone;
+nothing here attributes checker time or allocation to a cause. Each bound's margin holds for this run only.
+
+`TestRunPhase` drives the phase runner against a null writer on a controlled clock: a phase the window ended is valid,
+a count-ended or aborted one is not.
+
+Limits: the boundary query reads PG17 views only. The heap-allocation delta counts small allocations when per-P
+caches flush, so it is approximate. An abort invalidates the phase; nothing proves it hit only late work. The probe's
+minimum is logged, not asserted; the toxic's read-back is the check. Process death skips cleanup, so check toxics
+before the next run. Lazy dials and prepares fall inside the warm-up.
 
 ## How it is built
 
@@ -546,5 +643,6 @@ Environment readiness, guarded schema rebuild, deterministic seed fixtures and t
 catalog written outbox-only through the libraries. The synchronous
 standby streams through the proxy and inherits the primary's settings. Seed timing is setup cost,
 not transaction throughput. Financial correctness and unknown replay are proven only where the sections above say:
-the batch and small gates for both writers, the owner lifecycle tests and the five 200k shapes of each writer.
+the batch and small gates for both writers, the owner lifecycle tests, the five 200k shapes of each writer and the
+quick cell's 148,702 answers.
 Failover survival, a 1M owner reload and capacity remain unproven.
