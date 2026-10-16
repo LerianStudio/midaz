@@ -9,10 +9,12 @@ package engine
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/LerianStudio/lib-commons/v7/commons/errgroup"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,6 +29,12 @@ const (
 	fenceExpired = `SELECT lease_until <= clock_timestamp() FROM engine_writer_fence WHERE tenant_id = $1`
 	leaseExpired = `SELECT $1::timestamptz <= clock_timestamp()`
 	readLease    = `SELECT lease_until FROM engine_writer_fence WHERE tenant_id = $1`
+
+	holdBalances = `LOCK TABLE balance IN ACCESS EXCLUSIVE MODE`
+	holdControls = `LOCK TABLE account_control IN ACCESS EXCLUSIVE MODE`
+	// waitsOnTable is true while the session named $1 waits for a lock on table $2.
+	waitsOnTable = `SELECT EXISTS (SELECT 1 FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
+		WHERE a.application_name = $1 AND NOT l.granted AND l.relation = $2::text::regclass)`
 )
 
 // A live lease refuses every takeover. Only its owner and epoch renew it, and only while the database clock has not
@@ -193,6 +201,184 @@ func TestOwnerFenceUnknownCommit(t *testing.T) {
 
 	stored, _ = readFence(ctx, t, conn)
 	assert.Equal(t, tokY, stored)
+}
+
+// A reload pages every live balance by id and every control by its whole key, renewing between pages. Held tables
+// make its pages of 3 run past the lease it acquired with; its final renewal still succeeds.
+func TestOwnerReloadPages(t *testing.T) {
+	noLeaks(t)
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+
+	conn := newFenceFixture(ctx, t, env)
+	addOtherLedger(ctx, t, conn)
+
+	// PostgreSQL renders the expected rows, not the scanners under test. Pages: balances 3, 3, 3, 0; controls 3, 3, 2.
+	wantBalances := readRows(ctx, t, conn, `SELECT id::text, concat_ws(' ', account_id, alias, key, asset_code, account_type,
+		allow_sending::text, allow_receiving::text, available, on_hold, version, overdraft_used) FROM balance WHERE deleted_at IS NULL`)
+	wantControls := readRows(ctx, t, conn, `SELECT concat_ws(' ', organization_id, ledger_id, account_id),
+		concat_ws(' ', blocked::text, limit_remaining, version) FROM account_control`)
+	require.Len(t, wantBalances, 9)
+	require.Len(t, wantControls, 8)
+
+	const app, lease = "bench-reload-pages", 3 * time.Second
+
+	s := namedSession(t, env, app, nil)
+	balanceLock, controlLock := holdLock(ctx, t, env, holdBalances), holdLock(ctx, t, env, holdControls)
+
+	tok, err := acquireFence(ctx, s, "owner-a", lease)
+	require.NoError(t, err)
+
+	_, acquired := readFence(ctx, t, conn)
+
+	everyPage := make(chan time.Time)
+	close(everyPage)
+
+	run := startReload(ctx, t, s, tok, lease, everyPage, 3)
+
+	awaitPrimary(ctx, t, conn, "the reload waits on balance", waitsOnTable, app, "balance")
+	awaitPrimary(ctx, t, conn, "half the acquired lease passed", leaseExpired, acquired.Add(-lease/2))
+	require.NoError(t, balanceLock.Rollback(ctx))
+
+	awaitPrimary(ctx, t, conn, "the reload waits on account_control", waitsOnTable, app, "account_control")
+	awaitPrimary(ctx, t, conn, "the acquired lease expired", leaseExpired, acquired)
+	require.NoError(t, controlLock.Rollback(ctx))
+
+	require.NoError(t, run.wait(t))
+
+	gotBalances, gotControls := map[string]string{}, map[string]string{}
+	for id, b := range run.balances {
+		gotBalances[id.String()] = fmt.Sprintf("%s %s %s %s %s %t %t %s %s %d %s", b.accountID, b.alias, b.key, b.asset,
+			b.accountType, b.allowSending, b.allowReceiving, b.Available, b.OnHold, b.Version, b.OverdraftUsed)
+	}
+
+	for k, c := range run.controls {
+		gotControls[fmt.Sprintf("%s %s %s", k.org, k.ledger, k.account)] = fmt.Sprintf("%t %s %d", c.blocked, c.limit, c.version)
+	}
+
+	assert.Equal(t, wantBalances, gotBalances)
+	assert.Equal(t, wantControls, gotControls)
+}
+
+// The renewal after the last page decides the reload: a successor that takes over while that page waits refuses it,
+// and the reload returns neither map.
+func TestOwnerReloadExpiredPage(t *testing.T) {
+	noLeaks(t)
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+
+	conn := newFenceFixture(ctx, t, env)
+
+	const app = "bench-reload-expired"
+
+	a, b := namedSession(t, env, app, nil), openTestSession(t, env.primary)
+	controlLock := holdLock(ctx, t, env, holdControls)
+
+	tokA, err := acquireFence(ctx, a, "owner-a", shortLease)
+	require.NoError(t, err)
+
+	run := startReload(ctx, t, a, tokA, shortLease, nil, 50_000)
+
+	awaitBackend(ctx, t, conn, app, "Lock")
+	awaitPrimary(ctx, t, conn, "owner-a's lease expires while its last page waits", fenceExpired, benchTenantID)
+
+	tokB, err := acquireFence(ctx, b, "owner-b", longLease)
+	require.NoError(t, err)
+	require.NoError(t, controlLock.Rollback(ctx))
+
+	require.ErrorContains(t, run.wait(t), renewRefused)
+	assert.Nil(t, run.balances)
+	assert.Nil(t, run.controls)
+
+	held, _ := readFence(ctx, t, conn)
+	assert.Equal(t, tokB, held, "the successor keeps the fence")
+}
+
+// Cancelling the control read discards the balances already read and returns neither map.
+func TestOwnerReloadCancelled(t *testing.T) {
+	noLeaks(t)
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+
+	conn := newFenceFixture(ctx, t, env)
+
+	const app = "bench-reload-cancelled"
+
+	s := namedSession(t, env, app, nil)
+	controlLock := holdLock(ctx, t, env, holdControls)
+
+	tok, err := acquireFence(ctx, s, "owner-a", longLease)
+	require.NoError(t, err)
+
+	reloadCtx, stop := context.WithCancel(ctx)
+	run := startReload(reloadCtx, t, s, tok, longLease, nil, 50_000)
+
+	awaitPrimary(ctx, t, conn, "the reload waits on account_control", waitsOnTable, app, "account_control")
+	stop()
+
+	require.ErrorIs(t, run.wait(t), context.Canceled)
+	assert.Nil(t, run.balances)
+	assert.Nil(t, run.controls)
+	require.NoError(t, controlLock.Rollback(ctx))
+}
+
+// addOtherLedger adds a second organization and ledger with one account: a live balance, a soft-deleted one on the
+// same key and a control, each value distinct. The org sorts after the seeded one and the account before every
+// seeded account, so a control cursor on account alone, or on each column apart, loses that control.
+func addOtherLedger(ctx context.Context, t *testing.T, conn *pgx.Conn) {
+	t.Helper()
+
+	org, ledger := uuid.MustParse("ffffffff-ffff-4fff-bfff-ffffffffffff"), uuid.NewSHA1(benchNS, []byte("reload/ledger"))
+	account := uuid.MustParse("00000000-0000-4000-8000-000000000001")
+
+	_, err := conn.Exec(ctx, `INSERT INTO balance (id, organization_id, ledger_id, account_id, alias, asset_code, available,
+		on_hold, version, account_type, allow_sending, allow_receiving, created_at, updated_at, deleted_at, key, overdraft_used)
+		VALUES ($1, $3, $4, $5, '@reload_other', 'USD', 98765432109876543210.123456789, 7.25, 5, 'external', false, true, $6, $6, NULL, 'reload', 3.5),
+		($2, $3, $4, $5, '@reload_other', 'USD', 1, 0, 1, 'external', true, false, $6, $6, $6, 'reload', 0)`,
+		uuid.NewSHA1(benchNS, []byte("reload/balance/live")), uuid.NewSHA1(benchNS, []byte("reload/balance/deleted")),
+		org, ledger, account, benchSeedTime)
+	require.NoError(t, err)
+
+	_, err = conn.Exec(ctx, `INSERT INTO account_control VALUES ($1, $2, $3, true, 123456789.987654321, 9)`, org, ledger, account)
+	require.NoError(t, err)
+}
+
+// reloadRun is one reload on its own recovered goroutine. A test that fails first has cancelled ctx by the time its
+// cleanup joins the run.
+type reloadRun struct {
+	g        errgroup.Group
+	balances map[uuid.UUID]lockedBalance
+	controls map[controlKey]lockedControl
+	err      error
+}
+
+func startReload(ctx context.Context, t *testing.T, s *sqlSession, tok ownerToken, lease time.Duration,
+	ticks <-chan time.Time, pageSize int,
+) *reloadRun {
+	t.Helper()
+
+	r := &reloadRun{}
+	r.g.Go(func() error {
+		r.balances, r.controls, r.err = reload(ctx, s, tok, lease, ticks, pageSize)
+
+		return nil
+	})
+	t.Cleanup(func() { assert.NoError(t, r.g.Wait()) })
+
+	return r
+}
+
+func (r *reloadRun) wait(t *testing.T) error {
+	t.Helper()
+	require.NoError(t, r.g.Wait())
+
+	return r.err
 }
 
 // newFenceFixture rebuilds and seeds the guarded stack, whose fence starts expired at epoch 0, and returns the

@@ -12,6 +12,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // The database clock alone decides the fence: a takeover needs a lease it has passed, a renewal its own owner and
@@ -25,11 +27,23 @@ const (
 		WHERE tenant_id = $1 AND owner_id = $2 AND epoch = $3 AND lease_until > clock_timestamp()`
 )
 
+// Keyset pages: each page starts strictly after the last key read, in that key's order; the zero key starts.
+const (
+	reloadBalancesSQL = `SELECT ` + lockedBalanceColumns + ` FROM balance WHERE id > $1 AND deleted_at IS NULL ORDER BY id LIMIT $2`
+
+	reloadControlsSQL = `SELECT ` + lockedControlColumns + ` FROM account_control
+		WHERE (organization_id, ledger_id, account_id) > ($1::uuid, $2::uuid, $3::uuid)
+		ORDER BY organization_id, ledger_id, account_id LIMIT $4`
+)
+
 // ownerToken is one ownership of the bench tenant's fence; every takeover increments the epoch.
 type ownerToken struct {
 	owner string
 	epoch int64
 }
+
+// controlKey is account_control's primary key.
+type controlKey struct{ org, ledger, account uuid.UUID }
 
 // acquireFence takes over the fence in a transaction of its own and returns a token only after a clean COMMIT; any
 // error returns the zero token. A live lease returns sql.ErrNoRows. Only a COMMIT error can leave the takeover
@@ -56,6 +70,69 @@ func renewFence(ctx context.Context, sess *sqlSession, tok ownerToken, lease tim
 // wait included, so a takeover waiting on that row rechecks the renewal once tx ends.
 func renewFenceTx(ctx context.Context, tx *sql.Tx, tok ownerToken, lease time.Duration) error {
 	return execExact(ctx, tx, "renew fence", renewFenceSQL, 1, benchTenantID, tok.owner, tok.epoch, lease)
+}
+
+// reload reads every live balance, then every control, in pages of autocommit statements on sess, renewing tok
+// before a page when a tick is pending. The renewal after the last page is unconditional: only its success, which
+// proves no takeover since acquisition, returns the maps. Any error returns neither.
+func reload(ctx context.Context, sess *sqlSession, tok ownerToken, lease time.Duration, ticks <-chan time.Time,
+	pageSize int,
+) (map[uuid.UUID]lockedBalance, map[controlKey]lockedControl, error) {
+	renewOnTick := func() error {
+		select {
+		case <-ticks:
+			return renewFence(ctx, sess, tok, lease)
+		default:
+			return nil
+		}
+	}
+
+	balances, controls := map[uuid.UUID]lockedBalance{}, map[controlKey]lockedControl{}
+
+	var lastID uuid.UUID
+
+	for n := pageSize; n == pageSize; {
+		if err := renewOnTick(); err != nil {
+			return nil, nil, fmt.Errorf("reload: %w", err)
+		}
+
+		n = 0
+
+		if err := queryRows(ctx, sess.db, "reload balances", reloadBalancesSQL, []any{lastID, pageSize}, func(rows *sql.Rows) error {
+			id, b, err := scanBalance(rows)
+			balances[id], lastID, n = b, id, n+1
+
+			return err
+		}); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	var lastKey controlKey
+
+	for n := pageSize; n == pageSize; {
+		if err := renewOnTick(); err != nil {
+			return nil, nil, fmt.Errorf("reload: %w", err)
+		}
+
+		n = 0
+
+		if err := queryRows(ctx, sess.db, "reload controls", reloadControlsSQL, []any{lastKey.org, lastKey.ledger, lastKey.account, pageSize},
+			func(rows *sql.Rows) error {
+				k, c, err := scanControl(rows)
+				controls[k], lastKey, n = c, k, n+1
+
+				return err
+			}); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	if err := renewFence(ctx, sess, tok, lease); err != nil {
+		return nil, nil, fmt.Errorf("reload: %w", err)
+	}
+
+	return balances, controls, nil
 }
 
 // inOwnTx runs write in a transaction of its own; nil only when sess.commit found the COMMIT clean.

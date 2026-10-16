@@ -39,11 +39,15 @@ const (
 		WHERE r.tenant_id = $1 AND r.request_id = l.request_id
 		RETURNING r.request_id, r.payload_fingerprint, r.outcome, r.reason, r.transaction_id`
 
-	lockBalancesSQL = `SELECT id, account_id, alias, key, asset_code, account_type, allow_sending, allow_receiving,
-		available, on_hold, version, overdraft_used
+	// The columns scanBalance and scanControl read, in their order.
+	lockedBalanceColumns = `id, account_id, alias, key, asset_code, account_type, allow_sending, allow_receiving,
+		available, on_hold, version, overdraft_used`
+	lockedControlColumns = `organization_id, ledger_id, account_id, blocked, limit_remaining, version`
+
+	lockBalancesSQL = `SELECT ` + lockedBalanceColumns + `
 		FROM balance WHERE id = ANY($1::uuid[]) AND deleted_at IS NULL ORDER BY id FOR UPDATE`
 
-	lockControlsSQL = `SELECT account_id, blocked, limit_remaining, version FROM account_control
+	lockControlsSQL = `SELECT ` + lockedControlColumns + ` FROM account_control
 		WHERE organization_id = $1 AND ledger_id = $2 AND account_id = ANY($3::uuid[])
 		ORDER BY organization_id, ledger_id, account_id FOR UPDATE`
 
@@ -144,13 +148,7 @@ func lockRows(ctx context.Context, tx *sql.Tx, postings []posting) (*lockedRows,
 	balances := map[uuid.UUID]lockedBalance{}
 
 	err := queryRows(ctx, tx, "lock balances", lockBalancesSQL, []any{sortedDistinct(ids)}, func(rows *sql.Rows) error {
-		var (
-			id uuid.UUID
-			b  lockedBalance
-		)
-
-		err := rows.Scan(&id, &b.accountID, &b.alias, &b.key, &b.asset, &b.accountType, &b.allowSending, &b.allowReceiving,
-			&b.Available, &b.OnHold, &b.Version, &b.OverdraftUsed)
+		id, b, err := scanBalance(rows)
 		balances[id] = b
 
 		return err
@@ -176,13 +174,8 @@ func lockRows(ctx context.Context, tx *sql.Tx, postings []posting) (*lockedRows,
 	controls := make(map[uuid.UUID]lockedControl, len(accounts))
 
 	err = queryRows(ctx, tx, "lock controls", lockControlsSQL, []any{benchOrgID, benchLedgerID, accounts}, func(rows *sql.Rows) error {
-		var (
-			id uuid.UUID
-			c  lockedControl
-		)
-
-		err := rows.Scan(&id, &c.blocked, &c.limit, &c.version)
-		controls[id] = c
+		k, c, err := scanControl(rows)
+		controls[k.account] = c
 
 		return err
 	})
@@ -191,6 +184,29 @@ func lockRows(ctx context.Context, tx *sql.Tx, postings []posting) (*lockedRows,
 	}
 
 	return &lockedRows{read: balances, decided: maps.Clone(balances), readCtl: controls, decidedCtl: maps.Clone(controls)}, err
+}
+
+func scanBalance(rows *sql.Rows) (uuid.UUID, lockedBalance, error) {
+	var (
+		id uuid.UUID
+		b  lockedBalance
+	)
+
+	err := rows.Scan(&id, &b.accountID, &b.alias, &b.key, &b.asset, &b.accountType, &b.allowSending, &b.allowReceiving,
+		&b.Available, &b.OnHold, &b.Version, &b.OverdraftUsed)
+
+	return id, b, err
+}
+
+func scanControl(rows *sql.Rows) (controlKey, lockedControl, error) {
+	var (
+		k controlKey
+		c lockedControl
+	)
+
+	err := rows.Scan(&k.org, &k.ledger, &k.account, &c.blocked, &c.limit, &c.version)
+
+	return k, c, err
 }
 
 // persist writes a pass's approvals: transactions before their operations, balances and controls at the versions
@@ -333,9 +349,14 @@ func column[R, V any](records []R, f func(R) V) []V {
 	return out
 }
 
-// queryRows runs query in tx and hands each row to scan.
-func queryRows(ctx context.Context, tx *sql.Tx, what, query string, args []any, scan func(*sql.Rows) error) (err error) {
-	rows, err := tx.QueryContext(ctx, query, args...)
+// querier is what queryRows needs from a *sql.Tx or a session's *sql.DB.
+type querier interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+}
+
+// queryRows runs query on q and hands each row to scan.
+func queryRows(ctx context.Context, q querier, what, query string, args []any, scan func(*sql.Rows) error) (err error) {
+	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("%s: %w", what, err)
 	}

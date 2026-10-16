@@ -303,7 +303,8 @@ regression and race commands so they do not select volume. No matrix, full-queue
 
 ## Owner fence primitives
 
-`writer_owner.go` provides only acquisition and renewal of the bench tenant's SQL fence. It is not yet an owner writer.
+`writer_owner.go` provides acquisition and renewal of the bench tenant's SQL fence and the paged reload below. It is
+not yet an owner writer.
 Acquisition increments the epoch only after the previous lease expires. Renewal requires the current owner, epoch
 and a live lease. Both use `clock_timestamp()`, including after a lock wait, and the shared COMMIT notice classifier.
 An error returns no usable acquisition token; a COMMIT error may coexist with a locally committed fence.
@@ -322,8 +323,37 @@ on the renewing backend alone. Mutants removing expiry, epoch or notice classifi
 or replacing renewal with a lock-only statement fail. Owner-only and tenant-only predicate mutants survive by
 construction in this single-tenant fixture; no fabricated tokens were added to make them fail.
 
-Limits: no renewal loop, paged reload, cache, owner queue integration, financial owner run or failover proof yet.
-The ownerless baseline is unchanged apart from shared test-session setup and removal of redundant test cleanup.
+Limits: no renewal loop, cache, owner queue integration, financial owner run or failover proof yet.
+The ownerless financial behavior is unchanged. Its control scan now also reads organization and ledger IDs for the
+shared scanner. The earlier throughput observations predate that change; this unit does not re-measure them.
+
+## Owner paged reload
+
+`reload` reads every live balance by `id`, then every control by `(organization_id, ledger_id, account_id)`, in keyset
+pages of autocommit statements on the owner's session. A pending tick renews the fence before a page; one renewal after
+the last page always runs, and only its success returns the maps. A read, cancellation or renewal error returns
+neither map. The final renewal proves no takeover since acquisition, not a live lease after return. Consistent maps
+also require excluding writers that ignore the fence. The lock path and reload share column lists and scanners.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 660 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestOwnerReload' -timeout 10m -v
+```
+
+The paging test uses pages of 3 over the seed plus a second organization and ledger, a live balance, a soft-deleted
+balance on the same key and a control: 9 live balances in pages 3/3/3/0 and 8 controls in 3/3/2. It compares keys and
+values rendered independently by PostgreSQL. Table locks stretch the reload beyond its initial lease; tick renewals
+preserve ownership. Each release leaves about 1.5 s until the next renewal must run, so host load can exhaust that margin.
+
+Two other tests use 50,000-row pages over the small seed. A successor taking over during the last page makes the final
+renewal refuse. Cancelling the control read returns `context.Canceled` and discards the balances already read. Both
+failures return nil maps. Scratch mutants proved the final-renewal, pagination, soft-delete and partial-return checks.
+Removing both tick renewals fails; removing just one loop's renewal survives this short fixture. Other survivors
+include partial returns on tick errors and cursor variants the fixture does not distinguish. The code keeps strict
+cursors, matching ORDER BY and nil maps on every error; mutant survival is a coverage limit, not proof of equivalence.
+
+Limits: no ticker, cache, queue integration, owner financial run, 1M reload or failover. Concurrent administrative
+writers are not excluded by the fence and stay out of the bench until Epic 3.2.
 
 ## How it is built
 
