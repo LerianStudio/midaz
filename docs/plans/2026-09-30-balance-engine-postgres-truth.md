@@ -15,7 +15,7 @@
 
 **Execução:** worktree única `/srv/worktrees/balance-engine`, branch única `feature/balance-engine`. Nenhuma outra branch ou PR sem pedido do Fred. Subagents `claude-opus-5-5[1m]`, com revisão independente e contrarian. Uma lane escreve por vez; pesquisa e revisão read-only rodam em paralelo. A sessão coordenadora integra, verifica, faz commits assinados e pushes com `X-Lerian-Ref: 0x1`.
 
-**Lanes atuais:** Epic 1.1 Done; Epic 1.2 Doing. Gerador/métricas (1.2.1) e suporte de sessão SQL concluídos. Testes reais classificam como `unknown` o timeout e o COMMIT com warning de espera síncrona cancelada, inclusive com configuração que suprime warnings. As obrigações agora usam IDs, versões e saldos dos lançamentos decididos, sem reconstruir o estado inicial. Próximo: persistência comum e ownerless antes de owner. Essa ordem prova o SQL antes de acrescentar cache/lease; não escolhe a arquitetura. Nenhum escritor financeiro implementado; nenhuma medição de TPS ou prova de failover financeiro.
+**Lanes atuais:** Epic 1.1 Done; Epic 1.2 Doing. Gerador/métricas, sessão SQL, obrigações compartilhadas e primeiro batch financeiro direto concluídos. A bancada grava decisões, dinheiro, trilha e outbox no mesmo commit; replay espera uma nova barreira WAL sem movimentar outra vez. Provas locais cobrem cutoff, rollback integral, COMMIT incerto, oito sessões concorrentes e deadlock. Próximo: fila e 32 workers ownerless, depois gates de volume e owner com cache/lease. Essa ordem não escolhe a arquitetura. Nenhuma medição de TPS, prova de failover financeiro ou mudança de produto.
 
 **Fontes:** alfarrábio `https://alfarrabio.lerian.net/reports/fred/midaz-motor-de-saldo`; `docs/architecture/engine.md`; reunião "Direcionamento Midaz" de 2026-10-14. Direção aprovada: intenção/recusa visíveis, corte antecipado inclusive sem gateway, autorizador por lote independente do transporte, nenhuma infraestrutura nova obrigatória, Redpanda dedicado quando usado, Tracer como módulo, alias por id, telemetria enxuta, estudo de leitura e desenho/migração de particionamento com prova de compatibilidade. As definições pendentes não são decisões aprovadas.
 
@@ -328,13 +328,27 @@ Confirmação publica memória e resposta. Erro/notice de replicação incerta m
 
 **Context:** baseline sem cache/lease; row locks de saldo não substituem exclusão de identidades.
 
+**Primeiro incremento:** um batch SQL diretamente chamável, sem fila ou `Submit`, já implementa o protocolo completo de identidade, admissão e confirmação. Uma lane escreve o núcleo e os testes atômicos; outra, sequencial, acrescenta provas de espera real, cutoff, COMMIT incerto e concorrência. Review e contrarian verificam a união antes do commit. Só depois entram 32 workers, `Submit`/`Close` e os cinco runs de 200k; esse incremento não conclui a Task 1.2.3.
+
+**Primeiro incremento concluído (2026-10-16):** seis testes de batch passaram contra PostgreSQL real. O lote misto grava cinco aprovações, três recusas e uma expiração; cópias fazem replay ou conflito sem nova movimentação. O teste de oito sessões decide 24 identidades uma vez: dez aprovações esgotam o limite 100; 14 recusas e 80 replays preservam dinheiro e versões. A barreira do replay entra em SyncRep com a réplica ainda pausada; só responde após retomar a réplica. O cutoff pre-COMMIT desfaz inclusive o crédito que financiava outro débito. Um deadlock real produz uma recomputação, somente antes de COMMIT.
+
+**Verificação supervisora:** três runs de batch/outbox com `-race -shuffle=on` passaram; suite integrada completa: 21 testes e 26 subtests, zero skips, 41,604 s sem overhead de race. Vet, format e lint v2.14.0 passaram. Standby retomado, zero SyncRep e zero sessões remanescentes. Mutants produziram falhas comportamentais ao remover os cortes, permitir retry após COMMIT, retirar o touch WAL ou usar o maior deadline. Review e contrarian não deixaram Critical/High nem Medium alcançável; guard de tamanho e setup duplicado foram removidos.
+
+**Limites do incremento:** o menor deadline futuro pode produzir `unknown` para todo o lote sob backlog; custo ainda não medido. Replay-only ainda executa duas queries de lock com arrays vazios. Flags de envio/recebimento e recusa cruzando cutoff ficam nos gates de proteção/admissão já previstos. Oito sessões comprovam a execução testada, não ausência universal de deadlocks. `Submit`/`Close`, 32 workers, cinco runs de 200k, owner/cache/fence, failover e TPS continuam pendentes.
+
+**Decisões do incremento:** usar `decimal.Decimal` para ler saldo/limite sem cast que arredonde; construir `benchOperation` uma vez para SQL e eventos; preservar o outbox representativo de tarifas. A identidade existente impõe seu fingerprint a cada cópia recebida; a primeira cópia fixa somente identidades novas. Finalizar claims mesmo quando todas as decisões forem recusadas ou expiradas. Claim SQL usa `ORDER BY` explícito. Pedidos já vencidos após resolver identidades não travam saldos. O corte pre-COMMIT de qualquer nova aprovação/recusa invalida o lote completo e recompõe dependências. `40P01` admite uma repetição só antes de invocar COMMIT; qualquer erro/notice depois disso retorna `unknown` sem nova execução.
+
+**Orçamento do incremento:** contexto de vida do writer/teste, limitado a 10 s por execução completa. Cada passagem respeita também o menor deadline de resposta ainda futuro. Deadline já decorrido não impede resolução/expiração, mas nunca renova admissão. Retry copia o pedido e altera apenas o deadline de resposta. `Submit` vai limitar a espera do caller separadamente, sem transformar cancelamento em prova de rollback. Sem novo contrato público.
+
 **Implementation vision:** `writer_ownerless.go` usa 32 writers, mesma drenagem/batch. Abrir SQL, reclamar identidades em ordem canônica, resolver replay, travar saldos ordenados por balance.id e controles pela chave composta. Revalidar admissão, decidir na ordem original sobre cópia das linhas e persistir o mesmo SQL/outbox. Replay isolado também escreve touch WAL.
 
 Ordem uniforme: offset de transporte, fence se houver, identidades, saldos, controles. `40P01` aborta tudo e permite uma recomputação limitada das mesmas identidades ainda admissíveis; nunca retry financeiro de resultado incerto. Corte pre-COMMIT ou conflito tardio invalida o lote inteiro. Depois de enviar COMMIT, timeout não prova rollback.
 
 **Files:**
-- Create: `tests/bench/engine/writer_ownerless.go`
-- Test: `tests/bench/engine/writer_ownerless_test.go`
+- Create: `tests/bench/engine/batch.go`, `tests/bench/engine/batch_sql.go`, `tests/bench/engine/writer_ownerless.go`
+- Test: `tests/bench/engine/batch_test.go`, `tests/bench/engine/writer_ownerless_test.go`
+
+**Verification do primeiro incremento:** `go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestBatch' -timeout 15m -v`, com a stack descartável verificada. Conferir rows e versões por decisão, controle compartilhado, replay/conflict com touch WAL, finalização sem dinheiro, dependência de crédito descartada no rollback e recuperação de resposta após COMMIT incerto sem nova movimentação. Depois rodar a suite integrada em ordem variável, vet e lint pinado. Testes de volume continuam abaixo.
 
 **Verification:** `go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestOwnerlessWriterConservation|TestOwnerlessWriterIdentity|TestOwnerlessWriterMultiKey|TestOwnerlessWriterProtection|TestOwnerlessWriterAdmission' -timeout 30m -v`. Mesmas cinco rodadas, volume e asserções da Task 1.2.2; registrar deadlocks/retries.
 

@@ -145,8 +145,9 @@ sizes. Trace-carrier and multi-tenant variants, relay and Kafka/CloudEvents reco
 ## Workload and metrics
 
 `writer.go`, `workload.go` and `metrics.go` hold the request contract, the deterministic workload, the open and
-closed loops and the recorder. No financial writer exists yet: the tests drive a null writer with simulated
-approvals. Open-loop rates report the offered rate sustained with the logged dispatch lag, never financial TPS.
+closed loops and the recorder. The generator tests drive a null writer with simulated approvals; they do not yet
+feed the direct SQL batch below. Open-loop rates report the offered rate sustained with the logged dispatch lag,
+never financial TPS.
 
 ```bash
 go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestWorkloadKeysUnique|TestOpenLoopSchedule|TestPercentiles|TestWorkloadNullWriter' -timeout 5m -v
@@ -172,6 +173,33 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
 Limits: a row visible on the primary is a local commit, never a replicated one. A run killed before cleanup can
 leave standby replay paused: `remote_apply` commits then wait and standby reads go stale, while ordinary
 `synchronous_commit=on` commits still succeed. Resume with `SELECT pg_wal_replay_resume()` on the bench standby only.
+
+## Direct financial batch
+
+`batch.go` and `batch_sql.go` run one batch on one SQL session. Each pass claims request identities, touches stored
+outcomes to write WAL, locks balances and shared account controls, then commits decisions, transactions, operations,
+balances, controls and outbox rows together. Postings use decimal balance arithmetic; a refusal discards every leg
+of that request. Replays do not move money. A new decision crossing its admission cutoff before COMMIT rolls back
+the whole pass, including decisions funded by that pass, and recomputes from fresh rows.
+
+Each run has a 10 s cap; a pass also uses the earliest future response deadline in the batch. A pre-COMMIT deadlock
+allows one retry. Any error or notice after invoking COMMIT makes every answer unknown, without retrying money.
+The caller sets the batch size; the upcoming worker drain will enforce the experimental cap of 256.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 960 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestBatch' -timeout 15m -v
+```
+
+The live tests rebuild the guarded schema. They cover mixed decisions and copies, expiry before and after a real
+money-lock wait, the earliest response deadline, whole-pass rollback, a cancelled SyncRep wait and the replay's own
+WAL barrier, eight concurrent sessions exhausting one shared limit, and a real deadlock with one retry. The replay
+test keeps standby replay paused until the retry itself waits in SyncRep, then resumes it before checking the result.
+
+Limits: no Submit/Close queue, 32-worker run, owner cache/fence, failover or throughput measurement. The earliest
+future deadline can turn a whole backlog batch unknown; that cost remains unmeasured. Sending/receiving flags and
+a refusal crossing its cutoff remain for the planned protection/admission gates. Two empty-array lock queries still
+run on replay-only batches. Eight concurrent sessions prove that interleaving, not freedom from all deadlocks.
 
 ## How it is built
 

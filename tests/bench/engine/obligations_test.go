@@ -271,16 +271,10 @@ func (*refusingBroker) Close(context.Context) error { return nil }
 
 func (*refusingBroker) Classify(error) libStreaming.ErrorClass { return libStreaming.ClassValidation }
 
-// One fee request's eight obligations commit in one transaction: events through the lib-streaming producer,
-// private rows through the lib-commons repository. A rolled-back request leaves no row; no broker is called.
-func TestOutboxOnlyEmitBatch(t *testing.T) {
-	env := requireDB(t)
-
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
-	defer cancel()
-
-	// The guarded rebuild empties the outbox and drops any seeded balances; these rows need no seed.
-	require.NoError(t, bootstrapSchema(ctx, env))
+// newTestOutbox builds the ledger's producer over the lib-commons repository on a pool the client owns, the refusing
+// broker its only transport, and lends that pool for transactions. Cleanup closes the producer, then client and pool.
+func newTestOutbox(ctx context.Context, t *testing.T, env *benchEnv) (*sql.DB, libStreaming.TransactionalBatchEmitter, *outboxpg.Repository, *refusingBroker) {
+	t.Helper()
 
 	db := stdlib.OpenDB(*env.primary)
 
@@ -302,7 +296,23 @@ func TestOutboxOnlyEmitBatch(t *testing.T) {
 
 	emitter, err := newOutboxProducer(ctx, repo, broker)
 	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, emitter.Close()) }) // idempotent after the explicit Close below
+	t.Cleanup(func() { assert.NoError(t, emitter.Close()) }) // idempotent after a test's own Close
+
+	return db, emitter, repo, broker
+}
+
+// One fee request's eight obligations commit in one transaction: events through the lib-streaming producer,
+// private rows through the lib-commons repository. A rolled-back request leaves no row; no broker is called.
+func TestOutboxOnlyEmitBatch(t *testing.T) {
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+
+	// The guarded rebuild empties the outbox and drops any seeded balances; these rows need no seed.
+	require.NoError(t, bootstrapSchema(ctx, env))
+
+	db, emitter, repo, broker := newTestOutbox(ctx, t, env)
 
 	in, err := decodeCreateV2Body()
 	require.NoError(t, err)
