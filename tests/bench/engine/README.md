@@ -199,9 +199,9 @@ test keeps standby replay paused until the retry itself waits in SyncRep, then r
 
 The ledger checker counts each owed outbox obligation by identity and compared fields. It rejects missing, duplicate
 and miscorrelated rows independently, in linear time over the committed operations and outbox. It still holds maps
-proportional to those rows; its volume memory cost is not measured yet.
+proportional to those rows; the first outflow pilot measured whole-process memory below, not isolated checker memory.
 
-Limits: no owner cache/fence, failover or throughput measurement. The earliest future deadline can turn a whole
+Limits: no owner cache/fence, failover or capacity measurement. The earliest future deadline can turn a whole
 backlog batch unknown; that cost remains unmeasured. Two empty-array lock queries still run on replay-only batches.
 Eight concurrent sessions prove that interleaving, not freedom from all deadlocks.
 
@@ -224,8 +224,8 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
 Six live tests cover 32 named backends waiting concurrently, cap-8 drain of nine queued attempts, reply correlation,
 error isolation during Close, caller cancellation and remaining budget, forced Close, expired entry and known replay.
 Checks run after drain and owned-resource cleanup; goleak checks for remaining goroutines. The tests do not exercise
-a full 8,192-attempt queue, 32 workers with cap 256 under load, or the five 200k-request correctness runs. Those volume
-and backlog gates remain pending; 32 concurrent backends alone prove no throughput target.
+a full 8,192-attempt queue or the five 200k-request correctness runs. The first conservation pilot below exercises
+32 workers with cap 256; backlog and the remaining shapes still need proof.
 
 ## Ownerless correctness gates
 
@@ -247,9 +247,34 @@ Expected transaction IDs come from captured requests, including when the caller 
 prove rollback. `sql-approved/caller-unknown` counts SQL approvals without a new approved answer; a later replay
 does not remove that count. The existing exact outbox checker runs once, with no per-row SQL.
 
-Limits: these are small correctness fixtures, not the five 200k runs or a capacity result. Volume must use the
-workload's real process clock, a separate 30 s Close context, and a fresh baseline after each reset, before any request.
-The verifier's cost at 200k remains unmeasured.
+These small gates do not establish volume or capacity. The conservation test below uses the workload's process clock,
+a separate Close budget and a new baseline after each reset, before any request.
+
+## Ownerless conservation
+
+`TestOwnerlessWriterConservation` has five reset rounds: outflow, inflow, mixed, outflow_fee and mixed_fee.
+Each uses 200,000 requests, 256 closed-loop producers, 32 workers, cap 256 and four ordinary counterparts.
+The callers have a 5 min work budget; the writer stays alive for a separate 30 s Close after all callers return.
+A Close error stops verification. Otherwise the baseline, ledger, answers and outbox are checked once, even if the
+work budget expired. Every request must approve; unknown, replay, refusal, expiry, late entry or an error fails the run.
+
+Run the single outflow pilot without race:
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 600 go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestOwnerlessWriterConservation$/^outflow$' -timeout 9m30s -v
+```
+
+The first pilot approved all 200,000 requests with no other outcome or error. Run: 195.791 s; checker: 22.104 s;
+test: 218.38 s. The observed local rate was 1,021 durable approvals/s and answer p99 was 609.664 ms. This is below
+the target, not a maximum-capacity or sustained result. The 35,584 batches averaged 5.62 requests, not the cap of 256.
+Peak RSS was 909,460 KiB among the test binary and its reaped children, excluding Postgres; it is not a heap metric.
+Lazy connection dials and prepares remained inside the first batches. The other shapes have not run yet.
+
+After pilot acceptance, run all five shapes and the small gates with `-failfast -timeout 30m` and an external
+`timeout 1860`. A failed shape stops the expansion; do not raise budgets or reduce N. Add
+`-skip '^TestOwnerlessWriterConservation$'` to ordinary regression and race commands so they do not select volume.
+No matrix, full-queue, owner or failover result is implied.
 
 ## How it is built
 

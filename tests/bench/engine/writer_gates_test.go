@@ -204,6 +204,74 @@ func TestOwnerlessWriterAdmission(t *testing.T) {
 	}
 }
 
+// Each shape is one reset round of 200k closed-loop requests on the process clock: every one approves, and the ledger,
+// baseline, outbox and each answer reconcile after a drained Close. The writer lives on the test context; callers get
+// 5 min and Close a fresh 30 s. Volume runs without race.
+func TestOwnerlessWriterConservation(t *testing.T) {
+	const n, producers = 200_000, 256
+
+	for _, round := range []struct {
+		name string
+		mix  mix
+		fee  bool
+	}{
+		{"outflow", mixOutflow, false},
+		{"inflow", mixInflow, false},
+		{"mixed", mixMixed, false},
+		{"outflow_fee", mixOutflow, true},
+		{"mixed_fee", mixMixed, true},
+	} {
+		t.Run(round.name, func(t *testing.T) {
+			noLeaks(t)
+
+			env, ctx := requireDB(t), t.Context()
+			wl := newTestWorkload(t, "conservation/"+round.name, round.mix, round.fee, 4)
+
+			setupAt := wl.now()
+			b, conn, broker := newTestBatcher(ctx, t, env, wl.now)
+			snapshotBaseline(ctx, t, conn)
+
+			inner := newTestOwnerless(ctx, t, env, b, "bench-conserve", gateWorkers, gateMaxBatch)
+			w, rec := captureCalls(inner, n), newRecorder()
+
+			work, stopWork := context.WithTimeout(ctx, 5*time.Minute)
+			runAt := wl.now()
+			runErr := runClosed(work, w, wl, producers, n, usualBudget, rec)
+
+			stopWork()
+
+			closing, stopClose := context.WithTimeout(ctx, 30*time.Second)
+			closeAt := wl.now()
+			closeErr := w.Close(closing)
+			closedAt := wl.now()
+
+			stopClose()
+
+			var batches, passes, deadlocks int
+
+			for _, s := range inner.workers {
+				batches, passes, deadlocks = batches+s.batches, passes+s.passes, deadlocks+s.deadlocks
+			}
+
+			t.Logf("setup=%s run=%s close=%s runErr=%v closeErr=%v entryLate=%d publishes=%d batches=%d passes=%d deadlocks=%d",
+				runAt.Sub(setupAt), closeAt.Sub(runAt), closedAt.Sub(closeAt), runErr, closeErr, inner.entryLate.Load(),
+				broker.publishes.Load(), batches, passes, deadlocks)
+			t.Logf("per worker: %+v", inner.workers)
+			t.Logf("local closed-loop correctness run, not a capacity benchmark: %s", rec.summary())
+			require.NoError(t, closeErr, "only a drained writer is verified: an aborted backend may still commit")
+
+			checkAt := wl.now()
+			got := verifyLedger(ctx, t, conn, w.calls)
+			t.Logf("checker=%s answers=%v", wl.now().Sub(checkAt), got)
+
+			assert.NoError(t, runErr)
+			assert.Zero(t, inner.entryLate.Load(), "attempts late at entry")
+			assert.Zero(t, broker.publishes.Load(), "obligations stay in the outbox")
+			assert.Equal(t, map[string]int{string(outcomeApproved): n}, got)
+		})
+	}
+}
+
 // gate is one reset round: the stack reseeded with 4 ordinary balances, a fixed clock, and the connection that owns
 // fixtures, the baseline and the checks.
 type gate struct {
