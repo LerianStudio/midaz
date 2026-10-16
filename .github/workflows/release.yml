@@ -80,7 +80,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@bdf1d46b1f6dbb79356dd7895cda7126ebf4b637 # v1.76.0
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/s3-upload.yml@15af6d6c4bc748012cc5ae165a63102d4bb8a7d1 # v1.81.1
     with:
       s3_bucket: tenant-manager-prd-migrations-862902859103
       file_pattern: components/ledger/migrations/${{ matrix.module }}/*.sql
