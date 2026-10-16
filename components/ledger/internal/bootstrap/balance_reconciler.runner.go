@@ -229,8 +229,8 @@ func initBalanceReconcilerRunner(
 		libLog.Int("interval_ms", runner.cfg.IntervalMs),
 		libLog.Int("grace_ms", runner.cfg.GraceMs),
 		libLog.Int("page_size", runner.cfg.PageSize),
-		libLog.Int("pass_budget_ms", runner.cfg.PassBudgetMs),
-		libLog.Any("lease_expiry_ms", balanceReconcilerLeaseExpiry(runner.cfg).Milliseconds()))
+		libLog.Int("budget_ms", runner.cfg.PassBudgetMs),
+		libLog.Any("lock_ttl_ms", balanceReconcilerLeaseExpiry(runner.cfg).Milliseconds()))
 
 	return runner
 }

@@ -228,7 +228,7 @@ func (p *TenantHealthProber) Run(_ *libCommons.Launcher) error {
 	p.logger.Log(ctx, libLog.LevelInfo, "Tenant health prober started",
 		libLog.Any("interval_ms", p.cfg.Interval.Milliseconds()),
 		libLog.Any("timeout_ms", p.cfg.Timeout.Milliseconds()),
-		libLog.Any("pass_budget_ms", p.cfg.PassBudget.Milliseconds()))
+		libLog.Any("budget_ms", p.cfg.PassBudget.Milliseconds()))
 
 	p.run(ctx)
 
