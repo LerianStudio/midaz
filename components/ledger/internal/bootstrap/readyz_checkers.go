@@ -633,3 +633,37 @@ func (c *VaultChecker) Check(ctx context.Context) DependencyCheck {
 func detectVaultTLS(addr string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(addr)), "https://")
 }
+
+// NotApplicableChecker reports a dependency that has no meaningful readiness
+// probe in the current deployment. It performs no I/O and holds no connection.
+type NotApplicableChecker struct {
+	name   string
+	reason string
+}
+
+// NewNotApplicableChecker creates a checker that always reports StatusNA with
+// the given fixed reason.
+func NewNotApplicableChecker(name, reason string) *NotApplicableChecker {
+	return &NotApplicableChecker{
+		name:   name,
+		reason: reason,
+	}
+}
+
+// Name returns the checker identifier.
+func (c *NotApplicableChecker) Name() string {
+	return c.name
+}
+
+// TLSEnabled returns false: the checker holds no connection.
+func (c *NotApplicableChecker) TLSEnabled() bool {
+	return false
+}
+
+// Check returns StatusNA with the fixed reason, without probing anything.
+func (c *NotApplicableChecker) Check(_ context.Context) DependencyCheck {
+	return DependencyCheck{
+		Status: StatusNA,
+		Reason: c.reason,
+	}
+}

@@ -81,6 +81,9 @@ func TestServiceTracer_WorkerRootContextsUseTheServiceScope(t *testing.T) {
 		"balance reconciler": func(tr trace.Tracer) context.Context {
 			return (&BalanceReconcilerRunner{}).WithServiceTracer(tr).rootContext()
 		},
+		"tenant health prober": func(tr trace.Tracer) context.Context {
+			return (&TenantHealthProber{}).WithServiceTracer(tr).rootContext()
+		},
 		"multi-tenant rabbitmq consumer": func(tr trace.Tracer) context.Context {
 			return (&multiTenantConsumerRunnable{tracer: tr}).rootContext()
 		},
@@ -110,6 +113,7 @@ func TestServiceTracer_BuildersAreNilSafe(t *testing.T) {
 		drainer    *LegacyBalanceSyncDrainer
 		cleanup    *EngineRecoveryCleanupRunner
 		reconciler *BalanceReconcilerRunner
+		prober     *TenantHealthProber
 	)
 
 	assert.Nil(t, consumer.WithServiceTracer(nil))
@@ -117,4 +121,5 @@ func TestServiceTracer_BuildersAreNilSafe(t *testing.T) {
 	assert.Nil(t, drainer.WithServiceTracer(nil))
 	assert.Nil(t, cleanup.WithServiceTracer(nil))
 	assert.Nil(t, reconciler.WithServiceTracer(nil))
+	assert.Nil(t, prober.WithServiceTracer(nil))
 }

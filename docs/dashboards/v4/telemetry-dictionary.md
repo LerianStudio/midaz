@@ -54,6 +54,10 @@ instrument type and unit:
 | `balance_sync_tenant_skip_total` | `1` | Counter | `balance_sync_tenant_skip_total` |
 | `balance_sync_orphan_dropped_total` | `1` | Counter | `balance_sync_orphan_dropped_total` |
 | `balance_sync_last_success_timestamp` | `s` | Gauge | `balance_sync_last_success_timestamp_seconds` |
+| `tenant_dependency_up` | `1` | Gauge | `tenant_dependency_up_ratio` |
+| `tenant_dependency_probe_failures_total` | `1` | Counter | `tenant_dependency_probe_failures_total` |
+| `tenant_health_probe_pass_failures_total` | `1` | Counter | `tenant_health_probe_pass_failures_total` |
+| `tenant_health_probe_leader` | `1` | Gauge | `tenant_health_probe_leader_ratio` |
 
 Two consequences worth internalising:
 
@@ -281,7 +285,50 @@ unit: "1"
 ```
 
 The label is `checker`, **not** `dep`. `vault` reports `n/a` while the KMS runs in legacy
-mode; that is not a failure.
+mode; that is not a failure. In multi-tenant mode `postgres_onboarding` and
+`postgres_transaction` always report `n/a`: the static connection behind them belongs to no
+tenant, so per-tenant database health is published by `tenant_dependency_up_ratio` instead
+(see [the tenant health probe runbook](../../infra/tenant-health-probe.md)).
+
+### tenant_dependency_probe_failures_total
+
+```yaml
+declared_at: pkg/utils/metrics.go:362
+declared_name: tenant_dependency_probe_failures_total
+description: Total failed background probes of a tenant dependency.
+emitted_at: components/ledger/internal/bootstrap/tenant_health.prober.go
+labels: [tenant_id, dependency]
+label_values:
+  dependency: [postgres_onboarding, postgres_transaction, mongo]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+Bounded by the tenant set times three. Multi-tenant only, and emitted by the leader pod only
+(the pod holding the tenant health probe lease), so sum or max across pods rather than
+reading one pod. Incremented on every failed pass, not only on the transition to down; a
+timeout counts as a failure.
+
+### tenant_health_probe_pass_failures_total
+
+```yaml
+declared_at: pkg/utils/metrics.go:369
+declared_name: tenant_health_probe_pass_failures_total
+description: Total tenant health probe pass failures, labelled by reason.
+emitted_at: components/ledger/internal/bootstrap/tenant_health.prober.go
+labels: [reason]
+label_values:
+  reason: [tenant_list, lease, budget]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+`tenant_list`: the tenant-manager call failed and the pass probed the cached tenants only.
+`lease`: trying the Redis lease failed; another pod holding the lease is the normal
+non-leader state and is **not** counted. `budget`: the pass budget ran out and the remaining
+tenants were deferred to the next pass.
 
 ### bulk_recorder_transactions_attempted_total
 
@@ -682,6 +729,48 @@ labels: []
 live_observed: unknown
 unit: "s"
 ```
+
+### tenant_dependency_up_ratio
+
+```yaml
+declared_at: pkg/utils/metrics.go:355
+declared_name: tenant_dependency_up
+description: Result of the last background probe of a tenant dependency (1=up, 0=down). A 0/1 value despite the _ratio suffix.
+emitted_at: components/ledger/internal/bootstrap/tenant_health.prober.go
+instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
+labels: [tenant_id, dependency]
+label_values:
+  dependency: [postgres_onboarding, postgres_transaction, mongo]
+label_cardinality_estimate: low
+live_observed: unknown
+unit: "1"
+```
+
+Multi-tenant only, refreshed by the leader pod once per probe interval, with or without
+traffic. Series are per pod and the gauge is cumulative: a former leader keeps exporting its
+last values, stale `1` and `0` alike, until it restarts. Always select the current leader:
+`min_over_time(tenant_dependency_up_ratio[5m]) == 0 and on (k8s_pod_name)
+tenant_health_probe_leader_ratio == 1`. A tenant that leaves the active list keeps its last
+value on the leader until the pod restarts.
+
+### tenant_health_probe_leader_ratio
+
+```yaml
+declared_at: pkg/utils/metrics.go:377
+declared_name: tenant_health_probe_leader
+description: 1 when this pod held the tenant health probe lease on its last tick, 0 otherwise. Per-pod; use it to select the current leader's tenant_dependency_up series. A 0/1 value despite the _ratio suffix.
+emitted_at: components/ledger/internal/bootstrap/tenant_health.prober.go
+instrument_type: Int64Gauge (synchronous, MetricsFactory.Gauge().Set)
+labels: []
+live_observed: unknown
+unit: "1"
+```
+
+Multi-tenant only. Every pod running the prober sets it on every tick, once per probe
+interval: `1` when the pod held the lease, `0` when another pod held it or the lease could
+not be tried (Redis unavailable). Join `tenant_dependency_up_ratio` with it on
+`k8s_pod_name`. `max(tenant_health_probe_leader_ratio) < 1` for 10 minutes means no pod is
+probing.
 
 ### redis_backup_queue_depth_ratio
 

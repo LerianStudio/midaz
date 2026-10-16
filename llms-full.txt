@@ -1008,6 +1008,16 @@ are set programmatically by `applyConfigDefaults()`.
 | MULTI_TENANT_REDIS_PASSWORD | — | Redis password for Pub/Sub |
 | MULTI_TENANT_REDIS_TLS | false | Enable TLS for Pub/Sub Redis |
 
+#### Tenant Health Probe (multi-tenant only, leader pod only)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| TENANT_HEALTH_PROBE_ENABLED | true | Background probe of every active tenant's PostgreSQL (onboarding, transaction) and MongoDB; unset or empty means enabled, `false` disables |
+| TENANT_HEALTH_PROBE_INTERVAL_MS | 60000 | Time between probe passes (minimum 5000); the detection ceiling |
+| TENANT_HEALTH_PROBE_TIMEOUT_MS | 2000 | Timeout of a single probe (minimum 100); a timeout counts as down |
+| TENANT_HEALTH_PROBE_PASS_BUDGET_MS | 30000 | Wall-clock budget of one pass (minimum 1000); unreached tenants go first on the next pass |
+
+Ignored in single-tenant mode. A zero or negative value takes the default and a positive value below the minimum is raised to the minimum, each with a WARN. Only the pod holding the Redis lease probes; it publishes `tenant_dependency_up{tenant_id,dependency}`, `tenant_dependency_probe_failures_total` and `tenant_health_probe_pass_failures_total{reason}`. Every pod publishes `tenant_health_probe_leader` (1 when it held the lease on its last tick, 0 otherwise); a former leader's `tenant_dependency_up` series keep their last value until restart, so join on `tenant_health_probe_leader == 1` per pod. Leader lease = 2 x interval + pass budget + 3 x timeout + 30s. In multi-tenant mode `/readyz` reports `postgres_onboarding` and `postgres_transaction` as `n/a` with reason `multi-tenant: per-tenant databases are probed in the background; see tenant_dependency_up`. Runbook: `docs/infra/tenant-health-probe.md`.
+
 #### Pagination
 | Variable | Default | Description |
 |----------|---------|-------------|
