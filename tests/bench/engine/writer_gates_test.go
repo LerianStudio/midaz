@@ -100,7 +100,7 @@ func identityGate(t *testing.T, owner bool) {
 		assert.Equal(t, []string{"replay/approved+tx"}, summarize(t, []request{credit}, replaying.wait(t)))
 		assert.Equal(t, []string{"refused/insufficient_funds"}, summarize(t, []request{respend}, respending.wait(t)))
 		g.finish(t, w)
-		assert.Equal(t, 3, inner.workers[0].batches, "the replay and the new debit shared the third batch")
+		assert.Equal(t, []batchTaken{{0, 1}, {0, 1}, {0, 2}}, inner.workers[0].taken, "the replay and the new debit shared the third batch")
 	})
 }
 
@@ -224,7 +224,8 @@ func admissionGate(t *testing.T, owner bool) {
 			assert.Equal(t, []string{"refused/blocked"}, summarize(t, []request{busy}, first.wait(t)))
 			assert.Equal(t, []string{"approved+tx", "expired"}, summarize(t, queued, rest.wait(t)))
 			assert.Equal(t, map[string]int{"refused/blocked": 1, "approved": 1, "expired": 1}, g.finish(t, w))
-			assert.Equal(t, workerStats{batches: 2, batchStats: batchStats{passes: 3}}, inner.workers[0], "the void pass reran once")
+			assert.Equal(t, workerStats{taken: []batchTaken{{0, 1}, {0, 2}}, batchStats: batchStats{passes: 3}}, inner.workers[0],
+				"the void pass reran once")
 		})
 	}
 }
@@ -289,16 +290,15 @@ func conservationGate(t *testing.T, owner bool) {
 
 			stopClose()
 
-			var batches, passes, deadlocks int
+			var passes, deadlocks int
 
 			for _, s := range inner.workers {
-				batches, passes, deadlocks = batches+s.batches, passes+s.passes, deadlocks+s.deadlocks
+				passes, deadlocks = passes+s.passes, deadlocks+s.deadlocks
 			}
 
-			t.Logf("setup=%s run=%s close=%s runErr=%v closeErr=%v entryLate=%d publishes=%d batches=%d passes=%d deadlocks=%d",
+			t.Logf("setup=%s run=%s close=%s runErr=%v closeErr=%v entryLate=%d publishes=%d taken=%+v passes=%d deadlocks=%d",
 				runAt.Sub(setupAt), closeAt.Sub(runAt), closedAt.Sub(closeAt), runErr, closeErr, inner.entryLate.Load(),
-				broker.publishes.Load(), batches, passes, deadlocks)
-			t.Logf("per worker: %+v", inner.workers)
+				broker.publishes.Load(), inner.occupancy(runAt, closedAt), passes, deadlocks)
 			t.Logf("local closed-loop correctness run, not a capacity benchmark: %s", rec.summary())
 			require.NoError(t, closeErr, "only a drained writer is verified: an aborted backend may still commit")
 

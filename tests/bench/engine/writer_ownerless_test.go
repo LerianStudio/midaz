@@ -60,7 +60,7 @@ func TestOwnerlessWriterWorkers(t *testing.T) {
 	assert.Equal(t, slices.Repeat([]string{"approved+tx"}, workers), got)
 
 	for i, s := range w.workers {
-		assert.Equal(t, workerStats{batches: 1, batchStats: batchStats{passes: 1}}, s, "worker %d", i)
+		assert.Equal(t, workerStats{taken: []batchTaken{{0, 1}}, batchStats: batchStats{passes: 1}}, s, "worker %d", i)
 	}
 
 	assert.Zero(t, w.entryLate.Load())
@@ -105,6 +105,11 @@ func TestOwnerlessWriterDrain(t *testing.T) {
 
 	rest := submitEach(ctx, t, w, queued)
 	require.Eventually(t, func() bool { return len(w.queue) == len(queued) }, 30*time.Second, 10*time.Millisecond)
+
+	t0 := clock.now() // the busy batch's take; released a second later, the worker takes the queued ones
+	t1 := t0.Add(time.Second)
+
+	clock.advance(time.Second)
 	require.NoError(t, holder.Rollback(ctx))
 
 	assert.Equal(t, []string{"approved+tx"}, summarize(t, []request{busy}, first.wait(t)))
@@ -112,7 +117,10 @@ func TestOwnerlessWriterDrain(t *testing.T) {
 		summarize(t, queued, rest.wait(t)))
 	require.NoError(t, w.Close(ctx))
 
-	assert.Equal(t, 3, w.workers[0].batches, "the busy batch, a full batch of maxBatch, then the one left")
+	assert.Equal(t, occupancy{batches: 2, attempts: maxBatch + 1, largest: maxBatch}, w.occupancy(t1, t1.Add(time.Hour)),
+		"taken at the start counts; the busy batch, still running then, does not")
+	assert.Equal(t, occupancy{batches: 1, attempts: 1, largest: 1}, w.occupancy(t0, t1), "taken at the stop does not count")
+	assert.Zero(t, w.occupancy(t1.Add(time.Nanosecond), t1.Add(time.Hour)), "a window without a take")
 
 	totals := readTotals(ctx, t, conn)
 	assert.Equal(t, baseline.Available, totals.Available, "money is conserved")
@@ -170,6 +178,7 @@ func TestOwnerlessWriterErrorIsolation(t *testing.T) {
 
 	assert.Equal(t, map[string]string{long.id.String(): "approved"},
 		readRows(ctx, t, conn, `SELECT request_id::text, outcome FROM engine_request`))
+	assert.Equal(t, occupancy{batches: 2, attempts: 2, largest: 1}, w.occupancy(w.startedAt, clock.now()), "the failed batch was taken too")
 
 	totals := readTotals(ctx, t, conn)
 	assert.Equal(t, baseline.Available, totals.Available, "money is conserved")

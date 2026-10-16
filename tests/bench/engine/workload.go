@@ -117,7 +117,7 @@ func runOpen(ctx context.Context, w writer, wl *workload, start time.Time, rate,
 		return fmt.Errorf("open loop at %d/s for %d requests: want a positive rate and a non-negative count", rate, n)
 	}
 
-	rec.begin(start)
+	rec.begin(start, scheduleOf(start, n, rate))
 
 	g, gctx := errgroup.WithContext(ctx)
 	ticker := time.NewTicker(sampleEvery)
@@ -168,7 +168,7 @@ func runClosed(ctx context.Context, w writer, wl *workload, producers int, n int
 	start := wl.now()
 	stop := start.Add(window)
 
-	rec.begin(start)
+	rec.begin(start, stop)
 
 	g, gctx := errgroup.WithContext(ctx)
 

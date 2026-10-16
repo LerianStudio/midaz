@@ -346,6 +346,8 @@ func TestWorkloadNullWriter(t *testing.T) {
 		require.NoError(t, err)
 		assertNullRun(t, w, rec, n)
 		assertSchedule(t, w, wl, start, 50*time.Microsecond)
+		assert.Equal(t, [2]time.Time{start, start.Add(2 * time.Second)}, [2]time.Time{rec.started, rec.stop},
+			"40k at 20k/s: the schedule's end is the confirmation stop")
 	})
 
 	t.Run("closed 256 producers", func(t *testing.T) {
@@ -379,12 +381,16 @@ func TestWorkloadNullWriter(t *testing.T) {
 
 	t.Run("classification", func(t *testing.T) {
 		rec, wl := newRecorder(0), newTestWorkload(t, "classify", mixOutflow, false, 10)
+		rec.begin(scheduleStart, scheduleStart.Add(4*time.Millisecond))
+
+		ackedEarly := scheduleStart.Add(time.Millisecond) // the batch stamps every position of a clean pass
 		answers := []result{
 			{outcome: outcomeApproved, dbAckAt: scheduleStart.Add(3 * time.Millisecond), brokerAckAt: scheduleStart.Add(4 * time.Millisecond)},
+			{outcome: outcomeApproved, dbAckAt: scheduleStart.Add(4 * time.Millisecond)},
 			{outcome: outcomeApproved},
-			{outcome: outcomeRefused, reason: "insufficient funds", decisionStartedAt: scheduleStart.Add(time.Millisecond)},
+			{outcome: outcomeRefused, reason: "insufficient funds", decisionStartedAt: scheduleStart.Add(time.Millisecond), dbAckAt: ackedEarly},
 			{outcome: outcomeExpired},
-			{outcome: outcomeReplay, original: outcomeApproved},
+			{outcome: outcomeReplay, original: outcomeApproved, dbAckAt: ackedEarly},
 			{outcome: outcomeReplay, original: outcomeRefused, reason: "insufficient funds"},
 			{outcome: outcomeConflict},
 			{outcome: outcomeUnknown, reason: "commit unconfirmed"},
@@ -401,11 +407,13 @@ func TestWorkloadNullWriter(t *testing.T) {
 		rec.observe(late, result{requestID: late.id, outcome: outcomeUnknown}, late.deadline.Add(answerGrace+time.Nanosecond))
 
 		assert.Equal(t, map[outcome]int64{
-			outcomeApproved: 2, outcomeRefused: 1, outcomeExpired: 1, outcomeReplay: 2, outcomeConflict: 1, outcomeUnknown: 2,
+			outcomeApproved: 3, outcomeRefused: 1, outcomeExpired: 1, outcomeReplay: 2, outcomeConflict: 1, outcomeUnknown: 2,
 		}, rec.outcomes, "only deciding answers count as approvals")
+		assert.Equal(t, [2]int64{1, 1}, [2]int64{rec.inWindow, rec.afterStop},
+			"approvals acked before stop, then at it; the unacked approval and stamped replay or refusal count in neither")
 		assert.Equal(t, map[outcome]int64{outcomeApproved: 1, outcomeRefused: 1}, rec.replays, "a replay repeats its original")
 		assert.Equal(t, map[string]int64{"insufficient funds": 1}, rec.refusals, "a replayed refusal adds no reason")
-		assert.Equal(t, [3][]time.Duration{{time.Millisecond}, {3 * time.Millisecond}, {4 * time.Millisecond}},
+		assert.Equal(t, [3][]time.Duration{{time.Millisecond}, {3 * time.Millisecond, 4 * time.Millisecond}, {4 * time.Millisecond}},
 			[3][]time.Duration{rec.decisionStart, rec.dbAck, rec.brokerAck}, "an instant the path did not measure stays out")
 		assert.Len(t, rec.latency, len(answers)+1, "every answer, fast refusals included")
 		assert.Error(t, rec.lateErr(), "an answer past deadline plus grace fails the run")
@@ -429,6 +437,7 @@ func TestClosedLoopWindow(t *testing.T) {
 			w.clock, w.step, wl.now = clock, step, clock.now
 
 			require.NoError(t, runClosed(t.Context(), w, wl, producers, 2*k, k*step, usualBudget, rec))
+			assert.Equal(t, [2]time.Time{scheduleStart, stop}, [2]time.Time{rec.started, rec.stop}, "the admission window is the confirmation window")
 
 			sent := len(w.seen)
 			assertNullRun(t, w, rec, sent)

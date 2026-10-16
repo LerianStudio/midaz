@@ -26,6 +26,7 @@ var errWriterClosed = errors.New("writer closed")
 type ownerlessWriter struct {
 	queue     chan attempt
 	now       func() time.Time // the batchers' clock
+	startedAt time.Time        // now before the workers start: each batch records its take as an offset from it
 	maxBatch  int
 	abort     context.CancelCauseFunc // ends every batch in flight
 	g         *errgroup.Group
@@ -40,11 +41,18 @@ type attempt struct {
 	reply chan result
 }
 
-// workerStats is one worker's batches, their passes and deadlock retries, and its first batch error.
+// workerStats is one worker's batches as taken, their passes and deadlock retries, and its first batch error.
 type workerStats struct {
-	batches int
+	taken []batchTaken
 	batchStats
 	err error
+}
+
+// batchTaken is one batch as its worker took it from the queue, before running it: the instant as an offset from the
+// writer's start, pointer-free so the GC never scans the records, and its attempts.
+type batchTaken struct {
+	at       time.Duration
+	attempts int
 }
 
 // newOwnerlessWriter starts one worker per batcher under ctx, the writer's lifetime, never a caller's. Each worker
@@ -54,7 +62,7 @@ func newOwnerlessWriter(ctx context.Context, batchers []*batcher, maxBatch int) 
 	g, gctx := errgroup.WithContext(lifetime)
 
 	w := &ownerlessWriter{
-		queue: make(chan attempt, queueDepth), now: batchers[0].now, maxBatch: maxBatch,
+		queue: make(chan attempt, queueDepth), now: batchers[0].now, startedAt: batchers[0].now(), maxBatch: maxBatch,
 		abort: abort, g: g, workers: make([]workerStats, len(batchers)),
 	}
 
@@ -119,12 +127,14 @@ func (w *ownerlessWriter) work(ctx context.Context, stats *workerStats, b *batch
 		}
 
 		batch, reqs = w.take(append(batch[:0], first)), reqs[:0]
+		stats.taken = append(stats.taken, batchTaken{w.now().Sub(w.startedAt), len(batch)})
+
 		for _, a := range batch {
 			reqs = append(reqs, a.req)
 		}
 
 		res, run, err := b.run(ctx, reqs)
-		stats.batches, stats.passes, stats.deadlocks = stats.batches+1, stats.passes+run.passes, stats.deadlocks+run.deadlocks
+		stats.passes, stats.deadlocks = stats.passes+run.passes, stats.deadlocks+run.deadlocks
 
 		if err != nil && stats.err == nil {
 			stats.err = err
@@ -203,4 +213,26 @@ func (w *ownerlessWriter) Close(ctx context.Context) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// occupancy is the batches taken in a window, their attempts and the largest: dequeued work, failed batches
+// included, never approvals or time spent running.
+type occupancy struct{ batches, attempts, largest int }
+
+// occupancy sums every worker's batches taken in [from, to) on the batchers' clock. Call it after Close joined the
+// workers.
+func (w *ownerlessWriter) occupancy(from, to time.Time) occupancy {
+	var o occupancy
+
+	lo, hi := from.Sub(w.startedAt), to.Sub(w.startedAt)
+
+	for _, s := range w.workers {
+		for _, b := range s.taken {
+			if b.at >= lo && b.at < hi {
+				o.batches, o.attempts, o.largest = o.batches+1, o.attempts+b.attempts, max(o.largest, b.attempts)
+			}
+		}
+	}
+
+	return o
 }

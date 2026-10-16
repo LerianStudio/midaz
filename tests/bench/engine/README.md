@@ -162,8 +162,12 @@ budget; the null count run has 1 min. The open loop stays count-bounded on its a
 
 `newRecorder(n)` preallocates five latency series before the run starts, 40 B per request of capacity n (576 MB for
 14.4 M). The summary logs n as `capacity`, beside the actual dispatched and answered counts and their cohort rates,
-which are not window rates. First-touch page faults can still occur during the run; their cost is not measured.
-Results recorded below predate the window and this presize: their runs ended on the count.
+which are not window rates. It also logs the window and counts approvals by `dbAckAt`, the host's observation after
+COMMIT returned: before stop, at or after it, and without one. Non-approvals count in none. A commit whose caller
+answered unknown is absent from these counts; only the post-run checker sees it, without a time. Late open-loop
+dispatch can also produce after-stop approvals, so that count is not only drain. No window rate is printed: a run
+that ends on its count leaves the window a ceiling. First-touch page faults can still occur during the run; their
+cost is not measured. Results recorded below predate the window and this presize: their runs ended on the count.
 
 ## SQL session
 
@@ -222,6 +226,13 @@ leaving after enqueue gets unknown; accepted work may still commit, but the fina
 Call `Close` once, after all `Submit` calls return. Normal Close drains accepted work and joins workers before the
 harness closes sessions or outbox resources. The writer lifetime or Close's own deadline can abort SQL. Close reports
 each worker's first batch error after the join; a worker's batch error never cancels another worker's drain.
+
+Each worker records every batch it takes, before running it, failed batches included: the take instant as an offset
+from the writer's start, and the attempts. That is 16 B per batch on amd64 plus slice growth, not measured. After
+Close, `occupancy(from, to)` gives the batches taken in `[from, to)`, their attempts and the largest. It counts
+dequeued work, not approvals or busy time; a batch taken before `from` and still running stays outside. The
+conservation gate logs it from the run start to Close's return instead of the per-worker records; no 200k run has
+logged it yet.
 
 ```bash
 env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
@@ -441,8 +452,8 @@ also shows one pass per batch and no deadlock; the test logs those counts but do
 Approvals/s is 200,000 over run seconds: the closed-loop rate of 256 producers, each with one request in flight, in
 one run on a shared, loaded host. It is not a maximum, sustained, open-loop, repeated, RTT-controlled or capacity
 result. Every rate is below the plan's 8k target and every p99 far above its 15 ms hypothesis; method and RTT differ,
-so this gate neither accepts nor rejects either. Mean batch is 200,000 over batches; the maximum batch is not logged,
-and cap 256 is a limit, not occupancy. The ownerless table above is not a controlled comparison: those runs predate
+so this gate neither accepts nor rejects either. Mean batch is 200,000 over batches; that run did not log the maximum
+batch, and cap 256 is a limit, not occupancy. The ownerless table above is not a controlled comparison: those runs predate
 the shared scanner, queue and batch changes and ran under different host conditions.
 
 An independent read-only check of the retained mixed_fee state, on primary and standby, found 200,000 approved

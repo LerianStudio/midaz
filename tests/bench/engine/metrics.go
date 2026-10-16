@@ -20,15 +20,16 @@ const answerGrace = time.Second
 
 // recorder holds one run's counters and whole latency series, measured from scheduledAt for exact quantiles.
 type recorder struct {
-	mu                               sync.Mutex
-	capacity, late                   int64
-	outcomes                         map[outcome]int64 // deciding answers and replies alike
-	replays                          map[outcome]int64 // by the original outcome a replay repeats
-	refusals                         map[string]int64  // by reason, deciding refusals only
-	lag, latency                     []time.Duration   // one per dispatch and per answer: their lengths are the counts
-	decisionStart, dbAck, brokerAck  []time.Duration   // only answers carrying the instant; acks of approvals
-	inflight                         []int             // open-loop samples; the last at dispatch end
-	started, lastDispatch, lastReply time.Time
+	mu                                     sync.Mutex
+	capacity, late                         int64
+	inWindow, afterStop                    int64             // approvals whose dbAckAt is before stop, or at or after it
+	outcomes                               map[outcome]int64 // deciding answers and replies alike
+	replays                                map[outcome]int64 // by the original outcome a replay repeats
+	refusals                               map[string]int64  // by reason, deciding refusals only
+	lag, latency                           []time.Duration   // one per dispatch and per answer: their lengths are the counts
+	decisionStart, dbAck, brokerAck        []time.Duration   // only answers carrying the instant; acks of approvals
+	inflight                               []int             // open-loop samples; the last at dispatch end
+	started, stop, lastDispatch, lastReply time.Time
 }
 
 // newRecorder allocates the five series before the run, 40 B per request; appends within capacity do not copy.
@@ -42,12 +43,13 @@ func newRecorder(capacity int64) *recorder {
 	return r
 }
 
-// begin stamps the measured start.
-func (r *recorder) begin(started time.Time) {
+// begin stamps the measured window [started, stop): stop is the instant that ends the generator's admission or schedule,
+// on the clock the writer stamps dbAckAt with.
+func (r *recorder) begin(started, stop time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.started = started
+	r.started, r.stop = started, stop
 }
 
 func (r *recorder) dispatch(scheduledAt, at time.Time) {
@@ -86,6 +88,14 @@ func (r *recorder) observe(req request, res result, repliedAt time.Time) {
 	case outcomeApproved:
 		r.dbAck = appendSince(r.dbAck, res.dbAckAt, req.scheduledAt)
 		r.brokerAck = appendSince(r.brokerAck, res.brokerAckAt, req.scheduledAt)
+
+		switch {
+		case res.dbAckAt.IsZero(): // unmeasured, never confirmed
+		case res.dbAckAt.Before(r.stop):
+			r.inWindow++
+		default:
+			r.afterStop++
+		}
 	}
 }
 
@@ -147,6 +157,10 @@ func (r *recorder) summary() string {
 	fmt.Fprintf(&b, "capacity=%d dispatched=%d answered=%d late=%d outcomes=%v replays=%v refusals=%v sent/s(cohort)=%s answered/s(cohort)=%s",
 		r.capacity, len(r.lag), len(r.latency), r.late, r.outcomes, r.replays, r.refusals,
 		perSecond(len(r.lag), r.lastDispatch.Sub(r.started)), perSecond(len(r.latency), r.lastReply.Sub(r.started)))
+
+	// Counts only: a run that ends on its count leaves the window a ceiling, never a rate's denominator.
+	fmt.Fprintf(&b, " window=%s approvals dbAck<stop=%d dbAck>=stop=%d noDbAck=%d",
+		r.stop.Sub(r.started), r.inWindow, r.afterStop, r.outcomes[outcomeApproved]-r.inWindow-r.afterStop)
 
 	for _, s := range []struct {
 		name   string
