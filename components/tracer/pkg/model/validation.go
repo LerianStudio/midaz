@@ -388,8 +388,12 @@ func (r *ValidationRequest) Validate(now time.Time) error {
 //     it must still be a valid scheme.
 //   - account: optional. A ledger transaction whose only source is an external
 //     account has no internal account UUID to scope on; when absent the tracer
-//     matches non-account-scoped (segment/portfolio/global) limits. When
-//     present it must be a non-nil UUID.
+//     matches only limits whose scope names no account. When present it must
+//     be a non-nil UUID.
+//   - segment / portfolio: optional. They carry the grouping of the source
+//     account when the ledger has it. A limit scoped by a segment or portfolio
+//     matches only when the request carries that same id; a request without
+//     them never matches such a limit.
 //   - timestamp age: not bounded. The ledger owns transactionDate and accepts
 //     backdated transactions, so only the future (clock-skew) bound applies.
 //

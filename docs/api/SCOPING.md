@@ -187,6 +187,14 @@ The reserve request carries the fee-inclusive `amount` and `asset`, the transact
 - `account.accountId` and `account.type` — the source account's id and its ledger account type,
   verbatim (free-form; the tracer applies only a 256-character bound). An external-only source
   sends an account with neither, and the tracer matches only limits that are not account-scoped.
+- `segmentId` and `portfolioId` — the segment and the portfolio of that same source account, each
+  omitted when the account has none (and both omitted for an external-only source). Only the first
+  internal source counts, as for `accountId`; other sources of the same transaction never influence
+  the scope. A limit or rule scoped by a portfolio or segment therefore applies to every account of
+  that grouping and they draw on one shared counter. The grouping is read from the account at
+  reserve time, so moving an account to another portfolio or segment changes what its next
+  transaction consumes. `merchantId` and `subType` are still not sent, so a limit or rule scoped by
+  either has no effect on this path.
 - `metadata` — the transaction metadata, filtered to what the tracer accepts: keys matching
   `^[a-zA-Z0-9_]+$` and at most 64 characters, scalar values rendered as strings (numbers in plain
   decimal notation), at most 50 entries taken in lexicographic key order. Every other entry is

@@ -100,6 +100,11 @@ type ReserveAccount struct {
 	AccountID string
 	// Type is the ledger account type, verbatim. Optional.
 	Type string
+	// SegmentID and PortfolioID are the grouping of the source account above,
+	// forwarded as the reserve's segment_id / portfolio_id. Empty when the
+	// account has none or when there is no internal source account.
+	SegmentID   string
+	PortfolioID string
 }
 
 // ReserveRequest is the reserve input the ledger sends the tracer. It is typed
@@ -116,7 +121,11 @@ type ReserveAccount struct {
 // accountless request. transaction_type is OPTIONAL too: it carries the
 // transaction's declared scheme, which must be a valid tracer transaction
 // type, and is empty when none was declared; an empty value matches only
-// limits and rules whose scope names no transaction type.
+// limits and rules whose scope names no transaction type. segment_id and
+// portfolio_id are OPTIONAL as well: they carry the segment and portfolio of
+// the same source account sent as account.account_id, and are empty when that
+// account has none; a limit or rule scoped by segment or portfolio matches only
+// when the request carries the matching value.
 type ReserveRequest struct {
 	TransactionID uuid.UUID
 	RequestID     string
