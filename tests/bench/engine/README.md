@@ -136,6 +136,20 @@ unseeded with eight outbox rows), commits one `feeLeg` request and rolls back an
 payload, the stored `payload::text` and `pg_column_size` for this fixture; these are not general product
 sizes. Trace-carrier and multi-tenant variants, relay and Kafka/CloudEvents record bytes are not measured.
 
+## Workload and metrics
+
+`writer.go`, `workload.go` and `metrics.go` hold the request contract, the deterministic workload, the open and
+closed loops and the recorder. No financial writer exists yet: the tests drive a null writer with simulated
+approvals. Open-loop rates report the offered rate sustained with the logged dispatch lag, never financial TPS.
+
+```bash
+go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestWorkloadKeysUnique|TestOpenLoopSchedule|TestPercentiles|TestWorkloadNullWriter' -timeout 5m -v
+```
+
+Limits: runs are count-bounded and end on the count or the caller's context. A time-bounded closed-loop cell
+needs a graceful stop separate from abort, which a later task adds. The recorder preallocates five latency series,
+40 B per scheduled request (576 MB for 14.4 M requests).
+
 ## How it is built
 
 - `init-primary.sql` runs once on a fresh primary volume. It writes the marker and

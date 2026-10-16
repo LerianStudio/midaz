@@ -15,7 +15,7 @@
 
 **Execução:** worktree única `/srv/worktrees/balance-engine`, branch única `feature/balance-engine`. Nenhuma outra branch ou PR sem pedido do Fred. Subagents `claude-opus-5-5[1m]`, com revisão independente e contrarian. Uma lane escreve por vez; pesquisa e revisão read-only rodam em paralelo. A sessão coordenadora integra, verifica, faz commits assinados e pushes com `X-Lerian-Ref: 0x1`.
 
-**Lanes atuais:** Epic 1.1 Done: ambiente HA, bootstrap guardado, fixtures 10k/1M e catálogo real de obrigações via libs, com suite integrada (9 testes, 21 subtests, zero skips) e revisão independente. Próximo: gerador/métricas (1.2.1), com screening read-only em curso. Nenhum escritor financeiro implementado; nenhuma medição de TPS ou prova de falha financeira.
+**Lanes atuais:** Epic 1.1 Done; Epic 1.2 Doing. Gerador/métricas (1.2.1) concluído: agenda absoluta preservada, cancelamento interrompe backlog, resultados separados e testes com race detector. Próximo: sessão SQL com classificação real de COMMIT incerto, depois persistência comum e ownerless antes de owner. Essa ordem prova o SQL antes de acrescentar cache/lease; não escolhe a arquitetura. Nenhum escritor financeiro implementado; nenhuma medição de TPS ou prova de failover financeiro.
 
 **Fontes:** alfarrábio `https://alfarrabio.lerian.net/reports/fred/midaz-motor-de-saldo`; `docs/architecture/engine.md`; reunião "Direcionamento Midaz" de 2026-10-14. Direção aprovada: intenção/recusa visíveis, corte antecipado inclusive sem gateway, autorizador por lote independente do transporte, nenhuma infraestrutura nova obrigatória, Redpanda dedicado quando usado, Tracer como módulo, alias por id, telemetria enxuta, estudo de leitura e desenho/migração de particionamento com prova de compatibilidade. As definições pendentes não são decisões aprovadas.
 
@@ -207,7 +207,7 @@ Primário com `wal_level=replica`, `max_wal_senders=5`, `max_connections=300`, `
 
 **Implementation vision:** todos os Go novos usam tag `bench` e cabeçalho de licença. `requireDB(t)` pula testes DB apenas quando toda configuração está ausente; configuração parcial/inválida falha. Testes puros continuam executáveis sem banco. Variáveis `BENCH_PG_PRIMARY_DSN`, `BENCH_PG_CLIENT_PROXY_DSN`, `BENCH_PG_STANDBY_DSN` e `BENCH_TOXIPROXY_URL` apontam ao compose descartável. Antes de reset, validar DSNs loopback, banco/usuário `bench_transaction`/`bench`, marcador `midaz-bench-engine:disposable`, `cluster_name`, recovery e mesmo `system_identifier` nas três conexões. Exigir réplica `standby1 | streaming | sync` no primário e WAL receiver streaming no standby, com limite de 120 s. Só então recriar `public`, aplicar migrations via `lib-commons` Migrator, SQL da outbox da lib e DDL bench-local, depois COPY. Sem terminar sessões alheias nem reduzir durabilidade; perda de réplica no setup falha o run, limitado também pelo timeout do processo.
 
-**Unidades de execução:** 1.1.2a concluída em 2026-10-16: duas reconstruções do schema até migration 46, outbox da lib e três tabelas experimentais. Guard recusa marcador errado, portas primary/standby trocadas e `synchronous_commit=local`, preservando probe. Seis testes e 18 subtests passaram contra a stack; supervisor repetiu cinco rodadas em ordem variável. Quatro revisores e contrarian sem Critical/High; testes redundantes removidos. 1.1.2b concluída: 10k duas vezes com hashes iguais; 1M uma vez por run, 1.000.004 saldos e 1.000.003 controles. Seed inclui guard, COPY, commit síncrono e VACUUM: 316–350 ms em 10k e 21,43–23,90 s em 1M nos runs registrados. Supervisor repetiu o teste completo; suite tem sete testes e 18 subtests. Em 1M, contagens/somas/colunas fixas cobrem todas as linhas; IDs/aliases têm amostra nomeada. Quatro revisores e contrarian sem Critical/High; assert redundante removido. 1.1.2c concluída: fixtures 4/5/8 obrigações; caso feeLeg grava cinco eventos e três obrigações privadas via libs na mesma SQL, zero publish externo; rollback não deixa linhas. Payload `transaction.posted`: 2311/2377/3375 B nas três fixtures corrigidas, sem padding. `payload::text` e `pg_column_size` medidos separadamente; não são bytes Kafka. Suite integrada final: nove testes e 21 subtests passaram, sem skips; supervisor repetiu com ordem variável. Quatro revisores e contrarian sem Critical/High; corrigidos description/fração temporal e removidos testes redundantes. Não exercitados: writers financeiros, fee engine real, rotas, MT, trace carrier, relay, failover ou TPS.
+**Unidades de execução:** 1.1.2a concluída em 2026-10-16: duas reconstruções do schema até migration 46, outbox da lib e três tabelas experimentais. Guard recusa marcador errado, portas primary/standby trocadas e `synchronous_commit=local`, preservando probe. Seis testes e 18 subtests passaram contra a stack; supervisor repetiu cinco rodadas em ordem variável. Quatro revisores e contrarian sem Critical/High; testes redundantes removidos. 1.1.2b concluída: 10k duas vezes com hashes iguais; 1M uma vez por run, 1.000.004 saldos e 1.000.003 controles. Seed inclui guard, COPY, commit síncrono e VACUUM: 316,29–352,44 ms em 10k e 21,43–23,90 s em 1M nos runs registrados. Supervisor repetiu o teste completo; suite tem sete testes e 18 subtests. Em 1M, contagens/somas/colunas fixas cobrem todas as linhas; IDs/aliases têm amostra nomeada. Quatro revisores e contrarian sem Critical/High; assert redundante removido. 1.1.2c concluída: fixtures 4/5/8 obrigações; caso feeLeg grava cinco eventos e três obrigações privadas via libs na mesma SQL, zero publish externo; rollback não deixa linhas. Payload `transaction.posted`: 2311/2377/3375 B nas três fixtures corrigidas, sem padding. `payload::text` e `pg_column_size` medidos separadamente; não são bytes Kafka. Suite integrada final: nove testes e 21 subtests passaram, sem skips; supervisor repetiu com ordem variável. Quatro revisores e contrarian sem Critical/High; corrigidos description/fração temporal e removidos testes redundantes. Não exercitados: writers financeiros, fee engine real, rotas, MT, trace carrier, relay, failover ou TPS.
 
 Semear N saldos ordinários, mais saldo quente e saldo de tarifa identificados separadamente; registrar o total exato esperado, sem chamar N de total quando há extras. Valores iniciais devem sustentar aquecimento, medição e soak sem esgotamento acidental. Controles têm saldo de limite suficiente, exceto na célula de esgotamento. A fixture multikey é separada e tem IDs estáveis. Fence inicial sem dono e lease já expirado pelo relógio do banco. `fillfactor=70` é hipótese anotada.
 
@@ -268,11 +268,15 @@ Usar a representação efetivamente persistida: create direto grava `transaction
 **Scope:** `tests/bench/engine/`, `mk/tests.mk`, `.gitignore`.
 **Dependencies:** Epic 1.1.
 **Done when:** correctness gates passam e os blocos de medição produzem resultados reproduzíveis.
-**Status:** Pending
+**Status:** Doing
 
 #### Task 1.2.1: Gerador e métricas
 
-- [ ] Done
+- [x] Done
+
+**Evidência (2026-10-16):** quatro testes do gerador passaram com e sem `-race`; supervisor repetiu com `-race -shuffle=on`. Suite sem DSNs: nove testes passaram e quatro testes DB tiveram skip explícito. Supervisor executou também a suite integrada com DSNs e ordem variável: 13 testes e 26 subtests passaram, sem skips. Vet e lint pinado v2.14.0 passaram. A regressão de cancelamento falhou antes da correção: todos os 100.000 índices já vencidos para envio saíam após cancelamento no writer. Agora o envio para dentro do backlog; o teste confere os instantes realmente recebidos, sem renovar o corte. Revisores independentes e contrarian não deixaram Critical/High/Medium.
+
+**Medição e limites:** run não-race de 40.000 pedidos ao nulo, alvo 20k/s: 19.997 envios/s; dispatch lag p50 0,533 ms, p99 1,066 ms e máximo 2,655 ms. Aprovações simuladas, sem ACK SQL; não mede capacidade financeira. `-race` não sustenta 20k/s e não serve como medição de capacidade. As cinco séries usam 40 B por pedido reservado, 576 MB em 14,4 milhões, sem contar o restante do processo; alocação inicial entra no lag. Runs atuais terminam por quantidade ou abort do contexto. A parada normal por duração, sem cancelar pedidos em voo, entra na Task 1.2.4.
 
 **Context:** conta limitada quente e contraparte aleatória medem núcleo, não API. A carga de 8k deriva da necessidade relatada por Fred.
 
@@ -288,13 +292,15 @@ Nos testes dos escritores, reconstruir cada decisão aprovada na ordem/versão p
 
 **Verification:** `go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestWorkloadKeysUnique|TestOpenLoopSchedule|TestPercentiles|TestWorkloadNullWriter' -timeout 5m -v`. Calendário/percentis determinísticos; medição limitada registra 20k envios/s ao nulo e atraso alcançado. As Tasks 1.2.2/1.2.3 verificam proteção nos escritores reais.
 
-**Done when:** contadores distinguem resultados e fornecem identidade, ordem/versão e valores para as asserções por decisão dos escritores.
+**Done when:** contadores distinguem resultados e pedidos conservam identidade, postings e cortes; os testes dos escritores usam essa identidade para conferir ordem/versão e valores persistidos nas Tasks 1.2.2/1.2.3. O resultado do gerador não duplica a trilha SQL.
 
 #### Task 1.2.2: Escritor com dono
 
 - [ ] Done
 
 **Context:** um dono por tenant, um lote em voo, estado provisório privado. Admissão na entrada e protocolo comum são obrigatórios.
+
+**Unidades de execução:** começar pelo suporte SQL comum, depois entregar a Task 1.2.3 e voltar ao owner. A primeira unidade cria `tests/bench/engine/sql_session.go` e `sql_session_test.go`: uma conexão por sessão via pgx stdlib, compatível com `*sql.Tx` das libs, observa notices por conexão e exige retorno sem erro e sem notice para confirmar COMMIT. Usar `libPostgres.NewFromPools` quando integrar outbox; não criar adapter próprio. Teste `TestSQLSessionCommit`, com `-count=1 -race -tags bench -timeout 5m`, prova commit limpo, cancelamento em SyncRep e timeout do pgx. Somente na stack descartável verificada: pausar replay, usar `SET LOCAL synchronous_commit=remote_apply`, cancelar apenas o PID próprio em SyncRep e retomar replay com cleanup limitado. Linha visível no primário comprova commit local, nunca durabilidade replicada. Não substitui as 20 rodadas de falhas da Epic 1.3.
 
 **Implementation vision:** `writer_owner.go` drena até `maxBatch=256`. `takeover()` usa `UPDATE ... WHERE tenant_id=$tenant AND lease_until <= clock_timestamp()`, troca owner e incrementa epoch. Renovação exige owner/epoch e `lease_until > clock_timestamp()`, nunca `now()`. Lease de 3 s e renovação de 1 s são parâmetros de bench; renovar durante reload.
 
@@ -336,7 +342,7 @@ Ordem uniforme: offset de transporte, fence se houver, identidades, saldos, cont
 
 **Context:** latência injetada não é RTT medido; PG16 local não reproduz RDS. Tag `bench` fica fora dos shards e CI existentes.
 
-**Implementation vision:** `toxiproxy.go` remove toxics antigos e configura `pg-repl`; erro aborta a célula. Registrar atraso, direção e RTT observado. Cada célula limita bootstrap de 10k a 60 s, aquece 60 s, mede 120 s e drena até 30 s. Identidades do aquecimento ficam fora da medição.
+**Implementation vision:** antes das células fechadas, adicionar ao gerador uma parada de admissão por duração, separada do contexto de abort. Ao atingir a duração, parar envios e drenar os pedidos em voo sem cancelar COMMIT; o contexto continua limitado pelo orçamento de drain. Preparar as séries antes do início medido para excluir a alocação inicial do lag. `toxiproxy.go` remove toxics antigos e configura `pg-repl`; erro aborta a célula. Registrar atraso, direção e RTT observado. Cada célula limita bootstrap de 10k a 60 s, aquece 60 s, mede 120 s e drena até 30 s. Identidades do aquecimento ficam fora da medição.
 
 | Bloco | Células | Conteúdo |
 |---|---|---|
