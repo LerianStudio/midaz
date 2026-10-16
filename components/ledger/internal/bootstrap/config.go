@@ -1754,8 +1754,8 @@ func initTenantHealthProber(
 		libLog.Any("dependencies", dependencies),
 		libLog.Any("interval_ms", probeCfg.Interval.Milliseconds()),
 		libLog.Any("timeout_ms", probeCfg.Timeout.Milliseconds()),
-		libLog.Any("pass_budget_ms", probeCfg.PassBudget.Milliseconds()),
-		libLog.Any("lease_expiry_ms", leaseExpiry.Milliseconds()))
+		libLog.Any("budget_ms", probeCfg.PassBudget.Milliseconds()),
+		libLog.Any("lock_ttl_ms", leaseExpiry.Milliseconds()))
 
 	return prober
 }
