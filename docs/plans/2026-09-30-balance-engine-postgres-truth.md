@@ -5,7 +5,7 @@
 > the next phase. Alternatively, use ring-dev-team:running-dev-cycle.
 > This document is the living source of truth for all five phases.
 
-**Autorização:** somente documentos. A Fase 1 estar `Detailed` não autoriza implementar nem executar a bancada. Código, produção, provisionamento e PRs exigem autorização posterior.
+**Autorização:** Fred autorizou começar a implementação da Fase 1 em 2026-10-16, com subagents `claude-opus-5-5[1m]` coordenados nesta sessão. A autorização cobre a bancada local descartável e suas provas. Não autoriza Phase 2, produção, RDS, rollout nem PR; as definições pendentes e a revisão técnica do time permanecem gates.
 
 **Goal:** tornar o Postgres do tenant a única verdade do dinheiro, com decisão, trilha e resultado no mesmo commit síncrono replicado antes do sucesso público. Esse requisito está aprovado; domínios de falha, evidência de hospedagem e postura degradada continuam na definição 2.
 
@@ -13,7 +13,9 @@
 
 **Tech Stack:** bancada em Go 1.27, linguagem do produto ainda na definição 9; PostgreSQL 17 local com comparação limitada em PG16, `pgx/v5` v5.11.0, `squirrel`, `golang-migrate`, Docker Compose e toxiproxy 2.12.0. Redpanda `v24.2.7` e `franz-go` v1.21.6 somente nos experimentos de broker. Registrar versões e imagens efetivas; PG16 local não equivale a RDS16.
 
-**Execução futura:** worktree única `/srv/worktrees/balance-engine`, branch única `feature/balance-engine`. Nenhuma outra branch ou PR sem pedido do Fred. Quando a execução for autorizada, um workflow por fase e revisor diferente do implementador. Commits e pushes ficam com a sessão coordenadora, com o trailer `X-Lerian-Ref: 0x1`.
+**Execução:** worktree única `/srv/worktrees/balance-engine`, branch única `feature/balance-engine`. Nenhuma outra branch ou PR sem pedido do Fred. Subagents `claude-opus-5-5[1m]`, com revisão independente e contrarian. Uma lane escreve por vez; pesquisa e revisão read-only rodam em paralelo. A sessão coordenadora integra, verifica, faz commits assinados e pushes com `X-Lerian-Ref: 0x1`.
+
+**Lanes atuais:** ambiente HA (1.1.1) implementado, verificado e revisado. Screening da outbox concluído: usar lib-commons existente. Próximo: bootstrap guardado e schema (1.1.2a), seguido de fixtures (1.1.2b/c). Epics ainda não concluídas; nenhuma medição de TPS ou prova de falha financeira.
 
 **Fontes:** alfarrábio `https://alfarrabio.lerian.net/reports/fred/midaz-motor-de-saldo`; `docs/architecture/engine.md`; reunião "Direcionamento Midaz" de 2026-10-14. Direção aprovada: intenção/recusa visíveis, corte antecipado inclusive sem gateway, autorizador por lote independente do transporte, nenhuma infraestrutura nova obrigatória, Redpanda dedicado quando usado, Tracer como módulo, alias por id, telemetria enxuta, estudo de leitura e desenho/migração de particionamento com prova de compatibilidade. As definições pendentes não são decisões aprovadas.
 
@@ -159,7 +161,7 @@ Após identidade e prazo, validar block/flags, saldo e limite. Cada posting apro
 
 **Durabilidade e replay:** no pgx v5.11.0, `pgconn.go:768-790` envia `CancelRequest` em `asyncClose`; `receiveMessage`, linhas 1613-1620, chama esse caminho após erro de leitura. Cancelar durante a espera de replicação síncrona no Postgres pode deixar o commit local sem replicação confirmada. Linha visível no primário, sem confirmação da réplica, não prova essa durabilidade.
 
-O bench mantém `unknown` em timeout, perda de resposta ou aviso de cancelamento da espera síncrona. O tratamento observa também notices do COMMIT; retorno sem erro sozinho não basta se a espera síncrona foi cancelada. Antes de reconhecer um resultado encontrado por replay, a mesma transação finalizadora incrementa `engine_request.durability_touch` e faz um COMMIT síncrono com escrita real de WAL, no primário autoritativo. Esse WAL posterior cobre o resultado anterior na ordem de replicação. `SELECT` seguido de COMMIT read-only não é barreira. Sem confirmação da nova barreira, permanece `unknown`. A prova vale para o primário único e a configuração de réplica da célula, não para hospedagens ou falhas não exercitadas.
+O bench mantém `unknown` em timeout, perda de resposta ou aviso de cancelamento da espera síncrona. O tratamento observa também notices do COMMIT; retorno sem erro sozinho não basta se a espera síncrona foi cancelada. Antes de responder replay ou conflito de uma identidade existente, a mesma transação finalizadora incrementa `engine_request.durability_touch` e faz um COMMIT síncrono com escrita real de WAL, no primário autoritativo. Esse WAL posterior cobre o resultado anterior na ordem de replicação. `SELECT` seguido de COMMIT read-only não é barreira. Sem confirmação da nova barreira, permanece `unknown`. A prova vale para o primário único e a configuração de réplica da célula, não para hospedagens ou falhas não exercitadas.
 
 **Relógios:** registrar `decisionStartedAt`, `dbAckAt` e `repliedAt`; Redpanda acrescenta `brokerAckAt`. Recebimento do ACK no host não é timestamp real de commit. SQL `now()` é início da transação; `clock_timestamp()` é relógio corrente do banco, não prova de instante de commit. O bench não inventa `committedAt`; mede confirmação e resposta. Fixtures temporais determinísticas usam relógio injetado; medições reais usam relógio do processo, sem gerar carga sintética de CPU.
 
@@ -169,21 +171,23 @@ O bench mantém `unknown` em timeout, perda de resposta ou aviso de cancelamento
 
 **Goal:** primário PG17, standby síncrono, latência controlada e esquema real com tabelas experimentais.
 **Scope:** `tests/bench/engine/`.
-**Dependencies:** autorização de execução da Fase 1.
+**Dependencies:** autorização de execução da Fase 1, concedida em 2026-10-16.
 **Done when:** bootstrap reproduzível, standby em `sync` e esquema validado.
-**Status:** Pending
+**Status:** Doing
 
 #### Task 1.1.1: Compose com primário, standby e toxiproxy
 
-- [ ] Done
+- [x] Done
+
+**Evidence (2026-10-16):** PG17.11 (`postgres:17`, digest `2d2b8998…`) e toxiproxy2.12.0 (`9378ed52…`); fresh start limitado e restart com volumes preservados passaram. Primário `standby1 | streaming | sync`, standby em recovery/streaming, mesmo system identifier, 12 settings herdadas e quatro binds loopback verificados. Três revisores e contrarian sem Critical/High/Medium. Prova de ambiente, não de durabilidade financeira/failover/TPS; bootstrap ainda pendente.
 
 **Context:** `components/infra/docker-compose.yml:65-155` usa réplica assíncrona. O bench precisa de standby nomeado e falhas controladas; toxiproxy já é dependência do repo.
 
-**Implementation vision:** três serviços com nomes fixos: `bench-pg-primary`, `bench-pg-standby` e `bench-toxiproxy`. Postgres `17`, toxiproxy `ghcr.io/shopify/toxiproxy:2.12.0`. Somente loopback nas portas do host: primário 5432, standby 5435, proxy de replicação 5433, proxy de cliente 5434 e API do toxiproxy 8474. Credenciais descartáveis `bench`/`bench`, banco `bench_transaction`; habilitar conexão de replicação na rede do compose com `host replication all 0.0.0.0/0 scram-sha-256`, sem expor portas fora do loopback.
+**Implementation vision:** três serviços com nomes fixos: `bench-pg-primary`, `bench-pg-standby` e `bench-toxiproxy`, projeto `midaz-bench-engine`. Postgres `17`, toxiproxy `ghcr.io/shopify/toxiproxy:2.12.0`. Portas do host em `127.0.0.1`: primário 15432, standby 15435, proxy de cliente 15434 e API toxiproxy 18474, com overrides próprios do bench. O proxy de replicação 5433 fica apenas na rede do compose. Credenciais descartáveis `bench`/`bench`, banco `bench_transaction`; habilitar conexão de replicação nessa rede com `host replication all 0.0.0.0/0 scram-sha-256`. Não alterar serviços de outras sessões.
 
-Primário com `wal_level=replica`, `max_wal_senders=5`, `max_connections=300`, `shared_buffers=4GB`, `max_wal_size=8GB`, `checkpoint_timeout=15min` e `log_checkpoints=on`. Manter `synchronous_commit=on` como configuração do servidor, não argumento que impeça o controle negativo. `init-primary.sql` usa `ALTER SYSTEM` para `synchronous_standby_names='FIRST 1 (standby1)'`, só efetivo no start definitivo; configurar isso no servidor temporário do entrypoint bloquearia sua inicialização.
+Primário com `wal_level=replica`, `max_wal_senders=5`, `max_connections=300`, `shared_buffers=4GB`, `max_wal_size=8GB`, `checkpoint_timeout=15min`, `log_checkpoints=on`, `track_io_timing=on` e `track_wal_io_timing=on`. `init-primary.sql` persiste configurações via `ALTER SYSTEM`, incluindo `synchronous_commit=on` e `synchronous_standby_names='FIRST 1 (standby1)'`, sem reload no servidor temporário do entrypoint. O start definitivo as aplica; o base backup as transmite ao standby. Cada serviço define `cluster_name` próprio e a inicialização grava marcador do banco descartável para o guard do bootstrap.
 
-`pg_basebackup -R` atravessa `pg-repl` e configura `application_name=standby1`. Standby usa `hot_standby=on` e sobrepõe `synchronous_standby_names=''` para não esperar por si ao promover. Após promoção, essa ausência de standby deve ser tratada explicitamente no teste, nunca contada como durabilidade síncrona. O helper reinstala réplica e remove a sobreposição vazia no comando do promovido, preservando seu volume, antes de configurar espera síncrona e admitir novas confirmações duráveis. `pg-client` permite perder respostas independentemente da replicação. Volumes são exclusivos do bench; `down -v` só os apaga dentro do ambiente descartável autorizado.
+`pg_basebackup -R --no-slot --checkpoint=fast` atravessa `pg-repl` com `application_name=standby1`. Readiness exige primário com uma réplica `streaming | sync` e standby em recovery com WAL receiver `streaming`; só o WAL streamer do base backup não basta. O standby herda a espera síncrona: após promoção, commits novos continuam bloqueados até reinstalar uma réplica válida. O teste prova sobrevivência dos commits anteriores nessa janela, nunca novas aprovações duráveis. `pg-client` separa falha de resposta de falha de replicação. Sem restart automático do primário morto. Volumes exclusivos do bench; nenhuma limpeza atinge recursos externos.
 
 **Files:**
 - Create: `tests/bench/engine/docker-compose.yml`
@@ -193,7 +197,7 @@ Primário com `wal_level=replica`, `max_wal_senders=5`, `max_connections=300`, `
 
 **Verification:** `docker compose -f tests/bench/engine/docker-compose.yml up -d --wait --wait-timeout 120`; consultar `pg_stat_replication` no DSN local e exigir `standby1 | sync`. A verificação de COMMIT bloqueado com standby ausente fica no teste limitado da Task 1.3.1, não em um INSERT manual sem timeout.
 
-**Done when:** ambiente novo fica pronto dentro do limite do comando, sem depender de serviços externos.
+**Done when:** após o pull inicial das imagens, ambiente novo fica pronto dentro do limite do comando, com binds loopback e réplica verificada nos dois lados.
 
 #### Task 1.1.2: Bootstrap do esquema e fixtures reais
 
@@ -201,7 +205,9 @@ Primário com `wal_level=replica`, `max_wal_senders=5`, `max_connections=300`, `
 
 **Context:** `components/ledger/migrations/transaction/` chega a 000046 neste HEAD. 44 acrescenta scheme; 45, optional em operation_transaction_route; 46, índice parcial não único de operation por balance_id/balance_version_after. A 46 usa `CREATE INDEX CONCURRENTLY`: executar cada arquivo via `golang-migrate`, sem transação externa nem concatenar outros DDL no mesmo Exec, seguindo `tests/integration/ledger_migrations_integration_test.go:110-113`. `operation.snapshot`, em `pkg/mmodel/operation.go`, contém `overdraftUsedBefore` e `overdraftUsedAfter`, não um create de 1 KB.
 
-**Implementation vision:** todos os Go novos usam tag `bench` e cabeçalho de licença. `requireDB(t)` pula somente testes que precisam do DSN; testes puros continuam executáveis sem banco. Variáveis `BENCH_PG_PRIMARY_DSN`, `BENCH_PG_CLIENT_PROXY_DSN`, `BENCH_PG_STANDBY_DSN` e `BENCH_TOXIPROXY_URL` apontam apenas ao compose descartável. Bootstrap valida esse destino, espera `standby1 | sync` com limite de 120 s, recria o schema, aplica migrações e DDL bench-local, depois semeia por COPY.
+**Implementation vision:** todos os Go novos usam tag `bench` e cabeçalho de licença. `requireDB(t)` pula testes DB apenas quando toda configuração está ausente; configuração parcial/inválida falha. Testes puros continuam executáveis sem banco. Variáveis `BENCH_PG_PRIMARY_DSN`, `BENCH_PG_CLIENT_PROXY_DSN`, `BENCH_PG_STANDBY_DSN` e `BENCH_TOXIPROXY_URL` apontam ao compose descartável. Antes de reset, validar DSNs loopback, banco/usuário `bench_transaction`/`bench`, marcador `midaz-bench-engine:disposable`, `cluster_name`, recovery e mesmo `system_identifier` nas três conexões. Exigir réplica `standby1 | streaming | sync` no primário e WAL receiver streaming no standby, com limite de 120 s. Só então recriar `public`, aplicar migrations via `lib-commons` Migrator, SQL da outbox da lib e DDL bench-local, depois COPY. Sem terminar sessões alheias nem reduzir durabilidade; perda de réplica no setup falha o run, limitado também pelo timeout do processo.
+
+**Unidades de execução:** 1.1.2a entrega guard/reset/migrations/schema com testes reais; 1.1.2b entrega COPY, fixtures e tempos de 10k/1M; 1.1.2c entrega catálogo real de obrigações/bytes. A task só termina após as três provas.
 
 Semear N saldos ordinários, mais saldo quente e saldo de tarifa identificados separadamente; registrar o total exato esperado, sem chamar N de total quando há extras. Valores iniciais devem sustentar aquecimento, medição e soak sem esgotamento acidental. Controles têm saldo de limite suficiente, exceto na célula de esgotamento. A fixture multikey é separada e tem IDs estáveis. Fence inicial sem dono e lease já expirado pelo relógio do banco. `fillfactor=70` é hipótese anotada.
 
@@ -236,29 +242,21 @@ CREATE TABLE account_control (
   version bigint NOT NULL,
   PRIMARY KEY (organization_id, ledger_id, account_id)
 );
-CREATE TABLE engine_outbox (
-  id uuid PRIMARY KEY,
-  tenant_id text NOT NULL,
-  request_id uuid NOT NULL,
-  kind text NOT NULL,
-  payload jsonb NOT NULL,
-  delivered_at timestamptz
-);
-CREATE INDEX engine_outbox_pending
-  ON engine_outbox (tenant_id, id) WHERE delivered_at IS NULL;
 ```
 
-`outcome` nulo só existe como claim dentro da transação; todo commit de lote o finaliza. Rejeição/expiração não têm `transaction_id` financeiro. `decided_at` não é commit timestamp. Outbox inclui linhas, índices e payloads representativos das obrigações de metadata, eventos e Tracer; fee debt entra na fixture correspondente. Extrair quantidade e formato das obrigações do caminho real de completion e mantê-los iguais nos dois escritores. Registrar bytes e quantidade no resultado. Sem chamar esses serviços no microbenchmark: medir gravação do outbox e declarar entrega externa fora dessa célula. A resposta do transporte B acrescenta sua obrigação própria, custo explícito desse transporte.
+Outbox usa `outbox_events` de `lib-commons/v7/commons/outbox/postgres`, trilha schema em `public`, não uma implementação própria. Após migrations do ledger, aplicar o SQL fornecido pelo módulo pinado em `go.mod`, sem copiar o DDL nem compartilhar o histórico `schema_migrations`. Preservar PK e três índices secundários. Escritores usam `CreateManyWithTx` no mesmo `*sql.Tx`; `pgx/stdlib` preserva `OnNotice`, com conexão dedicada por writer. Medir `SET LOCAL`, índices e `RETURNING` da lib. O batch máximo de 256 pedidos das fixtures fica abaixo do limite de 65535 parâmetros, verificado pela quantidade real de obrigações.
+
+`outcome` nulo só existe como claim dentro da transação; todo commit de lote o finaliza. Rejeição/expiração não têm `transaction_id` financeiro. `decided_at` não é commit timestamp. Obrigações usam `aggregate_id=request_id`, tipo explícito, payload representativo e ID de entrega estável. Eventos seguem o envelope da lib-streaming; metadata e Tracer usam tipos privados do bench. Fee debt entra somente na fixture que a produzir. Extrair quantidade e formato das obrigações do caminho real de completion e mantê-los iguais nos dois escritores. Registrar bytes e quantidade no resultado. Sem chamar esses serviços no microbenchmark: medir gravação do outbox e declarar entrega externa fora dessa célula. A resposta do transporte B acrescenta sua obrigação própria, custo explícito desse transporte.
 
 Usar a representação efetivamente persistida: create direto grava `transaction.body=NULL`; PENDING grava o corpo normalizado, conforme `transaction_completion_service.go:349-351`. A fixture `create_v2_body.json` representa a entrada, não preenchimento artificial da coluna SQL. Usar snapshot real por operação e medir separadamente os bytes novos de intenção, resultado e outbox. Não reduzir o outbox a uma linha vazia. Rodar bootstrap duas vezes produz o mesmo estado.
 
 **Files:**
 - Create: `tests/bench/engine/main_test.go`, `tests/bench/engine/env.go`
 - Create: `tests/bench/engine/bootstrap.go`, `tests/bench/engine/schema_bench.sql`
-- Create: `tests/bench/engine/testdata/create_v2_body.json`, `tests/bench/engine/testdata/operation_snapshot.json`
+- Create: `tests/bench/engine/testdata/create_v2_body.json`; snapshot usa `mmodel.OperationSnapshot`, sem fixture duplicada
 - Test: `tests/bench/engine/bootstrap_test.go`
 
-**Verification:** `go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestBootstrap$' -timeout 30m -v`, com DSNs do compose. Conferir migração 46 e seu índice parcial, quatro tabelas bench, índice de pendências, totais de saldos/controles e duas execuções internas do bootstrap.
+**Verification:** `go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestBootstrap$' -timeout 30m -v`, com DSNs do compose. Conferir migração 46 e seu índice parcial válido, três tabelas bench, `outbox_events` da lib com enum e quatro índices, totais de saldos/controles e duas execuções internas do bootstrap.
 
 **Done when:** bootstrap repetível; tempos de 10k e 1M registrados, com limites por execução de 60 s e 10 min para a semeadura.
 

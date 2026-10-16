@@ -1,0 +1,14 @@
+[
+  {
+    "name": "pg-repl",
+    "listen": "0.0.0.0:5433",
+    "upstream": "bench-pg-primary:5432",
+    "enabled": true
+  },
+  {
+    "name": "pg-client",
+    "listen": "0.0.0.0:5434",
+    "upstream": "bench-pg-primary:5432",
+    "enabled": true
+  }
+]

@@ -1,0 +1,78 @@
+# Disposable balance-engine bench: PG17 primary, named synchronous standby, toxiproxy.
+# Bench credentials only. Every host port binds 127.0.0.1. No restart policy on purpose:
+# a killed primary must never come back by itself.
+name: midaz-bench-engine
+
+services:
+  bench-pg-primary:
+    container_name: bench-pg-primary
+    image: postgres:17
+    command: ["postgres", "-c", "cluster_name=bench-pg-primary"]
+    environment:
+      POSTGRES_USER: bench
+      POSTGRES_PASSWORD: bench
+      POSTGRES_DB: bench_transaction
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256\nhost replication all 0.0.0.0/0 scram-sha-256"
+    ports:
+      - "127.0.0.1:${BENCH_PG_PRIMARY_PORT:-15432}:5432"
+    volumes:
+      - bench-pg-primary-data:/var/lib/postgresql/data
+      - ./init-primary.sql:/docker-entrypoint-initdb.d/init-primary.sql:ro
+    healthcheck:
+      # TCP on purpose: the entrypoint's temporary init server listens on the socket only.
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-p", "5432", "-U", "bench", "-d", "bench_transaction"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  bench-toxiproxy:
+    container_name: bench-toxiproxy
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    command: ["-host=0.0.0.0", "-config=/config/toxiproxy.json"]
+    ports:
+      - "127.0.0.1:${BENCH_PG_CLIENT_PROXY_PORT:-15434}:5434"
+      - "127.0.0.1:${BENCH_TOXIPROXY_PORT:-18474}:8474"
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    healthcheck:
+      # A bad config only logs and keeps the API up. pg-client is created last, so it exists
+      # only if every proxy loaded; pg-repl is also proven by the standby streaming through it.
+      test: ["CMD", "/toxiproxy-cli", "--host", "http://127.0.0.1:8474", "inspect", "pg-client"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  bench-pg-standby:
+    container_name: bench-pg-standby
+    image: postgres:17
+    user: postgres
+    environment:
+      PGPASSWORD: bench
+    command:
+      - bash
+      - -ec
+      - |
+        if [ ! -s "$$PGDATA/PG_VERSION" ]; then
+          pg_basebackup -D "$$PGDATA" -R --no-slot --checkpoint=fast \
+            -d "host=bench-toxiproxy port=5433 user=bench application_name=standby1 connect_timeout=10"
+          chmod 0700 "$$PGDATA"
+        fi
+        exec postgres -c cluster_name=bench-pg-standby
+    depends_on:
+      bench-pg-primary:
+        condition: service_healthy
+      bench-toxiproxy:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${BENCH_PG_STANDBY_PORT:-15435}:5432"
+    volumes:
+      - bench-pg-standby-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "[ \"$$(psql -U bench -d bench_transaction -tAXc \"select pg_is_in_recovery() and exists (select 1 from pg_stat_wal_receiver where status = 'streaming')\")\" = t ]"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  bench-pg-primary-data:
+  bench-pg-standby-data:
