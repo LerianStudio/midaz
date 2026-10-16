@@ -15,7 +15,9 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
@@ -203,6 +205,79 @@ func TestReserveAtomicTransactionBatch_ForwardsItemContext(t *testing.T) {
 	assert.True(t, requests[1].Revert, "a revert item marks its reservation as a revert")
 }
 
+func TestReserveAtomicTransactionBatch_ForwardsSourceAccountScope(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000e1")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000e2")
+	segmentID, portfolioID := "seg-batch", "port-batch"
+
+	fake := &atomicTransactionBatchTracerFake{}
+	run := atomicTransactionBatchTracerScopedRun(2, organizationID, ledgerID)
+
+	ctrl := gomock.NewController(t)
+	accountRepo := account.NewMockRepository(ctrl)
+	accountRepo.EXPECT().
+		ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(0)}).
+		Return([]*mmodel.Account{{ID: atomicTransactionBatchScopedAccountID(0).String(), SegmentID: &segmentID}}, nil).
+		Times(1)
+	accountRepo.EXPECT().
+		ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(1)}).
+		Return([]*mmodel.Account{{ID: atomicTransactionBatchScopedAccountID(1).String(), PortfolioID: &portfolioID}}, nil).
+		Times(1)
+
+	uc := &UseCase{TracerReserver: fake, AccountRepo: accountRepo}
+	ctx, span, logger := anchorDeps()
+
+	require.NoError(t, uc.reserveAtomicTransactionBatch(ctx, span, logger, run))
+
+	requests, _, _ := fake.snapshot()
+	require.Len(t, requests, 2)
+	assert.Equal(t, segmentID, requests[0].SegmentID, "item 0 carries its own source account's segment")
+	assert.Empty(t, requests[0].PortfolioID)
+	assert.Empty(t, requests[1].SegmentID)
+	assert.Equal(t, portfolioID, requests[1].PortfolioID, "item 1 carries its own source account's portfolio")
+}
+
+func TestReserveAtomicTransactionBatch_EnforceScopeReadFailureReleasesPriorItems(t *testing.T) {
+	organizationID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000f1")
+	ledgerID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000f2")
+	firstReservationID := uuid.MustParse("01994f13-29b7-7000-8000-0000000000f3")
+	readFailure := errors.New("account read timed out")
+
+	fake := &atomicTransactionBatchTracerFake{results: []*tracer.ReserveResult{
+		{ReservationIDs: []uuid.UUID{firstReservationID}},
+	}}
+	run := atomicTransactionBatchTracerScopedRun(3, organizationID, ledgerID)
+
+	ctrl := gomock.NewController(t)
+	accountRepo := account.NewMockRepository(ctrl)
+	gomock.InOrder(
+		accountRepo.EXPECT().
+			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(0)}).
+			Return([]*mmodel.Account{{ID: atomicTransactionBatchScopedAccountID(0).String()}}, nil),
+		accountRepo.EXPECT().
+			ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{atomicTransactionBatchScopedAccountID(1)}).
+			Return(nil, readFailure),
+	)
+
+	uc := &UseCase{TracerReserver: fake, AccountRepo: accountRepo}
+	ctx, span, logger := anchorDeps()
+
+	err := uc.reserveAtomicTransactionBatch(ctx, span, logger, run)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, readFailure)
+
+	var carrier *pkg.FieldErrorCarrier
+	require.True(t, errors.As(err, &carrier))
+	require.Len(t, carrier.FieldErrors(), 1)
+	assert.Equal(t, "body.transactions[1]", carrier.FieldErrors()[0].Location)
+
+	requests, confirmed, released := fake.snapshot()
+	assert.Equal(t, []uuid.UUID{run.items[0].transactionID}, atomicTransactionBatchTracerRequestIDs(requests),
+		"the failed item and every later item never reach the reserve")
+	assert.Empty(t, confirmed)
+	assert.Equal(t, []uuid.UUID{firstReservationID}, released, "the prior item's capacity goes back")
+}
+
 func TestAtomicTransactionBatchReservationSettlement_RetriesTransportFailure(t *testing.T) {
 	withFastSharedRetrier(t)
 
@@ -288,4 +363,25 @@ func atomicTransactionBatchTracerRequestIDs(requests []tracer.ReserveRequest) []
 	}
 
 	return transactionIDs
+}
+
+// atomicTransactionBatchScopedAccountID is the deterministic source account
+// id of item index in atomicTransactionBatchTracerScopedRun.
+func atomicTransactionBatchScopedAccountID(index int) uuid.UUID {
+	return uuid.NewSHA1(uuid.MustParse("01994f13-29b7-7000-8000-0000000000c0"), []byte{byte(index)})
+}
+
+// atomicTransactionBatchTracerScopedRun is atomicTransactionBatchTracerTestRun
+// with source balances whose account, organization and ledger ids are UUIDs,
+// so the source account scope can be read.
+func atomicTransactionBatchTracerScopedRun(itemCount int, organizationID, ledgerID uuid.UUID) *atomicTransactionBatchRun {
+	run := atomicTransactionBatchTracerTestRun(itemCount)
+	for index := range run.items {
+		balance := run.items[index].prepared.pool.ExplicitBalances[0]
+		balance.AccountID = atomicTransactionBatchScopedAccountID(index).String()
+		balance.OrganizationID = organizationID.String()
+		balance.LedgerID = ledgerID.String()
+	}
+
+	return run
 }

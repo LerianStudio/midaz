@@ -462,6 +462,44 @@ func TestReserveTransaction_ForwardsSchemeAsTransactionType(t *testing.T) {
 	}
 }
 
+func TestReserveTransaction_ForwardsSourceScope(t *testing.T) {
+	tracerCtx, sp, logger := anchorDeps()
+
+	tests := []struct {
+		name          string
+		segmentID     string
+		portfolioID   string
+		wantSegment   string
+		wantPortfolio string
+	}{
+		{name: "segment and portfolio", segmentID: "seg-1", portfolioID: "port-1", wantSegment: "seg-1", wantPortfolio: "port-1"},
+		{name: "segment only", segmentID: "seg-1", wantSegment: "seg-1"},
+		{name: "portfolio only", portfolioID: "port-1", wantPortfolio: "port-1"},
+		{name: "neither", segmentID: "", portfolioID: ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			capturing := &capturingReserver{result: &tracer.ReserveResult{}}
+			uc := &UseCase{TracerReserver: capturing}
+
+			account := tracer.ReserveAccount{
+				AccountID: fixedReserveAccountID, Type: "deposit",
+				SegmentID: tc.segmentID, PortfolioID: tc.portfolioID,
+			}
+
+			uc.reserveTransaction(tracerCtx, sp, logger,
+				mmodel.TracerSettings{Mode: mmodel.TracerModeEnforce, FailPosture: mmodel.TracerFailPostureOpen},
+				uuid.New(), decimal.NewFromInt(1000), "BRL", account, nil, fixedReserveTimestamp, reservationTTLDefault, reservationForCreate, false, "")
+
+			assert.Equal(t, tc.wantSegment, capturing.lastReq.SegmentID,
+				"the reserve carries the source account's segment")
+			assert.Equal(t, tc.wantPortfolio, capturing.lastReq.PortfolioID,
+				"the reserve carries the source account's portfolio")
+		})
+	}
+}
+
 func TestReservationRequestID_Deterministic(t *testing.T) {
 	txID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
 

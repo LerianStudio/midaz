@@ -110,10 +110,21 @@ func (uc *UseCase) executeCreateEngine(
 	}
 
 	reservation := reservationOutcome{Kind: reservationProceed}
+
 	if tracerEligible {
+		// Only an enforce ledger fails here, before anything is reserved, so the
+		// claim goes back exactly as for a rejected reservation.
+		sourceAccount, err := uc.reserveSourceAccount(ctx, span, logger, run.ledgerSettings.Tracer,
+			run.honoredTracerSkip, run.validate.Sources, engineState.pool.ExplicitBalances)
+		if err != nil {
+			uc.rollbackCreateClaim(ctx, run)
+
+			return nil, err
+		}
+
 		reservation = uc.reserveTransaction(ctx, span, logger, run.ledgerSettings.Tracer, run.transactionID,
 			run.input.Send.Value, run.input.Send.Asset,
-			firstSourceAccount(run.validate.Sources, engineState.pool.ExplicitBalances),
+			sourceAccount,
 			run.input.Metadata,
 			run.transactionDate, reservationTTLForStatus(run.status), reservationPurposeForAction(run.action),
 			run.honoredTracerSkip, run.input.Scheme)

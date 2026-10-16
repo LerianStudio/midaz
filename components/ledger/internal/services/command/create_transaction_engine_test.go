@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/postgres/account"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/rabbitmq"
 	txRedis "github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/redis/transaction"
 	"github.com/LerianStudio/midaz/v4/components/ledger/internal/adapters/tracer"
@@ -504,6 +505,107 @@ func TestCreateTransactionEnginePendingRetainsBodyAndDefersTracerConfirm(t *test
 	case <-time.After(time.Second):
 		t.Fatal("durable pending success did not populate the idempotency value")
 	}
+}
+
+func TestCreateTransactionV2ReserveCarriesSourceAccountScope(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	idempotencySet := make(chan struct{})
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Set(gomock.Any(), gomock.Any(), gomock.Any(), time.Minute).DoAndReturn(
+		func(context.Context, string, string, time.Duration) error {
+			close(idempotencySet)
+			return nil
+		},
+	).Times(1)
+
+	organizationID := uuid.MustParse("b1111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("b2222222-2222-4222-8222-222222222222")
+	source := translationBalance(organizationID, ledgerID, "b3333333-3333-4333-8333-333333333333", "@source", constant.DefaultBalanceKey)
+	target := translationBalance(organizationID, ledgerID, "b4444444-4444-4444-8444-444444444444", "@target", constant.DefaultBalanceKey)
+	segmentID, portfolioID := "b5555555-5555-4555-8555-555555555555", "b6666666-6666-4666-8666-666666666666"
+
+	accountRepo := account.NewMockRepository(ctrl)
+	accountRepo.EXPECT().
+		ListAccountsByIDs(gomock.Any(), organizationID, ledgerID, []uuid.UUID{uuid.MustParse(source.AccountID)}).
+		Return([]*mmodel.Account{{ID: source.AccountID, SegmentID: &segmentID, PortfolioID: &portfolioID}}, nil).
+		Times(1)
+
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{source, target}}
+	reserver := &stubReserver{result: &tracer.ReserveResult{}}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader, AccountRepo: accountRepo,
+		Engine:                      &applyingCreateEngine{t: t, expectedSourceVersions: []int64{1}},
+		AppliedTransactionCompleter: &createAppliedTransactionCompleter{outcome: TransactionPersistenceOutcome{TransactionStatus: constant.APPROVED}},
+		TracerReserver:              reserver,
+	}
+
+	_, _, err := uc.CreateTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-scope"), CreateTransactionV2Input{
+		OrganizationID: organizationID, LedgerID: ledgerID,
+		Transaction:       createEngineTransaction(time.Date(2026, time.September, 15, 10, 0, 0, 0, time.UTC)),
+		TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
+	})
+	require.NoError(t, err)
+
+	requests := reserver.reserveRequests()
+	require.Len(t, requests, 1)
+	assert.Equal(t, tracer.ReserveAccount{
+		AccountID: source.AccountID, Type: "deposit", SegmentID: segmentID, PortfolioID: portfolioID,
+	}, requests[0].Account)
+	assert.Equal(t, segmentID, requests[0].SegmentID, "the reserve carries the source account's segment")
+	assert.Equal(t, portfolioID, requests[0].PortfolioID, "the reserve carries the source account's portfolio")
+
+	select {
+	case <-idempotencySet:
+	case <-time.After(time.Second):
+		t.Fatal("durable v2 success did not populate the idempotency value")
+	}
+}
+
+func TestCreateTransactionV2EnforceSourceScopeReadFailureStopsBeforeReserve(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	ctrl := gomock.NewController(t)
+	redisRepo := txRedis.NewMockRedisRepository(ctrl)
+	redisRepo.EXPECT().SetNX(gomock.Any(), gomock.Any(), "", time.Minute).Return(true, nil).Times(1)
+	redisRepo.EXPECT().Del(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+
+	organizationID := uuid.MustParse("c1111111-1111-4111-8111-111111111111")
+	ledgerID := uuid.MustParse("c2222222-2222-4222-8222-222222222222")
+	readFailure := errors.New("account read timed out")
+
+	accountRepo := account.NewMockRepository(ctrl)
+	accountRepo.EXPECT().
+		ListAccountsByIDs(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(nil, readFailure).
+		Times(1)
+
+	settings := mmodel.LedgerSettings{}
+	settings.Tracer.Mode = mmodel.TracerModeEnforce
+	reader := &createEngineReader{settings: settings, balances: []*mmodel.Balance{
+		translationBalance(organizationID, ledgerID, "c3333333-3333-4333-8333-333333333333", "@source", constant.DefaultBalanceKey),
+		translationBalance(organizationID, ledgerID, "c4444444-4444-4444-8444-444444444444", "@target", constant.DefaultBalanceKey),
+	}}
+	executor := &createEngineErrorExecutor{err: errors.New("must not execute")}
+	reserver := &stubReserver{result: &tracer.ReserveResult{}}
+	uc := &UseCase{
+		TransactionRedisRepo: redisRepo, TransactionReader: reader, AccountRepo: accountRepo,
+		Engine: executor, AppliedTransactionCompleter: &createAppliedTransactionCompleter{},
+		TracerReserver: reserver,
+	}
+
+	_, replayed, err := uc.CreateTransactionV2(tmcore.ContextWithTenantID(context.Background(), "tenant-scope-failure"), CreateTransactionV2Input{
+		OrganizationID: organizationID, LedgerID: ledgerID,
+		Transaction:       createEngineTransaction(time.Date(2026, time.September, 15, 11, 0, 0, 0, time.UTC)),
+		TransactionStatus: constant.CREATED, IdempotencyTTL: time.Minute,
+	})
+	require.Error(t, err)
+	assert.False(t, replayed)
+	assert.ErrorIs(t, err, readFailure)
+	assert.Equal(t, 0, reserver.reserves(), "a failed scope read under enforce never reaches the reserve")
+	assert.Empty(t, executor.requests, "a failed scope read under enforce never reaches the engine")
 }
 
 func TestCreateTransactionEngineFailureCleanupBoundary(t *testing.T) {

@@ -105,9 +105,14 @@ be written against these variables:
   at most 64 characters, at most 50 entries, and every value a STRING (the ledger renders numbers
   and booleans as strings, so compare `metadata["tier"] == "1"`, not `== 1`).
 - `scheme` and `transactionType` both hold the normalized scheme the ledger transaction declared
-  (free-form, e.g. `CARD`, `PIX`) or an empty string when none was declared; `subType` is an empty string,
-  `account["status"]` is empty, and
-  `account["metadata"]`, `segment`, `portfolio` and `merchant` are empty maps.
+  (free-form, e.g. `CARD`, `PIX`) or an empty string when none was declared.
+- `segment["segmentId"]` and `portfolio["portfolioId"]` — the segment and portfolio of that same
+  source account when it has them, read from the account at reserve time; otherwise `segment` and
+  `portfolio` are empty maps.
+- `segment["name"]`, `segment["metadata"]`, `portfolio["name"]` and `portfolio["metadata"]` stay
+  empty, so a CEL rule written against `segment["name"]` never matches a reserve. `subType` is an
+  empty string, `account["status"]` is empty, and `account["metadata"]` and `merchant` are empty
+  maps.
 
 On reserve the transaction timestamp is only checked for being in the future; the maximum-age
 window applies to `POST /v1/validations` alone.
