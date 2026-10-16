@@ -1304,3 +1304,55 @@ func TestPendingGuardConflictClassifiesAgainstEngineIndex(t *testing.T) {
 		})
 	}
 }
+
+// TestPendingCancelLeavesADebitDirectionDestinationUntouched pins the cancel of
+// a pending transfer whose destination is an external account. External
+// balances are debit-direction, and the cancel must neither load nor post
+// against them: a destination that reaches the engine on cancel is credited as
+// if the hold had settled, moving its version and available without an
+// operation row.
+func TestPendingCancelLeavesADebitDirectionDestinationUntouched(t *testing.T) {
+	t.Setenv("AUDIT_LOG_ENABLED", "false")
+	uc, reader, executor, _, in := newTransitionEngineUseCase(t, constant.CANCELED)
+
+	const external = "@external/USD"
+
+	reader.persisted.Body.Send.Distribute.To[0].AccountAlias = external
+	destination := transitionBalance(in.OrganizationID, in.LedgerID, "55555555-5555-4555-8555-555555555555", external, decimal.Zero)
+	destination.AccountType = constant.ExternalAccountType
+	destination.Direction = constant.DirectionDebit
+	reader.balances[1] = destination
+
+	got, err := uc.CancelTransactionV1(context.Background(), in)
+	require.NoError(t, err)
+	require.NotNil(t, got)
+
+	sourceRef := mtransaction.AliasKey("@source", constant.DefaultBalanceKey)
+	externalRef := mtransaction.AliasKey(external, constant.DefaultBalanceKey)
+
+	var loaded []string
+	for _, aliases := range reader.balanceAliases {
+		loaded = append(loaded, aliases...)
+	}
+
+	assert.Contains(t, loaded, sourceRef)
+	assert.NotContains(t, loaded, externalRef, "the cancel must not load the destination")
+
+	require.Len(t, executor.requests, 1)
+	execution := executor.requests[0].Execution
+	require.Len(t, execution.Transactions, 1)
+	require.NotEmpty(t, execution.Transactions[0].Postings)
+
+	for _, posting := range execution.Transactions[0].Postings {
+		assert.Equal(t, sourceRef, posting.BalanceRef, "the cancel posts only against the source")
+	}
+
+	for _, snapshot := range execution.Balances {
+		assert.NotEqual(t, externalRef, snapshot.BalanceRef, "the destination must not reach the engine")
+	}
+
+	require.NotEmpty(t, got.Operations)
+	for _, row := range got.Operations {
+		assert.NotEqual(t, external, row.AccountAlias, "the cancel records no operation on the destination")
+	}
+}
