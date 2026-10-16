@@ -41,6 +41,7 @@ type workload struct {
 	feeLeg   bool
 	ordinary int
 	hot, fee posting
+	now      func() time.Time // the process clock for real runs
 }
 
 func newWorkload(run string, m mix, feeLeg bool, ordinary int) (*workload, error) {
@@ -52,7 +53,7 @@ func newWorkload(run string, m mix, feeLeg bool, ordinary int) (*workload, error
 
 	return &workload{
 		run: run, seed: binary.BigEndian.Uint64(seed[:8]), mix: m, feeLeg: feeLeg, ordinary: ordinary,
-		hot: fixturePosting(classHot, 0), fee: fixturePosting(classFee, 0),
+		hot: fixturePosting(classHot, 0), fee: fixturePosting(classFee, 0), now: time.Now,
 	}, nil
 }
 
@@ -128,19 +129,19 @@ func runOpen(ctx context.Context, w writer, wl *workload, start time.Time, rate,
 	var err error
 
 	for next := int64(0); next < n && err == nil && gctx.Err() == nil; {
-		for end := due(start, rate, next, n, time.Now()); next < end && err == nil && gctx.Err() == nil; next++ {
+		for end := due(start, rate, next, n, wl.now()); next < end && err == nil && gctx.Err() == nil; next++ {
 			var req request
 			if req, err = wl.request(next, scheduleOf(start, next, rate), b); err == nil {
-				rec.dispatch(req.scheduledAt, time.Now())
+				rec.dispatch(req.scheduledAt, wl.now())
 				g.Go(func() error {
-					rec.observe(req, w.Submit(gctx, req), time.Now())
+					rec.observe(req, w.Submit(gctx, req), wl.now())
 					return nil
 				})
 			}
 		}
 
 		if next < n {
-			wake.Reset(time.Until(scheduleOf(start, next, rate)))
+			wake.Reset(scheduleOf(start, next, rate).Sub(wl.now()))
 
 			select {
 			case <-gctx.Done():
@@ -162,7 +163,7 @@ func runClosed(ctx context.Context, w writer, wl *workload, producers int, n int
 		return fmt.Errorf("closed loop with %d producers for %d requests: want a producer and a non-negative count", producers, n)
 	}
 
-	rec.begin(n, time.Now())
+	rec.begin(n, wl.now())
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -171,13 +172,13 @@ func runClosed(ctx context.Context, w writer, wl *workload, producers int, n int
 	for range producers {
 		g.Go(func() error {
 			for i := next.Add(1) - 1; i < n && gctx.Err() == nil; i = next.Add(1) - 1 {
-				req, err := wl.request(i, time.Now(), b)
+				req, err := wl.request(i, wl.now(), b)
 				if err != nil {
 					return err
 				}
 
-				rec.dispatch(req.scheduledAt, time.Now())
-				rec.observe(req, w.Submit(gctx, req), time.Now())
+				rec.dispatch(req.scheduledAt, wl.now())
+				rec.observe(req, w.Submit(gctx, req), wl.now())
 			}
 
 			return nil

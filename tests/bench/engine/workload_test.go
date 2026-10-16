@@ -327,7 +327,8 @@ func TestWorkloadNullWriter(t *testing.T) {
 	t.Run("open 20k/s", func(t *testing.T) {
 		const n = 40_000
 
-		w, rec, wl, start := newNullWriter(ctx, t, n), newRecorder(), newTestWorkload(t, "null-open", mixMixed, true, 1000), time.Now()
+		w, rec, wl := newNullWriter(ctx, t, n), newRecorder(), newTestWorkload(t, "null-open", mixMixed, true, 1000)
+		start := wl.now()
 		err := runOpen(ctx, w, wl, start, 20_000, n, usualBudget, rec)
 
 		t.Logf("generator-only, simulated approvals: %s", rec.summary())
@@ -353,7 +354,8 @@ func TestWorkloadNullWriter(t *testing.T) {
 		run, stop := context.WithCancel(ctx)
 		defer stop()
 
-		w, rec, wl, start := newNullWriter(ctx, t, n), newRecorder(), newTestWorkload(t, "null-late", mixOutflow, false, 1000), time.Now().Add(-time.Second)
+		w, rec, wl := newNullWriter(ctx, t, n), newRecorder(), newTestWorkload(t, "null-late", mixOutflow, false, 1000)
+		start := wl.now().Add(-time.Second)
 		w.cancelAt, w.cancel = 1000, stop
 		err := runOpen(run, w, wl, start, 1_000_000, n, usualBudget, rec)
 

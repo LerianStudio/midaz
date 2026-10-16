@@ -35,7 +35,7 @@ func TestOwnerlessWriterWorkers(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, broker := newTestBatcher(ctx, t, env, clock)
+	b, conn, broker := newTestBatcher(ctx, t, env, clock.now)
 	baseline := readTotals(ctx, t, conn)
 
 	const workers, app = 32, "bench-ownerless-worker"
@@ -83,7 +83,7 @@ func TestOwnerlessWriterDrain(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	hot := mv(classHot, 0, constant.DefaultBalanceKey)
 	baseline := readTotals(ctx, t, conn)
 
@@ -132,7 +132,7 @@ func TestOwnerlessWriterErrorIsolation(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	hot, ord := mv(classHot, 0, constant.DefaultBalanceKey), mv(classOrdinary, 0, constant.DefaultBalanceKey)
 	baseline := readTotals(ctx, t, conn)
 
@@ -189,7 +189,7 @@ func TestOwnerlessWriterCallerLeaves(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	hot, ord := mv(classHot, 0, constant.DefaultBalanceKey), mv(classOrdinary, 0, constant.DefaultBalanceKey)
 	baseline := readTotals(ctx, t, conn)
 
@@ -246,7 +246,7 @@ func TestOwnerlessWriterCloseDeadline(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	hot, ord := mv(classHot, 0, constant.DefaultBalanceKey), mv(classOrdinary, 0, constant.DefaultBalanceKey)
 	baseline := readTotals(ctx, t, conn)
 
@@ -301,7 +301,7 @@ func TestOwnerlessWriterExpiredEntry(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	hot, ord := mv(classHot, 0, constant.DefaultBalanceKey), mv(classOrdinary, 0, constant.DefaultBalanceKey)
 	w := newTestOwnerless(ctx, t, env, b, "bench-ownerless-entry", 1, 256)
 

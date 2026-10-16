@@ -39,7 +39,7 @@ func TestBatchDecidesResolvesAndFinalizes(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, broker := newTestBatcher(ctx, t, env, clock)
+	b, conn, broker := newTestBatcher(ctx, t, env, clock.now)
 
 	limitFixtures(ctx, t, conn)
 
@@ -73,7 +73,8 @@ func TestBatchDecidesResolvesAndFinalizes(t *testing.T) {
 	}, summarize(t, batchA, res))
 
 	totals := readTotals(ctx, t, conn)
-	assert.Equal(t, baseline.Available, totals.Available, "money is conserved")
+	assert.Equal(t, [2]any{baseline.Available, baseline.Operations + 12}, [2]any{totals.Available, totals.Operations},
+		"money is conserved over the approvals' 12 operations")
 	assertMixedBatchRows(ctx, t, conn)
 
 	// Stored identities replay or conflict against the stored payload, never against an earlier copy, and move nothing.
@@ -119,7 +120,7 @@ func TestBatchBoundsWaitsOnHeldMoneyRow(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	hot, ord := mv(classHot, 0, constant.DefaultBalanceKey), mv(classOrdinary, 0, constant.DefaultBalanceKey)
 	want := readTotals(ctx, t, conn)
 	holder := holdLock(ctx, t, env, lockBalance, balanceID(classHot, 0, constant.DefaultBalanceKey))
@@ -187,7 +188,7 @@ func TestBatchRecomputesPassCrossingCutoffBeforeCommit(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	ord := func(i int) func(int64) posting { return mv(classOrdinary, i, constant.DefaultBalanceKey) }
 	recipient := balanceID(classOrdinary, 2, constant.DefaultBalanceKey)
 
@@ -239,7 +240,7 @@ func TestBatchUnknownCommitReplaysWithoutMovingMoney(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 
 	stack, err := openVerifiedStack(ctx, env)
 	require.NoError(t, err)
@@ -322,7 +323,7 @@ func TestBatchConcurrentSessionsShareLimitAndIdentities(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	hotAccount := accountID(classHot, 0)
 
 	_, err := conn.Exec(ctx, `UPDATE account_control SET limit_remaining = 100 WHERE account_id = $1`, hotAccount)
@@ -416,7 +417,7 @@ func TestBatchRetriesDeadlockOnce(t *testing.T) {
 	defer cancel()
 
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
-	b, conn, _ := newTestBatcher(ctx, t, env, clock)
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
 	from, to := mv(classOrdinary, 0, constant.DefaultBalanceKey), mv(classOrdinary, 1, constant.DefaultBalanceKey)
 	reqs := []request{batchReq(t, "deadlock", "deadlock", clock.now(), from(-5), to(5))}
 	ids := sortedDistinct([]uuid.UUID{from(0).BalanceID, to(0).BalanceID})
@@ -461,7 +462,7 @@ func limitFixtures(ctx context.Context, t *testing.T, conn *pgx.Conn) {
 	require.NoError(t, err)
 }
 
-// assertMixedBatchRows checks the mixed batch's balances, debited controls, finalized claims and outbox rows.
+// assertMixedBatchRows checks the mixed batch's balances, debited controls, finalized claims and ledger.
 func assertMixedBatchRows(ctx context.Context, t *testing.T, conn *pgx.Conn) {
 	t.Helper()
 
@@ -477,9 +478,7 @@ func assertMixedBatchRows(ctx context.Context, t *testing.T, conn *pgx.Conn) {
 		FROM account_control c JOIN balance b ON b.account_id = c.account_id AND b.key = 'default'`))
 	assert.Equal(t, map[string]string{"approved": "5 5", "refused": "3 0", "expired": "1 0"},
 		readRows(ctx, t, conn, `SELECT outcome, count(*) || ' ' || count(transaction_id) FROM engine_request GROUP BY outcome`))
-	assert.Equal(t, map[string]int{
-		keyPosted: 5, keyChanged: 12, keyApplied: 1, kindMetadataUpsert: 2, kindTracerConfirm: 5,
-	}, assertBatchLedger(ctx, t, conn))
+	assertBatchLedger(ctx, t, conn)
 }
 
 // testClock is the batch's injected clock: fixed until a test moves it.
@@ -567,9 +566,9 @@ func holdLock(ctx context.Context, t *testing.T, env *benchEnv, query string, ar
 	return tx
 }
 
-// newTestBatcher rebuilds and seeds the guarded stack with 4 ordinary balances, then returns a batcher on a session
-// of its own, the primary connection that owns test setup, and the broker the producer must never reach.
-func newTestBatcher(ctx context.Context, t *testing.T, env *benchEnv, clock *testClock) (*batcher, *pgx.Conn, *refusingBroker) {
+// newTestBatcher rebuilds and seeds the guarded stack with 4 ordinary balances, then returns a batcher on now and a
+// session of its own, the primary connection that owns test setup, and the broker the producer must never reach.
+func newTestBatcher(ctx context.Context, t *testing.T, env *benchEnv, now func() time.Time) (*batcher, *pgx.Conn, *refusingBroker) {
 	t.Helper()
 
 	require.NoError(t, bootstrapSchema(ctx, env))
@@ -577,7 +576,7 @@ func newTestBatcher(ctx context.Context, t *testing.T, env *benchEnv, clock *tes
 
 	_, emitter, repo, broker := newTestOutbox(ctx, t, env)
 
-	b, err := newBatcher(openTestSession(t, env.primary), emitter, repo, clock.now)
+	b, err := newBatcher(openTestSession(t, env.primary), emitter, repo, now)
 	require.NoError(t, err)
 
 	return b, connectPrimary(ctx, t, env), broker
@@ -667,9 +666,8 @@ func readRows(ctx context.Context, t *testing.T, conn *pgx.Conn, query string) m
 }
 
 // assertBatchLedger checks what every committed batch leaves: no unfinalized claim, one transaction per approved
-// request, every balance's operations chaining to its row, and an outbox that carries exactly the operation rows and
-// the approved requests' private rows. It returns the outbox row count by kind.
-func assertBatchLedger(ctx context.Context, t *testing.T, conn *pgx.Conn) map[string]int {
+// request, every balance's operations chaining to its row, and an outbox holding exactly what those rows owe.
+func assertBatchLedger(ctx context.Context, t *testing.T, conn *pgx.Conn) {
 	t.Helper()
 
 	var claims [4]int64
@@ -692,90 +690,108 @@ func assertBatchLedger(ctx context.Context, t *testing.T, conn *pgx.Conn) map[st
 		OR (c.last AND (b.version <> c.balance_version_after OR b.available <> c.available_balance_after))`, constant.DEBIT).Scan(&breaks))
 	assert.Zero(t, breaks, "operations that do not chain each balance from version to version up to its row")
 
-	return assertOutboxCarriesRows(ctx, t, conn)
+	assertOutboxCarriesRows(ctx, t, conn)
 }
 
-// assertOutboxCarriesRows decodes every outbox row: transaction.posted carries each operation row once, as stored,
-// balance.changed reports its operation's after state, and private rows belong to approved requests.
-func assertOutboxCarriesRows(ctx context.Context, t *testing.T, conn *pgx.Conn) map[string]int {
+// assertOutboxCarriesRows matches each committed obligation once: posted and Tracer per approval, carried fields and
+// balance.changed per operation, fee_charge.applied and transaction/leg metadata per fee credit.
+func assertOutboxCarriesRows(ctx context.Context, t *testing.T, conn *pgx.Conn) {
 	t.Helper()
 
 	ops := readRows(ctx, t, conn, `SELECT id::text, concat_ws('|', transaction_id, balance_id, account_id, account_alias, balance_key, type,
 		direction, amount, available_balance, on_hold_balance, balance_version_before, available_balance_after, on_hold_balance_after,
 		balance_version_after, snapshot->>'overdraftUsedBefore', snapshot->>'overdraftUsedAfter') FROM operation`)
 	approved := readRows(ctx, t, conn, `SELECT request_id::text, transaction_id::text FROM engine_request WHERE outcome = 'approved'`)
+	owed := make(map[string]int, 2*len(approved)+2*len(ops)) // +1 per obligation, -1 per row paying it
+
+	for request, tx := range approved {
+		owed[keyPosted+"/"+tx]++
+		owed[kindTracerConfirm+"/"+request+"/"+tx]++
+	}
+
+	for id, row := range ops {
+		f := strings.Split(row, "|")
+		owed["carried/"+f[0]+"/"+id+"|"+row]++
+		owed[keyChanged+"/"+f[0]+"/"+id+"|"+strings.Join(f[11:14], "|")]++
+
+		if f[1] == benchFeeBalance && f[5] == constant.CREDIT {
+			owed[keyApplied+"/"+f[0]]++
+			owed[kindMetadataUpsert+"/"+f[0]+"/"+constant.EntityTransaction+"/"+f[0]]++
+			owed[kindMetadataUpsert+"/"+f[0]+"/"+constant.EntityOperation+"/"+id]++
+		}
+	}
 
 	rows, err := conn.Query(ctx, `SELECT event_type, aggregate_id::text, payload FROM outbox_events`)
 	require.NoError(t, err)
 
-	counts, carried := map[string]int{}, 0
+	var (
+		kind, aggregate string
+		payload         []byte
+	)
 
-	for rows.Next() {
-		var (
-			kind, aggregate string
-			payload         []byte
-		)
-
-		require.NoError(t, rows.Scan(&kind, &aggregate, &payload))
-
-		if kind != libStreaming.StreamingOutboxEventType {
-			counts[kind]++
-
-			assert.Contains(t, approved, aggregate, "private %s row of a request that was not approved", kind)
-
-			if kind == kindTracerConfirm {
-				var confirm tracerConfirm
-				require.NoError(t, json.Unmarshal(payload, &confirm))
-				assert.Equal(t, approved[aggregate], confirm.TransactionID)
-			}
-
-			continue
-		}
-
-		var envelope libStreaming.OutboxEnvelope
-		require.NoError(t, json.Unmarshal(payload, &envelope))
-		counts[envelope.DefinitionKey]++
-
-		carried += assertEventCarriesRows(t, envelope, ops)
-	}
-
-	require.NoError(t, rows.Err())
-	assert.Equal(t, len(ops), carried, "transaction.posted carries every operation row exactly once")
-
-	return counts
+	_, err = pgx.ForEachRow(rows, []any{&kind, &aggregate, &payload}, func() error {
+		payRow(t, kind, aggregate, payload, approved, owed)
+		return nil
+	})
+	require.NoError(t, err)
+	maps.DeleteFunc(owed, func(_ string, n int) bool { return n == 0 })
+	assert.Empty(t, owed, "owed but missing (n > 0) or paid beyond what the rows owe (n < 0); fields follow |")
 }
 
-// assertEventCarriesRows checks one streaming event against the operation rows and returns how many it carried.
-func assertEventCarriesRows(t *testing.T, envelope libStreaming.OutboxEnvelope, ops map[string]string) int {
+// payRow pays the obligations one outbox row's fields settle; a kind nothing owes pays a key nothing owed.
+func payRow(t *testing.T, kind, aggregate string, payload []byte, approved map[string]string, owed map[string]int) {
 	t.Helper()
+
+	switch kind {
+	case kindTracerConfirm:
+		var confirm tracerConfirm
+		require.NoError(t, json.Unmarshal(payload, &confirm))
+		owed[kind+"/"+aggregate+"/"+confirm.TransactionID]--
+
+		return
+	case kindMetadataUpsert:
+		var doc metadataUpsert
+		require.NoError(t, json.Unmarshal(payload, &doc))
+		owed[kind+"/"+approved[aggregate]+"/"+doc.EntityName+"/"+doc.EntityID]--
+
+		return
+	case libStreaming.StreamingOutboxEventType:
+	default:
+		owed[kind+"/"+aggregate]--
+
+		return
+	}
+
+	var envelope libStreaming.OutboxEnvelope
+	require.NoError(t, json.Unmarshal(payload, &envelope))
 
 	switch envelope.DefinitionKey {
 	case keyPosted:
 		var posted events.TransactionPayload
 		require.NoError(t, json.Unmarshal(envelope.Event.Payload, &posted))
+		owed[keyPosted+"/"+posted.ID]--
 
 		for _, raw := range posted.Operations {
 			var op benchOperation
 			require.NoError(t, json.Unmarshal(raw, &op))
-			assert.Equal(t, ops[op.ID], strings.Join([]string{
+			owed["carried/"+posted.ID+"/"+op.ID+"|"+strings.Join([]string{
 				op.TransactionID, op.BalanceID, op.AccountID, op.AccountAlias, op.BalanceKey, op.Type, op.Direction,
 				op.Amount.Value.String(), op.Balance.Available.String(), op.Balance.OnHold.String(), itoa(op.Balance.Version),
 				op.BalanceAfter.Available.String(), op.BalanceAfter.OnHold.String(), itoa(op.BalanceAfter.Version),
 				op.Balance.OverdraftUsed.String(), op.BalanceAfter.OverdraftUsed.String(),
-			}, "|"), "operation %s as posted", op.ID)
+			}, "|")]--
 		}
-
-		return len(posted.Operations)
 	case keyChanged:
-		var changed events.BalanceChangedPayload
-		require.NoError(t, json.Unmarshal(envelope.Event.Payload, &changed))
-
-		fields := strings.Split(ops[changed.OperationID], "|")
-		require.Len(t, fields, 16, "balance.changed of operation %s", changed.OperationID)
-		assert.Equal(t, fields[11:14], []string{changed.Available.String(), changed.OnHold.String(), itoa(changed.Version)})
+		var c events.BalanceChangedPayload
+		require.NoError(t, json.Unmarshal(envelope.Event.Payload, &c))
+		owed[keyChanged+"/"+c.TransactionID+"/"+c.OperationID+"|"+c.Available.String()+"|"+c.OnHold.String()+"|"+itoa(c.Version)]--
+	case keyApplied:
+		var applied events.FeesAppliedPayload
+		require.NoError(t, json.Unmarshal(envelope.Event.Payload, &applied))
+		owed[keyApplied+"/"+applied.TransactionID]--
+	default:
+		owed[envelope.DefinitionKey+"/"+aggregate]--
 	}
-
-	return 0
 }
 
 func itoa(v int64) string { return strconv.FormatInt(v, 10) }

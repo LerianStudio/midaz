@@ -147,7 +147,8 @@ sizes. Trace-carrier and multi-tenant variants, relay and Kafka/CloudEvents reco
 `writer.go`, `workload.go` and `metrics.go` hold the request contract, the deterministic workload, the open and
 closed loops and the recorder. The generator tests drive a null writer with simulated approvals; the worker tests
 exercise the SQL writer below. Open-loop rates report the offered rate sustained with the logged dispatch lag,
-never financial TPS.
+never financial TPS. A workload owns the process-clock function; real SQL runs pass that same function to the
+batchers, while deterministic fixtures inject their controlled clock. No test reads the wall clock directly.
 
 ```bash
 go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestWorkloadKeysUnique|TestOpenLoopSchedule|TestPercentiles|TestWorkloadNullWriter' -timeout 5m -v
@@ -195,6 +196,10 @@ The live tests rebuild the guarded schema. They cover mixed decisions and copies
 money-lock wait, the earliest response deadline, whole-pass rollback, a cancelled SyncRep wait and the replay's own
 WAL barrier, eight concurrent sessions exhausting one shared limit, and a real deadlock with one retry. The replay
 test keeps standby replay paused until the retry itself waits in SyncRep, then resumes it before checking the result.
+
+The ledger checker counts each owed outbox obligation by identity and compared fields. It rejects missing, duplicate
+and miscorrelated rows independently, in linear time over the committed operations and outbox. It still holds maps
+proportional to those rows; its volume memory cost is not measured yet.
 
 Limits: no owner cache/fence, failover or throughput measurement. The earliest future deadline can turn a whole
 backlog batch unknown; that cost remains unmeasured. Sending/receiving flags and
