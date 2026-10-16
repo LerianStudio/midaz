@@ -48,6 +48,41 @@ timeout 30 sh -c "until [ \"\$(psql $P -tAXc \"select count(*) filter (where app
 Stop, keeping data: `docker compose -f tests/bench/engine/docker-compose.yml down`.
 Remove the bench volumes too: add `-v`. Both commands touch only this project.
 
+## Schema bootstrap
+
+`bootstrap.go` rebuilds the `public` schema of `bench_transaction`: ledger migrations
+000000–000046 through the lib-commons Migrator (one file per Exec, so migration 46's
+`CREATE INDEX CONCURRENTLY` runs outside a transaction), then the lib-commons `outbox_events`
+schema from the module version `go.mod` pins, then `schema_bench.sql`. Before any DDL it refuses
+unless:
+
+- the four `BENCH_*` variables resolve to loopback IP literals, user `bench` and database
+  `bench_transaction`, after query overrides, fallback hosts and `PG*` defaults;
+- primary and client proxy report `cluster_name=bench-pg-primary`, no recovery and
+  `synchronous_commit=on`; the standby reports `bench-pg-standby` in recovery; all three carry the
+  marker and one `system_identifier`;
+- `standby1` is the only replica, `streaming | sync`, and the standby's WAL receiver streams.
+
+Limits: the guard waits at most 120 s for `standby1`. `lock_timeout=30s` turns a lock held by
+another session into a failure; no session is terminated. The Migrator stops watching the context
+once it starts, so `go test -timeout` bounds the migrations. Every commit waits for `standby1` and
+nothing downgrades `synchronous_commit`: a lost standby stalls the run until that timeout fails it.
+
+```bash
+env BENCH_PG_PRIMARY_DSN='postgresql://bench:bench@127.0.0.1:15432/bench_transaction?sslmode=disable' \
+  BENCH_PG_CLIENT_PROXY_DSN='postgresql://bench:bench@127.0.0.1:15434/bench_transaction?sslmode=disable' \
+  BENCH_PG_STANDBY_DSN='postgresql://bench:bench@127.0.0.1:15435/bench_transaction?sslmode=disable' \
+  BENCH_TOXIPROXY_URL='http://127.0.0.1:18474' \
+  go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestBenchEnv|TestBootstrapSchema|TestBootstrapRejects' -timeout 10m -v
+```
+
+Without the four variables the database tests skip; a partial set fails them. Each database test
+sets `ALLOW_INSECURE_TLS=true` in the test process for its own duration, as the Migrator requires
+on this `sslmode=disable` stack. The refusal test changes the marker only after the guard proves
+the stack, and restores it on cleanup. A run killed before cleanup fails closed: every later
+bootstrap refuses the stack until it is recreated with `down -v` and `up`. Seeding and fixtures
+are not part of the bootstrap yet.
+
 ## How it is built
 
 - `init-primary.sql` runs once on a fresh primary volume. It writes the marker and
