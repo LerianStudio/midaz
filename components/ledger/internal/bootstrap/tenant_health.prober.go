@@ -25,6 +25,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
@@ -85,6 +86,8 @@ type TenantHealthProber struct {
 	postgres      []namedPGResolver
 	mongo         tenantMongoResolver
 	metrics       *metrics.MetricsFactory
+	// tracer is the service tracer put on the root context; nil keeps the default scope.
+	tracer oteltrace.Tracer
 
 	clock       func() time.Time
 	newTicker   func(time.Duration) (<-chan time.Time, func())
@@ -199,10 +202,27 @@ func (p *TenantHealthProber) WithMetricsFactory(factory *metrics.MetricsFactory)
 	return p
 }
 
+// WithServiceTracer sets the tracer the prober's spans are opened with, so they carry the
+// ledger's instrumentation scope. A nil tracer keeps the lib-observability default.
+func (p *TenantHealthProber) WithServiceTracer(tracer oteltrace.Tracer) *TenantHealthProber {
+	if p == nil {
+		return nil
+	}
+
+	p.tracer = tracer
+
+	return p
+}
+
+// rootContext is the context the loop starts from: empty except for the service tracer.
+func (p *TenantHealthProber) rootContext() context.Context {
+	return contextWithServiceTracer(context.Background(), p.tracer)
+}
+
 // Run executes a pass immediately and then one per interval until SIGTERM/SIGINT.
 // The Launcher parameter is unused, as for the other Midaz workers.
 func (p *TenantHealthProber) Run(_ *libCommons.Launcher) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(p.rootContext(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	p.logger.Log(ctx, libLog.LevelInfo, "Tenant health prober started",

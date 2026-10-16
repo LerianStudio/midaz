@@ -1376,7 +1376,8 @@ func InitServersWithOptions(opts *Options) (*Service, error) {
 		WithServiceTracer(workerTracer)
 
 	tenantHealthProber := initTenantHealthProber(cfg, logger, redisConnection, cfg.MultiTenantEnabled, tenantCache, tenantClient, tenantServiceName,
-		onbPG, txnPG, onbMgo, txnMgo, crmMgo, metricsFactory)
+		onbPG, txnPG, onbMgo, txnMgo, crmMgo, metricsFactory).
+		WithServiceTracer(workerTracer)
 
 	// Legacy drainer: drains pre-v3.6.2 ZSET entries (balance-sync key with seconds/microsecond scores).
 	// Uses relaxed timing (longer flush timeout, longer idle wait) since it only drains a finite backlog.
