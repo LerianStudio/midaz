@@ -80,8 +80,22 @@ Without the four variables the database tests skip; a partial set fails them. Ea
 sets `ALLOW_INSECURE_TLS=true` in the test process for its own duration, as the Migrator requires
 on this `sslmode=disable` stack. The refusal test changes the marker only after the guard proves
 the stack, and restores it on cleanup. A run killed before cleanup fails closed: every later
-bootstrap refuses the stack until it is recreated with `down -v` and `up`. Seeding and fixtures
-are not part of the bootstrap yet.
+bootstrap refuses the stack until it is recreated with `down -v` and `up`.
+
+## Seed fixtures
+
+`seed.go` re-runs the guard, then in one synchronous transaction streams N ordinary balances plus
+hot, fee and two multikey balances (N+4) and their controls (N+3: multikey's two keys share one
+account) with `COPY`, and inserts an ownerless fence whose lease already expired. IDs derive from
+class, index and key, so every run writes the same rows. `fillfactor=70` on `balance` and
+`account_control` is an untested HOT-update hypothesis; `VACUUM (ANALYZE)` follows the commit.
+`TestBootstrap` seeds 10k twice (rows must hash alike) and 1M once, with 60 s and 10 min seed
+deadlines. At 1M it checks counts, sums, constant columns and named rows, not every row's IDs:
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestBootstrap$' -timeout 30m -v
+```
 
 ## How it is built
 
@@ -98,6 +112,6 @@ are not part of the bootstrap yet.
 
 ## What this proves
 
-Environment readiness only: a synchronous standby that streams through the proxy and
-inherits the primary's settings. It proves nothing about financial correctness,
-failover survival, replay of unknown outcomes or throughput.
+Environment readiness, guarded schema rebuild and deterministic seed fixtures. The synchronous
+standby streams through the proxy and inherits the primary's settings. Seed timing is setup cost,
+not transaction throughput. Financial correctness, failover survival and unknown replay are untested.
