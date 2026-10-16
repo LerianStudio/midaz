@@ -38,16 +38,44 @@ func (uc *UseCase) reserveAtomicTransactionBatch(
 ) error {
 	for index := range run.items {
 		item := &run.items[index]
+		settings := run.itemLedgerSettings(item).Tracer
+
+		// Only an enforce ledger fails here, before item k reserves anything, so
+		// the items before k settle exactly as for a rejected reservation.
+		sourceAccount, err := uc.reserveSourceAccount(
+			ctx,
+			span,
+			logger,
+			settings,
+			item.honoredTracerSkip,
+			item.validate.Sources,
+			item.prepared.pool.ExplicitBalances,
+		)
+		if err != nil {
+			uc.settleAtomicTransactionBatchReservations(
+				ctx,
+				span,
+				logger,
+				run,
+				atomicTransactionBatchReservationConfirmedAbort,
+			)
+
+			return withAtomicTransactionBatchItemError(
+				err,
+				index,
+				"reserve source account unavailable",
+			)
+		}
 
 		reservation := uc.reserveTransaction(
 			ctx,
 			span,
 			logger,
-			run.itemLedgerSettings(item).Tracer,
+			settings,
 			item.transactionID,
 			item.input.Send.Value,
 			item.input.Send.Asset,
-			firstSourceAccount(item.validate.Sources, item.prepared.pool.ExplicitBalances),
+			sourceAccount,
 			item.input.Metadata,
 			item.transactionDate,
 			reservationTTLForStatus(item.status),

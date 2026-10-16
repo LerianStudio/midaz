@@ -37,14 +37,14 @@ func TestFirstSourceAccount(t *testing.T) {
 	t.Run("resolves the first internal source account and its type", func(t *testing.T) {
 		t.Parallel()
 
-		got := firstSourceAccount([]string{"@alice#default", "@bob#default"}, balances)
+		got, _ := firstSourceAccount([]string{"@alice#default", "@bob#default"}, balances)
 		assert.Equal(t, tracer.ReserveAccount{AccountID: "acc-alice", Type: "deposit"}, got)
 	})
 
 	t.Run("skips the overdraft companion alias", func(t *testing.T) {
 		t.Parallel()
 
-		got := firstSourceAccount([]string{"@alice#overdraft", "@bob#default"}, balances)
+		got, _ := firstSourceAccount([]string{"@alice#overdraft", "@bob#default"}, balances)
 		assert.Equal(t, tracer.ReserveAccount{AccountID: "acc-bob", Type: "creditCard"}, got,
 			"companion sources must not be chosen as the account scope")
 	})
@@ -52,22 +52,25 @@ func TestFirstSourceAccount(t *testing.T) {
 	t.Run("skips a balance with no account id", func(t *testing.T) {
 		t.Parallel()
 
-		got := firstSourceAccount([]string{"@carol#default", "@bob#default"}, balances)
+		got, _ := firstSourceAccount([]string{"@carol#default", "@bob#default"}, balances)
 		assert.Equal(t, tracer.ReserveAccount{AccountID: "acc-bob", Type: "creditCard"}, got)
 	})
 
 	t.Run("returns the zero account when no internal source resolves", func(t *testing.T) {
 		t.Parallel()
 
-		got := firstSourceAccount([]string{"@external/BRL#default"}, balances)
+		got, _ := firstSourceAccount([]string{"@external/BRL#default"}, balances)
 		assert.Equal(t, tracer.ReserveAccount{}, got, "an external-only source has no internal account scope")
 	})
 
 	t.Run("empty inputs return the zero account", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, tracer.ReserveAccount{}, firstSourceAccount(nil, balances))
-		assert.Equal(t, tracer.ReserveAccount{}, firstSourceAccount([]string{"@alice#default"}, nil))
+		noSources, _ := firstSourceAccount(nil, balances)
+		assert.Equal(t, tracer.ReserveAccount{}, noSources)
+
+		noBalances, _ := firstSourceAccount([]string{"@alice#default"}, nil)
+		assert.Equal(t, tracer.ReserveAccount{}, noBalances)
 	})
 }
 

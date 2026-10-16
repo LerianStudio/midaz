@@ -206,7 +206,7 @@ func (uc *UseCase) reserveTransaction(
 	// the create path is unchanged and no reserve request is built or sent. An
 	// honored skip wins over advisory/enforce — the operator explicitly allowed
 	// the caller to opt out.
-	if uc.TracerReserver == nil || settings.Mode == mmodel.TracerModeOff || settings.Mode == "" || honoredTracerSkip {
+	if !reservationActive(uc.TracerReserver, settings, honoredTracerSkip) {
 		return reservationOutcome{Kind: reservationProceed}
 	}
 
@@ -223,6 +223,8 @@ func (uc *UseCase) reserveTransaction(
 		Amount:               amount.String(),
 		Asset:                asset,
 		Account:              account,
+		SegmentID:            account.SegmentID,
+		PortfolioID:          account.PortfolioID,
 		TransactionTimestamp: transactionTimestamp.UTC().Format(time.RFC3339Nano),
 		LongLived:            ttl == reservationTTLLongLived,
 		Revert:               purpose == reservationForRevert,
@@ -505,19 +507,32 @@ func reservationRequestID(transactionID uuid.UUID) uuid.UUID {
 }
 
 // firstSourceAccount resolves the account of the first internal source leg so
-// the reserve request carries the account scope the tracer matches
-// account-scoped limits and rules against. Spend/usage limits apply to the
-// debited (source) account, so the first source's account is the honest scope
-// handle. sources carries "<alias>#<balanceKey>" entries; the bare alias is
-// matched against the loaded balances, and the account id and type come from
-// the same balance row. Companion (overdraft) and any source with no matching
-// internal balance are skipped. Returns the zero account when no internal
-// source account resolves (e.g. an external-only source) — the reserve path
-// treats the account scope as optional, so the tracer still matches
-// non-account-scoped limits.
-func firstSourceAccount(sources []string, balances []*mmodel.Balance) tracer.ReserveAccount {
+// the reserve request carries the account scope account-scoped limits and rules
+// are matched against. Spend/usage limits apply to the debited (source)
+// account, so the first source's account is the honest scope handle. It returns
+// only the account id and type, both read from the chosen balance row, plus
+// that balance; the account's segment and portfolio are not on the balance and
+// are filled by reserveSourceAccount. Returns the zero account and a nil
+// balance when no internal source account resolves (e.g. an external-only
+// source) — the reserve path treats the account scope as optional, so
+// non-account-scoped limits still match.
+func firstSourceAccount(sources []string, balances []*mmodel.Balance) (tracer.ReserveAccount, *mmodel.Balance) {
+	balance := firstSourceBalance(sources, balances)
+	if balance == nil {
+		return tracer.ReserveAccount{}, nil
+	}
+
+	return tracer.ReserveAccount{AccountID: balance.AccountID, Type: balance.AccountType}, balance
+}
+
+// firstSourceBalance returns the balance of the first internal source leg, or
+// nil when none resolves. sources carries "<alias>#<balanceKey>" entries; the
+// bare alias is matched against the loaded balances. Companion (overdraft)
+// balances, sources with no matching internal balance and balances with no
+// account id are skipped.
+func firstSourceBalance(sources []string, balances []*mmodel.Balance) *mmodel.Balance {
 	if len(sources) == 0 || len(balances) == 0 {
-		return tracer.ReserveAccount{}
+		return nil
 	}
 
 	byAlias := make(map[string]*mmodel.Balance, len(balances))
@@ -538,11 +553,11 @@ func firstSourceAccount(sources []string, balances []*mmodel.Balance) tracer.Res
 		}
 
 		if b, ok := byAlias[alias]; ok && b.AccountID != "" {
-			return tracer.ReserveAccount{AccountID: b.AccountID, Type: b.AccountType}
+			return b
 		}
 	}
 
-	return tracer.ReserveAccount{}
+	return nil
 }
 
 // reserveMetadata projects the transaction metadata onto the tracer's metadata

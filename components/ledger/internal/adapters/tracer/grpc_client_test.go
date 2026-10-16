@@ -634,6 +634,48 @@ func TestTracerGRPCClient_Reserve_NewContractFields(t *testing.T) {
 		assert.Equal(t, map[string]string{"channel": "app"}, captured.GetMetadata())
 	})
 
+	t.Run("segment and portfolio reach the proto request", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name        string
+			segmentID   string
+			portfolioID string
+		}{
+			{name: "both present", segmentID: "seg-1", portfolioID: "port-1"},
+			{name: "both absent", segmentID: "", portfolioID: ""},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				var captured *reservationv1.ReserveRequest
+
+				stub := &stubReservationServer{
+					reserveFn: func(req *reservationv1.ReserveRequest) (*reservationv1.ReserveResult, error) {
+						captured = req
+
+						return &reservationv1.ReserveResult{TransactionId: transactionID.String(), Decision: "ALLOW"}, nil
+					},
+				}
+				client := newTestGRPCClient(t, stub)
+
+				_, err := client.Reserve(context.Background(), ReserveRequest{
+					TransactionID: transactionID,
+					Account:       ReserveAccount{AccountID: "acc-1", SegmentID: tc.segmentID, PortfolioID: tc.portfolioID},
+					SegmentID:     tc.segmentID,
+					PortfolioID:   tc.portfolioID,
+				})
+				require.NoError(t, err)
+
+				require.NotNil(t, captured)
+				assert.Equal(t, tc.segmentID, captured.GetSegmentId())
+				assert.Equal(t, tc.portfolioID, captured.GetPortfolioId())
+			})
+		}
+	})
+
 	t.Run("decision, reason and matched rules are mapped back", func(t *testing.T) {
 		t.Parallel()
 
