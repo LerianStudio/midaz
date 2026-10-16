@@ -117,7 +117,7 @@ func runOpen(ctx context.Context, w writer, wl *workload, start time.Time, rate,
 		return fmt.Errorf("open loop at %d/s for %d requests: want a positive rate and a non-negative count", rate, n)
 	}
 
-	rec.begin(n, start)
+	rec.begin(start)
 
 	g, gctx := errgroup.WithContext(ctx)
 	ticker := time.NewTicker(sampleEvery)
@@ -157,13 +157,18 @@ func runOpen(ctx context.Context, w writer, wl *workload, start time.Time, rate,
 	return errors.Join(err, g.Wait(), rec.lateErr(), context.Cause(ctx))
 }
 
-// runClosed runs producers that each send one request, wait for its answer, then take the next shared index.
-func runClosed(ctx context.Context, w writer, wl *workload, producers int, n int64, b budget, rec *recorder) error {
+// runClosed runs producers that each send one request, wait for its answer, then take the next shared index. Admission
+// ends at index n or at start + window, whichever comes first, and cancels nothing: the join waits for answers in
+// flight. A timed caller must require fewer than n sent, since reaching n cuts the window short.
+func runClosed(ctx context.Context, w writer, wl *workload, producers int, n int64, window time.Duration, b budget, rec *recorder) error {
 	if producers < 1 || n < 0 {
 		return fmt.Errorf("closed loop with %d producers for %d requests: want a producer and a non-negative count", producers, n)
 	}
 
-	rec.begin(n, wl.now())
+	start := wl.now()
+	stop := start.Add(window)
+
+	rec.begin(start)
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -171,8 +176,13 @@ func runClosed(ctx context.Context, w writer, wl *workload, producers int, n int
 
 	for range producers {
 		g.Go(func() error {
-			for i := next.Add(1) - 1; i < n && gctx.Err() == nil; i = next.Add(1) - 1 {
-				req, err := wl.request(i, wl.now(), b)
+			for at := wl.now(); at.Before(stop) && gctx.Err() == nil; at = wl.now() {
+				i := next.Add(1) - 1
+				if i >= n {
+					return nil
+				}
+
+				req, err := wl.request(i, at, b)
 				if err != nil {
 					return err
 				}

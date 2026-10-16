@@ -274,11 +274,11 @@ func conservationGate(t *testing.T, owner bool) {
 				inner = newTestOwnerless(ctx, t, env, b, "bench-conserve", gateWorkers, gateMaxBatch)
 			}
 
-			w, rec := captureCalls(inner, n), newRecorder()
+			w, rec := captureCalls(inner, n), newRecorder(n)
 
 			work, stopWork := context.WithTimeout(ctx, 5*time.Minute)
 			runAt := wl.now()
-			runErr := runClosed(work, w, wl, producers, n, usualBudget, rec)
+			runErr := runClosed(work, w, wl, producers, n, 5*time.Minute, usualBudget, rec)
 
 			stopWork()
 

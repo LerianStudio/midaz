@@ -261,12 +261,15 @@ func testRequestBoundary(t *testing.T) {
 }
 
 // nullWriter approves at once without a database: it measures the generator, never a writer. It keeps each
-// identity's instants and, when cancelAt is set, cancels the run on its cancelAt-th distinct identity.
+// identity's instants, cancels the run on its cancelAt-th distinct identity when set, steps clock when set, and
+// answers unknown to a caller whose context ended.
 type nullWriter struct {
 	mu       sync.Mutex
 	seen     map[uuid.UUID][3]time.Time // scheduledAt, admission cutoff, deadline
 	cancelAt int
 	cancel   context.CancelFunc
+	clock    *testClock
+	step     time.Duration
 }
 
 // newNullWriter sizes its map for n so the capture never grows it mid-run, and closes on every test path.
@@ -280,13 +283,21 @@ func newNullWriter(ctx context.Context, t *testing.T, n int) *nullWriter {
 	return w
 }
 
-func (w *nullWriter) Submit(_ context.Context, req request) result {
+func (w *nullWriter) Submit(ctx context.Context, req request) result {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	w.seen[req.id] = [3]time.Time{req.scheduledAt, req.admissionCutoff, req.deadline}
 	if len(w.seen) == w.cancelAt {
 		w.cancel()
+	}
+
+	if w.clock != nil {
+		w.clock.advance(w.step)
+	}
+
+	if ctx.Err() != nil {
+		return result{requestID: req.id, outcome: outcomeUnknown}
 	}
 
 	return result{requestID: req.id, outcome: outcomeApproved, transactionID: req.transactionID}
@@ -298,8 +309,8 @@ func (*nullWriter) Close(context.Context) error { return nil }
 func assertNullRun(t *testing.T, w *nullWriter, rec *recorder, n int) {
 	t.Helper()
 
-	assert.Equal(t, [4]int{n, n, n, n}, [4]int{int(rec.scheduled), len(rec.lag), len(rec.latency), len(w.seen)},
-		"scheduled, dispatched, answered, distinct identities at the writer")
+	assert.Equal(t, [3]int{n, n, n}, [3]int{len(rec.lag), len(rec.latency), len(w.seen)},
+		"dispatched, answered, distinct identities at the writer")
 	assert.Equal(t, map[outcome]int64{outcomeApproved: int64(n)}, rec.outcomes)
 	assert.Zero(t, len(rec.dbAck)+len(rec.brokerAck), "simulated approvals carry no ack: unmeasured, not zero")
 }
@@ -327,7 +338,7 @@ func TestWorkloadNullWriter(t *testing.T) {
 	t.Run("open 20k/s", func(t *testing.T) {
 		const n = 40_000
 
-		w, rec, wl := newNullWriter(ctx, t, n), newRecorder(), newTestWorkload(t, "null-open", mixMixed, true, 1000)
+		w, rec, wl := newNullWriter(ctx, t, n), newRecorder(n), newTestWorkload(t, "null-open", mixMixed, true, 1000)
 		start := wl.now()
 		err := runOpen(ctx, w, wl, start, 20_000, n, usualBudget, rec)
 
@@ -340,8 +351,8 @@ func TestWorkloadNullWriter(t *testing.T) {
 	t.Run("closed 256 producers", func(t *testing.T) {
 		const n = 20_000
 
-		w, rec := newNullWriter(ctx, t, n), newRecorder()
-		err := runClosed(ctx, w, newTestWorkload(t, "null-closed", mixOutflow, false, 1000), 256, n, usualBudget, rec)
+		w, rec := newNullWriter(ctx, t, n), newRecorder(n)
+		err := runClosed(ctx, w, newTestWorkload(t, "null-closed", mixOutflow, false, 1000), 256, n, time.Minute, usualBudget, rec)
 
 		t.Logf("generator-only, simulated approvals: %s", rec.summary())
 		require.NoError(t, err)
@@ -354,12 +365,12 @@ func TestWorkloadNullWriter(t *testing.T) {
 		run, stop := context.WithCancel(ctx)
 		defer stop()
 
-		w, rec, wl := newNullWriter(ctx, t, n), newRecorder(), newTestWorkload(t, "null-late", mixOutflow, false, 1000)
+		w, rec, wl := newNullWriter(ctx, t, n), newRecorder(n), newTestWorkload(t, "null-late", mixOutflow, false, 1000)
 		start := wl.now().Add(-time.Second)
 		w.cancelAt, w.cancel = 1000, stop
 		err := runOpen(run, w, wl, start, 1_000_000, n, usualBudget, rec)
 
-		t.Logf("generator-only, simulated approvals: %s", rec.summary())
+		t.Logf("generator-only, simulated outcomes: %s", rec.summary())
 		require.ErrorIs(t, err, context.Canceled, "a cancelled run is not a result")
 		assert.Less(t, len(rec.lag), n, "1 s late at 1M/s, all due at the first wake: the writer's cancel at 1000 stops dispatch")
 		assert.Equal(t, [2]int{len(rec.lag), len(rec.lag)}, [2]int{len(rec.latency), len(w.seen)}, "every attempt sent answers once")
@@ -367,7 +378,7 @@ func TestWorkloadNullWriter(t *testing.T) {
 	})
 
 	t.Run("classification", func(t *testing.T) {
-		rec, wl := newRecorder(), newTestWorkload(t, "classify", mixOutflow, false, 10)
+		rec, wl := newRecorder(0), newTestWorkload(t, "classify", mixOutflow, false, 10)
 		answers := []result{
 			{outcome: outcomeApproved, dbAckAt: scheduleStart.Add(3 * time.Millisecond), brokerAckAt: scheduleStart.Add(4 * time.Millisecond)},
 			{outcome: outcomeApproved},
@@ -399,4 +410,39 @@ func TestWorkloadNullWriter(t *testing.T) {
 		assert.Len(t, rec.latency, len(answers)+1, "every answer, fast refusals included")
 		assert.Error(t, rec.lateErr(), "an answer past deadline plus grace fails the run")
 	})
+}
+
+// Each answer steps the clock 1 ms, so a 1 s window ends a run of capacity 2k: one producer sends exactly the first
+// 1k on the grid, the last answer reaching the stop on a live context. More producers may each hold one admission read
+// before the stop; every index they send stays dense and scheduled before it.
+func TestClosedLoopWindow(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	const k, step = 1000, time.Millisecond
+
+	stop := scheduleStart.Add(k * step)
+
+	for _, producers := range []int{1, 8} {
+		t.Run(fmt.Sprintf("%d producers", producers), func(t *testing.T) {
+			clock := newTestClock(scheduleStart)
+			w, rec, wl := newNullWriter(t.Context(), t, 2*k), newRecorder(2*k), newTestWorkload(t, "window", mixOutflow, false, 10)
+			w.clock, w.step, wl.now = clock, step, clock.now
+
+			require.NoError(t, runClosed(t.Context(), w, wl, producers, 2*k, k*step, usualBudget, rec))
+
+			sent := len(w.seen)
+			assertNullRun(t, w, rec, sent)
+			assert.True(t, sent >= k && sent < k+producers, "%d sent: the window, not the count, ended admission", sent)
+
+			for i := range sent {
+				at, ok := w.seen[testRequest(t, wl, int64(i), scheduleStart, usualBudget).id]
+				require.True(t, ok && at[0].Before(stop), "index %d of %d sent is missing or scheduled at the stop", i, sent)
+			}
+
+			if producers == 1 {
+				assertSchedule(t, w, wl, scheduleStart, step)
+				assert.Equal(t, stop, clock.now(), "the last answer reached the stop")
+			}
+		})
+	}
 }

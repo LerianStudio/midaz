@@ -151,12 +151,19 @@ never financial TPS. A workload owns the process-clock function; real SQL runs p
 batchers, while deterministic fixtures inject their controlled clock. No test reads the wall clock directly.
 
 ```bash
-go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestWorkloadKeysUnique|TestOpenLoopSchedule|TestPercentiles|TestWorkloadNullWriter' -timeout 5m -v
+go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestWorkloadKeysUnique|TestOpenLoopSchedule|TestPercentiles|TestWorkloadNullWriter|TestClosedLoopWindow' -timeout 5m -v
 ```
 
-Limits: runs are count-bounded and end on the count or the caller's context. A time-bounded closed-loop cell
-needs a graceful stop separate from abort, which a later task adds. The recorder preallocates five latency series,
-40 B per scheduled request (576 MB for 14.4 M requests).
+The closed loop admits until its count n or its window, whichever comes first. Each attempt reads the clock before
+claiming an index; that one instant decides admission and becomes `scheduledAt`. Ending admission cancels no context:
+the join waits for answers in flight, and the caller's context stays the abort. A timed caller must require fewer than
+n sent, since reaching n cuts the window short. Conservation keeps 200,000 with a 5 min window, equal to its work
+budget; the null count run has 1 min. The open loop stays count-bounded on its absolute schedule.
+
+`newRecorder(n)` preallocates five latency series before the run starts, 40 B per request of capacity n (576 MB for
+14.4 M). The summary logs n as `capacity`, beside the actual dispatched and answered counts and their cohort rates,
+which are not window rates. First-touch page faults can still occur during the run; their cost is not measured.
+Results recorded below predate the window and this presize: their runs ended on the count.
 
 ## SQL session
 

@@ -21,7 +21,7 @@ const answerGrace = time.Second
 // recorder holds one run's counters and whole latency series, measured from scheduledAt for exact quantiles.
 type recorder struct {
 	mu                               sync.Mutex
-	scheduled, late                  int64
+	capacity, late                   int64
 	outcomes                         map[outcome]int64 // deciding answers and replies alike
 	replays                          map[outcome]int64 // by the original outcome a replay repeats
 	refusals                         map[string]int64  // by reason, deciding refusals only
@@ -31,19 +31,23 @@ type recorder struct {
 	started, lastDispatch, lastReply time.Time
 }
 
-func newRecorder() *recorder {
-	return &recorder{outcomes: map[outcome]int64{}, replays: map[outcome]int64{}, refusals: map[string]int64{}}
+// newRecorder allocates the five series before the run, 40 B per request; appends within capacity do not copy.
+// First-touch page faults may still occur during the run.
+func newRecorder(capacity int64) *recorder {
+	r := &recorder{capacity: capacity, outcomes: map[outcome]int64{}, replays: map[outcome]int64{}, refusals: map[string]int64{}}
+	for _, series := range []*[]time.Duration{&r.lag, &r.latency, &r.decisionStart, &r.dbAck, &r.brokerAck} {
+		*series = make([]time.Duration, 0, capacity)
+	}
+
+	return r
 }
 
-// begin sizes the five series for the scheduled count, 40 B per request, so no append copies under the lock.
-func (r *recorder) begin(scheduled int64, started time.Time) {
+// begin stamps the measured start.
+func (r *recorder) begin(started time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.scheduled, r.started = scheduled, started
-	for _, series := range []*[]time.Duration{&r.lag, &r.latency, &r.decisionStart, &r.dbAck, &r.brokerAck} {
-		*series = make([]time.Duration, 0, scheduled)
-	}
+	r.started = started
 }
 
 func (r *recorder) dispatch(scheduledAt, at time.Time) {
@@ -140,8 +144,8 @@ func (r *recorder) summary() string {
 
 	var b strings.Builder
 
-	fmt.Fprintf(&b, "scheduled=%d dispatched=%d answered=%d late=%d outcomes=%v replays=%v refusals=%v sent/s=%s answered/s=%s",
-		r.scheduled, len(r.lag), len(r.latency), r.late, r.outcomes, r.replays, r.refusals,
+	fmt.Fprintf(&b, "capacity=%d dispatched=%d answered=%d late=%d outcomes=%v replays=%v refusals=%v sent/s(cohort)=%s answered/s(cohort)=%s",
+		r.capacity, len(r.lag), len(r.latency), r.late, r.outcomes, r.replays, r.refusals,
 		perSecond(len(r.lag), r.lastDispatch.Sub(r.started)), perSecond(len(r.latency), r.lastReply.Sub(r.started)))
 
 	for _, s := range []struct {
