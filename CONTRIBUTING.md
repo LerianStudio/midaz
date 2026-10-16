@@ -6,7 +6,7 @@ Every contribution matters. Whether you're fixing a bug, proposing a new feature
 
 * **Impact**: Your work directly improves a project used by organizations around the world.
 * **Learn and Grow**: Contribute and learn architecture design, CQRS, Ports & Adapters, and more alongside experienced developers.
-* **Community**: Join a supportive community of developers passionate about high-quality, open-source software.
+* **Community**: Join a supportive community of developers passionate about high-quality software, source available under ELv2.
 
 #### How Can You Contribute?
 
