@@ -1673,13 +1673,13 @@ func TestValidateSendSourceAndDistribute_NonPositiveRemainderRejected(t *testing
 			wantCode:  pkgConstant.ErrTransactionAmbiguous.Error(),
 		},
 		{
-			// The raw call cannot key the ambiguity check, so the pipelines' first pass
-			// answers the remainder rule for this send, as it does the totals check.
-			name: "raw call answers the remainder rule for an ambiguous send",
+			// The ambiguity check reads the account identity CalculateTotal builds from
+			// each leg, so the raw call answers it exactly as the normalized call does.
+			name: "raw call answers ambiguity before the remainder rule",
 			send: sendOf("USD", 100,
 				[]FromTo{leg("@a", "", "USD", 100), remainingLeg("@srcB")},
 				[]FromTo{leg("@a", "", "USD", 100)}),
-			wantCode: pkgConstant.ErrTransactionValueMismatch.Error(),
+			wantCode: pkgConstant.ErrTransactionAmbiguous.Error(),
 		},
 		{
 			name: "positive remainder is accepted",
@@ -1733,4 +1733,278 @@ func repeatedAliasRemainderSend(explicitValue int64) Transaction {
 	return sendOf("USD", 100,
 		[]FromTo{leg("@acc", "k1", "USD", explicitValue), remainder},
 		[]FromTo{leg("@dst", "", "USD", 100)})
+}
+
+// TestValidateSendSourceAndDistribute_AmbiguityIsPositionAndFormIndependent pins the
+// contract of the ambiguity check: an account is identified by "alias#balanceKey", and a
+// send is ambiguous when any source and any destination share that identity, whatever
+// position each one holds in its list. Every case runs twice, once over the raw aliases a
+// caller sends and once after the legs are normalized into "index#alias#balanceKey" entry
+// keys, and both forms must answer the same code.
+func TestValidateSendSourceAndDistribute_AmbiguityIsPositionAndFormIndependent(t *testing.T) {
+	t.Parallel()
+
+	ctx := differentialContext()
+
+	tests := []struct {
+		name     string
+		send     func() Transaction
+		wantCode string
+	}{
+		{
+			name: "first source is the second destination",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@a", "", "USD", 100)},
+					[]FromTo{leg("@b", "", "USD", 50), leg("@a", "", "USD", 50)})
+			},
+			wantCode: pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			name: "second source is the first destination",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@b", "", "USD", 50), leg("@a", "", "USD", 50)},
+					[]FromTo{leg("@a", "", "USD", 100)})
+			},
+			wantCode: pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			name: "same account at the same position on both sides",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@a", "", "USD", 100)},
+					[]FromTo{leg("@a", "", "USD", 100)})
+			},
+			wantCode: pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			name: "same account on both sides with totals that do not close",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@a", "", "USD", 100)},
+					[]FromTo{leg("@a", "", "USD", 64)})
+			},
+			wantCode: pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			name: "pending send with the collision across positions",
+			send: func() Transaction {
+				tx := sendOf("USD", 100,
+					[]FromTo{leg("@a", "", "USD", 100)},
+					[]FromTo{leg("@b", "", "USD", 50), leg("@a", "", "USD", 50)})
+				tx.Pending = true
+
+				return tx
+			},
+			wantCode: pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			name: "same alias on different balance keys across positions is accepted",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@a", "reserve", "USD", 100)},
+					[]FromTo{leg("@b", "", "USD", 50), leg("@a", "default", "USD", 50)})
+			},
+		},
+		{
+			name: "alias repeated on the source side only is accepted",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@a", "", "USD", 60), leg("@a", "", "USD", 40)},
+					[]FromTo{leg("@b", "", "USD", 100)})
+			},
+		},
+		{
+			name: "remaining source whose account is a destination at another position",
+			send: func() Transaction {
+				return sendOf("USD", 100,
+					[]FromTo{leg("@b", "", "USD", 60), remainingLeg("@a")},
+					[]FromTo{leg("@c", "", "USD", 50), leg("@a", "", "USD", 50)})
+			},
+			wantCode: pkgConstant.ErrTransactionAmbiguous.Error(),
+		},
+		{
+			name: "three legs on each side without a shared account is accepted",
+			send: func() Transaction {
+				return sendOf("USD", 120,
+					[]FromTo{leg("@a", "", "USD", 40), leg("@b", "", "USD", 40), leg("@c", "", "USD", 40)},
+					[]FromTo{leg("@d", "", "USD", 40), leg("@e", "", "USD", 40), leg("@f", "", "USD", 40)})
+			},
+		},
+	}
+
+	forms := []struct {
+		name      string
+		normalize bool
+	}{
+		{name: "raw"},
+		{name: "normalized", normalize: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, form := range forms {
+				t.Run(form.name, func(t *testing.T) {
+					t.Parallel()
+
+					send := cloneSendLegs(tc.send())
+					if form.normalize {
+						normalizeSendLegsLikeCreate(&send)
+					}
+
+					_, err := ValidateSendSourceAndDistribute(ctx, send, pkgConstant.CREATED)
+
+					if tc.wantCode == "" {
+						require.NoError(t, err)
+
+						return
+					}
+
+					require.Error(t, err)
+					assert.Equal(t, tc.wantCode, codeFromError(err))
+				})
+			}
+		})
+	}
+}
+
+// TestValidateSendSourceAndDistribute_AmbiguityByStatus pins which pending transitions the
+// ambiguity check covers. A pending cancel only releases the hold, so a cross-side body that an
+// older build accepted must stay cancellable; committing the same body would settle a debit and
+// a credit on one account, so the commit is refused.
+func TestValidateSendSourceAndDistribute_AmbiguityByStatus(t *testing.T) {
+	t.Parallel()
+
+	ctx := differentialContext()
+
+	crossIndexPending := func() Transaction {
+		tx := sendOf("USD", 100,
+			[]FromTo{leg("@a", "", "USD", 100)},
+			[]FromTo{leg("@b", "", "USD", 60), leg("@a", "", "USD", 40)})
+		tx.Pending = true
+
+		return tx
+	}
+
+	tests := []struct {
+		name     string
+		status   string
+		wantCode string
+	}{
+		{name: "pending cancel releases the hold", status: pkgConstant.CANCELED},
+		{name: "pending commit is ambiguous", status: pkgConstant.APPROVED, wantCode: pkgConstant.ErrTransactionAmbiguous.Error()},
+	}
+
+	forms := []struct {
+		name      string
+		normalize bool
+	}{
+		{name: "raw"},
+		{name: "normalized", normalize: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, form := range forms {
+				t.Run(form.name, func(t *testing.T) {
+					t.Parallel()
+
+					send := cloneSendLegs(crossIndexPending())
+					if form.normalize {
+						normalizeSendLegsLikeCreate(&send)
+					}
+
+					_, err := ValidateSendSourceAndDistribute(ctx, send, tc.status)
+
+					if tc.wantCode == "" {
+						require.NoError(t, err)
+
+						return
+					}
+
+					require.Error(t, err)
+					assert.Equal(t, tc.wantCode, codeFromError(err))
+				})
+			}
+		})
+	}
+}
+
+// TestValidateSendSourceAndDistribute_ForReversal pins the reversal option. A reversal is
+// rebuilt from the operations of a transaction that already settled, so a transaction an older
+// build recorded with one account on both sides must stay reversible: its reversal body carries
+// that account on both sides too. The option lifts only the shared-account rule; every other
+// rule still answers, and a call without the option keeps refusing the same body.
+func TestValidateSendSourceAndDistribute_ForReversal(t *testing.T) {
+	t.Parallel()
+
+	ctx := differentialContext()
+
+	// Reversal of debit @payer 100, credits @payee 60 and @payer 40.
+	crossSideReversal := func() Transaction {
+		return sendOf("USD", 100,
+			[]FromTo{leg("@payee", "", "USD", 60), leg("@payer", "", "USD", 40)},
+			[]FromTo{leg("@payer", "", "USD", 100)})
+	}
+
+	mismatchedReversal := func() Transaction {
+		return sendOf("USD", 100,
+			[]FromTo{leg("@payee", "", "USD", 60), leg("@payer", "", "USD", 40)},
+			[]FromTo{leg("@payer", "", "USD", 90)})
+	}
+
+	tests := []struct {
+		name     string
+		send     func() Transaction
+		opts     []ValidateOption
+		wantCode string
+	}{
+		{name: "reversal with the account on both sides is accepted", send: crossSideReversal, opts: []ValidateOption{ForReversal()}},
+		{name: "same body without the option is ambiguous", send: crossSideReversal, wantCode: pkgConstant.ErrTransactionAmbiguous.Error()},
+		{name: "reversal still answers the totals check", send: mismatchedReversal, opts: []ValidateOption{ForReversal()}, wantCode: pkgConstant.ErrTransactionValueMismatch.Error()},
+	}
+
+	forms := []struct {
+		name      string
+		normalize bool
+	}{
+		{name: "raw"},
+		{name: "normalized", normalize: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, form := range forms {
+				t.Run(form.name, func(t *testing.T) {
+					t.Parallel()
+
+					send := cloneSendLegs(tc.send())
+					if form.normalize {
+						normalizeSendLegsLikeCreate(&send)
+					}
+
+					resp, err := ValidateSendSourceAndDistribute(ctx, send, pkgConstant.CREATED, tc.opts...)
+
+					if tc.wantCode == "" {
+						require.NoError(t, err)
+						require.NotNil(t, resp)
+						assert.Len(t, resp.Sources, 2)
+						assert.Len(t, resp.Destinations, 1)
+
+						return
+					}
+
+					require.Error(t, err)
+					assert.Equal(t, tc.wantCode, codeFromError(err))
+				})
+			}
+		})
+	}
 }
