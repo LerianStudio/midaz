@@ -21,8 +21,8 @@ const queueDepth = 8192
 
 var errWriterClosed = errors.New("writer closed")
 
-// ownerlessWriter feeds prepared batchers, one goroutine each, from one bounded queue. It owns only those goroutines:
-// the caller closes the batchers' sessions and outbox after Close returns.
+// ownerlessWriter feeds prepared batchers, one goroutine each, from one bounded queue; an owner is its one fenced
+// batcher. It owns only those goroutines: the caller closes the batchers' sessions and outbox after Close returns.
 type ownerlessWriter struct {
 	queue     chan attempt
 	now       func() time.Time // the batchers' clock
@@ -104,11 +104,20 @@ func (w *ownerlessWriter) Submit(ctx context.Context, req request) result {
 }
 
 // work runs batches until the queue is closed and drained. A batch error answers its attempts unknown and is kept
-// for Close; returning it would cancel the other workers' commits.
+// for Close, as is an owner lost while idle; returning either would cancel the other workers' commits.
 func (w *ownerlessWriter) work(ctx context.Context, stats *workerStats, b *batcher) error {
 	batch, reqs := make([]attempt, 0, w.maxBatch), make([]request, 0, w.maxBatch)
 
-	for first := range w.queue {
+	for {
+		first, ok := w.next(ctx, b)
+		if !ok {
+			if b.owner != nil && stats.err == nil {
+				stats.err = b.owner.err
+			}
+
+			return nil
+		}
+
 		batch, reqs = w.take(append(batch[:0], first)), reqs[:0]
 		for _, a := range batch {
 			reqs = append(reqs, a.req)
@@ -129,8 +138,28 @@ func (w *ownerlessWriter) work(ctx context.Context, stats *workerStats, b *batch
 			a.reply <- res[i]
 		}
 	}
+}
 
-	return nil
+// next waits for a queued attempt, renewing an owner's fence on each tick meanwhile. It returns false once the
+// queue is closed and drained, and stops the owner's ticks then.
+func (w *ownerlessWriter) next(ctx context.Context, b *batcher) (attempt, bool) {
+	var ticks <-chan time.Time // nil without an owner: never ready
+	if b.owner != nil {
+		ticks = b.owner.ticker.C
+	}
+
+	for {
+		select {
+		case <-ticks:
+			b.owner.renew(ctx, b.sess)
+		case a, ok := <-w.queue:
+			if !ok && b.owner != nil {
+				b.owner.ticker.Stop()
+			}
+
+			return a, ok
+		}
+	}
 }
 
 // take appends attempts already queued to batch, up to maxBatch.

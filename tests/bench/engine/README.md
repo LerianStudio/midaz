@@ -303,8 +303,8 @@ regression and race commands so they do not select volume. No matrix, full-queue
 
 ## Owner fence primitives
 
-`writer_owner.go` provides acquisition and renewal of the bench tenant's SQL fence and the paged reload below. It is
-not yet an owner writer.
+`writer_owner.go` provides acquisition and renewal of the bench tenant's SQL fence, the paged reload below and the
+owner writer after it.
 Acquisition increments the epoch only after the previous lease expires. Renewal requires the current owner, epoch
 and a live lease. Both use `clock_timestamp()`, including after a lock wait, and the shared COMMIT notice classifier.
 An error returns no usable acquisition token; a COMMIT error may coexist with a locally committed fence.
@@ -323,9 +323,9 @@ on the renewing backend alone. Mutants removing expiry, epoch or notice classifi
 or replacing renewal with a lock-only statement fail. Owner-only and tenant-only predicate mutants survive by
 construction in this single-tenant fixture; no fabricated tokens were added to make them fail.
 
-Limits: no renewal loop, cache, owner queue integration, financial owner run or failover proof yet.
-The ownerless financial behavior is unchanged. Its control scan now also reads organization and ledger IDs for the
-shared scanner. The earlier throughput observations predate that change; this unit does not re-measure them.
+Limits of this unit: no renewal loop, cache, queue integration or financial owner run; the owner writer below adds
+them. No failover proof. The ownerless financial behavior is unchanged. Its control scan now also reads organization
+and ledger IDs for the shared scanner. The earlier throughput observations predate that change; this unit does not re-measure them.
 
 ## Owner paged reload
 
@@ -352,8 +352,63 @@ Removing both tick renewals fails; removing just one loop's renewal survives thi
 include partial returns on tick errors and cursor variants the fixture does not distinguish. The code keeps strict
 cursors, matching ORDER BY and nil maps on every error; mutant survival is a coverage limit, not proof of equivalence.
 
-Limits: no ticker, cache, queue integration, owner financial run, 1M reload or failover. Concurrent administrative
-writers are not excluded by the fence and stay out of the bench until Epic 3.2.
+Limits of this unit: no ticker, cache, queue integration or owner financial run; the owner writer below adds them. No
+1M reload or failover. Concurrent administrative writers are not excluded by the fence and stay out of the bench until
+Epic 3.2.
+
+## Owner writer
+
+`newOwnerWriter` acquires the fence, then reloads every balance and control in pages of 50,000 under a 1 s ticker and
+a 3 s lease. It then serves one worker on the ownerless queue, `Submit` and `Close`, on one session. Idle, the worker
+renews on each tick, each renewal bounded by one lease. A financial pass renews and locks the fence as its first
+statement after BEGIN, then claims and touches identities as before. It decides on copies of only the cached rows its
+admitted postings name. A confirmed COMMIT stamps the acknowledgement, then publishes those rows to the cache, then
+answers. Rollback, a cutoff rerun and an unknown COMMIT publish nothing. Any final batch error or failed tick renewal
+ends the owner: it drops the cache, keeps the first cause and answers later attempts unknown without SQL until Close
+reports that cause. Nothing reacquires, reloads or releases the fence. A COMMIT confirmed after the lease expired
+stays an approval, because the pass held the fence row through it; the next renewal refuses.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 960 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestOwnerWriter(Lease|Successor|IdleLoss|Identity|MultiKey|Protection|Admission)$' -timeout 15m -v
+```
+
+`TestOwnerWriterLease` keeps an idle owner past the lease it started with on the database clock, refuses a rival and
+approves a payment. A second payment parks on a held balance row past its in-pass lease, and a rival takeover waits
+only on that pass. Its COMMIT approves, the rival then takes epoch 2. The next renewal refuses: the next attempt
+answers unknown, no claim persists, and the one after runs no SQL. That a pass renews before it
+claims is source order, not tested.
+
+`TestOwnerWriterSuccessor` cancels a financial COMMIT in SyncRep once the owner is seen inside its pass. That COMMIT
+answers unknown though it committed locally; a request on untouched balances then answers unknown without SQL. The
+successor's constructor waits in SyncRep while the paused standby lacks the original. Once replay resumes, the
+successor replays the original request past its cutoff with only a touch, and approves on the versions the original
+left.
+
+`TestOwnerWriterIdleLoss` pauses replay under an idle `remote_apply` owner that never receives a request. Its tick
+renewal leaves SyncRep after its 3 s context expires while replay stays paused. After replay resumes, no later renewal
+keeps the fence: the lease expires with the writer open, and Close reports `renew on tick`. The test observes that
+server-side cleanup completes within its 30 s wait; the 3 s context is not a strict fence-lock release deadline.
+
+The four small gates share their bodies with the ownerless ones:
+`TestOwnerWriter(Identity|MultiKey|Protection|Admission)` run the same five reset rounds and expectations with one
+owner worker instead of 32. Fixture changes precede the constructor's reload. Spent-credit needs the cache the
+spend's COMMIT published. Admission needs its void pass to publish nothing. Its busy pass now waits on its own claim,
+held in flight, instead of a balance row lock, for both writers: both claim before deciding, and an owner refuses
+from its cache without touching a balance row.
+
+Final supervisor verification: the owner and ownerless gates plus the three lifecycle tests passed with race and
+shuffle, 11 tests and 42 subtests in 62.683 s. The complete package without conservation passed, 44 tests and 68
+subtests in 101.449 s. The author's earlier complete race run passed in 283.618 s. All had zero failures or skips;
+vet, gofumpt, pinned lint v2.14.0 and stack cleanup passed. Before the fix, IdleLoss failed because Close returned nil. Without
+the 3 s bound, its renewal stayed in SyncRep through the 30 s wait. Two more scratch overlay mutants failed
+behaviorally. Without publication after COMMIT, spent-credit's spend never reached its balance update, and an Identity
+round turned unknown on `update balances: 3 rows, want 5`. Publishing before the cutoff check made Admission's rerun
+hit `update balances: 0 rows, want 2`. Each survived the other gate.
+
+Limits: no owner volume, 200k conservation, 1M reload or failover. Owner drain, deadline Close and caller exits reuse
+the ownerless queue proofs above, not owner-specific tests. An extra copy of the cache on the terminal path is not
+observable. A pass parked past the 3 s lease ends the owner by policy, so host load can turn a long park terminal.
 
 ## How it is built
 
@@ -373,4 +428,6 @@ writers are not excluded by the fence and stay out of the bench until Epic 3.2.
 Environment readiness, guarded schema rebuild, deterministic seed fixtures and the obligation
 catalog written outbox-only through the libraries. The synchronous
 standby streams through the proxy and inherits the primary's settings. Seed timing is setup cost,
-not transaction throughput. Financial correctness, failover survival and unknown replay are untested.
+not transaction throughput. Financial correctness and unknown replay are proven only where the sections above say:
+the batch and small gates for both writers, the owner lifecycle tests and the five ownerless 200k shapes. Failover
+survival, owner 200k conservation, a 1M owner reload and capacity remain unproven.

@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +36,99 @@ const (
 		WHERE (organization_id, ledger_id, account_id) > ($1::uuid, $2::uuid, $3::uuid)
 		ORDER BY organization_id, ledger_id, account_id LIMIT $4`
 )
+
+// The owner's bench parameters: a lease of 3 s renewed every second, reloads in pages of 50k.
+const (
+	ownerLease = 3 * time.Second
+	ownerTick  = time.Second
+	reloadPage = 50_000
+)
+
+// ownerState is a fenced batcher's ownership and the money it reloaded. After the constructor, its one worker alone
+// reads it and, after each confirmed COMMIT, updates the cache. err is the first cause that ended the ownership: from
+// then on nothing runs SQL.
+type ownerState struct {
+	tok      ownerToken
+	ticker   *time.Ticker
+	balances map[uuid.UUID]lockedBalance
+	controls map[controlKey]lockedControl
+	err      error
+}
+
+// newOwnerWriter acquires the fence and reloads every balance and control on b's session, then serves b from one
+// worker. ctx bounds the startup, then the writer's lifetime; a startup error starts nothing.
+func newOwnerWriter(ctx context.Context, b *batcher, owner string, maxBatch int) (*ownerlessWriter, error) {
+	tok, err := acquireFence(ctx, b.sess, owner, ownerLease)
+	if err != nil {
+		return nil, err
+	}
+
+	ticker := time.NewTicker(ownerTick)
+
+	balances, controls, err := reload(ctx, b.sess, tok, ownerLease, ticker.C, reloadPage)
+	if err != nil {
+		ticker.Stop()
+
+		return nil, err
+	}
+
+	b.owner = &ownerState{tok: tok, ticker: ticker, balances: balances, controls: controls}
+
+	return newOwnerlessWriter(ctx, []*batcher{b}, maxBatch), nil
+}
+
+// renew gives an idle renewal one lease of client time; cancellation may release its SQL lock later.
+// Any error ends the ownership.
+func (o *ownerState) renew(ctx context.Context, sess *sqlSession) {
+	ctx, cancel := context.WithTimeout(ctx, ownerLease)
+	defer cancel()
+
+	if err := renewFence(ctx, sess, o.tok, ownerLease); err != nil {
+		o.lose(fmt.Errorf("renew on tick: %w", err))
+	}
+}
+
+// lose ends the ownership on its cause: renewals stop and the cache is dropped. Nothing calls it twice: a lost owner
+// runs no SQL, so no later error can follow.
+func (o *ownerState) lose(err error) {
+	o.ticker.Stop()
+	o.err, o.balances, o.controls = err, nil, nil
+}
+
+// cached copies the cached rows of the admitted postings as lockRows reads them: balances by id, the debited accounts'
+// controls under the bench organization and ledger. A missing row is a missing fixture, never a decision.
+func (o *ownerState) cached(postings []posting) (*lockedRows, error) {
+	balances, controls := map[uuid.UUID]lockedBalance{}, map[uuid.UUID]lockedControl{}
+
+	for _, p := range postings {
+		b, ok := o.balances[p.BalanceID]
+		if !ok {
+			return nil, fmt.Errorf("cached balances: balance %s not seeded", p.BalanceID)
+		}
+
+		balances[p.BalanceID] = b
+
+		if p.Amount < 0 {
+			c, ok := o.controls[controlKey{benchOrgID, benchLedgerID, b.accountID}]
+			if !ok {
+				return nil, fmt.Errorf("cached controls: account %s has no control: not seeded", b.accountID)
+			}
+
+			controls[b.accountID] = c
+		}
+	}
+
+	return &lockedRows{read: balances, decided: maps.Clone(balances), readCtl: controls, decidedCtl: maps.Clone(controls)}, nil
+}
+
+// publish writes the rows a confirmed COMMIT left into the cache.
+func (o *ownerState) publish(rows *lockedRows) {
+	maps.Copy(o.balances, rows.decided)
+
+	for account, c := range rows.decidedCtl {
+		o.controls[controlKey{benchOrgID, benchLedgerID, account}] = c
+	}
+}
 
 // ownerToken is one ownership of the bench tenant's fence; every takeover increments the epoch.
 type ownerToken struct {

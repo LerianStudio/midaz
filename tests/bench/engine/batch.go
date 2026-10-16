@@ -46,6 +46,7 @@ type batcher struct {
 	rows        outbox.TransactionalBatchWriter
 	description string           // the v2 create body's, carried by every transaction and operation
 	now         func() time.Time // time.Now in runs, a controlled clock in tests
+	owner       *ownerState      // nil: ownerless, locking the money rows in each pass
 }
 
 // batchStats counts one batch's passes and, among them, the deadlock retry.
@@ -62,12 +63,15 @@ func newBatcher(sess *sqlSession, ev libStreaming.TransactionalBatchEmitter, row
 
 // run answers every position of reqs, in order. A new decision crossing its cutoff before COMMIT reruns the batch
 // from fresh rows, a pre-COMMIT deadlock once; any other error, a COMMIT error included, answers every position
-// unknown with its cause.
+// unknown with its cause and ends an owner, whose later batches answer unknown with that first cause and no SQL.
 func (b *batcher) run(ctx context.Context, reqs []request) ([]result, batchStats, error) {
 	var stats batchStats
 
-	if len(reqs) == 0 {
+	switch {
+	case len(reqs) == 0:
 		return nil, stats, nil
+	case b.owner != nil && b.owner.err != nil:
+		return unknowns(reqs), stats, b.owner.err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, batchBudget)
@@ -89,6 +93,10 @@ func (b *batcher) run(ctx context.Context, reqs []request) ([]result, batchStats
 		case !sent && state == sqlStateDeadlock && stats.deadlocks == 0:
 			stats.deadlocks++
 			continue
+		}
+
+		if b.owner != nil {
+			b.owner.lose(err)
 		}
 
 		return unknowns(reqs), stats, err
@@ -137,7 +145,7 @@ func (b *batcher) passContext(ctx context.Context, reqs []request) (context.Cont
 }
 
 // pass runs one SQL transaction and reports whether COMMIT was sent, after which nothing is retried. Every answer of
-// a clean COMMIT carries its acknowledgement instant.
+// a clean COMMIT carries its acknowledgement instant, taken before an owner publishes the pass's rows to its cache.
 func (b *batcher) pass(ctx context.Context, reqs []request, g batchGroup) ([]result, bool, error) {
 	ctx, cancel := b.passContext(ctx, reqs)
 	defer cancel()
@@ -147,7 +155,7 @@ func (b *batcher) pass(ctx context.Context, reqs []request, g batchGroup) ([]res
 		return nil, false, err
 	}
 
-	res, err := b.decide(ctx, tx, reqs, g)
+	res, rows, err := b.decide(ctx, tx, reqs, g)
 	if err != nil {
 		// A context that ended already rolled the transaction back.
 		if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
@@ -166,20 +174,39 @@ func (b *batcher) pass(ctx context.Context, reqs []request, g batchGroup) ([]res
 		res[i].dbAckAt = ack
 	}
 
+	if b.owner != nil {
+		b.owner.publish(rows)
+	}
+
 	return res, true, nil
 }
 
-// decide resolves every identity, decides the claimed ones still admissible on the rows it locked, writes them with
-// their obligations and finalizes every claim, all in tx. A new decision late before COMMIT voids the pass.
-func (b *batcher) decide(ctx context.Context, tx *sql.Tx, reqs []request, g batchGroup) ([]result, error) {
-	resolved, err := resolveIdentities(ctx, tx, reqs, g)
-	if err != nil {
-		return nil, err
+// decide resolves every identity, decides the claimed ones still admissible on their rows, writes them with their
+// obligations and finalizes every claim in tx, returning the rows as decided; a new decision late before COMMIT voids
+// the pass. An owner first renews its fence, locked through COMMIT, and decides on cached copies; others lock the rows.
+func (b *batcher) decide(ctx context.Context, tx *sql.Tx, reqs []request, g batchGroup) ([]result, *lockedRows, error) {
+	if b.owner != nil {
+		if err := renewFenceTx(ctx, tx, b.owner.tok, ownerLease); err != nil {
+			return nil, nil, err
+		}
 	}
 
-	rows, err := lockRows(ctx, tx, admittedPostings(reqs, g, resolved, b.now()))
+	resolved, err := resolveIdentities(ctx, tx, reqs, g)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	postings := admittedPostings(reqs, g, resolved, b.now())
+
+	var rows *lockedRows
+	if b.owner != nil {
+		rows, err = b.owner.cached(postings)
+	} else {
+		rows, err = lockRows(ctx, tx, postings)
+	}
+
+	if err != nil {
+		return nil, nil, err
 	}
 
 	startedAt := b.now()
@@ -187,25 +214,25 @@ func (b *batcher) decide(ctx context.Context, tx *sql.Tx, reqs []request, g batc
 
 	w, err := b.decideNew(ctx, rows, reqs, g, resolved, startedAt, at)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := b.persist(ctx, tx, w, rows, at); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	if err := finalize(ctx, tx, g, resolved, at); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	late := b.now()
 	for _, p := range w.decided {
 		if !reqs[p].admissible(late) {
-			return nil, errCutoffCrossed
+			return nil, nil, errCutoffCrossed
 		}
 	}
 
-	return answers(reqs, g, resolved, startedAt), nil
+	return answers(reqs, g, resolved, startedAt), rows, nil
 }
 
 // resolution answers one identity: the stored row, or this pass's decision when the pass claimed it.

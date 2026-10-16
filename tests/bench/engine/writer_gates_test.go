@@ -24,15 +24,21 @@ import (
 // Each concurrent gate repeats on a reset stack; its expectations hold whatever the schedule.
 const gateRounds, gateWorkers, gateMaxBatch = 5, 32, 256
 
-// Copies and divergent payloads of each identity race over 32 workers: whichever payload claims the identity decides it
+func TestOwnerlessWriterIdentity(t *testing.T) { identityGate(t, false) }
+
+func TestOwnerWriterIdentity(t *testing.T) { identityGate(t, true) }
+
+// Copies and divergent payloads of each identity race over the writer: whichever payload claims the identity decides it
 // once and fixes its money, its copies replay, other payloads conflict. Retried past its cutoff under a new response
 // deadline, a winning payload replays without moving money.
-func TestOwnerlessWriterIdentity(t *testing.T) {
+func identityGate(t *testing.T, owner bool) {
+	t.Helper()
+
 	const identities, copies = 128, 4
 
 	for round := range gateRounds {
 		t.Run(fmt.Sprintf("round%d", round), func(t *testing.T) {
-			g := newGate(t)
+			g := newGate(t, owner)
 			hot := mv(classHot, 0, constant.DefaultBalanceKey)
 			reqs := make([]request, 0, identities*(copies+1))
 
@@ -65,9 +71,9 @@ func TestOwnerlessWriterIdentity(t *testing.T) {
 	}
 
 	// Sequential, so once: a spent credit's replay, queued ahead of a new debit of the same amount in one batch, pays
-	// nothing again, so that debit finds the recipient empty.
+	// nothing again, so that debit finds the recipient empty. An owner finds it so in the cache the spend published.
 	t.Run("spent-credit", func(t *testing.T) {
-		g := newGate(t)
+		g := newGate(t, owner)
 		recipient := mv(classOrdinary, 2, constant.DefaultBalanceKey)
 		g.exec(t, `UPDATE balance SET available = 0 WHERE id = $1`, recipient(0).BalanceID)
 
@@ -98,12 +104,18 @@ func TestOwnerlessWriterIdentity(t *testing.T) {
 	})
 }
 
+func TestOwnerlessWriterMultiKey(t *testing.T) { multiKeyGate(t, false) }
+
+func TestOwnerWriterMultiKey(t *testing.T) { multiKeyGate(t, true) }
+
 // Both seeded keys of one account debit its one control: 300 debits of 10, from either key or 5 from each, meet a shared
 // limit of 1000, so exactly 100 approve whatever their order. The control's version counts debit postings.
-func TestOwnerlessWriterMultiKey(t *testing.T) {
+func multiKeyGate(t *testing.T, owner bool) {
+	t.Helper()
+
 	for round := range gateRounds {
 		t.Run(fmt.Sprintf("round%d", round), func(t *testing.T) {
-			g := newGate(t)
+			g := newGate(t, owner)
 			g.exec(t, `UPDATE account_control SET limit_remaining = 1000 WHERE account_id = $1`, accountID(classMultikey, 0))
 
 			mk, mk2 := mv(classMultikey, 0, constant.DefaultBalanceKey), mv(classMultikey, 0, keySecondary)
@@ -121,13 +133,19 @@ func TestOwnerlessWriterMultiKey(t *testing.T) {
 	}
 }
 
+func TestOwnerlessWriterProtection(t *testing.T) { protectionGate(t, false) }
+
+func TestOwnerWriterProtection(t *testing.T) { protectionGate(t, true) }
+
 // Funds and flags refuse whatever the schedule: 200 debits of 10 against 1000 on the hot balance, and 20 each from a
 // sending-disabled balance, to a receiving-disabled one after a valid debit, and from a blocked account. The other legs
 // stay rich, so each refusal has one reason, and a refused credit leaves its earlier debit unwritten.
-func TestOwnerlessWriterProtection(t *testing.T) {
+func protectionGate(t *testing.T, owner bool) {
+	t.Helper()
+
 	for round := range gateRounds {
 		t.Run(fmt.Sprintf("round%d", round), func(t *testing.T) {
-			g := newGate(t)
+			g := newGate(t, owner)
 			hot, fee := mv(classHot, 0, constant.DefaultBalanceKey), mv(classFee, 0, constant.DefaultBalanceKey)
 			mk := mv(classMultikey, 0, constant.DefaultBalanceKey)
 
@@ -159,13 +177,19 @@ func TestOwnerlessWriterProtection(t *testing.T) {
 	}
 }
 
-// A new refusal crossing its cutoff before COMMIT voids the pass as an approval does. A busy refusal holds the one
-// worker while an approval and a refusal with 1 s of admission queue; their pass decides both and waits on the outbox
-// while the clock passes that cutoff. The rerun approves afresh and expires the refusal; nothing of the void pass stays.
-func TestOwnerlessWriterAdmission(t *testing.T) {
+func TestOwnerlessWriterAdmission(t *testing.T) { admissionGate(t, false) }
+
+func TestOwnerWriterAdmission(t *testing.T) { admissionGate(t, true) }
+
+// A new refusal crossing its cutoff before COMMIT voids the pass as an approval does: the rerun approves afresh and
+// expires the refusal, and the void pass leaves nothing in the ledger or an owner's cache. The busy refusal parks the
+// one worker on its own claim held in flight, since an owner refuses from its cache without touching a balance row.
+func admissionGate(t *testing.T, owner bool) {
+	t.Helper()
+
 	for round := range gateRounds {
 		t.Run(fmt.Sprintf("round%d", round), func(t *testing.T) {
-			g := newGate(t)
+			g := newGate(t, owner)
 			from := mv(classOrdinary, 3, constant.DefaultBalanceKey)
 			g.exec(t, `UPDATE account_control SET blocked = true WHERE account_id = $1`, accountID(classOrdinary, 3))
 
@@ -181,7 +205,8 @@ func TestOwnerlessWriterAdmission(t *testing.T) {
 
 			const app = "bench-gate-admission"
 
-			row := holdLock(g.ctx, t, g.env, lockBalance, from(0).BalanceID)
+			claim := holdLock(g.ctx, t, g.env, claimSQL, benchTenantID, []string{busy.id.String()}, [][]byte{busy.fingerprint[:]},
+				[]time.Time{busy.admissionCutoff})
 			w, inner := g.start(t, app, 1, 8, 1+len(queued))
 			first := submitEach(g.ctx, t, w, []request{busy})
 
@@ -191,7 +216,7 @@ func TestOwnerlessWriterAdmission(t *testing.T) {
 			awaitQueued(t, inner, len(queued))
 
 			outbox := holdLock(g.ctx, t, g.env, `LOCK TABLE outbox_events IN SHARE MODE`)
-			require.NoError(t, row.Rollback(g.ctx))
+			require.NoError(t, claim.Rollback(g.ctx))
 			awaitBackend(g.ctx, t, g.conn, app+"-0", "relation") // the queued pass decided both and writes the approval's events
 			g.clock.advance(time.Second)
 			require.NoError(t, outbox.Rollback(g.ctx))
@@ -272,8 +297,8 @@ func TestOwnerlessWriterConservation(t *testing.T) {
 	}
 }
 
-// gate is one reset round: the stack reseeded with 4 ordinary balances, a fixed clock, and the connection that owns
-// fixtures, the baseline and the checks.
+// gate is one reset round: the stack reseeded with 4 ordinary balances, a fixed clock, the connection that owns
+// fixtures, the baseline and the checks, and whether an owner writes.
 type gate struct {
 	ctx    context.Context
 	env    *benchEnv
@@ -281,9 +306,10 @@ type gate struct {
 	b      *batcher
 	conn   *pgx.Conn
 	broker *refusingBroker
+	owner  bool
 }
 
-func newGate(t *testing.T) *gate {
+func newGate(t *testing.T, owner bool) *gate {
 	t.Helper()
 	noLeaks(t)
 
@@ -294,7 +320,7 @@ func newGate(t *testing.T) *gate {
 	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
 	b, conn, broker := newTestBatcher(ctx, t, env, clock.now)
 
-	return &gate{ctx: ctx, env: env, clock: clock, b: b, conn: conn, broker: broker}
+	return &gate{ctx: ctx, env: env, clock: clock, b: b, conn: conn, broker: broker, owner: owner}
 }
 
 // exec applies one fixture row change before the baseline.
@@ -305,18 +331,26 @@ func (g *gate) exec(t *testing.T, query string, id uuid.UUID) {
 	require.NoError(t, err)
 }
 
-// start snapshots the baseline, then starts workers sessions named app-<i> under capture of n calls.
+// start snapshots the baseline, then starts under capture of n calls workers ownerless sessions named app-<i>, or one
+// owner on a session named app-0, which acquires and reloads the fixtures first.
 func (g *gate) start(t *testing.T, app string, workers, maxBatch, n int) (*captureWriter, *ownerlessWriter) {
 	t.Helper()
 	snapshotBaseline(g.ctx, t, g.conn)
 
-	inner := newTestOwnerless(g.ctx, t, g.env, g.b, app, workers, maxBatch)
+	if !g.owner {
+		inner := newTestOwnerless(g.ctx, t, g.env, g.b, app, workers, maxBatch)
+
+		return captureCalls(inner, n), inner
+	}
+
+	inner, err := startOwner(g.ctx, t, namedBatcher(t, g.b, g.env, app+"-0", nil), app, maxBatch).wait(t)
+	require.NoError(t, err)
 
 	return captureCalls(inner, n), inner
 }
 
-// concurrent submits every request at once, one caller each, to 32 workers of cap 256, and waits for every answer. The
-// capture keeps room for one retry.
+// concurrent submits every request at once, one caller each, to 32 workers, or the owner, of cap 256, and waits for
+// every answer. The capture keeps room for one retry.
 func (g *gate) concurrent(t *testing.T, app string, reqs []request) (*captureWriter, *ownerlessWriter) {
 	t.Helper()
 

@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
 )
 
 const (
@@ -326,6 +329,258 @@ func TestOwnerReloadCancelled(t *testing.T) {
 	assert.Nil(t, run.balances)
 	assert.Nil(t, run.controls)
 	require.NoError(t, controlLock.Rollback(ctx))
+}
+
+// An idle owner's ticks keep its lease live: a takeover is refused, a payment approves. A pass parked past its renewed
+// lease holds the fence row, so a takeover waits on it and its COMMIT stays an approval. The next renewal refuses: the
+// lost owner claims nothing, answers unknown without SQL, and Close reports that first cause.
+func TestOwnerWriterLease(t *testing.T) {
+	noLeaks(t)
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+
+	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
+	b, conn, broker := newTestBatcher(ctx, t, env, clock.now)
+	hot := mv(classHot, 0, constant.DefaultBalanceKey)
+
+	snapshotBaseline(ctx, t, conn)
+
+	const app, rivalApp = "bench-owner-lease", "bench-owner-rival"
+
+	inner, err := startOwner(ctx, t, namedBatcher(t, b, env, app, nil), "owner-a", gateMaxBatch).wait(t)
+	require.NoError(t, err)
+
+	w := captureCalls(inner, 4)
+	_, started := readFence(ctx, t, conn)
+
+	awaitPrimary(ctx, t, conn, "the lease the owner started with expires", leaseExpired, started)
+
+	rival := namedSession(t, env, rivalApp, nil)
+	_, err = acquireFence(ctx, rival, "owner-b", shortLease)
+	require.ErrorIs(t, err, sql.ErrNoRows, "idle ticks keep the lease live")
+
+	idle := batchReq(t, "owner/lease/idle", "owner/lease/idle", clock.now(), hot(-1), ordinaryOf(0)(1))
+	assert.Equal(t, []string{"approved+tx"}, summarize(t, []request{idle}, []result{w.Submit(ctx, idle)}))
+
+	row := holdLock(ctx, t, env, lockBalance, hot(0).BalanceID)
+	parked := batchReq(t, "owner/lease/parked", "owner/lease/parked", clock.now(), hot(-1), ordinaryOf(1)(1))
+	paying := submitEach(ctx, t, w, []request{parked})
+
+	ownerPID := awaitBackend(ctx, t, conn, app, "Lock") // its UPDATE waits on the held balance
+
+	var waitAt time.Time
+	require.NoError(t, conn.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&waitAt))
+	awaitPrimary(ctx, t, conn, "the lease the pass renewed before waiting expires", leaseExpired, waitAt.Add(ownerLease))
+
+	takeover := startAcquire(ctx, rival, "owner-b")
+	rivalPID := awaitBackend(ctx, t, conn, rivalApp, "Lock")
+
+	var blocked bool
+	require.NoError(t, conn.QueryRow(ctx, `SELECT pg_blocking_pids($1) = ARRAY[$2::int]`, rivalPID, ownerPID).Scan(&blocked))
+	require.True(t, blocked, "the takeover waits only on the fence row the pass holds")
+	require.NoError(t, row.Rollback(ctx))
+
+	assert.Equal(t, []string{"approved+tx"}, summarize(t, []request{parked}, paying.wait(t)))
+
+	tokB, err := takeover.wait(t)
+	require.NoError(t, err)
+	assert.Equal(t, ownerToken{owner: "owner-b", epoch: 2}, tokB, "the takeover follows the approval's COMMIT")
+
+	next := batchReq(t, "owner/lease/next", "owner/lease/next", clock.now(), hot(-1), ordinaryOf(2)(1))
+	assertUnknown(t, []result{w.Submit(ctx, next)}, renewRefused)
+
+	ran := queryStart(ctx, t, conn, app)
+	later := batchReq(t, "owner/lease/later", "owner/lease/later", clock.now(), ordinaryOf(2)(-1), ordinaryOf(3)(1))
+	assertUnknown(t, []result{w.Submit(ctx, later)}, renewRefused)
+	assert.Equal(t, ran, queryStart(ctx, t, conn, app), "the lost owner ran no SQL")
+
+	require.ErrorContains(t, w.Close(ctx), renewRefused, "Close reports the first cause")
+	assert.Equal(t, map[string]string{idle.id.String(): "approved", parked.id.String(): "approved"},
+		readRows(ctx, t, conn, `SELECT request_id::text, outcome FROM engine_request`), "the lost owner claimed nothing")
+	assert.Equal(t, map[string]int{"approved": 2, "unknown": 2}, verifyLedger(ctx, t, conn, w.calls))
+	assert.Zero(t, broker.publishes.Load(), "obligations stay in the outbox")
+}
+
+// A financial COMMIT cancelled in SyncRep committed locally yet answers unknown and ends the owner, which answers later
+// attempts unknown without SQL. Its successor holds nothing while the standby lacks the original, then replays it past
+// its cutoff without moving money and approves on the balances the original moved.
+func TestOwnerWriterSuccessor(t *testing.T) {
+	noLeaks(t)
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+
+	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
+	b, conn, broker := newTestBatcher(ctx, t, env, clock.now)
+
+	stack, err := openVerifiedStack(ctx, env)
+	require.NoError(t, err)
+
+	defer stack.close(ctx)
+
+	snapshotBaseline(ctx, t, conn)
+
+	const appA, appB, syncRepCancelled = "bench-owner-first", "bench-owner-successor", "canceling wait for synchronous replication"
+
+	remoteApply := map[string]string{"synchronous_commit": "remote_apply"}
+
+	innerA, err := startOwner(ctx, t, namedBatcher(t, b, env, appA, remoteApply), "owner-a", gateMaxBatch).wait(t)
+	require.NoError(t, err)
+
+	first := captureCalls(innerA, 2)
+	hot := mv(classHot, 0, constant.DefaultBalanceKey)
+	original := batchReq(t, "owner/successor/original", "owner/successor/original", clock.now(), hot(-5), ordinaryOf(0)(5))
+
+	outbox := holdLock(ctx, t, env, `LOCK TABLE outbox_events IN SHARE MODE`)
+	paying := submitEach(ctx, t, first, []request{original})
+
+	awaitBackend(ctx, t, conn, appA, "relation") // inside its financial pass, writing the approval's events
+	pauseReplay(ctx, t, env, stack.standby)
+	require.NoError(t, outbox.Rollback(ctx))
+	cancelSyncRep(ctx, t, conn, appA)
+	assertUnknown(t, paying.wait(t), syncRepCancelled)
+
+	ran := queryStart(ctx, t, conn, appA)
+	untouched := batchReq(t, "owner/successor/untouched", "owner/successor/untouched", clock.now(), ordinaryOf(2)(-1), ordinaryOf(3)(1))
+	assertUnknown(t, []result{first.Submit(ctx, untouched)}, syncRepCancelled)
+	assert.Equal(t, ran, queryStart(ctx, t, conn, appA), "the lost owner ran no SQL")
+	require.ErrorContains(t, first.Close(ctx), syncRepCancelled)
+
+	awaitPrimary(ctx, t, conn, "the lost owner's lease expires", fenceExpired, benchTenantID)
+
+	successor := startOwner(ctx, t, namedBatcher(t, b, env, appB, remoteApply), "owner-b", gateMaxBatch)
+
+	awaitBackend(ctx, t, conn, appB, "SyncRep")
+	require.False(t, successor.returned(), "no ownership while its acquisition waits for the standby")
+	assert.Zero(t, countTransactions(ctx, t, stack.standby, []request{original}), "the paused standby lacks the original")
+
+	_, err = stack.standby.Exec(ctx, `SELECT pg_wal_replay_resume()`)
+	require.NoError(t, err)
+
+	innerB, err := successor.wait(t)
+	require.NoError(t, err)
+
+	second := captureCalls(innerB, 2)
+
+	clock.advance(time.Minute) // past the original's cutoff and response deadline
+
+	retry := original
+	retry.deadline = clock.now().Add(usualBudget.caller)
+	want := readTotals(ctx, t, conn)
+
+	assert.Equal(t, []string{"replay/approved+tx"}, summarize(t, []request{retry}, []result{second.Submit(ctx, retry)}))
+
+	want.Touches++
+	assert.Equal(t, want, readTotals(ctx, t, conn), "the replay only touched its identity")
+
+	again := batchReq(t, "owner/successor/again", "owner/successor/again", clock.now(), hot(-5), ordinaryOf(0)(5))
+	assert.Equal(t, []string{"approved+tx"}, summarize(t, []request{again}, []result{second.Submit(ctx, again)}),
+		"the reload read the versions the original left")
+	require.NoError(t, second.Close(ctx))
+
+	assert.Equal(t, map[string]int{"unknown": 2, "replay/approved": 1, "approved": 1, unansweredApproval: 1},
+		verifyLedger(ctx, t, conn, slices.Concat(first.calls, second.calls)))
+	assert.Zero(t, broker.publishes.Load(), "obligations stay in the outbox")
+}
+
+// An idle renewal's deadline ends the owner while replay is paused. No later renewal keeps the fence,
+// and Close, with nothing ever submitted, reports that cause.
+func TestOwnerWriterIdleLoss(t *testing.T) {
+	noLeaks(t)
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
+	defer cancel()
+
+	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
+	b, conn, _ := newTestBatcher(ctx, t, env, clock.now)
+
+	stack, err := openVerifiedStack(ctx, env)
+	require.NoError(t, err)
+
+	defer stack.close(ctx)
+
+	const app = "bench-owner-idle"
+
+	w, err := startOwner(ctx, t, namedBatcher(t, b, env, app, map[string]string{"synchronous_commit": "remote_apply"}),
+		"owner-a", gateMaxBatch).wait(t)
+	require.NoError(t, err)
+
+	pauseReplay(ctx, t, env, stack.standby)
+	awaitBackend(ctx, t, conn, app, "SyncRep") // a tick renewal, not a financial pass: nothing is submitted
+	awaitPrimary(ctx, t, conn, "the renewal leaves SyncRep while replay stays paused",
+		`SELECT NOT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = $1 AND wait_event = 'SyncRep')`, app)
+
+	_, err = stack.standby.Exec(ctx, `SELECT pg_wal_replay_resume()`)
+	require.NoError(t, err)
+
+	awaitPrimary(ctx, t, conn, "no later renewal: the lease expires while the writer is open", fenceExpired, benchTenantID)
+	require.ErrorContains(t, w.Close(ctx), "renew on tick")
+}
+
+// ownerStart is one owner constructor on its own recovered goroutine. Registered after its session, its cleanup runs
+// before that session closes: it joins the constructor, which a failed test's ended ctx releases, then closes a
+// writer the test left open.
+type ownerStart struct {
+	g    errgroup.Group
+	done chan struct{}
+	w    *ownerlessWriter
+	err  error
+}
+
+func startOwner(ctx context.Context, t *testing.T, b *batcher, owner string, maxBatch int) *ownerStart {
+	t.Helper()
+
+	s := &ownerStart{done: make(chan struct{})}
+	s.g.Go(func() error {
+		defer close(s.done)
+
+		s.w, s.err = newOwnerWriter(ctx, b, owner, maxBatch)
+
+		return nil
+	})
+
+	t.Cleanup(func() {
+		assert.NoError(t, s.g.Wait())
+
+		if s.w != nil && !s.w.closed.Load() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			t.Logf("close after a failure: %v", s.w.Close(closeCtx))
+		}
+	})
+
+	return s
+}
+
+func (s *ownerStart) returned() bool {
+	select {
+	case <-s.done:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *ownerStart) wait(t *testing.T) (*ownerlessWriter, error) {
+	t.Helper()
+	require.NoError(t, s.g.Wait())
+
+	return s.w, s.err
+}
+
+// queryStart returns when the session named app last started a statement.
+func queryStart(ctx context.Context, t *testing.T, conn *pgx.Conn, app string) time.Time {
+	t.Helper()
+
+	var at time.Time
+	require.NoError(t, conn.QueryRow(ctx, `SELECT query_start FROM pg_stat_activity WHERE application_name = $1`, app).Scan(&at))
+
+	return at
 }
 
 // addOtherLedger adds a second organization and ledger with one account: a live balance, a soft-deleted one on the
