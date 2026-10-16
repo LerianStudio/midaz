@@ -501,16 +501,11 @@ const (
 	backendWaits = `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = $1 AND $2 IN (wait_event_type, wait_event))`
 )
 
-// namedBatcher returns a batcher sharing b's outbox on a session of its own, named app so the test can find its
-// backend; settings are extra startup parameters.
+// namedBatcher returns a batcher sharing b's outbox on a namedSession of its own.
 func namedBatcher(t *testing.T, b *batcher, env *benchEnv, app string, settings map[string]string) *batcher {
 	t.Helper()
 
-	cfg := env.primary.Copy()
-	maps.Copy(cfg.RuntimeParams, settings)
-	cfg.RuntimeParams["application_name"] = app
-
-	nb, err := newBatcher(openTestSession(t, cfg), b.events, b.rows, b.now)
+	nb, err := newBatcher(namedSession(t, env, app, settings), b.events, b.rows, b.now)
 	require.NoError(t, err)
 
 	return nb

@@ -301,6 +301,30 @@ Run all five shapes and the small gates with `-failfast -timeout 30m` and an ext
 stops the expansion; do not raise budgets or reduce N. Add `-skip '^TestOwnerlessWriterConservation$'` to ordinary
 regression and race commands so they do not select volume. No matrix, full-queue, owner or failover result is implied.
 
+## Owner fence primitives
+
+`writer_owner.go` provides only acquisition and renewal of the bench tenant's SQL fence. It is not yet an owner writer.
+Acquisition increments the epoch only after the previous lease expires. Renewal requires the current owner, epoch
+and a live lease. Both use `clock_timestamp()`, including after a lock wait, and the shared COMMIT notice classifier.
+An error returns no usable acquisition token; a COMMIT error may coexist with a locally committed fence.
+
+`renewFenceTx` renews and locks inside an existing transaction. The lock remains held through SyncRep. A competing
+acquirer waits, then rechecks the committed renewal; the old lease it saw before waiting is not permission to take over.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 660 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestOwnerFence' -timeout 10m -v
+```
+
+Three live tests cover acquisition, renewal, expiry within a transaction begun earlier, stale epochs, both outcomes
+of a lock recheck, and cancelled SyncRep for acquisition and renewal. The test proves the competing backend waits
+on the renewing backend alone. Mutants removing expiry, epoch or notice classification, using transaction-start time,
+or replacing renewal with a lock-only statement fail. Owner-only and tenant-only predicate mutants survive by
+construction in this single-tenant fixture; no fabricated tokens were added to make them fail.
+
+Limits: no renewal loop, paged reload, cache, owner queue integration, financial owner run or failover proof yet.
+The ownerless baseline is unchanged apart from shared test-session setup and removal of redundant test cleanup.
+
 ## How it is built
 
 - `init-primary.sql` runs once on a fresh primary volume. It writes the marker and

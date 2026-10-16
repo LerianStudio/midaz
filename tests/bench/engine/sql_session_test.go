@@ -9,7 +9,7 @@ package engine
 import (
 	"context"
 	"database/sql"
-	"errors"
+	"maps"
 	"testing"
 	"time"
 
@@ -141,18 +141,25 @@ func openTestSession(t *testing.T, cfg *pgx.ConnConfig) *sqlSession {
 	return s
 }
 
+// namedSession opens a session named app, so the test can find its backend; settings are extra startup parameters.
+func namedSession(t *testing.T, env *benchEnv, app string, settings map[string]string) *sqlSession {
+	t.Helper()
+
+	cfg := env.primary.Copy()
+	maps.Copy(cfg.RuntimeParams, settings)
+	cfg.RuntimeParams["application_name"] = app
+
+	return openTestSession(t, cfg)
+}
+
 // beginRow opens a transaction on s that inserts one new control row and returns that row and the backend PID
-// running it. remoteApply makes its COMMIT wait for standby replay, a stronger wait than the guarded default.
+// running it. remoteApply makes its COMMIT wait for standby replay, a stronger wait than the guarded default. A test
+// that fails first ends it by cancelling ctx.
 func beginRow(ctx context.Context, t *testing.T, s *sqlSession, remoteApply bool) (*sql.Tx, uuid.UUID, int32) {
 	t.Helper()
 
 	tx, err := s.begin(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := tx.Rollback(); !errors.Is(err, sql.ErrTxDone) {
-			assert.NoError(t, err, "rollback")
-		}
-	})
 
 	if remoteApply {
 		_, err = tx.ExecContext(ctx, `SET LOCAL synchronous_commit = 'remote_apply'`)
