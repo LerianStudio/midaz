@@ -475,6 +475,58 @@ tests. An extra copy of the cache on the terminal path is not observable. After 
 next renewal ends the owner; a confirmed COMMIT stays approved. Close can finish before that renewal, so a last-pass
 overrun alone need not fail the gate.
 
+## Replication latency and SQL round trip
+
+Status: accepted preparation for the first timed cell (M3A). No timed cell uses it yet.
+
+`setReplLatency(env, ms)` in `toxiproxy.go` drives only `pg-repl` through the pinned Toxiproxy 2.12.0 SDK. It reads the
+proxy and refuses it unless it listens on port 5433, points at `bench-pg-primary:5432` and is enabled. It removes
+every existing `pg-repl` toxic, then adds one latency toxic, `pg-repl-latency`, on the downstream stream: primary to
+standby, carrying WAL and keepalives. Toxicity is 1 and jitter 0; `ms` 0 adds nothing. It reads the toxics back,
+and fails unless they are exactly the requested state. It never touches `pg-client` and never calls
+`/reset` or PATCH. Each SDK call is bounded only by the client's fixed 30 s timeout and the server's 25 s handler
+timeout; there is no context. After any error the toxic state is unknown: nothing retries, and the caller's cleanup
+reads and removes once more. The delay is whole milliseconds per chunk Toxiproxy reads, in one direction, not an RTT.
+Toxiproxy splices an add into the live replication link; a removal releases buffered WAL undelayed, so remove only
+with no workload running.
+
+`probeReplRoundtrip` observes `sql_roundtrip_pg_repl`. It runs one psql session inside `bench-pg-standby` through
+`bench-toxiproxy:5433`, with `LC_ALL=C` and `-X -q -A -t -v ON_ERROR_STOP=1`, sends `\timing on` and 35 `SELECT 1`, and
+keeps the last 32 samples after 3 warm-up queries. Process startup, connection and authentication finish before the
+first query, so no sample contains them. An outer 60 s context kills the docker CLI; `timeout 50s` inside the container
+ends psql, which the CLI's death would not. The parser accepts only `1` rows alternating with `Time: N.NNN ms` lines,
+with or without psql's parenthesised copy from 1 s up. It requires exit 0 and exactly 35 pairs; anything else fails the
+probe, and no sample is ever zero-filled. A sample spans both proxy directions, server execution and scheduling on
+both ends: it is neither network RTT nor PG acknowledgement lag. This helper does not measure replication ACK lag.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 300 go test -count=1 -race -shuffle=on -tags bench ./tests/bench/engine/ -run '^(TestReplLatency|TestParsePsqlTimings)$' -timeout 4m30s -v
+```
+
+`TestReplLatency` passes the identity guard, reads standby1's walsender pid and start time, registers cleanup, sets
+20 ms and probes. It then removes the toxic and waits for standby1 streaming and synchronous. The walsender is the same
+after the add and after the removal, so neither reconnected replication. Every sample is at least the configured
+20 ms; no upper bound is asserted. `TestParsePsqlTimings` parses the preflight's captured output shape plus one line
+over 1 s, and rejects an incomplete output and a comma decimal.
+
+Five passing runs with 20 ms downstream, 32 samples each, on one shared, loaded host:
+minimum 20.296-20.360 ms, lower median 20.356-20.411 ms, maximum 20.416-20.683 ms. These describe this probe on this
+host, not a benchmark or a target. The non-volume suite passed 47 tests and 72 subtests in 102.107 s, with zero
+failures or skips; vet, gofumpt, pinned lint v2.14.0 and stack cleanup passed.
+
+An independent scratch check observed the existing replication link: one WAL-writing synchronous commit took
+0.770 ms without a toxic and 20.869 ms with 20 ms downstream; the last standby message's receipt-minus-send time
+changed from 0.203 ms to 20.341 ms, on the same walsender. These are single observations, not a benchmark.
+
+Limits: the committed tests cannot distinguish a consistently wrong upstream setting; the scratch one-way check
+caught that mutant. Outer CLI kill and SDK/server timeouts remain untested; the inner timeout and cleanup after a
+probe failure were exercised. Process death skips test cleanup, so the next preflight must check for leftover toxics.
+The helper does not inspect `pg-client`; the stack state check reports its toxics. Final supervisor tests passed
+47 tests and 72 subtests in 103.629 s, with no failures or skips. The final cleanup saw one transient `engine.test`
+process of unknown origin; a separate recheck found none and confirmed a clean stack. No timed cell, 200k run or
+capacity result exists.
+
 ## How it is built
 
 - `init-primary.sql` runs once on a fresh primary volume. It writes the marker and
