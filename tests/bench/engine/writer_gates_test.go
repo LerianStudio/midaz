@@ -205,8 +205,8 @@ func TestOwnerlessWriterAdmission(t *testing.T) {
 }
 
 // Each shape is one reset round of 200k closed-loop requests on the process clock: every one approves, and the ledger,
-// baseline, outbox and each answer reconcile after a drained Close. The writer lives on the test context; callers get
-// 5 min and Close a fresh 30 s. Volume runs without race.
+// baseline, outbox and each answer reconcile after a drained Close. The writer lives on the test context; the run has
+// 5 min and Close a fresh 30 s. Each request keeps usualBudget. Volume runs without race.
 func TestOwnerlessWriterConservation(t *testing.T) {
 	const n, producers = 200_000, 256
 

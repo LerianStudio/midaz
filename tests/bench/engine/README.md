@@ -224,8 +224,8 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
 Six live tests cover 32 named backends waiting concurrently, cap-8 drain of nine queued attempts, reply correlation,
 error isolation during Close, caller cancellation and remaining budget, forced Close, expired entry and known replay.
 Checks run after drain and owned-resource cleanup; goleak checks for remaining goroutines. The tests do not exercise
-a full 8,192-attempt queue or the five 200k-request correctness runs. The first conservation pilot below exercises
-32 workers with cap 256; backlog and the remaining shapes still need proof.
+a full 8,192-attempt queue. The separate conservation gate below exercised 32 workers with cap 256 across all five
+200k-request shapes; backlog still needs proof.
 
 ## Ownerless correctness gates
 
@@ -269,12 +269,37 @@ The first pilot approved all 200,000 requests with no other outcome or error. Ru
 test: 218.38 s. The observed local rate was 1,021 durable approvals/s and answer p99 was 609.664 ms. This is below
 the target, not a maximum-capacity or sustained result. The 35,584 batches averaged 5.62 requests, not the cap of 256.
 Peak RSS was 909,460 KiB among the test binary and its reaped children, excluding Postgres; it is not a heap metric.
-Lazy connection dials and prepares remained inside the first batches. The other shapes have not run yet.
+Lazy connection dials and prepares remained inside the first batches.
 
-After pilot acceptance, run all five shapes and the small gates with `-failfast -timeout 30m` and an external
-`timeout 1860`. A failed shape stops the expansion; do not raise budgets or reduce N. Add
-`-skip '^TestOwnerlessWriterConservation$'` to ordinary regression and race commands so they do not select volume.
-No matrix, full-queue, owner or failover result is implied.
+The complete gate at `d840eb78e` passed all five shapes and the four small gates: 5 tests, 26 subtests, no failures or
+skips, 1282.347 s within the 30 min test limit. Each shape returned exactly 200,000 approvals, with no other outcome,
+error, late entry, publish or deadlock. Each batch ran one pass. The run budget is 300 s; each request still has the
+usual 30 s response and 28 s admission budgets.
+
+| Shape | Run s | Checker s | Observed approvals/s | Answer p99 ms |
+|---|---:|---:|---:|---:|
+| outflow | 198.704* | 22.104 | 1006.5* | 771.248* |
+| inflow | 183.231 | 22.186 | 1091.5 | 516.909 |
+| mixed | 204.180 | 22.477 | 979.5 | 695.331 |
+| outflow_fee | 274.877 | 36.133 | 727.6 | 837.249 |
+| mixed_fee | 263.778 | 36.091 | 758.2 | 749.944 |
+
+*The executor's wait command consumed a CPU core for about 100 s during outflow, violating the no-synthetic-load rule.
+The process ended, and the supervisor removed an orphan pilot log monitor. Outflow's correctness result stands, but
+its timing is excluded from comparison. No rerun hid the violation. The other rates describe one local closed-loop
+run each, all below the target; they do not establish maximum or sustained capacity.
+
+An independent read of the retained mixed_fee data on primary and standby found 200,000 approvals/transactions,
+600,000 operations, 1,600,000 pending outbox rows, and an unchanged balance sum of 80,000,000,000. Previous shapes rely
+on their own checks because each reset removes the preceding shape. Event delivery remains untested.
+
+RSS readings disagreed: ru_maxrss reported 1,244,712 KiB; a hand-copied instantaneous sample reported 1,327,320 KiB.
+The cause was not isolated, so the true peak is unknown. Both exclude Postgres. Only latency percentiles, not raw
+series, were retained. WAL and spill deltas cover the whole command, not financial writes alone.
+
+Run all five shapes and the small gates with `-failfast -timeout 30m` and an external `timeout 1860`. A failed shape
+stops the expansion; do not raise budgets or reduce N. Add `-skip '^TestOwnerlessWriterConservation$'` to ordinary
+regression and race commands so they do not select volume. No matrix, full-queue, owner or failover result is implied.
 
 ## How it is built
 
