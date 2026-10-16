@@ -298,8 +298,9 @@ The cause was not isolated, so the true peak is unknown. Both exclude Postgres. 
 series, were retained. WAL and spill deltas cover the whole command, not financial writes alone.
 
 Run all five shapes and the small gates with `-failfast -timeout 30m` and an external `timeout 1860`. A failed shape
-stops the expansion; do not raise budgets or reduce N. Add `-skip '^TestOwnerlessWriterConservation$'` to ordinary
-regression and race commands so they do not select volume. No matrix, full-queue, owner or failover result is implied.
+stops the expansion; do not raise budgets or reduce N. Add `-skip '^TestOwner(less)?WriterConservation$'` to ordinary
+regression and race commands so they select neither writer's volume.
+No matrix, full-queue, owner or failover result is implied.
 
 ## Owner fence primitives
 
@@ -406,9 +407,55 @@ behaviorally. Without publication after COMMIT, spent-credit's spend never reach
 round turned unknown on `update balances: 3 rows, want 5`. Publishing before the cutoff check made Admission's rerun
 hit `update balances: 0 rows, want 2`. Each survived the other gate.
 
-Limits: no owner volume, 200k conservation, 1M reload or failover. Owner drain, deadline Close and caller exits reuse
-the ownerless queue proofs above, not owner-specific tests. An extra copy of the cache on the terminal path is not
-observable. A pass parked past the 3 s lease ends the owner by policy, so host load can turn a long park terminal.
+`TestOwnerWriterConservation` runs the shared conservation body with one owner worker instead of 32: the same five
+shapes of 200,000 requests, producers, cap, budgets, checker and assertions. The owner acquires and reloads after the
+baseline, on the subtest context that stays its lifetime, so it has no startup deadline of its own: the command's
+`-timeout 30m` and external `timeout 1860` bound it. Those bounds fail the gate; they do not promise every shape
+finishes. A detected lease loss, an expired run budget or a Close error fails the shape, with no restart or budget change.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 1860 go test -count=1 -failfast -tags bench ./tests/bench/engine/ -run '^TestOwnerWriter(Identity|MultiKey|Protection|Admission|Conservation)$' -timeout 30m -v
+```
+
+The gate ran once on `0d5aa04fa` plus this shared entry, without race, retry, tuning or reduced N, and passed: 5 tests
+and 26 subtests, no failures or skips, 762.832 s within the 30 min limit. Each shape returned exactly 200,000
+approvals, with no other outcome, error, late entry or publish, and Close returned nil before the checker ran. The log
+also shows one pass per batch and no deadlock; the test logs those counts but does not assert them.
+
+| Shape | Run s | Checker s | Observed approvals/s | Answer p99 ms | Mean requests/batch |
+|---|---:|---:|---:|---:|---:|
+| outflow | 97.386 | 23.035 | 2053.7 | 200.838 | 134.68 |
+| inflow | 100.166 | 22.416 | 1996.7 | 229.865 | 135.14 |
+| mixed | 100.886 | 22.661 | 1982.4 | 219.737 | 135.50 |
+| outflow_fee | 155.245 | 35.835 | 1288.3 | 345.466 | 137.84 |
+| mixed_fee | 153.603 | 35.937 | 1302.1 | 349.310 | 138.12 |
+
+Approvals/s is 200,000 over run seconds: the closed-loop rate of 256 producers, each with one request in flight, in
+one run on a shared, loaded host. It is not a maximum, sustained, open-loop, repeated, RTT-controlled or capacity
+result. Every rate is below the plan's 8k target and every p99 far above its 15 ms hypothesis; method and RTT differ,
+so this gate neither accepts nor rejects either. Mean batch is 200,000 over batches; the maximum batch is not logged,
+and cap 256 is a limit, not occupancy. The ownerless table above is not a controlled comparison: those runs predate
+the shared scanner, queue and batch changes and ran under different host conditions.
+
+An independent read-only check of the retained mixed_fee state, on primary and standby, found 200,000 approved
+requests and transactions, 600,000 operations, 1,600,000 pending outbox rows (8 per request), 8 balances and 7
+controls. Balance, version, limit, cutoff and outbox checks and a match of every request against the workload
+generator passed on both; row digests of all seven tables matched between them. The balance sum stayed
+80,000,000,000. The final fence held owner `bench-conserve` at epoch 1, corroborating that the owner path ran. Resets
+removed the four earlier states; their proof is each shape's checker and the raw log.
+
+With the fence, reload, runtime and small-gate proofs above, this completes the owner writer's correctness gates
+(plan Task 1.2.2). Volume conservation is not universal correctness.
+
+Limits: one run; no 1M reload, failover or capacity result. Process and Postgres CPU and memory and WAL per request
+were not measured; raw latency series were not retained. Close took microseconds because it closes the queue and
+joins the idle worker. It does not release the lease; SQL row locks end with the transaction. The selection excludes Lease,
+Successor and IdleLoss: no owner loss was detected, but the run adds no lease-loss evidence. Event delivery remains
+untested. Owner drain, deadline Close and caller exits reuse the ownerless queue proofs above, not owner-specific
+tests. An extra copy of the cache on the terminal path is not observable. After a pass outlasts its 3 s lease, the
+next renewal ends the owner; a confirmed COMMIT stays approved. Close can finish before that renewal, so a last-pass
+overrun alone need not fail the gate.
 
 ## How it is built
 
@@ -429,5 +476,5 @@ Environment readiness, guarded schema rebuild, deterministic seed fixtures and t
 catalog written outbox-only through the libraries. The synchronous
 standby streams through the proxy and inherits the primary's settings. Seed timing is setup cost,
 not transaction throughput. Financial correctness and unknown replay are proven only where the sections above say:
-the batch and small gates for both writers, the owner lifecycle tests and the five ownerless 200k shapes. Failover
-survival, owner 200k conservation, a 1M owner reload and capacity remain unproven.
+the batch and small gates for both writers, the owner lifecycle tests and the five 200k shapes of each writer.
+Failover survival, a 1M owner reload and capacity remain unproven.

@@ -229,10 +229,16 @@ func admissionGate(t *testing.T, owner bool) {
 	}
 }
 
+func TestOwnerlessWriterConservation(t *testing.T) { conservationGate(t, false) }
+
+func TestOwnerWriterConservation(t *testing.T) { conservationGate(t, true) }
+
 // Each shape is one reset round of 200k closed-loop requests on the process clock: every one approves, and the ledger,
 // baseline, outbox and each answer reconcile after a drained Close. The writer lives on the test context; the run has
 // 5 min and Close a fresh 30 s. Each request keeps usualBudget. Volume runs without race.
-func TestOwnerlessWriterConservation(t *testing.T) {
+func conservationGate(t *testing.T, owner bool) {
+	t.Helper()
+
 	const n, producers = 200_000, 256
 
 	for _, round := range []struct {
@@ -256,7 +262,18 @@ func TestOwnerlessWriterConservation(t *testing.T) {
 			b, conn, broker := newTestBatcher(ctx, t, env, wl.now)
 			snapshotBaseline(ctx, t, conn)
 
-			inner := newTestOwnerless(ctx, t, env, b, "bench-conserve", gateWorkers, gateMaxBatch)
+			var inner *ownerlessWriter
+
+			// The owner's constructor is bounded only by the command timeouts.
+			if owner {
+				var err error
+
+				inner, err = startOwner(ctx, t, namedBatcher(t, b, env, "bench-conserve-0", nil), "bench-conserve", gateMaxBatch).wait(t)
+				require.NoError(t, err)
+			} else {
+				inner = newTestOwnerless(ctx, t, env, b, "bench-conserve", gateWorkers, gateMaxBatch)
+			}
+
 			w, rec := captureCalls(inner, n), newRecorder()
 
 			work, stopWork := context.WithTimeout(ctx, 5*time.Minute)
