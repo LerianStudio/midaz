@@ -601,7 +601,7 @@ with unchanged source and CLEAN teardown. The canonical plan records evidence an
 network cut, not a standby process stop, half-open link or promotion. It does not cover `remote_write`, quorum `ANY`
 or non-zero server timeouts. Task 1.3.1 remains open for promotion and the negative durability control.
 
-## Owner 1M reload (prepared, not measured)
+## Owner 1M reload (Task 1.3.3)
 
 `TestTakeoverReload` is opt-in with `BENCH_BALANCES=1000000`; unset skips and other values fail before DB access.
 The existing guarded bootstrap drops and rebuilds `public` in the disposable bench database. Run authorization and
@@ -609,11 +609,39 @@ resource accounting must be checked first: the client memory limit does not cove
 The test records acquisition, 21 balance pages and 21 control pages, renewals, first approval and process memory,
 then checks the full ledger. Page times include cache insertion; retained heap is not cache-only and RSS is lifetime.
 Raw trace survives joined failure cleanup. The fixed trace buffer fits startup; later idle statements may be omitted.
-No database run or reload result exists. Only race compilation, vet, lint, the unset skip and invalid-value refusal passed.
 
 ```bash
 BENCH_BALANCES=1000000 go test -count=1 -p 1 -tags bench ./tests/bench/engine/ -run '^TestTakeoverReload$' -timeout 30m -v
 ```
+
+On 2026-10-17 the command ran once with `-failfast` at `d2aa5f63e`, clean tree, Go 1.27.2 and PG 17.11, without race,
+overlay or retry, and passed. The transient unit had 4 CPUs, `GOMAXPROCS=4`, `GOMEMLIMIT=4GiB`, an 8 GiB cap and no
+swap. It was the first run with hard container caps, 8 GiB on each PG container and 256 MiB on toxiproxy; earlier
+uncapped runs are not resource comparisons. The 5 s reference is experimental; recording against it, not meeting it,
+completes plan Task 1.3.3.
+
+| Measure | Result |
+|---|---|
+| Seed, excluded | 20.823024547 s, including `VACUUM (ANALYZE)` |
+| Constructor: acquire, reload, final renewal | 6.830609745 s, 1.8306 s over the 5 s reference |
+| Startup trace | 6.826128621 s: acquisition 2.37424 ms; 6 tick renewals; final renewal 969.524 µs |
+| Pages | 21 balance pages, 1,000,004 rows; 21 control pages, 1,000,003 rows; at most 50,000 per page |
+| Page time | sum 6.814099541 s, max 245.357313 ms, each to rows closed: network, server, scan and cache insert |
+| First answer after the constructor | 7.502147 ms for one transfer; full ledger checker passed; 0 publishes |
+| Retained heap | +577,179,448 B live after Close and GC with the cache reachable; transfer and trace included |
+| Peaks | test process lifetime max RSS 922,756 KiB, seed included; client cgroup 1,006,505,984 B, whole unit |
+| Duration | test 34.02 s, package 34.039 s, setup and checker included; unit 39.104 s with the runner's checks |
+| Stack | pre/post CLEAN; 3,429 source hashes, retained dump, container IDs, PIDs and caps unchanged; OOM and swap 0 |
+
+The miss is no throughput or SLO result; the public budget depends on plan definition 3. Page spans mix network,
+server, scan and cache cost, so nothing attributes the time to CPU or I/O. The heap delta is retained state, not cache
+bytes alone; the RSS and cgroup figures are peaks over different scopes. The fixture was warm, read right after seed
+and VACUUM. No cold restart, PostgreSQL failover, product API, MT, concurrent writer, live race detection or
+failure-path trace was exercised, and one run is no distribution. Container lifetime memory peaks predate the caps.
+The fixture uses one organization and one ledger; cross-organization keyset completeness was not exercised.
+CLEAN describes runtime teardown, not a restored small fixture: this run did not reset its 1M data after the checker.
+Unit properties read after exit show defaults; the in-run cgroup records carry the limits. The canonical plan holds the
+evidence path.
 
 ## Identity race proof (model evidence)
 
@@ -1020,4 +1048,5 @@ standby streams through the proxy and inherits the primary's settings. Seed timi
 not transaction throughput. Financial correctness and unknown replay are proven only where the sections above say:
 the batch and small gates for both writers, the owner lifecycle tests, the five 200k shapes of each writer, the
 quick cell's 148,702 answers and the first full pair's 450,388.
-Failover survival, a 1M owner reload and aggregate capacity remain unproven.
+One 1M owner reload was measured and missed the experimental 5 s reference. Failover survival and aggregate capacity
+remain unproven.
