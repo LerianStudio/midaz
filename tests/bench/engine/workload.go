@@ -28,6 +28,7 @@ const (
 	mixOutflow mix = iota // debit hot, credit a random ordinary balance
 	mixInflow             // the reverse
 	mixMixed              // either direction, drawn per request
+	mixUniform            // debit and credit two distinct ordinary balances, a uniform ordered pair; hot never posts
 )
 
 // sampleEvery paces the open loop's in-flight samples.
@@ -45,8 +46,8 @@ type workload struct {
 }
 
 func newWorkload(run string, m mix, feeLeg bool, ordinary int) (*workload, error) {
-	if run == "" || ordinary < 1 {
-		return nil, fmt.Errorf("workload run %q over %d ordinary balances: want a label and a seeded balance", run, ordinary)
+	if run == "" || ordinary < 1 || (m == mixUniform && ordinary < 2) {
+		return nil, fmt.Errorf("workload run %q over %d ordinary balances: want a label and a seeded balance, two for the uniform mix", run, ordinary)
 	}
 
 	seed := uuid.NewSHA1(benchNS, []byte("workload/"+run))
@@ -73,8 +74,18 @@ func (w *workload) request(i int64, scheduledAt time.Time, b budget) (request, e
 
 	amount := low + draw.Int64N(101-low)
 
-	debit, credit := w.hot, fixturePosting(classOrdinary, draw.IntN(w.ordinary))
-	if w.mix == mixInflow || (w.mix == mixMixed && draw.IntN(2) == 0) {
+	k := draw.IntN(w.ordinary)
+	debit, credit := w.hot, fixturePosting(classOrdinary, k)
+
+	switch {
+	case w.mix == mixUniform: // the debit draws among the other ordinary indices, skipping the credit's
+		j := draw.IntN(w.ordinary - 1)
+		if j >= k {
+			j++
+		}
+
+		debit = fixturePosting(classOrdinary, j)
+	case w.mix == mixInflow || (w.mix == mixMixed && draw.IntN(2) == 0):
 		debit, credit = credit, debit
 	}
 

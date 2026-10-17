@@ -117,13 +117,18 @@ func TestPercentiles(t *testing.T) {
 	assert.Equal(t, before, shuffled, "quantiles sorts its own copy")
 }
 
-// postingShape checks one generated request and reports whether it debits the hot balance.
-func postingShape(req request, feeLeg bool, accounts map[uuid.UUID]uuid.UUID) (hotDebit bool, err error) {
+// postingShape checks one generated request and reports whether it debits the hot balance. Debit and credit never
+// share a balance, and a uniform request posts to no hot balance.
+func postingShape(req request, m mix, feeLeg bool, accounts map[uuid.UUID]uuid.UUID) (hotDebit bool, err error) {
 	hot, fee := fixturePosting(classHot, 0).BalanceID, fixturePosting(classFee, 0).BalanceID
-	legs, hots := 2, 0
+	legs, hots, wantHots := 2, 0, 1
 
 	if feeLeg {
 		legs = 3
+	}
+
+	if m == mixUniform {
+		wantHots = 0
 	}
 
 	for _, p := range req.postings {
@@ -139,15 +144,16 @@ func postingShape(req request, feeLeg bool, accounts map[uuid.UUID]uuid.UUID) (h
 		}
 	}
 
-	if len(req.postings) != legs || hots != 1 {
-		return false, fmt.Errorf("%d legs (want %d), %d hot legs", len(req.postings), legs, hots)
+	if debit, credit := req.postings[0].BalanceID, req.postings[1].BalanceID; len(req.postings) != legs || hots != wantHots || debit == credit {
+		return false, fmt.Errorf("%d legs (want %d), %d hot legs (want %d), debit %s, credit %s", len(req.postings), legs, hots, wantHots, debit, credit)
 	}
 
 	return hotDebit, nil
 }
 
 // Identities never repeat across runs or kinds, regeneration repeats a run's draws, every request conserves money
-// in its direction, and the fingerprint covers exactly the transaction and its postings.
+// in its direction, the uniform mix needs two ordinary balances while the hot mixes take one, and the fingerprint
+// covers exactly the transaction and its postings.
 func TestWorkloadKeysUnique(t *testing.T) {
 	const ordinary = 1000
 
@@ -161,20 +167,24 @@ func TestWorkloadKeysUnique(t *testing.T) {
 		accounts[p.BalanceID] = p.AccountID
 	}
 
-	seen := make(map[uuid.UUID]string, 230_000)
+	seen := make(map[uuid.UUID]string, 242_000)
 
 	for _, tc := range []struct {
-		run    string
-		mix    mix
-		feeLeg bool
-		n      int64
+		run      string
+		mix      mix
+		feeLeg   bool
+		ordinary int
+		n        int64
 	}{
-		{"measure", mixOutflow, false, 200_000},
-		{"warmup", mixOutflow, false, 10_000},
-		{"inflow", mixInflow, false, 10_000},
-		{"mixed-fee", mixMixed, true, 10_000},
+		{"measure", mixOutflow, false, ordinary, 200_000},
+		{"warmup", mixOutflow, false, ordinary, 10_000},
+		{"inflow", mixInflow, false, ordinary, 10_000},
+		{"mixed-fee", mixMixed, true, ordinary, 10_000},
+		{"outflow-one", mixOutflow, false, 1, 1000},
+		{"uniform-pair", mixUniform, false, 2, 1000},
+		{"uniform", mixUniform, false, ordinary, 10_000},
 	} {
-		wl, again := newTestWorkload(t, tc.run, tc.mix, tc.feeLeg, ordinary), newTestWorkload(t, tc.run, tc.mix, tc.feeLeg, ordinary)
+		wl, again := newTestWorkload(t, tc.run, tc.mix, tc.feeLeg, tc.ordinary), newTestWorkload(t, tc.run, tc.mix, tc.feeLeg, tc.ordinary)
 
 		var hotDebits int64
 
@@ -186,7 +196,7 @@ func TestWorkloadKeysUnique(t *testing.T) {
 
 			seen[req.id] = fmt.Sprintf("%s/%d", tc.run, i)
 
-			hotDebit, err := postingShape(req, tc.feeLeg, accounts)
+			hotDebit, err := postingShape(req, tc.mix, tc.feeLeg, accounts)
 			if err != nil {
 				t.Fatalf("%s/%d: %v", tc.run, i, err)
 			}
@@ -211,6 +221,9 @@ func TestWorkloadKeysUnique(t *testing.T) {
 			assert.True(t, hotDebits > 0 && hotDebits < tc.n, "%s holds both directions: %d of %d debit hot", tc.run, hotDebits, tc.n)
 		}
 	}
+
+	_, err := newWorkload("uniform-one", mixUniform, false, 1)
+	require.Error(t, err, "one ordinary balance holds no distinct pair; outflow-one above still runs over it")
 
 	t.Run("fingerprint and invariants", testRequestBoundary)
 }
