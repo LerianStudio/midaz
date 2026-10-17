@@ -544,9 +544,10 @@ The full checker reconciles every captured answer with its stored identity, the 
 reaches the broker. Cleanup removes only `pg-client-drop`, after checking the proxy's identity and that it carried no
 toxic. Any other toxic fails the test and stays.
 
-The canonical plan records development, review and repetition evidence for Task 1.3.1. Its remaining variants stay
-open. This test uses `remote_apply` and the fixture's zero server statement/transaction timeouts; it does not validate
-arbitrary server timeout settings or the guarded `on` durability mode under standby loss.
+On 2026-10-17, both tests passed 20 canonical rounds at `736d4b5d90d9a6a727a7e58a1f40bb3c0e2fca21`, in 421.278 s,
+with unchanged source and CLEAN teardown. The canonical plan records the evidence and remaining Task 1.3.1 variants.
+This test uses `remote_apply` and zero server statement/transaction timeouts; it does not validate arbitrary server
+timeouts or the guarded `on` durability mode under standby loss.
 
 ## Replication latency and SQL round trip
 
