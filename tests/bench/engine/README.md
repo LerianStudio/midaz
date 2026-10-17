@@ -409,10 +409,11 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
 ```
 
 `TestOwnerWriterLease` keeps an idle owner past the lease it started with on the database clock, refuses a rival and
-approves a payment. A second payment parks on a held balance row past its in-pass lease, and a rival takeover waits
-only on that pass. Its COMMIT approves, the rival then takes epoch 2. The next renewal refuses: the next attempt
-answers unknown, no claim persists, and the one after runs no SQL. That a pass renews before it
-claims is source order, not tested.
+approves a payment. A second payment parks on a held balance row past its in-pass lease, and a real successor writer's
+takeover waits only on that pass. Its COMMIT approves, the successor then takes epoch 2. The next renewal refuses: the
+next attempt answers unknown, no claim persists, and the one after runs no SQL. The successor then approves on the
+balance the parked pass moved, so its reload followed the acquisition. That a pass renews before it claims is tested
+by [`TestStaleOwnerFenced`](#owner-faults-task-132).
 
 `TestOwnerWriterSuccessor` cancels a financial COMMIT in SyncRep once the owner is seen inside its pass. That COMMIT
 answers unknown though it committed locally; a request on untouched balances then answers unknown without SQL. The
@@ -491,6 +492,32 @@ untested. Owner drain, deadline Close and caller exits reuse the ownerless queue
 tests. An extra copy of the cache on the terminal path is not observable. After a pass outlasts its 3 s lease, the
 next renewal ends the owner; a confirmed COMMIT stays approved. Close can finish before that renewal, so a last-pass
 overrun alone need not fail the gate.
+
+## Owner faults (Task 1.3.2)
+
+`TestStaleOwnerFenced` (`failover_test.go`) observes owner A's warm pass waiting on a held balance row, after its
+in-pass renewal, and stops A's ticker there: the one worker is inside the pass, so no tick renews after Stop. The warm
+payment approves and A idles at a batch boundary until the database clock passes its lease. Owner B's real constructor
+then takes epoch 2, reloads and approves 1,000 ring transfers. Only then does A receive a stale batch on the hot and
+fee balances B never touched, so A's cache still matches the database and only the fence guards it. With that
+identity's claim held by the test, the batch answers unknown with the renewal refusal, not a claim deadline, and Close
+reports it. The full checker reconciles 1,001 approvals and 1 unknown; nothing reaches the broker.
+
+The plan first paused A after dequeue while B worked. B's acquisition, reload and 1,000 approvals were never measured
+to fit A's 10 s batch budget, and an overrun tests that timeout, not the fence. Between dequeue and BEGIN a pass runs
+no SQL, so the database cannot tell the two orders apart; that equivalence is argued from source. Proven: the renewal
+precedes the claim INSERT. Not proven: that it precedes every other statement, a pause inside a dequeued batch across
+a takeover, or any takeover or reload timing.
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 1260 go test -count=20 -failfast -tags bench ./tests/bench/engine/ -run '^(TestStaleOwnerFenced|TestOwnerWriterLease)$' -timeout 20m -v
+```
+
+Each invocation resets the guarded disposable schema; the default suite runs each test once. Development and
+contrarian race runs passed, as did non-volume regression. Independent overlays detected missing or late renewal,
+weakened fence predicates and reload before acquisition. The canonical 20 rounds above remain pending; the plan
+records execution evidence and acceptance.
 
 ## Replication latency and SQL round trip
 
@@ -851,7 +878,9 @@ window, so the log does not identify the phase at the kill. The in-memory captur
 verification and no accepted rate.
 
 The failed cell was not retried or reset. Cleanup removed only the residual 1 ms downstream toxic on `pg-repl`, without financial
-SQL, and the stack state checked CLEAN at 03:02:11Z. The interrupted cell's ledger stays for diagnosis. Independent verification
+SQL, and the stack state checked CLEAN at 03:02:11Z. The interrupted cell's ledger was retained for diagnosis, then archived and verified before the later instrumentation
+smokes reset the schema. That state now survives only in `retained-owner-p1024.I2LHos/primary.dump` beside the campaign
+reports; no database restore has run. Independent verification
 confirmed the recorded numbers and the host-global-OOM classification. Open-loop confirmation, failover and PG16 remain unrun; plan Task 1.2.4
 stays open.
 

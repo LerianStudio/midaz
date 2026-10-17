@@ -331,9 +331,9 @@ func TestOwnerReloadCancelled(t *testing.T) {
 	require.NoError(t, controlLock.Rollback(ctx))
 }
 
-// An idle owner's ticks keep its lease live: a takeover is refused, a payment approves. A pass parked past its renewed
-// lease holds the fence row, so a takeover waits on it and its COMMIT stays an approval. The next renewal refuses: the
-// lost owner claims nothing, answers unknown without SQL, and Close reports that first cause.
+// Idle ticks keep an owner's lease live: a takeover is refused, a payment approves. A pass parked past its renewed
+// lease holds the fence row: a successor waits on it, the COMMIT approves, then the successor uses the pass's new state.
+// The next renewal refuses: the lost owner claims nothing, answers unknown without SQL, and Close reports that cause.
 func TestOwnerWriterLease(t *testing.T) {
 	noLeaks(t)
 	env := requireDB(t)
@@ -347,7 +347,7 @@ func TestOwnerWriterLease(t *testing.T) {
 
 	snapshotBaseline(ctx, t, conn)
 
-	const app, rivalApp = "bench-owner-lease", "bench-owner-rival"
+	const app, rivalApp, successorApp = "bench-owner-lease", "bench-owner-rival", "bench-owner-lease-successor"
 
 	inner, err := startOwner(ctx, t, namedBatcher(t, b, env, app, nil), "owner-a", gateMaxBatch).wait(t)
 	require.NoError(t, err)
@@ -374,18 +374,20 @@ func TestOwnerWriterLease(t *testing.T) {
 	require.NoError(t, conn.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&waitAt))
 	awaitPrimary(ctx, t, conn, "the lease the pass renewed before waiting expires", leaseExpired, waitAt.Add(ownerLease))
 
-	takeover := startAcquire(ctx, rival, "owner-b")
-	rivalPID := awaitBackend(ctx, t, conn, rivalApp, "Lock")
+	successor := startOwner(ctx, t, namedBatcher(t, b, env, successorApp, nil), "owner-b", gateMaxBatch)
+	successorPID := awaitBackend(ctx, t, conn, successorApp, "Lock")
 
 	var blocked bool
-	require.NoError(t, conn.QueryRow(ctx, `SELECT pg_blocking_pids($1) = ARRAY[$2::int]`, rivalPID, ownerPID).Scan(&blocked))
+	require.NoError(t, conn.QueryRow(ctx, `SELECT pg_blocking_pids($1) = ARRAY[$2::int]`, successorPID, ownerPID).Scan(&blocked))
 	require.True(t, blocked, "the takeover waits only on the fence row the pass holds")
 	require.NoError(t, row.Rollback(ctx))
 
 	assert.Equal(t, []string{"approved+tx"}, summarize(t, []request{parked}, paying.wait(t)))
 
-	tokB, err := takeover.wait(t)
+	innerB, err := successor.wait(t)
 	require.NoError(t, err)
+
+	tokB, _ := readFence(ctx, t, conn)
 	assert.Equal(t, ownerToken{owner: "owner-b", epoch: 2}, tokB, "the takeover follows the approval's COMMIT")
 
 	next := batchReq(t, "owner/lease/next", "owner/lease/next", clock.now(), hot(-1), ordinaryOf(2)(1))
@@ -399,7 +401,13 @@ func TestOwnerWriterLease(t *testing.T) {
 	require.ErrorContains(t, w.Close(ctx), renewRefused, "Close reports the first cause")
 	assert.Equal(t, map[string]string{idle.id.String(): "approved", parked.id.String(): "approved"},
 		readRows(ctx, t, conn, `SELECT request_id::text, outcome FROM engine_request`), "the lost owner claimed nothing")
-	assert.Equal(t, map[string]int{"approved": 2, "unknown": 2}, verifyLedger(ctx, t, conn, w.calls))
+
+	wB := captureCalls(innerB, 1)
+	again := batchReq(t, "owner/lease/again", "owner/lease/again", clock.now(), hot(-1), ordinaryOf(3)(1))
+	assert.Equal(t, []string{"approved+tx"}, summarize(t, []request{again}, []result{wB.Submit(ctx, again)}),
+		"the successor's reload read the versions the parked pass left")
+	require.NoError(t, wB.Close(ctx))
+	assert.Equal(t, map[string]int{"approved": 3, "unknown": 2}, verifyLedger(ctx, t, conn, slices.Concat(w.calls, wB.calls)))
 	assert.Zero(t, broker.publishes.Load(), "obligations stay in the outbox")
 }
 
