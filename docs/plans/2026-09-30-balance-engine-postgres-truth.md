@@ -627,6 +627,10 @@ Autor: race e regressão sem volume passaram, com 65 testes, 86 subtests e um sk
 
 Teste 10,49 s, package 11,528 s, service 23,602 s. O digest das 14 tabelas da bancada compartilhada ficou idêntico, incluindo 1.000.004 balances e 1.000.003 controls. IDs, PIDs, limites e dump permaneceram iguais; nenhum recurso ou listener da stack isolada restou. Pico do client: 602.976.256 bytes, swap e OOM zero. Evidência: `/tmp/balance-engine-phase1.A5lpaQ/promotion-s1-live.20261017T162859Z.2472227/`. Isso prova apenas a topologia e seu cleanup bem-sucedido. Retenção após falha, kill, promoção, réplica nova e controle negativo permanecem sem prova. A Task 1.3.1 continua aberta. [Detalhes](../../tests/bench/engine/README.md#promotion-topology-task-131-variant-b).
 
+**Controle negativo ownerless, primeira execução aceita, 2026-10-17:** `TestOwnerlessAsyncLossDetected` substituiu o teste sem falha e passou uma vez com race nos fontes registrados em `4979fd6547bce2cc3e98903ed1a98c109339816f`. D confirmou com espera síncrona. O teste cortou a replicação, confirmou P apenas no primário, matou o primário próprio e promoveu seu standby. O detector apontou exatamente P como perdida; D passou pelo checker completo numa conexão nova, com baseline persistido e zero publishes. Cinco revisões, contrarian e verificação independente da evidência não apontaram bloqueio.
+
+Teste 11,04 s, package 12,067 s, service 24,953 s. Os 3.432 hashes dos fontes, digest das 14 tabelas compartilhadas, containers compartilhados e dump permaneceram iguais. O cleanup removeu somente os recursos próprios; pico do client 221.982.720 bytes, swap e OOM zero. Evidência: `/tmp/balance-engine-phase1.A5lpaQ/promotion-s2-live.20261017T172502Z.1389690/`. Foi uma execução de desenvolvimento, sem retry. Não prova repetibilidade, SLO de failover, APIs, controle com dono, réplica substituta ou a janela sem novas aprovações duráveis após promoção. As rodadas canônicas B e a Task 1.3.1 continuam abertas.
+
 **Done when:** 20 rodadas por escritor passam, controle negativo detecta perda e replay não confirma durabilidade durante ausência da réplica.
 
 #### Task 1.3.2: Lease expirado e locks em voo

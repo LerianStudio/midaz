@@ -605,7 +605,7 @@ or non-zero server timeouts. Task 1.3.1 remains open for promotion and the negat
 
 ```bash
 BENCH_FAILOVER_PROJECT=midaz-bench-failover go test -count=1 -p 1 -race -tags bench \
-  ./tests/bench/engine/ -run '^TestPromotionTopology$' -timeout 12m -v
+  ./tests/bench/engine/ -run '^TestOwnerlessAsyncLossDetected$' -timeout 12m -v
 ```
 
 Run it only inside a bounded transient user service: `systemd-run --user` with `KillMode=control-group`,
@@ -614,8 +614,9 @@ an external timeout of 780 s plus 30 s kill grace. Cancelling the test bounds on
 unit's control-group kill and deadline bound a Compose plugin that outlives it, and the daemon may still finish work it
 already accepted.
 
-`TestPromotionTopology` (`promotion_test.go`, Docker helpers in `compose_test.go`) runs up, bind, seed, check and down
-on a Compose project of its own, `midaz-bench-failover`: `docker-compose.yml` plus `docker-compose.failover.yml`,
+`TestOwnerlessAsyncLossDetected` (`promotion_test.go`, Docker helpers in `compose_test.go`) runs up, bind, seed, fault,
+check and down on a Compose project of its own, `midaz-bench-failover`, using `docker-compose.yml` plus
+`docker-compose.failover.yml`,
 containers `bench-failover-*`, loopback ports 25432 (primary), 25434 (client proxy), 25435 (standby) and 28474
 (toxiproxy API), 8 GiB without swap per PostgreSQL and 256 MiB for toxiproxy. PostgreSQL settings and `standby1` come
 unchanged from the base file. It never touches `midaz-bench-engine` or its 1M fixture. Unset, the opt-in skips; any
@@ -627,14 +628,23 @@ owned port that answers and an invalid config. It starts only the three services
 Docker's default context, logs each container's ID, image, PID, start, labels, ports, network and cgroup, and ties each
 DSN to its container by the server IP Docker reports. Only then does it point the bench DSNs there. The gate's existing
 peer check requires one PostgreSQL system identifier on all three endpoints before any DDL; the test then rebuilds and
-seeds, copies the baseline into `public` in one synchronous transaction, approves one transfer and checks it on a fresh
-connection, with zero publishes.
+seeds, copies the baseline into `public` in one synchronous transaction and approves transfer D under
+`synchronous_commit=on`. It then disables only the owned `pg-repl` proxy, with no restore, and approves probe P on a
+second writer under `local`, after the WAL position where the sender was already gone: the primary holds P, the standby
+received nothing past that position and holds no P. Both writers close; the bound primary is revalidated and killed by
+full ID (exit 137, no OOM or restart) and the standby revalidated and promoted (`pg_promote(true, 60)`, same system
+identifier, `synchronous_commit=on`, `FIRST 1 (standby1)`, no WAL sender). A fresh session on the promoted node must find
+the durable baseline counts, exactly P lost by request ID, D in full under the unchanged ledger checker and zero
+publishes. The checks use read-only statements or transactions that roll back; they do not request a durable commit.
 
 A failure keeps and logs every owned resource; the next run refuses to start while any of it is left, and an operator
 decides its removal after reading that evidence. A pass re-reads the same IDs, starts, health, caps, zero OOM and swap
-counters and the exact resource set, then runs `down -v` once and requires nothing owned left.
+counters and the exact resource set, then runs `down -v` once and requires nothing owned left. That end state is the
+fault's: the primary exited by SIGKILL with its bound start, the proxy healthy, and the standby not required healthy, as
+its healthcheck encodes the standby role.
 
-**First live run accepted, 2026-10-17:** one race-enabled run passed on the exact source now committed as
+**First live run accepted, 2026-10-17:** the fault-free `TestPromotionTopology`, since converted into the negative
+control, passed one race-enabled run on the exact source committed as
 `421c82bcce47f52f7423e8e3d4825f88f2835a2f`. Test 10.49 s, package 11.528 s, whole service 23.602 s. Up took 6.017 s,
 binding 296 ms, gate setup 500 ms, transfer 25.7 ms, fresh-session checker 25.6 ms and removal 3.026 s. These are
 single-run phase timings, not latency or capacity measurements. The shared primary's 14-table digest was identical
@@ -643,8 +653,22 @@ were unchanged. No owned resources or listeners remained. Client cgroup peak was
 standby and proxy peaks were 230,957,056 B, 201,379,840 B and 29,569,024 B, with zero swap and OOM events. Evidence:
 `/tmp/balance-engine-phase1.A5lpaQ/promotion-s1-live.20261017T162859Z.2472227/`.
 
-Static opt-in guards passed before the run. Retention on failure, kill, promotion, replacement and the negative
-durability control remain untested. No HTTP or product-kernel claim follows from this topology proof.
+**Ownerless negative control accepted, 2026-10-17:** one development run passed with race on the exact source now
+committed as `4979fd6547bce2cc3e98903ed1a98c109339816f`. The session logs confirm D used `on` and P used `local`.
+After the cut, the standby's received LSN equaled L0 (`0/3111828`); the primary advanced to `0/3114060`. That interval
+is not a P-only WAL cost measurement. P was present on the primary and absent on the standby. The owned primary was
+killed, its standby promoted, and the detector returned exactly P's request ID. The fresh-session baseline counts,
+full ledger check over D, zero publishes and fault-state cleanup all passed. Test 11.04 s, package 12.067 s, service
+24.953 s. Kill took 719.6 ms and promotion 148.6 ms in this one run, not a failover SLO.
+
+All 3,432 source hashes, the shared 14-table digest, shared container identities/caps and retained dump stayed equal.
+No owned resource or listener remained. Client peak was 221,982,720 B with zero swap and OOM. Evidence:
+`/tmp/balance-engine-phase1.A5lpaQ/promotion-s2-live.20261017T172502Z.1389690/`. A preceding hash check used the wrong
+working directory and stopped before launching anything; it was not a failed fault run or a retry.
+
+The owner writer, replacement standby, new approvals while the promoted node lacks a standby, canonical B rounds and
+failure retention remain untested. This one run proves neither repeatability, capacity nor product API behavior.
+C's commit-setting hook now reuses the same helper; its source behavior was checked, but C was not live-rerun.
 
 ## Owner 1M reload (Task 1.3.3)
 
