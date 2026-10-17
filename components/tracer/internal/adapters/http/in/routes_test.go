@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,7 @@ type testRouterDeps struct {
 	guardCfg                     middleware.AuthGuardConfig
 	openAPIDocsEnabled           bool
 	serviceName                  string
+	logger                       *testutil.MockLogger
 	t                            *testing.T
 }
 
@@ -79,6 +81,7 @@ func newTestRouterDeps(t *testing.T, guardCfg middleware.AuthGuardConfig) *testR
 // build creates the Fiber app with the configured dependencies.
 func (d *testRouterDeps) build() *fiber.App {
 	mockLogger := testutil.NewMockLogger()
+	d.logger = mockLogger
 	telemetry := &libOtel.Telemetry{
 		TelemetryConfig: libOtel.TelemetryConfig{
 			ServiceName:     "tracer-test",
@@ -543,4 +546,28 @@ func TestRoutes_VersionEndpointServesCompiledIdentity(t *testing.T) {
 		[]string{"schemaVersion", "service", "version", "revision", "buildTime", "modified", "goVersion"},
 		keys,
 		"/version must carry exactly the seven identity keys: no dependencyManifest, no requestDate")
+}
+
+// TestRoutes_SuccessAccessLineAtInfo keeps successful requests in the access
+// log at LOG_LEVEL=info; lib-observability now defaults them to Debug.
+func TestRoutes_SuccessAccessLineAtInfo(t *testing.T) {
+	t.Setenv("SKIP_LIB_COMMONS_TELEMETRY", "false") // TestMain disables access logging package-wide.
+
+	deps := newTestRouterDeps(t, middleware.AuthGuardConfig{})
+	app := deps.build()
+
+	resp, err := app.Test(httptest.NewRequest(http.MethodGet, "/version", nil), fiber.TestConfig{Timeout: 0})
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	accessLines := 0
+
+	for _, call := range deps.logger.Calls {
+		if call.Level == "info" && strings.Contains(call.Message, `"GET /version" 200`) {
+			accessLines++
+		}
+	}
+
+	assert.Equal(t, 1, accessLines, "the 200 access line must be emitted at Info")
 }

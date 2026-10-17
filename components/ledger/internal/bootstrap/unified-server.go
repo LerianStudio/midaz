@@ -129,7 +129,11 @@ func NewUnifiedServer(
 	// identity, so a deployment without the tenantId claim gains no cardinality.
 	app.Use(tlMid.WithAuthenticatedTenantHTTPMetrics(telemetry, skipTelemetryPaths...))
 	app.Use(cors.New())
-	app.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(logger)))
+	// Successful requests stay in the access log at Info; the library default is Debug.
+	app.Use(libObsMiddleware.WithHTTPLogging(
+		libObsMiddleware.WithCustomLogger(logger),
+		libObsMiddleware.WithSuccessLogLevel(libLog.LevelInfo),
+	))
 
 	// Health check for the unified server
 	app.Get("/health", libHTTP.Ping)

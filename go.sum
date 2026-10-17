@@ -18,12 +18,12 @@ github.com/DATA-DOG/go-sqlmock v1.5.2 h1:OcvFkGmslmlZibjAjaHm3L//6LiuBgolP7Oputl
 github.com/DATA-DOG/go-sqlmock v1.5.2/go.mod h1:88MAG/4G7SMwSE3CeA0ZKzrT5CiOU3OJ+JlNzwDqpNU=
 github.com/LerianStudio/lib-auth/v5 v5.8.0 h1:TPnlP3WRleaF1K4MqKlZ6ftZRRSnYzQH5O0oXXtJbXw=
 github.com/LerianStudio/lib-auth/v5 v5.8.0/go.mod h1:H+MSvuIO6qVy12c/JxdLs+mBh+K5d6Gn5ZXCRILhCcc=
-github.com/LerianStudio/lib-commons/v7 v7.15.0 h1:0XPrAI+aQp8uEDycf51J4wHabKKSV4y8Lc4DvQccTnw=
-github.com/LerianStudio/lib-commons/v7 v7.15.0/go.mod h1:yiM1YTFYCTJCmXF68UsNzSm6W2zFm7enLT6IMTKdshY=
+github.com/LerianStudio/lib-commons/v7 v7.17.0-beta.4.0.20261017075452-9651fbbe38ef h1:LEIG/bWt/snOvdHWY9wes8BqkluORI3OjmkX6WxavLU=
+github.com/LerianStudio/lib-commons/v7 v7.17.0-beta.4.0.20261017075452-9651fbbe38ef/go.mod h1:VtDEoBqKH7f3hn5jFmo7wWxH1R8uxsk4FcScHGp8xSs=
 github.com/LerianStudio/lib-observability/v2 v2.1.3 h1:ZFVIv7VVfSv/Ag9OcxQNqoa6YGV9KpcnRb4ocvM8jvk=
 github.com/LerianStudio/lib-observability/v2 v2.1.3/go.mod h1:iXspGM6PRTf6BDtkTc0Z69R2HEv1GtjBsI/YSvewDgA=
-github.com/LerianStudio/lib-observability/v4 v4.6.1 h1:qpzNxzxPzIfSJZKypx82rdOixjf0gGSxSffYnpfFevA=
-github.com/LerianStudio/lib-observability/v4 v4.6.1/go.mod h1:1lyiF3+b0TpUrJvhs5y6NFDFr4czEZCD3wiVGeuGPto=
+github.com/LerianStudio/lib-observability/v4 v4.8.0-beta.1.0.20261017053725-1c4e03455796 h1:XuqtodrTGPV1j1ghfpdHCvqhuyIa8INDwihzQFTSekg=
+github.com/LerianStudio/lib-observability/v4 v4.8.0-beta.1.0.20261017053725-1c4e03455796/go.mod h1:8uo2m3YTvQE6yPN+mJx8DsZ2Hkk6qF/5dU88I3NXxf0=
 github.com/LerianStudio/lib-service-discovery/v2 v2.0.0 h1:R8TrYI44/8joTbmZIBB8PNQmQwA7r53VeMPTiF9LtHM=
 github.com/LerianStudio/lib-service-discovery/v2 v2.0.0/go.mod h1:E1BIudjK8h0QGRTxFJZzFV3XBFp3s3dYuw7eqezsjug=
 github.com/LerianStudio/lib-streaming/v4 v4.1.0 h1:A8laTdWdbXXb+HnDEblzZ2pH7V12zbu27NPEOYrD/9Q=

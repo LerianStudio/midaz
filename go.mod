@@ -7,8 +7,8 @@ toolchain go1.27.2
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/LerianStudio/lib-auth/v5 v5.8.0
-	github.com/LerianStudio/lib-commons/v7 v7.15.0
-	github.com/LerianStudio/lib-observability/v4 v4.6.1
+	github.com/LerianStudio/lib-commons/v7 v7.17.0-beta.4.0.20261017075452-9651fbbe38ef
+	github.com/LerianStudio/lib-observability/v4 v4.8.0-beta.1.0.20261017053725-1c4e03455796
 	github.com/LerianStudio/lib-service-discovery/v2 v2.0.0
 	github.com/LerianStudio/lib-streaming/v4 v4.1.0
 	github.com/Masterminds/squirrel v1.5.4

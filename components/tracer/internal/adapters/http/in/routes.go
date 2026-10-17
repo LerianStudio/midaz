@@ -256,7 +256,11 @@ func NewRoutes(deps RoutesDeps) (*fiber.App, error) {
 	// 5. HTTP Logging - Fifth: structured request/response logging
 	// Skipped when SKIP_LIB_COMMONS_TELEMETRY=true to avoid data race in lib-commons ContextWithLogger.
 	if !skipTelemetry {
-		f.Use(libObsMiddleware.WithHTTPLogging(libObsMiddleware.WithCustomLogger(lg)))
+		// Successful requests stay in the access log at Info; the library default is Debug.
+		f.Use(libObsMiddleware.WithHTTPLogging(
+			libObsMiddleware.WithCustomLogger(lg),
+			libObsMiddleware.WithSuccessLogLevel(libLog.LevelInfo),
+		))
 	}
 
 	// 6. Fault Injection - Sixth: ONLY for integration tests

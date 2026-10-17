@@ -8,9 +8,12 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/lib-commons/v7/commons/buildinfo"
+	libLog "github.com/LerianStudio/lib-observability/v4/log"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,4 +67,28 @@ func TestNewUnifiedServer_VersionEndpointServesCompiledIdentity(t *testing.T) {
 		[]string{"schemaVersion", "service", "version", "revision", "buildTime", "modified", "goVersion"},
 		keysOf(got),
 		"/version must carry exactly the seven identity keys: no dependencyManifest, no requestDate")
+}
+
+// TestNewUnifiedServer_SuccessAccessLineAtInfo keeps successful requests in the
+// access log at LOG_LEVEL=info; lib-observability now defaults them to Debug.
+func TestNewUnifiedServer_SuccessAccessLineAtInfo(t *testing.T) {
+	t.Parallel()
+
+	logger := &authGateLogger{}
+	server := NewUnifiedServer(":0", "ledger", logger, &libOpentelemetry.Telemetry{}, nil, nil, nil)
+
+	resp, err := server.app.Test(httptest.NewRequest(http.MethodGet, "/version", nil))
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	accessLines := 0
+
+	for _, entry := range logger.at(libLog.LevelInfo) {
+		if strings.Contains(entry.msg, `"GET /version" 200`) {
+			accessLines++
+		}
+	}
+
+	assert.Equal(t, 1, accessLines, "the 200 access line must be emitted at Info")
 }
