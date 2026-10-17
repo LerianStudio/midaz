@@ -539,6 +539,9 @@ var (
 	// ErrOperationRouteBothRequiredAndOptional is returned when a transaction
 	// route would link the same operation route as required and as optional.
 	ErrOperationRouteBothRequiredAndOptional = errors.New("0541")
+	// ErrBalanceStateUnavailable is returned when a balance read cannot read the
+	// cached balance state, so it refuses instead of serving a possibly lagging row.
+	ErrBalanceStateUnavailable = errors.New("0542")
 	// ErrReservationAlreadySettled is returned when a reserve replays onto a
 	// row that already left RESERVED (confirmed, released or expired).
 	ErrReservationAlreadySettled = errors.New("0533")

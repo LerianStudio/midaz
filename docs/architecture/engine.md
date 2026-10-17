@@ -905,7 +905,8 @@ Ring is not selected by the current service configuration. Deployments using the
 default engine must use a supported standalone or Sentinel connection.
 
 Fee-debt lists are the only live copy of a payer's receivables. A lost balance
-blob re-seeds from PostgreSQL on the next cache miss; a lost fee-debt list has no
+blob re-seeds from PostgreSQL on the next cache miss (public balance reads also
+rebuild a missing key from the operation trail); a lost fee-debt list has no
 such source, because the Fees `fee_debt` documents lag completion, round past 34
 significant digits and are never read back as a seed. The `{transactions}` Redis
 must therefore be persistent and run with `maxmemory-policy` `noeviction` or a
