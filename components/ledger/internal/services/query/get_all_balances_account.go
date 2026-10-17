@@ -16,9 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// GetAllBalancesByAccountID methods responsible to get all balances by account id from a database.
-// This method is used to get all balances by account id from a database and return them in a cursor pagination format.
-// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+// GetAllBalancesByAccountID lists an account's balances with their current state, cursor-paginated.
 func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 

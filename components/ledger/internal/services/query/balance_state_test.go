@@ -6,6 +6,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
@@ -119,5 +120,46 @@ func TestPublicBalanceReads_MissingKeyFollowsTheTrail(t *testing.T) {
 				assert.Equal(t, tc.wantVer, got.Version)
 			})
 		}
+	}
+}
+
+// A trail that cannot be read answers 0542 like the cache; a trail that cannot be
+// rebuilt from keeps its own 503 (0513).
+func TestPublicBalanceReads_TrailFailureFailsTheRead(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		marks    map[string]*operation.Operation
+		lookup   error
+		wantCode string
+	}{
+		{"trail lookup error", nil, errors.New("open read-only primary transaction: boom"), "0542"},
+		{"trail cannot rebuild", map[string]*operation.Operation{seedGuardBalanceID.String(): seedGuardHWM(decimal.NewFromInt(150), decimal.Zero, 3, "x")}, nil, "0513"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			repo := balance.NewMockRepository(ctrl)
+			cache := redis.NewMockRedisRepository(ctrl)
+			cache.EXPECT().MGet(gomock.Any(), gomock.Any()).Return(map[string]string{}, nil)
+
+			trail := operation.NewMockRepository(ctrl)
+			trail.EXPECT().ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(tc.marks, tc.lookup)
+
+			uc := &UseCase{BalanceRepo: repo, TransactionRedisRepo: cache, OperationRepo: trail}
+			row := seedGuardRow(seedGuardBalanceID, constant.DefaultBalanceKey, decimal.NewFromInt(100), decimal.Zero, decimal.Zero, 1)
+
+			got, err := publicBalanceReads["GetBalanceByID"](uc, repo, row)
+
+			assert.Nil(t, got)
+
+			var unavailable pkg.ServiceUnavailableError
+			require.ErrorAs(t, err, &unavailable)
+			assert.Equal(t, tc.wantCode, unavailable.Code)
+		})
 	}
 }

@@ -16,9 +16,7 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
 )
 
-// GetAllBalances methods responsible to get all balances from a database.
-// This method is used to get all balances from a database and return them in a cursor pagination format.
-// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+// GetAllBalances lists a ledger's balances with their current state, cursor-paginated.
 func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -45,9 +43,7 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 	return balances, cur, nil
 }
 
-// GetAllBalancesByAlias methods responsible to get all balances from a database by alias.
-// This method is used to get all balances from a database by alias and return them in a slice.
-// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+// GetAllBalancesByAlias lists an account's balances by alias with their current state.
 func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
