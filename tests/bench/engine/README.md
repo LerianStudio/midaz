@@ -516,8 +516,11 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
 
 Each invocation resets the guarded disposable schema; the default suite runs each test once. Development and
 contrarian race runs passed, as did non-volume regression. Independent overlays detected missing or late renewal,
-weakened fence predicates and reload before acquisition. The canonical 20 rounds above remain pending; the plan
-records execution evidence and acceptance.
+weakened fence predicates and reload before acquisition. On 2026-10-17, the canonical command passed all 20 rounds
+of each test at `1d606ac28224a80dd49b119f125704911b12860b` in 221.052 s, without race instrumentation, overlays or
+retries. Tracked source hashes matched before/after; teardown was CLEAN with standby1 streaming synchronously.
+The client process had an 8 GiB memory limit and no swap, with a reported 211.6 MiB peak. These checks prove the
+owner/fence/reload ordering above, not PostgreSQL failover, reload latency or throughput.
 
 ## Replication latency and SQL round trip
 
