@@ -6,6 +6,7 @@ package ledger_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/LerianStudio/lib-auth/v5/auth/declaration"
@@ -193,5 +194,52 @@ func TestMidazManifest_LedgerDimensionCoversAccountingRoutes(t *testing.T) {
 		require.Contains(t, covers, collection,
 			"ledgerId must cover %q: a ledger-scoped partner would otherwise be granted the "+
 				"organization-wide %s paths", collection, collection)
+	}
+}
+
+// explicitDimensions are the dimensions whose collection the ledger looks up by
+// the item's own id alone: GET /v1/organizations/:organization_id/operation-routes/:operation_route_id
+// names no ledger, so no ancestor dimension confines it. Explicit makes a partner
+// whose scope names no id for the dimension be refused on the collection instead
+// of being let through as unconfined.
+var explicitDimensions = []string{"operationRouteId", "transactionRouteId"}
+
+// TestMidazManifest_RouteDimensionsAreExplicit fails unless the parsed manifest
+// still validates, and both the parsed declaration and the scope catalog the
+// publisher sends carry explicit on exactly the route dimensions. An older
+// lib-auth drops the unknown key silently, so the parsed value is what counts.
+func TestMidazManifest_RouteDimensionsAreExplicit(t *testing.T) {
+	t.Parallel()
+
+	var manifest declaration.DeclarationManifest
+
+	require.NoError(t, yaml.Unmarshal(ledger.MidazManifest, &manifest),
+		"embedded manifest must parse as a declaration manifest")
+	require.NoError(t, manifest.Validate(), "embedded manifest must validate")
+	require.NotNil(t, manifest.Scope, "the manifest declares a scope")
+
+	declared := map[string]bool{}
+	for _, d := range manifest.Scope.Dimensions {
+		declared[d.Name] = d.Explicit
+	}
+
+	catalog, ok, err := declaration.ScopeCatalogFor(&manifest, midazSlug, nil)
+	require.NoError(t, err)
+	require.True(t, ok, "the manifest declares a scope catalog")
+
+	published := map[string]bool{}
+	for _, d := range catalog.Dimensions {
+		published[d.Name] = d.Explicit
+	}
+
+	for name, explicit := range map[string]map[string]bool{"declaration": declared, "scope catalog": published} {
+		for dim, isExplicit := range explicit {
+			require.Equal(t, slices.Contains(explicitDimensions, dim), isExplicit,
+				"%s: dimension %q explicit flag", name, dim)
+		}
+
+		for _, dim := range explicitDimensions {
+			require.Contains(t, explicit, dim, "%s declares %q", name, dim)
+		}
 	}
 }
