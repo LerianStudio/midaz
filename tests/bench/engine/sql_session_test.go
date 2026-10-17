@@ -149,6 +149,10 @@ func namedSession(t *testing.T, env *benchEnv, app string, settings map[string]s
 	maps.Copy(cfg.RuntimeParams, settings)
 	cfg.RuntimeParams["application_name"] = app
 
+	if env.sessionTracer != nil {
+		cfg.Tracer = env.sessionTracer()
+	}
+
 	return openTestSession(t, cfg)
 }
 

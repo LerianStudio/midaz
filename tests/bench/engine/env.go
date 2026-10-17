@@ -34,6 +34,8 @@ type benchEnv struct {
 	clientProxy *pgx.ConnConfig
 	standby     *pgx.ConnConfig
 	toxiproxy   *url.URL
+	// sessionTracer, set only by a cell measuring SQL stages, gives each namedSession its own tracer.
+	sessionTracer func() pgx.QueryTracer
 }
 
 // loadBenchEnv returns errBenchEnvUnset only when all four variables are empty.

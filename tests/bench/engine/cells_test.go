@@ -139,9 +139,10 @@ type cellReport struct {
 		EntryLate int64 `json:"entryLate"`
 		Publishes int64 `json:"publishes"`
 	} `json:"writerLifetime"`
-	Answers    map[string]int `json:"checkerAnswers"`
-	Stages     []stage        `json:"stages"`
-	Unmeasured []string       `json:"unmeasured"`
+	SQLStages  *sqlStageReport `json:"sqlStages,omitempty"` // only with BENCH_SQL_STAGES=1
+	Answers    map[string]int  `json:"checkerAnswers"`
+	Stages     []stage         `json:"stages"`
+	Unmeasured []string        `json:"unmeasured"`
 }
 
 // probe is one idle sql_roundtrip_pg_repl sample set: SQL round trips across the delay, never network RTT.

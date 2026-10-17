@@ -699,6 +699,34 @@ change. The first full pair's checker times are recorded below; cost at larger v
 At full caps the capture and recorders take about 1.24 GB
 before the checker, by arithmetic from the quick's 553 MB, not by measurement.
 
+### SQL stage attribution (opt-in)
+
+```bash
+BENCH_SQL_STAGES=1 make test-bench-engine BENCH_MATRIX=capacity BENCH_WRITER=ownerless BENCH_PRODUCERS=1024
+```
+
+Unset installs nothing and the JSON has no `sqlStages`; `1` opts in; any other value fails before database work. Each
+writer session of the cell gets its own pgx query tracer; `sessions` counts those seen running SQL, warm-up included.
+Statements map to a fixed vocabulary: begin, renew fence, claim, touch, lock balances/controls, the four persist
+statements, outbox insert (the library INSERT, matched by prefix), finalize, commit, rollback and other. No SQL text or
+argument is kept. Per stage the report holds count, errors, summed and maximum duration; the log adds the mean. `n`,
+the sum and the max include failed statements. `errors` counts statements pgx returned an error for, so a COMMIT left
+unknown by a SyncRep warning counts none; `checkerAnswers` still owns every financial outcome. The window opens after
+S1 and closes after the measured phase's caller drain, before S2, so its `windowFrom`/`windowTo` lie inside the S1-to-S2
+interval. A query wholly inside counts; one crossing an edge (warm-up work still in flight, or drain past close) counts
+only in `crossingExcluded`. A window that never opened, after a failed warm-up or S1, reports no `sqlStages`. The JSON
+is written only for a passing cell, so a failed one keeps its stages in the log line alone.
+
+Limits: a duration is pgx's elapsed statement, network, server, waits and the client's own row scan together (a query
+ends when its rows close), not queue time, Go decision time, server CPU, lock wait or fsync. Sums add work across
+parallel sessions; they are not wall-clock shares. Warm-up requests may still be answered inside the window, so the
+counts are not an exact request cohort. The tracer takes a shared lock twice and reads the clock twice per statement, and a
+statement's wait for that lock at its end adds to its duration. That cost is unmeasured: an instrumented cell's rate
+and percentiles are not comparable with an uninstrumented one's. `other` always holds the library's `SET LOCAL
+search_path` work, so its volume signals nothing; an expected stage with no count (begin, commit, outbox insert) is the
+label-mismatch signal, and `sessions` below the cell's writer count is the untraced-session signal. Offline tests prove
+the classification but not that a tracer reaches the dialed connection; no run against the stack has exercised it yet.
+
 ### First canonical pair
 
 `make test-bench-engine BENCH_MATRIX=full BENCH_BLOCK=A BENCH_DELAY_MS=1 BENCH_SHAPE=outflow` ran once on `26ff3bbd0`,

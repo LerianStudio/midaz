@@ -47,6 +47,7 @@ func TestBenchHotAccount(t *testing.T) {
 	env, ctx := requireDB(t), t.Context()
 	warm := newTestWorkload(t, c.Label+"/warmup", c.mix, false, c.Ordinary)
 	meas := newTestWorkload(t, c.Label+"/measured", c.mix, false, c.Ordinary)
+	stages := sqlStagesFor(t, env, warm.now)
 
 	last := warm.now()
 	mark := func(name string) {
@@ -74,7 +75,7 @@ func TestBenchHotAccount(t *testing.T) {
 
 	measErr := errors.New("skipped: the warm-up is invalid")
 	if warmErr == nil {
-		rep.S1ToS2, measErr = measure(ctx, t, conn, w, c, meas, measRec, mark)
+		rep.S1ToS2, measErr = measure(ctx, t, conn, w, c, meas, measRec, stages, mark)
 	}
 
 	closing, endClose := context.WithTimeout(ctx, cellClose)
@@ -87,6 +88,8 @@ func TestBenchHotAccount(t *testing.T) {
 	t.Logf("warm-up, excluded from measurement: %s", rep.Warmup.Summary)
 	t.Logf("warm-up join: unknown=%d bounds the attempts carried over, queued=%d, in flight unmeasured", rep.WarmupJoin.Unknown, rep.WarmupJoin.Queued)
 	t.Logf("measured: %s", rep.Measured.Summary)
+	rep.SQLStages = stages.report(t) // after Close joined the writer
+
 	mark("summaries")
 	t.Logf("writer lifetime, warm-up included: passes=%d deadlocks=%d entryLate=%d publishes=%d close=%v; measured window took %+v; capture and in-process generator on, effect on rate/CPU/GC unmeasured",
 		rep.Writer.Passes, rep.Writer.Deadlocks, rep.Writer.EntryLate, rep.Writer.Publishes, closeErr, rep.Occupancy)
@@ -176,8 +179,10 @@ func runPhase(ctx context.Context, w writer, wl *workload, producers int, n int6
 }
 
 // measure reads S1, runs the measured phase and reads S2 on the verification connection; a failed S1 skips the run.
-// It returns the S1-to-S2 line, empty without both boundaries.
-func measure(ctx context.Context, t *testing.T, conn *pgx.Conn, w writer, c cell, wl *workload, rec *recorder, mark func(string)) (string, error) {
+// stages, when set, brackets the measured phase alone. It returns the S1-to-S2 line, empty without both boundaries.
+func measure(ctx context.Context, t *testing.T, conn *pgx.Conn, w writer, c cell, wl *workload, rec *recorder, stages *sqlStages,
+	mark func(string),
+) (string, error) {
 	t.Helper()
 
 	s1, err := readBoundary(ctx, conn)
@@ -185,7 +190,12 @@ func measure(ctx context.Context, t *testing.T, conn *pgx.Conn, w writer, c cell
 		return "", errors.Join(errors.New("skipped: no boundary before the measured run"), err)
 	}
 
+	stages.open()
+
 	runErr := runPhase(ctx, w, wl, c.Producers, c.MeasuredCap, c.Measured, rec)
+
+	stages.close()
+
 	s2, err := readBoundary(ctx, conn)
 
 	mark("S1+measured+S2")
