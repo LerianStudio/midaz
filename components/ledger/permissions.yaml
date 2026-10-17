@@ -76,8 +76,8 @@ scope:
     - { name: balanceId,          from: path, param: balance_id,           required: false, multi: true,  collection: balances,           label: "balance", parent: accountId }
     - { name: transactionId,      from: path, param: transaction_id,       required: false, multi: true,  collection: transactions,       label: "transaction", parent: ledgerId }
     - { name: operationId,        from: path, param: operation_id,         required: false, multi: true,  collection: operations,         label: "operation", parent: accountId }
-    - { name: operationRouteId,   from: path, param: operation_route_id,   required: false, multi: true,  collection: operation-routes,   label: "operation route", parent: ledgerId }
-    - { name: transactionRouteId, from: path, param: transaction_route_id, required: false, multi: true,  collection: transaction-routes, label: "transaction route", parent: ledgerId }
+    - { name: operationRouteId,   from: path, param: operation_route_id,   required: false, multi: true,  collection: operation-routes,   label: "operation route", parent: ledgerId, explicit: true }
+    - { name: transactionRouteId, from: path, param: transaction_route_id, required: false, multi: true,  collection: transaction-routes, label: "transaction route", parent: ledgerId, explicit: true }
     - { name: holderId,           from: path, param: holder_id,            required: false, multi: true,  collection: holders,            label: "holder",
         covers: [accounts, balances, transactions, operations, fee-debts, dashboard, account-block-exceptions, instruments], parent: organizationId }
     - { name: instrumentId,       from: path, param: instrument_id,        required: false, multi: true,  collection: instruments,        label: "instrument", parent: holderId }
