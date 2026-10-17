@@ -18,6 +18,7 @@ import (
 
 	toxiproxyclient "github.com/Shopify/toxiproxy/v2/client"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -86,6 +87,8 @@ const (
 	commitUnknown   = "commit outcome unknown"
 	backendIdle     = `SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = $1 AND state = 'idle')`
 	noBackend       = `SELECT NOT EXISTS (SELECT 1 FROM pg_stat_activity WHERE application_name = $1)`
+	standbyLossApp  = "bench-standby-loss" // the gate names the writer's session standbyLossApp-0
+	noWalSender     = `SELECT NOT EXISTS (SELECT 1 FROM pg_stat_replication)`
 )
 
 // The reply to an ownerless writer's COMMIT, applied on the standby, is lost: it answers unknown at its batch budget and
@@ -200,14 +203,8 @@ func (passContexts) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndD
 // also run by cleanup, removes only that toxic, closing what it held, and fails on any other toxic, which it keeps.
 func dropClientReplies(t *testing.T, env *benchEnv) func() {
 	t.Helper()
-	t.Cleanup(http.DefaultClient.CloseIdleConnections) // after the heal: the SDK's keep-alives would outlive noLeaks
 
-	proxy, err := toxiproxyclient.NewClient(env.toxiproxy.String()).Proxy("pg-client")
-	require.NoError(t, err)
-	// toxiproxy.json listens on 0.0.0.0:5434; a toxic already there is not this test's to remove.
-	require.True(t, proxy.Enabled && proxy.Upstream == "bench-pg-primary:5432" && strings.HasSuffix(proxy.Listen, ":5434") &&
-		len(proxy.ActiveToxics) == 0, "pg-client %+v", proxy)
-
+	proxy := quietProxy(t, env, "pg-client", ":5434")
 	heal := sync.OnceFunc(func() {
 		assert.NoError(t, proxy.RemoveToxic(clientDropToxic), "remove %s from pg-client through the toxiproxy API", clientDropToxic)
 
@@ -218,8 +215,189 @@ func dropClientReplies(t *testing.T, env *benchEnv) func() {
 	})
 	t.Cleanup(heal) // registered before the toxic exists
 
-	_, err = proxy.AddToxic(clientDropToxic, "timeout", "downstream", 1, toxiproxyclient.Attributes{"timeout": 0})
+	_, err := proxy.AddToxic(clientDropToxic, "timeout", "downstream", 1, toxiproxyclient.Attributes{"timeout": 0})
 	require.NoError(t, err)
 
 	return heal
+}
+
+// Without its synchronous standby, both the financial COMMIT and the replay's identity touch answer unknown.
+// Restored, the retry past its cutoff replays the original without moving money again.
+func TestOwnerlessStandbyLoss(t *testing.T) {
+	g, w, inner, retry, restore := loseStandby(t, false)
+	app := standbyLossApp + "-0"
+	want, touches := readTotals(g.ctx, t, g.conn), touchOf(g.ctx, t, g.conn, retry)
+
+	replaying := submitEach(g.ctx, t, w, []request{retry})
+	awaitBackend(g.ctx, t, g.conn, app, "SyncRep")
+	assertUnknown(t, replaying.wait(t), commitUnknown)
+	awaitPrimary(g.ctx, t, g.conn, "pgx cancelled the replay's wait and closed its connection", noBackend, app)
+
+	want.Touches++
+	assert.Equal(t, want, readTotals(g.ctx, t, g.conn), "the waiting replay committed nothing but one touch")
+	assert.Equal(t, touches+1, touchOf(g.ctx, t, g.conn, retry), "that touch is the retried identity's own")
+
+	require.NoError(t, restore())
+	assert.Equal(t, []string{"replay/approved+tx"}, summarize(t, []request{retry}, []result{w.Submit(g.ctx, retry)}))
+	assert.Equal(t, touches+2, touchOf(g.ctx, t, g.conn, retry))
+	require.ErrorIs(t, w.Close(g.ctx), context.DeadlineExceeded, "Close reports the first unknown COMMIT")
+	assert.Equal(t, 3, inner.workers[0].passes, "one pass per batch: nothing retried an unknown COMMIT")
+	assert.Equal(t, map[string]int{"unknown": 2, "replay/approved": 1, unansweredApproval: 1},
+		verifyLedger(g.ctx, t, g.conn, w.calls))
+	assert.Zero(t, g.broker.publishes.Load(), "obligations stay in the outbox")
+}
+
+// An unknown financial COMMIT ends ownership. A takeover without synchronous durability returns no owner.
+// After restoration and lease expiry, a new successor replays the original without moving money again.
+func TestOwnerStandbyLoss(t *testing.T) {
+	g, first, inner, retry, restore := loseStandby(t, true)
+
+	assertUnknown(t, []result{first.Submit(g.ctx, retry)}, commitUnknown)
+	require.ErrorIs(t, first.Close(g.ctx), context.DeadlineExceeded, "Close reports the unknown COMMIT")
+	assert.Equal(t, 1, inner.workers[0].passes, "the lost owner ran nothing more")
+	awaitPrimary(g.ctx, t, g.conn, "the lost owner's lease expires", fenceExpired, benchTenantID)
+
+	const abandonedApp, successorApp = standbyLossApp + "-abandoned", standbyLossApp + "-successor"
+
+	acquiring, cancelAcquire := context.WithTimeout(g.ctx, batchBudget)
+	defer cancelAcquire()
+
+	abandoned := startOwner(acquiring, t, namedBatcher(t, g.b, g.env, abandonedApp, nil), "owner-b", gateMaxBatch)
+	awaitBackend(g.ctx, t, g.conn, abandonedApp, "SyncRep")
+	require.False(t, abandoned.returned(), "no ownership while its takeover COMMIT waits for the absent standby")
+	cancelAcquire()
+
+	none, err := abandoned.wait(t)
+	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorContains(t, err, "acquire fence: "+commitUnknown)
+	require.Nil(t, none, "a takeover of unknown outcome returns no owner")
+	awaitPrimary(g.ctx, t, g.conn, "pgx cancelled the takeover's wait and closed its connection", noBackend, abandonedApp)
+
+	tok, _ := readFence(g.ctx, t, g.conn)
+	assert.Equal(t, ownerToken{owner: "owner-b", epoch: 2}, tok, "the abandoned takeover committed locally")
+
+	require.NoError(t, restore())
+	awaitPrimary(g.ctx, t, g.conn, "the abandoned takeover's lease expires", fenceExpired, benchTenantID)
+
+	innerC, err := startOwner(g.ctx, t, namedBatcher(t, g.b, g.env, successorApp, nil), "owner-c", gateMaxBatch).wait(t)
+	require.NoError(t, err)
+
+	tok, _ = readFence(g.ctx, t, g.conn)
+	assert.Equal(t, ownerToken{owner: "owner-c", epoch: 3}, tok, "a new successor, not the abandoned takeover, owns the fence")
+
+	second := captureCalls(innerC, 1)
+	assert.Equal(t, []string{"replay/approved+tx"}, summarize(t, []request{retry}, []result{second.Submit(g.ctx, retry)}))
+	require.NoError(t, second.Close(g.ctx))
+	assert.Equal(t, map[string]int{"unknown": 2, "replay/approved": 1, unansweredApproval: 1},
+		verifyLedger(g.ctx, t, g.conn, slices.Concat(first.calls, second.calls)))
+	assert.Zero(t, g.broker.publishes.Load(), "obligations stay in the outbox")
+}
+
+// loseStandby cuts replication before the financial COMMIT at synchronous_commit=on and waits for its unknown outcome.
+// It leaves replication cut and returns the original identity past its cutoff with a live response budget.
+func loseStandby(t *testing.T, owner bool) (*gate, *captureWriter, *ownerlessWriter, request, func() error) {
+	t.Helper()
+
+	g := newGate(t, owner)
+
+	stack, err := openVerifiedStack(g.ctx, g.env)
+	require.NoError(t, err)
+	t.Cleanup(func() { // after the restore registered later; t.Context has ended
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		stack.close(ctx)
+	})
+
+	checked, synced := *g.env, *g
+	checked.primary = g.env.primary.Copy()
+	checked.primary.AfterConnect = func(ctx context.Context, c *pgconn.PgConn) error {
+		res, err := c.Exec(ctx, `SHOW synchronous_commit`).ReadAll()
+		if err != nil {
+			return err
+		}
+
+		setting := string(res[0].Rows[0][0])
+		t.Logf("writer session %s pid %d: synchronous_commit=%s", c.ParameterStatus("application_name"), c.PID(), setting)
+
+		if setting != "on" {
+			return fmt.Errorf("writer session synchronous_commit %q, want on", setting)
+		}
+
+		return nil
+	}
+	synced.env = &checked
+
+	w, inner := synced.start(t, standbyLossApp, 1, gateMaxBatch, 3)
+	app := standbyLossApp + "-0"
+	original := batchReq(t, "standbyloss/original", "standbyloss/original", g.clock.now(),
+		mv(classHot, 0, constant.DefaultBalanceKey)(-5), ordinaryOf(0)(5))
+
+	outbox := holdLock(g.ctx, t, g.env, `LOCK TABLE outbox_events IN SHARE MODE`)
+	paying := submitEach(g.ctx, t, w, []request{original})
+
+	awaitBackend(g.ctx, t, g.conn, app, "relation") // inside its pass, so an owner's idle renewals never meet the cut
+	restore := cutReplication(g.ctx, t, g.env, stack)
+	require.NoError(t, outbox.Rollback(g.ctx))
+	awaitBackend(g.ctx, t, g.conn, app, "SyncRep") // committed locally; with no standby only the pass budget ends the wait
+	assertUnknown(t, paying.wait(t), commitUnknown)
+	awaitPrimary(g.ctx, t, g.conn, "pgx cancelled the wait and closed its connection", noBackend, app)
+
+	require.Equal(t, 1, countTransactions(g.ctx, t, g.conn, []request{original}), "the cancelled wait committed locally")
+	require.Zero(t, countTransactions(g.ctx, t, stack.standby, []request{original}), "the cut standby never received it")
+
+	g.clock.advance(time.Minute) // past the original's cutoff and response deadline
+	original.deadline = g.clock.now().Add(usualBudget.caller)
+
+	return &synced, w, inner, original, restore
+}
+
+// cutReplication disables only pg-repl and waits for its WAL sender to leave.
+// Restoration is registered before the cut, bounded independently of the test context and never retried.
+func cutReplication(ctx context.Context, t *testing.T, env *benchEnv, stack *verifiedStack) func() error {
+	t.Helper()
+
+	proxy := quietProxy(t, env, replProxyName, ":5433")
+	restore := sync.OnceValue(func() error {
+		bounded, cancel := context.WithTimeout(context.Background(), replicationWait)
+		defer cancel()
+
+		if err := proxy.Enable(); err != nil {
+			return fmt.Errorf("re-enable %s through the toxiproxy API: %w", replProxyName, err)
+		}
+
+		return stack.awaitStandby(bounded)
+	})
+
+	t.Cleanup(func() { assert.NoError(t, restore(), "restore %s", replProxyName) }) // registered before the cut exists
+
+	require.NoError(t, proxy.Disable(), "disable %s through the toxiproxy API", replProxyName)
+	awaitPrimary(ctx, t, stack.primary, "the standby's WAL sender is gone", noWalSender)
+
+	return restore
+}
+
+// quietProxy reads a proxy toxiproxy.json configures toward the primary on port: it must be enabled with no toxic,
+// since one already there is not this test's to remove.
+func quietProxy(t *testing.T, env *benchEnv, name, port string) *toxiproxyclient.Proxy {
+	t.Helper()
+	t.Cleanup(http.DefaultClient.CloseIdleConnections) // after any later heal: SDK keep-alives would outlive noLeaks
+
+	proxy, err := toxiproxyclient.NewClient(env.toxiproxy.String()).Proxy(name)
+	require.NoError(t, err)
+	require.True(t, proxy.Enabled && proxy.Upstream == "bench-pg-primary:5432" && strings.HasSuffix(proxy.Listen, port) &&
+		len(proxy.ActiveToxics) == 0, "%s %+v", name, proxy)
+
+	return proxy
+}
+
+// touchOf reads the durability touches of req's stored identity.
+func touchOf(ctx context.Context, t *testing.T, conn *pgx.Conn, req request) int64 {
+	t.Helper()
+
+	var n int64
+	require.NoError(t, conn.QueryRow(ctx, `SELECT durability_touch FROM engine_request WHERE tenant_id = $1 AND request_id = $2`,
+		benchTenantID, req.id).Scan(&n))
+
+	return n
 }
