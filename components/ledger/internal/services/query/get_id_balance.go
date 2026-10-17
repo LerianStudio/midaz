@@ -6,7 +6,6 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	libOpentelemetry "github.com/LerianStudio/lib-observability/v4/tracing"
@@ -15,12 +14,9 @@ import (
 	"github.com/LerianStudio/midaz/v4/pkg"
 	"github.com/LerianStudio/midaz/v4/pkg/constant"
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetBalanceByID gets data in the repository.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetBalanceByID returns one balance with its current state.
 func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID, balanceID uuid.UUID) (*mmodel.Balance, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -42,23 +38,8 @@ func (uc *UseCase) GetBalanceByID(ctx context.Context, organizationID, ledgerID,
 		return nil, err
 	}
 
-	// Overlay amounts from Redis cache when available to ensure freshest values
-	internalKey := utils.BalanceInternalKey(organizationID, ledgerID, balance.Alias+"#"+balance.Key)
-
-	value, rerr := uc.TransactionRedisRepo.Get(ctx, internalKey)
-	if rerr != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache value on redis", rerr)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache value on redis", libLog.Err(rerr))
-	}
-
-	if value != "" {
-		cached := mmodel.BalanceRedis{}
-		if uerr := json.Unmarshal([]byte(value), &cached); uerr != nil {
-			logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling balance cache value", libLog.Err(uerr))
-		} else {
-			applyBalanceCacheOverlay(balance, &cached)
-		}
+	if err := uc.applyBalanceState(ctx, span, organizationID, ledgerID, []*mmodel.Balance{balance}); err != nil {
+		return nil, err
 	}
 
 	return balance, nil

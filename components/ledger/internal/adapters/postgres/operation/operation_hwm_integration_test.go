@@ -261,9 +261,9 @@ func TestIntegration_ListLatestByBalances_ScopeIsolation(t *testing.T) {
 	assert.Empty(t, otherAccount, "the account/balance pair must match as a pair")
 }
 
-// TestIntegration_ListLatestByBalances_UsesPointInTimeIndex proves the query shape can
-// be served by idx_operation_account_balance_pit_recorded rather than scanning the table.
-func TestIntegration_ListLatestByBalances_UsesPointInTimeIndex(t *testing.T) {
+// TestIntegration_ListLatestByBalances_ReadsOnlyTrailHeads proves a batch reads each
+// balance's mark from idx_operation_balance_version instead of sorting whole trails.
+func TestIntegration_ListLatestByBalances_ReadsOnlyTrailHeads(t *testing.T) {
 	container := pgtestutil.SetupContainer(t)
 	repo := createRepository(t, container)
 	ids := createTestDependencies(t, container)
@@ -280,10 +280,13 @@ func TestIntegration_ListLatestByBalances_UsesPointInTimeIndex(t *testing.T) {
 			decimal.NewFromInt(version), decimal.Zero, "0", hwmBaseTime.Add(time.Duration(version)*time.Second)))
 	}
 
+	var second BalanceHWMRef
+
 	for account := 0; account < 40; account++ {
 		neighbour := ids
 		neighbour.AccountID = uuid.Must(libCommons.GenerateUUIDv7())
 		neighbourBalanceID := uuid.Must(libCommons.GenerateUUIDv7())
+		second = BalanceHWMRef{AccountID: neighbour.AccountID, BalanceID: neighbourBalanceID}
 
 		for version := int64(2); version <= 96; version++ {
 			rows = append(rows, hwmOperation(neighbour, neighbourBalanceID, version,
@@ -299,6 +302,7 @@ func TestIntegration_ListLatestByBalances_UsesPointInTimeIndex(t *testing.T) {
 
 	query, args, err := buildBalanceHWMQuery("operation", ids.OrgID, ids.LedgerID, []BalanceHWMRef{
 		{AccountID: ids.AccountID, BalanceID: ids.BalanceID},
+		second,
 	})
 	require.NoError(t, err)
 
@@ -319,8 +323,10 @@ func TestIntegration_ListLatestByBalances_UsesPointInTimeIndex(t *testing.T) {
 
 	require.NoError(t, planRows.Err())
 
-	assert.Contains(t, plan.String(), "idx_operation_account_balance_pit_recorded",
-		"the lookup must ride the point-in-time index:\n%s", plan.String())
+	assert.Contains(t, plan.String(), "idx_operation_balance_version",
+		"each mark must be read from the version index:\n%s", plan.String())
+	assert.NotContains(t, plan.String(), "BitmapOr",
+		"a batch must not collect every trail before picking the heads:\n%s", plan.String())
 	assert.NotContains(t, plan.String(), "Seq Scan",
 		"an indexed lookup must not scan the operation table:\n%s", plan.String())
 }

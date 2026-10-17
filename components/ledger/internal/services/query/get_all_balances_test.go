@@ -41,51 +41,6 @@ func TestGetAllBalances(t *testing.T) {
 	}
 
 	t.Parallel()
-	t.Run("SuccessNoCacheOverlay", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		bal := &mmodel.Balance{
-			ID:        uuid.New().String(),
-			Alias:     "@alias",
-			Key:       "k1",
-			AssetCode: "BRL",
-			Available: decimal.NewFromInt(100),
-			OnHold:    decimal.NewFromInt(10),
-		}
-		balances := []*mmodel.Balance{bal}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(balances, mockCur, nil).
-			Times(1)
-
-		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), []string{key}).
-			Return(map[string]string{}, nil).
-			Times(1)
-
-		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
-
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-		assert.Equal(t, mockCur, cur)
-		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(100)))
-		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(10)))
-		assert.Equal(t, int64(0), res[0].Version)
-	})
-
 	t.Run("SuccessWithCacheOverlay", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -138,53 +93,7 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, int64(5), res[0].Version)
 	})
 
-	t.Run("RedisErrorShouldNotFail", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		bal := &mmodel.Balance{
-			ID:        uuid.New().String(),
-			Alias:     "@alias3",
-			Key:       "k3",
-			AssetCode: "BRL",
-			Available: decimal.NewFromInt(5),
-			OnHold:    decimal.NewFromInt(6),
-		}
-		balances := []*mmodel.Balance{bal}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(balances, mockCur, nil).
-			Times(1)
-
-		key := utils.BalanceInternalKey(organizationID, ledgerID, bal.Alias+"#"+bal.Key)
-		_ = key // key construction is deterministic; expectation uses Any to avoid tight coupling
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis down")).
-			Times(1)
-
-		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
-
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-		assert.Equal(t, mockCur, cur)
-		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(5)))
-		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(6)))
-		assert.Equal(t, int64(0), res[0].Version)
-	})
-
-	t.Run("InvalidCachePayloadSkipsOverlay", func(t *testing.T) {
+	t.Run("InvalidCachePayloadFailsTheRead", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 
@@ -221,13 +130,9 @@ func TestGetAllBalances(t *testing.T) {
 
 		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
 
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-		assert.Equal(t, mockCur, cur)
-		// Should keep DB values because cache unmarshalling fails
-		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(50)))
-		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(7)))
-		assert.Equal(t, int64(0), res[0].Version)
+		assertBalanceStateUnavailable(t, err)
+		assert.Nil(t, res)
+		assert.Equal(t, libHTTP.CursorPagination{}, cur)
 	})
 
 	t.Run("CacheDecimalValuesAsString", func(t *testing.T) {
@@ -334,69 +239,6 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, int64(42), res[0].Version)
 	})
 
-	t.Run("MixedValidAndInvalidCacheEntries", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		b1 := &mmodel.Balance{
-			ID:        uuid.New().String(),
-			Alias:     "@alias8",
-			Key:       "k8",
-			AssetCode: "BRL",
-			Available: decimal.NewFromInt(10),
-			OnHold:    decimal.NewFromInt(1),
-		}
-		b2 := &mmodel.Balance{
-			ID:        uuid.New().String(),
-			Alias:     "@alias9",
-			Key:       "k9",
-			AssetCode: "BRL",
-			Available: decimal.NewFromInt(20),
-			OnHold:    decimal.NewFromInt(3),
-		}
-		balances := []*mmodel.Balance{b1, b2}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(balances, mockCur, nil).
-			Times(1)
-
-		k1 := utils.BalanceInternalKey(organizationID, ledgerID, b1.Alias+"#"+b1.Key)
-		k2 := utils.BalanceInternalKey(organizationID, ledgerID, b2.Alias+"#"+b2.Key)
-
-		valid := mmodel.BalanceRedis{Available: decimal.NewFromInt(111), OnHold: decimal.NewFromInt(9), Version: 7}
-		validJSON, _ := json.Marshal(valid)
-
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), []string{k1, k2}).
-			Return(map[string]string{k1: string(validJSON), k2: "not-json"}, nil).
-			Times(1)
-
-		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
-
-		assert.NoError(t, err)
-		assert.Len(t, res, 2)
-		assert.Equal(t, mockCur, cur)
-		// b1 overlaid
-		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(111)))
-		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(9)))
-		assert.Equal(t, int64(7), res[0].Version)
-		// b2 unchanged due to invalid cache value
-		assert.True(t, res[1].Available.Equal(decimal.NewFromInt(20)))
-		assert.True(t, res[1].OnHold.Equal(decimal.NewFromInt(3)))
-		assert.Equal(t, int64(0), res[1].Version)
-	})
-
 	// Same alias with two keys; overlay should only apply to the matching alias#key
 	t.Run("OverlayOnlyForMatchingAliasAndKeySameAliasMultiKeys", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
@@ -427,6 +269,9 @@ func TestGetAllBalances(t *testing.T) {
 			Available: decimal.Zero,
 			OnHold:    decimal.Zero,
 		}
+		bExtra.AccountID = uuid.New().String()
+		uc.OperationRepo = expectTrail(ctrl, nil)
+
 		balances := []*mmodel.Balance{bDefault, bExtra}
 
 		mockBalanceRepo.
@@ -490,6 +335,9 @@ func TestGetAllBalances(t *testing.T) {
 			Available: decimal.Zero,
 			OnHold:    decimal.Zero,
 		}
+		bB.AccountID = uuid.New().String()
+		uc.OperationRepo = expectTrail(ctrl, nil)
+
 		balances := []*mmodel.Balance{bA, bB}
 
 		mockBalanceRepo.
@@ -785,50 +633,6 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 
 	t.Parallel()
 
-	t.Run("SuccessNoCacheOverlay", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := &UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		balances := []*mmodel.Balance{
-			{
-				ID:        "account-id-1",
-				AccountID: "account-id-1",
-				Alias:     alias,
-				Key:       "default",
-				AssetCode: "BRL",
-				Available: decimal.NewFromInt(1000),
-				OnHold:    decimal.NewFromInt(0),
-			},
-		}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
-			Return(balances, nil).
-			Times(1)
-
-		// Expect an MGet call with proper key and return nothing to overlay
-		key := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), []string{key}).
-			Return(map[string]string{}, nil).
-			Times(1)
-
-		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
-
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-	})
-
 	t.Run("Error", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -903,97 +707,6 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		assert.Equal(t, int64(12), res[0].Version)
 	})
 
-	t.Run("RedisErrorShouldNotFail", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := &UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		balances := []*mmodel.Balance{
-			{
-				ID:        "account-id-3",
-				AccountID: "account-id-3",
-				Alias:     alias,
-				Key:       "default",
-				AssetCode: "BRL",
-				Available: decimal.NewFromInt(10),
-				OnHold:    decimal.NewFromInt(1),
-			},
-		}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
-			Return(balances, nil).
-			Times(1)
-
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis down")).
-			Times(1)
-
-		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
-
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(10)))
-		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(1)))
-		assert.Equal(t, int64(0), res[0].Version)
-	})
-
-	t.Run("InvalidCachePayloadSkipsOverlay", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := &UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		balances := []*mmodel.Balance{
-			{
-				ID:        "account-id-4",
-				AccountID: "account-id-4",
-				Alias:     alias,
-				Key:       "default",
-				AssetCode: "BRL",
-				Available: decimal.NewFromInt(50),
-				OnHold:    decimal.NewFromInt(5),
-			},
-		}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
-			Return(balances, nil).
-			Times(1)
-
-		key := utils.BalanceInternalKey(organizationID, ledgerID, alias+"#default")
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), []string{key}).
-			Return(map[string]string{key: "not-json"}, nil).
-			Times(1)
-
-		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
-
-		assert.NoError(t, err)
-		assert.Len(t, res, 1)
-		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(50)))
-		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(5)))
-		assert.Equal(t, int64(0), res[0].Version)
-	})
-
 	t.Run("NoBalancesFoundForAlias", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -1036,8 +749,9 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 			TransactionRedisRepo: mockRedisRepo,
 		}
 
-		b1 := &mmodel.Balance{ID: "1", AccountID: "1", Alias: alias, Key: "default", AssetCode: "BRL", Available: decimal.Zero, OnHold: decimal.Zero}
-		b2 := &mmodel.Balance{ID: "2", AccountID: "2", Alias: alias, Key: "k1", AssetCode: "BRL", Available: decimal.Zero, OnHold: decimal.Zero}
+		b1 := &mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Alias: alias, Key: "default", AssetCode: "BRL", Available: decimal.Zero, OnHold: decimal.Zero}
+		b2 := &mmodel.Balance{ID: uuid.New().String(), AccountID: uuid.New().String(), Alias: alias, Key: "k1", AssetCode: "BRL", Available: decimal.Zero, OnHold: decimal.Zero}
+		uc.OperationRepo = expectTrail(ctrl, nil)
 		balances := []*mmodel.Balance{b1, b2}
 
 		mockBalanceRepo.

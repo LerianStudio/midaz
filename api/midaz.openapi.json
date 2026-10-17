@@ -2118,6 +2118,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
       "get": {
         "deprecated": true,
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getBalancesByAlias",
         "parameters": [
           {
@@ -2296,6 +2297,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
       "get": {
         "deprecated": true,
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getBalancesExternalByCode",
         "parameters": [
           {
@@ -2725,6 +2727,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
         "deprecated": true,
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getAllBalancesByAccountID",
         "parameters": [
           {
@@ -4252,6 +4255,7 @@
     "/v1/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
       "get": {
         "deprecated": true,
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getAllBalances",
         "parameters": [
           {
@@ -4462,6 +4466,7 @@
       },
       "get": {
         "deprecated": true,
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getBalanceByID",
         "parameters": [
           {
@@ -12397,6 +12402,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/alias/{alias}/balances": {
       "get": {
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getBalancesByAliasV2",
         "parameters": [
           {
@@ -12662,6 +12668,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/external/{code}/balances": {
       "get": {
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getBalancesExternalByCodeV2",
         "parameters": [
           {
@@ -13086,6 +13093,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/accounts/{account_id}/balances": {
       "get": {
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getAllBalancesByAccountIDV2",
         "parameters": [
           {
@@ -14351,6 +14359,7 @@
     },
     "/v2/organizations/{organization_id}/ledgers/{ledger_id}/balances": {
       "get": {
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getAllBalancesV2",
         "parameters": [
           {
@@ -14559,6 +14568,7 @@
         ]
       },
       "get": {
+        "description": "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried.",
         "operationId": "getBalanceByIDV2",
         "parameters": [
           {

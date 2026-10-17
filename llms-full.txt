@@ -361,6 +361,8 @@ disagreeing members in `cross_ledger_group_reconcile_total{result="inconsistent"
 | PATCH | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Update transaction route |
 | DELETE | /v2/organizations/:organization_id/transaction-routes/:transaction_route_id | Delete transaction route |
 
+Current-balance reads (list, by id, by account, by alias, by external code) return the state posting would use: the Valkey balance when its key exists, otherwise the PostgreSQL row rebuilt from its operation-trail high-water mark (see `0542`).
+
 **PATCH metadata.** Every PATCH whose body carries `metadata` (organization, ledger, portfolio,
 segment, account, account type, asset, transaction, operation, operation and transaction routes,
 holder, instrument) applies it as an RFC 7396 merge patch: no `metadata` key or `{}` leaves the
@@ -747,6 +749,7 @@ midaz v3 body on `/v1` — preserving each sentinel's `(code, status)` tuple on 
 - `0255` ErrCrossLedgerRouteNotConfigured — a participant validates routes but the request's transaction route links no operation route with a `crossLedger` entry for the bridge leg (HTTP 422)
 - `0256` ErrInvalidCrossLedgerRoute — the bridge route does not resolve to exactly one operation route: a `crossLedger` entry combined with other entries, more than one `crossLedger` operation route in a transaction route, or a `crossLedger` route linked as optional (HTTP 422)
 - `0541` ErrOperationRouteBothRequiredAndOptional — a transaction route create or `/v2` update would list the same operation route in `operationRoutes` and `optionalOperationRoutes` (HTTP 400)
+- `0542` ErrBalanceStateUnavailable — a current-balance read (list, by id, by account, by alias, by external code) could not read the balance state (the Valkey read, or the operation trail for a missing key, failed); the read is refused rather than served from a possibly lagging PostgreSQL row and may be retried (HTTP 503)
 
 #### CRM Error Codes (all 30)
 - `CRM-0006` ErrHolderNotFound — holder not found

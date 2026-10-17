@@ -5,9 +5,64 @@
 package query
 
 import (
-	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"context"
+	"encoding/json"
+
+	libObservability "github.com/LerianStudio/lib-observability/v4"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/LerianStudio/midaz/v4/pkg"
+	"github.com/LerianStudio/midaz/v4/pkg/constant"
+	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v4/pkg/utils"
 )
+
+// applyBalanceState makes PostgreSQL-sourced balances carry the state posting would
+// use: the cached balance when its key exists, else the row rebuilt from its operation
+// trail. A cache or trail that cannot be read fails the read (0542), never the row.
+func (uc *UseCase) applyBalanceState(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
+	logger := libObservability.NewLoggerFromContext(ctx)
+
+	keys := make([]string, len(balances))
+	for i, b := range balances {
+		keys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
+	}
+
+	values, err := uc.TransactionRedisRepo.MGet(ctx, keys)
+	if err != nil {
+		recordQueryError(ctx, span, logger, "Failed to read balance state from the cache", err)
+
+		return pkg.ValidateBusinessError(constant.ErrBalanceStateUnavailable, constant.EntityBalance)
+	}
+
+	var missing []*mmodel.Balance
+
+	for i, b := range balances {
+		data, ok := values[keys[i]]
+		if !ok {
+			missing = append(missing, b)
+
+			continue
+		}
+
+		cached := mmodel.BalanceRedis{}
+		if err := json.Unmarshal([]byte(data), &cached); err != nil {
+			recordQueryError(ctx, span, logger, "Failed to decode cached balance state", err)
+
+			return pkg.ValidateBusinessError(constant.ErrBalanceStateUnavailable, constant.EntityBalance)
+		}
+
+		applyBalanceCacheOverlay(b, &cached)
+	}
+
+	if err := uc.rebuildStaleBalanceSeeds(ctx, span, organizationID, ledgerID, missing); err != nil {
+		return pkg.ValidateBusinessError(constant.ErrBalanceStateUnavailable, constant.EntityBalance)
+	}
+
+	return nil
+}
 
 // applyBalanceCacheOverlay overlays the Redis cache state onto a
 // PostgreSQL-sourced balance. The cache is authoritative for runtime state
@@ -30,9 +85,9 @@ import (
 //     values; otherwise the PG-sourced Settings are preserved to avoid
 //     stomping legitimate configuration with cache defaults.
 //
-// This helper centralises the overlay logic shared by GetAllBalancesByAccountID,
-// GetAllBalances, and GetAllBalancesByAlias. Any future overlay caller MUST
-// route through this function so the cache-to-response contract stays uniform.
+// Public balance reads reach it through applyBalanceState. Any future overlay
+// caller MUST route through this function so the cache-to-response contract
+// stays uniform.
 func applyBalanceCacheOverlay(b *mmodel.Balance, c *mmodel.BalanceRedis) {
 	if b == nil || c == nil {
 		return

@@ -409,7 +409,8 @@ func (uc *UseCase) getBalances(ctx context.Context, organizationID, ledgerID uui
 }
 
 // rebuildStaleBalanceSeeds keeps a cache-miss seed from feeding the engine a balance
-// that the operation trail has already moved past.
+// that the operation trail has already moved past. Public balance reads use it on a
+// cache miss too, so they return the state posting would use.
 //
 // The balance row is written asynchronously by the sync worker, so losing the cached
 // balance while a delta is still pending leaves PostgreSQL behind the trail. Seeding

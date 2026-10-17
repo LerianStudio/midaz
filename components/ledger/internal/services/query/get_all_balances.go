@@ -6,7 +6,6 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -15,14 +14,9 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetAllBalances methods responsible to get all balances from a database.
-	// This method is used to get all balances from a database and return them in a cursor pagination format.
-	// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllBalances lists a ledger's balances with their current state, cursor-paginated.
 func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -42,39 +36,14 @@ func (uc *UseCase) GetAllBalances(ctx context.Context, organizationID, ledgerID 
 		return []*mmodel.Balance{}, libHTTP.CursorPagination{}, nil
 	}
 
-	balanceCacheKeys := make([]string, len(balances))
-
-	for i, b := range balances {
-		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
-	}
-
-	balanceCacheValues, err := uc.TransactionRedisRepo.MGet(ctx, balanceCacheKeys)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache values on redis", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache values on redis", libLog.Err(err))
-	}
-
-	for i := range balances {
-		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
-			cachedBalance := mmodel.BalanceRedis{}
-
-			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling balance cache value", libLog.Err(err))
-
-				continue
-			}
-
-			applyBalanceCacheOverlay(balances[i], &cachedBalance)
-		}
+	if err := uc.applyBalanceState(ctx, span, organizationID, ledgerID, balances); err != nil {
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	return balances, cur, nil
 }
 
-// GetAllBalancesByAlias methods responsible to get all balances from a database by alias.
-// This method is used to get all balances from a database by alias and return them in a slice.
-// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
+// GetAllBalancesByAlias lists an account's balances by alias with their current state.
 func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, ledgerID uuid.UUID, alias string) ([]*mmodel.Balance, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -94,30 +63,8 @@ func (uc *UseCase) GetAllBalancesByAlias(ctx context.Context, organizationID, le
 		return nil, nil
 	}
 
-	balanceCacheKeys := make([]string, len(balances))
-	for i, b := range balances {
-		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
-	}
-
-	balanceCacheValues, err := uc.TransactionRedisRepo.MGet(ctx, balanceCacheKeys)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache values on redis (alias)", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache values on redis (alias)", libLog.Err(err))
-	}
-
-	for i := range balances {
-		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
-			cachedBalance := mmodel.BalanceRedis{}
-
-			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling balance cache value (alias)", libLog.Err(err))
-
-				continue
-			}
-
-			applyBalanceCacheOverlay(balances[i], &cachedBalance)
-		}
+	if err := uc.applyBalanceState(ctx, span, organizationID, ledgerID, balances); err != nil {
+		return nil, err
 	}
 
 	return balances, nil

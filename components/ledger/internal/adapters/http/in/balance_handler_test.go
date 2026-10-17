@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -65,6 +66,13 @@ func (noOwedFeeDebts) HasOpenCreditor(context.Context, uuid.UUID, uuid.UUID, []s
 func buildHumaBalanceApp(t *testing.T, handler *BalanceHandler, authOK bool) *fiber.App {
 	t.Helper()
 
+	return buildHumaBalanceAppAt(t, handler, authOK, "/v1", v1OpSuffix)
+}
+
+// buildHumaBalanceAppAt is buildHumaBalanceApp mounted on the given contract version.
+func buildHumaBalanceAppAt(t *testing.T, handler *BalanceHandler, authOK bool, prefix, opSuffix string) *fiber.App {
+	t.Helper()
+
 	f := fiber.New(fiber.Config{
 		ErrorHandler: pkgHTTP.CanonicalFiberErrorHandler,
 	})
@@ -76,7 +84,7 @@ func buildHumaBalanceApp(t *testing.T, handler *BalanceHandler, authOK bool) *fi
 	// deployed ledger returns.
 	f.Use(ledgerMiddleware.ErrorEnvelope())
 
-	apiV1 := f.Group("/v1")
+	apiV1 := f.Group(prefix)
 
 	apiV1.Use(func(c fiber.Ctx) error {
 		if !authOK {
@@ -86,7 +94,7 @@ func buildHumaBalanceApp(t *testing.T, handler *BalanceHandler, authOK bool) *fi
 		return c.Next()
 	})
 
-	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{"/v1"}})
+	hAPI := openapi.New(f, apiV1, openapi.Config{Title: "ledger-test", Version: "test", Servers: []string{prefix}})
 
 	parse := pkgHTTP.ParseUUIDPathParameters("balance")
 	orgLedger := "/organizations/:organization_id/ledgers/:ledger_id"
@@ -101,7 +109,7 @@ func buildHumaBalanceApp(t *testing.T, handler *BalanceHandler, authOK bool) *fi
 	apiV1.Get(orgLedger+"/accounts/alias/:alias/balances", parse)
 	apiV1.Get(orgLedger+"/accounts/external/:code/balances", parse)
 
-	RegisterBalanceRoutes(hAPI, handler, v1OpSuffix)
+	RegisterBalanceRoutes(hAPI, handler, opSuffix)
 
 	return f
 }
@@ -462,10 +470,13 @@ func TestGetBalanceByID_Success(t *testing.T) {
 			Available:      decimal.NewFromInt(1000),
 			OnHold:         decimal.NewFromInt(0),
 		}, nil).Times(1)
-	// The service overlays the freshest amounts from Redis.
-	redisRepo.EXPECT().Get(gomock.Any(), gomock.Any()).Return("", nil).Times(1)
+	// A cold cache key falls back to the operation trail, which has nothing newer.
+	redisRepo.EXPECT().MGet(gomock.Any(), gomock.Any()).Return(map[string]string{}, nil).Times(1)
 
-	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
+	operationRepo := operation.NewMockRepository(ctrl)
+	operationRepo.EXPECT().ListLatestByBalances(gomock.Any(), orgID, ledgerID, gomock.Any()).Return(nil, nil).Times(1)
+
+	handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo, OperationRepo: operationRepo}}
 
 	app := buildHumaBalanceApp(t, handler, true)
 
@@ -481,6 +492,51 @@ func TestGetBalanceByID_Success(t *testing.T) {
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
 	assert.Equal(t, balanceID.String(), got["id"])
+}
+
+// An unreadable cache must refuse the balance read with 503 / 0542 on both
+// contracts, never serve the PostgreSQL row that may lag the cache.
+func TestGetBalanceByID_CacheUnreadable_503(t *testing.T) {
+	// NOT parallel: process-global huma state.
+	for _, contract := range []struct{ prefix, opSuffix string }{{"/v1", v1OpSuffix}, {"/v2", v2OpSuffix}} {
+		t.Run(contract.prefix, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+
+			orgID := uuid.Must(libCommons.GenerateUUIDv7())
+			ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
+			balanceID := uuid.Must(libCommons.GenerateUUIDv7())
+
+			balanceRepo := balance.NewMockRepository(ctrl)
+			balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, balanceID).
+				Return(&mmodel.Balance{ID: balanceID.String(), Alias: "@user1", Key: "default"}, nil).Times(1)
+
+			redisRepo := redis.NewMockRedisRepository(ctrl)
+			redisRepo.EXPECT().MGet(gomock.Any(), gomock.Any()).Return(nil, errors.New("i/o timeout")).Times(1)
+
+			handler := &BalanceHandler{Query: &query.UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}}
+			app := buildHumaBalanceAppAt(t, handler, true, contract.prefix, contract.opSuffix)
+
+			path := fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", contract.prefix, orgID, ledgerID, balanceID)
+			resp, err := app.Test(httptest.NewRequest(http.MethodGet, path, nil), fiber.TestConfig{Timeout: 0})
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			respBody, _ := io.ReadAll(resp.Body)
+			assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+			assert.NotContains(t, string(respBody), "i/o timeout", "the cause must never reach the client")
+
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(respBody, &got), "body: %s", string(respBody))
+			assert.Equal(t, "0542", got["code"])
+
+			if contract.prefix == "/v2" {
+				assert.Equal(t, "application/problem+json", resp.Header.Get("Content-Type"))
+				assert.EqualValues(t, http.StatusServiceUnavailable, got["status"])
+			} else {
+				assert.NotContains(t, got, "status", "/v1 serves the legacy envelope")
+			}
+		})
+	}
 }
 
 func TestGetBalanceByID_ServiceError_Canonical404(t *testing.T) {

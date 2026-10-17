@@ -690,6 +690,12 @@ func ValidateBusinessError(err error, entityType string, args ...any) error {
 			Title:      "Balance Seed Rebuild Inconsistent Error",
 			Message:    "The request could not be completed because the current state of this balance could not be established from its operation history. Please retry shortly.",
 		},
+		constant.ErrBalanceStateUnavailable: ServiceUnavailableError{
+			EntityType: entityType,
+			Code:       constant.ErrBalanceStateUnavailable.Error(),
+			Title:      "Balance State Unavailable",
+			Message:    "The current state of this balance could not be read. Please retry shortly.",
+		},
 		constant.ErrAccountAlreadyClosed: EntityConflictError{
 			EntityType: entityType,
 			Code:       constant.ErrAccountAlreadyClosed.Error(),

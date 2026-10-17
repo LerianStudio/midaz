@@ -60,6 +60,7 @@ func makeOverdraftCacheJSON(t *testing.T, version int64, overdraftUsed string, a
 func makeStaleBalance(alias, key string) *mmodel.Balance {
 	return &mmodel.Balance{
 		ID:            uuid.New().String(),
+		AccountID:     uuid.New().String(),
 		Alias:         alias,
 		Key:           key,
 		AssetCode:     "BRL",
@@ -154,6 +155,7 @@ func TestGetAllBalancesByAccountID_CacheMiss_PreservesPGOverdraftFields(t *testi
 
 	bal := &mmodel.Balance{
 		ID:            uuid.New().String(),
+		AccountID:     uuid.New().String(),
 		Alias:         "@user",
 		Key:           "default",
 		Available:     decimal.NewFromInt(75),
@@ -182,7 +184,7 @@ func TestGetAllBalancesByAccountID_CacheMiss_PreservesPGOverdraftFields(t *testi
 		Return(map[string]string{}, nil). // cache miss
 		Times(1)
 
-	uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo}
+	uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo, OperationRepo: expectTrail(ctrl, nil)}
 	res, _, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
 	require.NoError(t, err)
@@ -234,7 +236,7 @@ func TestGetAllBalancesByAccountID_MixedBatch_PerBalanceResolution(t *testing.T)
 		Return(map[string]string{keyCached: payload}, nil).
 		Times(1)
 
-	uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo}
+	uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo, OperationRepo: expectTrail(ctrl, nil)}
 	res, _, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
 
 	require.NoError(t, err)
@@ -374,8 +376,8 @@ func TestGetBalanceByID_CacheOverlay_PropagatesOverdraftFields(t *testing.T) {
 	payload := makeOverdraftCacheJSON(t, 5, "100", 1, 1, "500", mmodel.BalanceScopeTransactional, "credit")
 	mockRedisRepo.
 		EXPECT().
-		Get(gomock.Any(), cacheKey).
-		Return(payload, nil).
+		MGet(gomock.Any(), []string{cacheKey}).
+		Return(map[string]string{cacheKey: payload}, nil).
 		Times(1)
 
 	uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo}
@@ -440,8 +442,8 @@ func TestGetBalanceByID_PositionField_NegativeOnOverdrafted(t *testing.T) {
 
 	mockRedisRepo.
 		EXPECT().
-		Get(gomock.Any(), cacheKey).
-		Return(string(data), nil).
+		MGet(gomock.Any(), []string{cacheKey}).
+		Return(map[string]string{cacheKey: string(data)}, nil).
 		Times(1)
 
 	uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo}

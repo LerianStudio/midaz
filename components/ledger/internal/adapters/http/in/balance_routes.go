@@ -27,6 +27,8 @@ import (
 // see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
+	const balanceStateDoc = "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried."
+
 	const (
 		orgLedger      = "/organizations/{organization_id}/ledgers/{ledger_id}"
 		balancesPath   = orgLedger + "/balances"
@@ -44,6 +46,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Method:      http.MethodGet,
 		Path:        balancesPath,
 		Summary:     "Get all balances",
+		Description: balanceStateDoc,
 		Tags:        []string{tag},
 		Security:    secBalanceBearer,
 	}, h.GetAllBalances)
@@ -53,6 +56,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Method:      http.MethodGet,
 		Path:        balanceIDPath,
 		Summary:     "Get Balance by id",
+		Description: balanceStateDoc,
 		Tags:        []string{tag},
 		Security:    secBalanceBearer,
 	}, h.GetBalanceByID)
@@ -71,6 +75,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Method:      http.MethodGet,
 		Path:        acctBalances,
 		Summary:     "Get all balances by account id",
+		Description: balanceStateDoc,
 		Tags:        []string{tag},
 		Security:    secBalanceBearer,
 	}, h.GetAllBalancesByAccountID)
@@ -89,6 +94,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Method:      http.MethodGet,
 		Path:        aliasBalances,
 		Summary:     "Get Balances using Alias",
+		Description: balanceStateDoc,
 		Tags:        []string{tag},
 		Security:    secBalanceBearer,
 	}, h.GetBalancesByAlias)
@@ -98,6 +104,7 @@ func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
 		Method:      http.MethodGet,
 		Path:        codeBalances,
 		Summary:     "Get External balances using code",
+		Description: balanceStateDoc,
 		Tags:        []string{tag},
 		Security:    secBalanceBearer,
 	}, h.GetBalancesExternalByCode)

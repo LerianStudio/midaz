@@ -6,7 +6,6 @@ package query
 
 import (
 	"context"
-	"encoding/json"
 
 	libHTTP "github.com/LerianStudio/lib-commons/v7/commons/net/http"
 	libObservability "github.com/LerianStudio/lib-observability/v4"
@@ -15,14 +14,9 @@ import (
 
 	"github.com/LerianStudio/midaz/v4/pkg/mmodel"
 	"github.com/LerianStudio/midaz/v4/pkg/net/http"
-	"github.com/LerianStudio/midaz/v4/pkg/utils"
-
-	// GetAllBalancesByAccountID methods responsible to get all balances by account id from a database.
-	// This method is used to get all balances by account id from a database and return them in a cursor pagination format.
-	// It also validates if the balance is currently in the redis cache and if so, it uses the cached values instead of the database values.
-	libLog "github.com/LerianStudio/lib-observability/v4/log"
 )
 
+// GetAllBalancesByAccountID lists an account's balances with their current state, cursor-paginated.
 func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID, ledgerID, accountID uuid.UUID, filter http.QueryHeader) ([]*mmodel.Balance, libHTTP.CursorPagination, error) {
 	logger, tracer, _, _ := libObservability.NewTrackingFromContext(ctx)
 
@@ -42,31 +36,8 @@ func (uc *UseCase) GetAllBalancesByAccountID(ctx context.Context, organizationID
 		return balance, cur, nil
 	}
 
-	balanceCacheKeys := make([]string, len(balance))
-
-	for i, b := range balance {
-		balanceCacheKeys[i] = utils.BalanceInternalKey(organizationID, ledgerID, b.Alias+"#"+b.Key)
-	}
-
-	balanceCacheValues, err := uc.TransactionRedisRepo.MGet(ctx, balanceCacheKeys)
-	if err != nil {
-		libOpentelemetry.HandleSpanBusinessErrorEvent(span, "Failed to get balance cache values on redis", err)
-
-		logger.Log(ctx, libLog.LevelWarn, "Failed to get balance cache values on redis", libLog.Err(err))
-	}
-
-	for i := range balance {
-		if data, ok := balanceCacheValues[balanceCacheKeys[i]]; ok {
-			cachedBalance := mmodel.BalanceRedis{}
-
-			if err := json.Unmarshal([]byte(data), &cachedBalance); err != nil {
-				logger.Log(ctx, libLog.LevelWarn, "Error unmarshalling balance cache value", libLog.Err(err))
-
-				continue
-			}
-
-			applyBalanceCacheOverlay(balance[i], &cachedBalance)
-		}
+	if err := uc.applyBalanceState(ctx, span, organizationID, ledgerID, balance); err != nil {
+		return nil, libHTTP.CursorPagination{}, err
 	}
 
 	return balance, cur, nil

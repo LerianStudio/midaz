@@ -1398,10 +1398,7 @@ func (r *OperationPostgreSQLRepository) FindAllByAccount(ctx context.Context, or
 //
 // The version-first order is served by idx_operation_balance_version (migration 000046):
 // keyed by (balance_id, balance_version_after DESC) and partial on the same deleted_at and
-// balance_affected filters, so each balance's mark can be read in index order. Whether the
-// planner uses it or falls back to idx_operation_account_balance_pit_recorded, which orders by
-// recording time and needs a scan and sort of the balance's entries, depends on its statistics;
-// the query runs only on a cache miss, so either plan is acceptable.
+// balance_affected filters, so each balance's mark is the first entry of its index range.
 func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (hwm map[string]*Operation, err error) {
 	if len(refs) == 0 {
 		return map[string]*Operation{}, nil
@@ -1484,34 +1481,46 @@ func (r *OperationPostgreSQLRepository) ListLatestByBalances(ctx context.Context
 	return result, nil
 }
 
-// buildBalanceHWMQuery assembles the high-water-mark lookup. DISTINCT ON keeps the first
-// row per balance, and the ORDER BY that decides which row that is leads with
-// balance_version_after — deliberately diverging from idx_operation_account_balance_pit_recorded,
-// which leads with recording time. See ListLatestByBalances for why the version has to win
-// and what that ordering costs.
+// buildBalanceHWMQuery assembles the high-water-mark lookup: one LIMIT 1 lookup per balance,
+// keyed by balance_id alone so it reads the trail head from idx_operation_balance_version.
+// A balance has one account, so the pair is checked on the head row. See
+// ListLatestByBalances for why the version has to win.
 func buildBalanceHWMQuery(tableName string, organizationID, ledgerID uuid.UUID, refs []BalanceHWMRef) (string, []any, error) {
-	pairs := make(squirrel.Or, 0, len(refs))
-	for _, ref := range refs {
-		pairs = append(pairs, squirrel.Eq{
-			"account_id": ref.AccountID,
-			"balance_id": ref.BalanceID,
-		})
+	accountIDs := make([]string, len(refs))
+	balanceIDs := make([]string, len(refs))
+
+	for i, ref := range refs {
+		accountIDs[i] = ref.AccountID.String()
+		balanceIDs[i] = ref.BalanceID.String()
 	}
 
-	return squirrel.Select("DISTINCT ON (balance_id) "+strings.Join(operationPointInTimeColumns, ", ")).
+	head, headArgs, err := squirrel.Select(operationPointInTimeColumns...).
 		From(tableName).
 		Where(squirrel.Eq{"organization_id": organizationID}).
 		Where(squirrel.Eq{"ledger_id": ledgerID}).
-		Where(pairs).
+		Where("balance_id = ref.balance_id").
 		Where(squirrel.Eq{"deleted_at": nil}).
 		// Annotation rows move no money, so they hold no balance state to compare against.
 		Where(squirrel.Eq{"balance_affected": true}).
 		// Version first: it is the balance's monotonic clock. created_at and id only
 		// break a tie, which distinct operations of one balance can reach solely on an
 		// already-forked trail.
-		OrderBy("balance_id", "balance_version_after DESC", "created_at DESC", "id DESC").
-		PlaceholderFormat(squirrel.Dollar).
+		OrderBy("balance_version_after DESC", "created_at DESC", "id DESC").
+		Limit(1).
 		ToSql()
+	if err != nil {
+		return "", nil, err
+	}
+
+	query := "SELECT head.* FROM unnest(?::uuid[], ?::uuid[]) AS ref(account_id, balance_id) " +
+		"CROSS JOIN LATERAL (" + head + ") AS head WHERE head.account_id = ref.account_id"
+
+	query, err = squirrel.Dollar.ReplacePlaceholders(query)
+	if err != nil {
+		return "", nil, err
+	}
+
+	return query, append([]any{pq.Array(accountIDs), pq.Array(balanceIDs)}, headArgs...), nil
 }
 
 // FindLastOperationBeforeTimestamp finds the last operation for a specific balance before a given timestamp.
