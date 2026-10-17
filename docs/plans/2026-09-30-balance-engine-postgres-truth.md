@@ -5,7 +5,7 @@
 > the next phase. Alternatively, use ring-dev-team:running-dev-cycle.
 > This document is the living source of truth for all five phases.
 
-**Autorização:** Fred autorizou começar a implementação da Fase 1 em 2026-10-16, com subagents `claude-opus-5-5[1m]` coordenados nesta sessão. A autorização cobre a bancada local descartável e suas provas. Não autoriza Phase 2, produção, RDS, rollout nem PR; as definições pendentes e a revisão técnica do time permanecem gates.
+**Autorização:** Fred autorizou a bancada local da Fase 1 em 2026-10-16. Em 2026-10-17, autorizou antecipar a Fase 2 em paralelo e trazer o lifecycle completo da Fase 3 para o primeiro marco funcional. O kernel começa dentro do ledger, com um binário/imagem e composição por responsabilidades inspirada nos papéis do Streaming Hub. A Fase 1 continua aberta, com provas próprias e slots de execução reservados. Subagents `claude-opus-5-5[1m]`, worktree/branch únicas e commits/pushes continuam autorizados. Produção, RDS, rollout, migração de clientes e PR continuam fora da autorização. As demais definições e a revisão técnica permanecem gates das entregas que dependem delas, não veto à preparação independente.
 
 **Goal:** tornar o Postgres do tenant a única verdade do dinheiro, com decisão, trilha e resultado no mesmo commit síncrono replicado antes do sucesso público. Esse requisito está aprovado; domínios de falha, evidência de hospedagem e postura degradada continuam na definição 2.
 
@@ -13,19 +13,44 @@
 
 **Tech Stack:** bancada em Go 1.27, linguagem do produto ainda na definição 9; PostgreSQL 17 local com comparação limitada em PG16, `pgx/v5` v5.11.0, `squirrel`, `golang-migrate`, Docker Compose e toxiproxy 2.12.0. Redpanda `v24.2.7` e `franz-go` v1.21.6 somente nos experimentos de broker. Registrar versões e imagens efetivas; PG16 local não equivale a RDS16.
 
-**Execução:** worktree única `/srv/worktrees/balance-engine`, branch única `feature/balance-engine`. Nenhuma outra branch ou PR sem pedido do Fred. Subagents `claude-opus-5-5[1m]`, com revisão independente e contrarian. Uma lane escreve por vez; pesquisa e revisão read-only rodam em paralelo. A sessão coordenadora integra, verifica, faz commits assinados e pushes com `X-Lerian-Ref: 0x1`.
+**Execução:** Midaz mantém a worktree `/srv/worktrees/balance-engine` e a branch `feature/balance-engine`. Fred autorizou uma exceção restrita para corrigir `lib-observability` e `lib-commons`, cada uma com sua worktree e branch `feat/sql-connector-notices`. As worktrees são `/srv/worktrees/midaz-kernel-observability` e `/srv/worktrees/midaz-kernel-commons`. Commits e pushes estão autorizados; PR, merge para `develop`, release e tag não estão. Subagents `claude-opus-5-5[1m]`, revisão independente e contrarian. Uma lane escreve por tree; pesquisa e revisão read-only rodam em paralelo. A sessão coordenadora integra, verifica e faz commits assinados com `X-Lerian-Ref: 0x1`.
 
-**Lanes atuais (2026-10-17):** Epic 1.1 Done; Epic 1.2 Doing; Tasks 1.2.1–1.2.3 Done. O código M4 (células fechadas, Make, relatório persistido e estatísticas do checker) entrou em `26ff3bbd0`, após dois reviews independentes e contrarian sem Critical/High. O primeiro par canônico do bloco A, owner/ownerless com 60 s/120 s, passou com o checker completo; o bloco A não está completo e suas 16 células restantes nunca foram lançadas. Fred definiu a referência como mais de 8k TPS somados entre contas de um ledger; mais de 1k numa conta é ótimo, não um mínimo. Pediu também um teste grande para buscar o limite acima de 8k. O A restante fica suspenso, pois mede contenção concentrada. D1/D2 implementaram transferências distribuídas entre 10k contas do mesmo ledger, quatro patamares de concorrência e limites explícitos. Os smokes e a verificação integral passaram. A primeira campanha canônica concluiu três células, teve a quarta interrompida por OOM global do host e não iniciou as outras quatro; o maior valor observado foi 5.104,35 aprovações/s, sem máximo nem taxa sustentada; a revisão independente confirmou os números e a classificação da interrupção. Distribuição uniforme é fixture sintética escolhida para o primeiro teste, não tráfego representativo aprovado. Falhas/reload e limitações das libs dos transportes têm preparação read-only, sem implementação. Uma lane escreve e executa a stack por vez. A Task 1.2.4 permanece aberta; Fase 2, produção, RDS, novas branches/worktrees e PR continuam fora da autorização.
+**Lanes atuais (2026-10-17):** Epic 1.1 Done; Epic 1.2 Doing; Tasks 1.2.1–1.2.3 Done. O código M4 (células fechadas, Make, relatório persistido e estatísticas do checker) entrou em `26ff3bbd0`, após dois reviews independentes e contrarian sem Critical/High. O primeiro par canônico do bloco A, owner/ownerless com 60 s/120 s, passou com o checker completo; o bloco A não está completo e suas 16 células restantes nunca foram lançadas. Fred definiu a referência como mais de 8k TPS somados entre contas de um ledger; mais de 1k numa conta é ótimo, não um mínimo. Pediu também um teste grande para buscar o limite acima de 8k. O A restante fica suspenso, pois mede contenção concentrada. D1/D2 implementaram transferências distribuídas entre 10k contas do mesmo ledger, quatro patamares de concorrência e limites explícitos. Os smokes e a verificação integral passaram. A primeira campanha canônica concluiu três células, teve a quarta interrompida por OOM global do host e não iniciou as outras quatro; o maior valor observado foi 5.104,35 aprovações/s, sem máximo nem taxa sustentada; a revisão independente confirmou os números e a classificação da interrupção. Distribuição uniforme é fixture sintética escolhida para o primeiro teste, não tráfego representativo aprovado. Falhas/reload e limitações das libs dos transportes têm preparação read-only, sem implementação. Uma lane escreve e executa a stack por vez. A Task 1.2.4 permanece aberta. A nova autorização permite preparação e implementação da Fase 2 em paralelo, sem dispensar as definições necessárias à ativação. Produção, RDS e PR continuam fora da autorização. As duas worktrees de libs descritas acima são a única exceção autorizada.
 
 **Fontes:** alfarrábio `https://alfarrabio.lerian.net/reports/fred/midaz-motor-de-saldo`; `docs/architecture/engine.md`; reunião "Direcionamento Midaz" de 2026-10-14. Direção aprovada: intenção/recusa visíveis, corte antecipado inclusive sem gateway, autorizador por lote independente do transporte, nenhuma infraestrutura nova obrigatória, Redpanda dedicado quando usado, Tracer como módulo, alias por id, telemetria enxuta, estudo de leitura e desenho/migração de particionamento com prova de compatibilidade. As definições pendentes não são decisões aprovadas.
+
+## Parallel advance approved on 2026-10-17
+
+**Goal:** finish Phase 1 while implementing the Ledger Kernel through Midaz's existing APIs. The first functional milestone includes create, hold, commit, cancel and revert, with authoritative reads and controls. This advances Phase 2 and the necessary parts of Phase 3; it does not close either phase automatically.
+
+| Lane | State | Next unit | Exit check |
+|---|---|---|---|
+| Phase 1 measurement | SQL stage attribution committed at `374b8f021`; final 14 offline race tests, vet and explicit-tests lint passed | Preserve interrupted-cell evidence, then a bounded stack smoke before a discriminating experiment | Unchanged financial protocol, full checker, declared window and resource bounds; no new rate measured |
+| Phase 1 failure proofs | Initial preparation reviewed; deterministic stale-owner sequencing under read-only rescreen | Smallest missing 20-round fault unit, followed by failure/reload/transport/soak queue | Recorded identities and durable results; no skipped proof reported as passed |
+| Phase 2 kernel and early Phase 3 lifecycle | Product integration not implemented; control ownership settled; library prerequisites in progress | Preserve PostgreSQL notices through shared ST/MT pools, then atomic persistence and complete lifecycle | Real HTTP behavior, concurrency/restart checks and one financial authority |
+| Independent review and evidence | Attribution and connector reviews complete, no Critical/High; final lint verification pending | Close mechanical test findings and record raw outcomes before commits | Do not treat a shell success marker as a passing tool exit |
+
+**Scheduling:** one writer, one runtime lock. Phase 1 attribution receives the first write slot. API contract analysis runs alongside it. Alternate ready proof and product increments; Phase 2 cannot occupy all slots until its lifecycle finishes. Compile/test commands wait while their source files change. The existing runtime runner serializes all stack use. A blocked capacity run does not block safe fault preparation or product work.
+
+**Names:** Ledger Kernel is the financial component, implemented as `pgengine`. Outbox relay delivers committed obligations. Do not create separate Authorizer/Committer services, a selector framework or empty run roles. In-process composition is approved; remote transport and separately deployed kernel operation are not implied.
+
+**Boundary:** a snapshot of onboarding block state cannot replace a live financial barrier. Fred resolved definition 1: account blocks, block exceptions and fee debt become authoritative in transaction Postgres, ordered with money. Onboarding/Mongo may project those controls; whole databases are not merged and Tracer-owned limits stay in Tracer. Preserve current identity, replay and public deadlines until their proposed changes are approved. Partial implementation never activates a mixed-authority scope or silently falls back to Lua. Partitioning/global guards/FKs remain part of the schema work.
+
+**Integration review gates:** resolving a stored identity requires a real WAL touch and notice-free synchronous commit before replay/conflict is final. Resolve authoritative identity ownership before fees and Tracer, including simultaneous first attempts; a SELECT miss is not ownership. Errors after COMMIT is sent remain indeterminate and cannot release a reservation. Known settlement, metadata, events and enabled audit are committed obligations. Read-your-writes uses the primary and must preserve metadata visibility. The ordinary infra compose does not provide the required named synchronous standby; use an owned, isolated local stack and verify replication. Product pool notice capture must use a supported Lerian-library mechanism; raw parallel pools and bypassing tenant-manager are not substitutes. ST and MT each need their own proof, including relay discovery. Implementing the settled control authority and proving the approved schema/partition remain gates before a complete functional milestone; no race-window shortcut is accepted.
+
+**Source freeze:** run one measured cell or fault command at a time from a pinned source and migration set. No repository writes while that command runs, since the bench reads migrations at runtime. Alternate these bounded slots with product writing. Do not add a campaign/binary packaging framework merely to avoid this explicit scheduling boundary. New product migrations must not silently change an existing comparison's schema or duplicate the bench outbox schema.
+
+This section records the approved advance; the detailed phase entries below retain their status and evidence. Design/plan reviews are complete and their prerequisites appear above. Global removal of Lua and old writers remains Phase 5, after full coverage and an approved cutover. No PR or client migration is authorized.
+
+**Library prerequisite:** ordinary ST/MT pools did not expose `OnNotice`, and the existing telemetry setup reopened a configured connector by DSN, losing its callback. The additive `sqlobs.SetupConnector` path now preserves the connector in offline tests, including a real pgx driver with a local protocol responder. Full library unit tests with race passed. Final lint cleanup remains in progress. No real PostgreSQL replication test has run for this library change. The following `lib-commons` increment will forward the optional primary notice handler through ST and both MT construction/reconnect paths, preserving per-connection DSN reparse, TLS, telemetry and cleanup. That increment is not implemented yet; product COMMIT classification and recovery remain later proofs.
 
 ## Phase Overview
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | Escritores/transportes comparáveis, aprovações duráveis, cortes, proteção e falhas; PG16/17 e hipótese D medidos; revisão técnica antes de recomendar implementação | 1.1, 1.2, 1.3, 1.4, 1.5 | Detailed |
-| 2 | Protocolo e esquema com particionamento provados; create v2 experimental e estudo de read model, sem habilitar clientes | 2.1, 2.2, 2.3, 2.4, 2.5 | Epic-level |
-| 3 | Paridade v1/v2 ST/MT, NOTED, lifecycle, dívida SQL, replay/leitura e intenção/recusa visíveis no Console | 3.1, 3.2, 3.3, 3.4, 3.5 | Epic-level |
+| 2 | Kernel experimental integrado às APIs e esquema particionado; primeiro marco exige lifecycle e controles antecipados da Fase 3, sem habilitar clientes | 2.1, 2.2, 2.3, 2.4, 2.5 | Epic-level |
+| 3 | Paridade v1/v2 ST/MT, NOTED, dívida SQL, replay/leitura e intenção/recusa no Console; lifecycle necessário ao primeiro marco avança com a Fase 2 | 3.1, 3.2, 3.3, 3.4, 3.5 | Epic-level |
 | 4 | Tenant reconciliado migra atrás de barreira que cobre todos os escritores; ensaio e runbook aprovados | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Caminhos antigos removidos após cobertura, drenagem e migração; docs e métricas refletem o motor único | 5.1, 5.2, 5.3 | Epic-level |
 
@@ -118,11 +143,11 @@ Recusas, expirações, duplicatas e `unknown` não contam para a meta de 8k. Cé
 
 ## Definições pendentes do Fred
 
-As definições abaixo permanecem abertas. A Fase 1 compara hipóteses experimentais sem escolher contratos públicos. Seus resultados valem para a configuração medida; decisões de produto e autorização de execução permanecem separadas.
+As definições abaixo registram os gates de produto. Fred resolveu a definição 1 para a autoridade dos controles financeiros e a definição 12 para a execução inicial dentro do ledger. A separação futura do kernel permanece aberta. A antecipação das fases não aprova as demais definições. A Fase 1 compara hipóteses sem escolher contratos públicos; seus resultados valem para a configuração medida.
 
 | # | Decisão | Recomendação e custo | Bloqueia |
 |---|---|---|---|
-| 1 | Localização e ownership de block, limites, exceções e dívida de tarifa | Reunir autoridade financeira no banco do commit, incluindo criação, quitação e reversão da dívida. Definir quem escreve e quem apenas projeta consultas; Mongo não é autoridade. Custa mudar fronteiras com onboarding/fees. `account_control` é hipótese do bench, não decisão de cotas em fees | Epics 2.1, 2.2, 2.5, 3.2 |
+| 1 | Resolvida: autoridade financeira no transaction Postgres | Fred escolheu bloqueios de conta, exceções e dívida de tarifa no banco do commit, ordenados com o dinheiro. Onboarding/Mongo podem projetar consultas. Não funde bancos inteiros nem move limites do Tracer para ledger/fees; o schema `account_control` do bench não vira contrato de produto | Ownership resolvido para Epics 2.1, 2.2, 2.5, 3.2; implementação e provas pendentes |
 | 2 | Quais falhas o zero perda cobre e o que fazer com replicação degradada | Separar contrato de hospedagem de checagens da aplicação; declarar domínios de falha e bloquear confirmações que não atendam ao contrato. A aceitação da janela degradada do RDS Multi-AZ de instância está aberta; BYOC usar RDS não a aprova | Epics 2.1, 2.2, 2.3 e Fase 4 |
 | 3 | Indisponibilidade no takeover e espera do cliente durante failover do banco | Referência de 5 s para takeover, a medir. Tratar espera do RDS separadamente, sem somar takeover quando o owner sobrevive; definir timeout/unknown e reconexão sem prometer resposta antes do banco voltar | Epics 2.1, 2.3 e Fase 4 |
 | 4 | Retry sem chave do cliente em create, commit, cancel e revert | Definir identidade explícita do pedido. Dois pagamentos legítimos com o mesmo corpo não são automaticamente retry; hash verifica equivalência sob uma identidade, não prova identidade sozinho. Derivação de transação mais ação para commit/cancel também exige aprovação. Sem política pública padrão escolhida | Epics 2.1, 3.1 |
@@ -133,7 +158,7 @@ As definições abaixo permanecem abertas. A Fase 1 compara hipóteses experimen
 | 9 | Go ou Rust no autorizador | Go por stack, equipe e libs Lerian. Medir CPU, GC e commit antes de recomendar outra linguagem; confronto com spikes e revisão técnica do time são gates | Epic 2.3 |
 | 10 | Integração do módulo Tracer, ownership de cotas e reservas incertas | Preservar payload Midaz; definir limites e resolução durável de tentativas sem commit, separada da visibilidade de recusas e do outbox pós-commit. Cotas em fees não estão aprovadas. Retirada do endpoint avulso pertence ao time e exige prova de consumidores/compatibilidade | Epics 2.1, 2.3, 3.2, 3.5 e Phases 4, 5 |
 | 11 | Deadline público, inclusive sem gateway | Admissão na entrada, recheck pós-espera e rollback antes do COMMIT se corte cruzado; após envio, preservar unknown ou resultado conhecido. Definir orçamento, margem anterior, default local, headers/propagação e resposta. Valores do bench não viram contrato | Epics 2.1, 2.3 e Phases 3, 4 |
-| 12 | Autorizador no processo do ledger ou executável separado | Comparar baseline in-process com gRPC real e Redpanda no mesmo escritor. In-process reduz operação; separação permite escala/isolamento e custa roteamento e falhas de rede. Independente da integração do Tracer; nenhuma fronteira de deploy escolhida | Epics 2.1, 2.3, 2.4 e Phase 4 |
+| 12 | Execução inicial definida; separação futura aberta | Fred escolheu kernel dentro do ledger, com um binário/imagem e composição inspirada nos papéis do Streaming Hub. Comparações gRPC/Redpanda continuam no bench; não aprovam RPC, roteamento ou operação remota do produto. Independente da integração do Tracer | Fronteira inicial resolvida para Epics 2.1, 2.3, 2.4; separação futura exige definição |
 
 ## Fora do escopo desta branch
 
@@ -750,7 +775,7 @@ Antes de recomendar implementação, Felipe e Clara revisam provas, limitações
 
 Elegibilidade exige correção, replay/durabilidade, proteção por decisão, capacidade agregada no mesmo ledger contra a referência de mais de 8k aprovações duráveis/s e gates de backlog/latência/soak. Uma conta acima de 1k/s é referência excelente, não requisito de elegibilidade agregado. Sem candidato elegível, no-go. Entre elegíveis, ownerless a 80% do throughput owner favorece simplicidade, considerando caudas e operação; heurística não escolhe arquitetura. Redpanda precisa justificar custo contra in-process e gRPC com MESMO escritor. Publicação independente D não recebe selo zero perda só por passar caminho normal.
 
-Comparar também transições entre processos/sistemas, pontos de falha e obrigações de recuperação. Reportar não medidos e opção permanente só Postgres. Atualizar `Phase Overview` somente após execução; definições 1–12 continuam abertas até decisão explícita. Revisão técnica não substitui aprovação de produto nem autoriza Phase 2.
+Comparar também transições entre processos/sistemas, pontos de falha e obrigações de recuperação. Reportar não medidos e opção permanente só Postgres. Atualizar `Phase Overview` somente após execução. As definições 1 e 12 já têm decisão explícita nos limites registrados acima; as demais continuam abertas. A Phase 2 foi antecipada por Fred, mas a revisão técnica e as provas continuam gates da recomendação final.
 
 **Files:**
 - Create: `docs/plans/2026-09-30-balance-engine-results.md`
@@ -758,13 +783,13 @@ Comparar também transições entre processos/sistemas, pontos de falha e obriga
 
 **Verification:** revisão humana da origem dos números, cobertura e limites, seguida de Felipe/Clara e confronto dos spikes. Nenhum teste parseia prosa.
 
-**Done when:** revisão técnica registrada; Fred recebe recomendação fundamentada e autoriza ou recusa Phase 2.
+**Done when:** revisão técnica registrada; Fred recebe a recomendação fundamentada para as decisões de arquitetura ainda abertas. A implementação paralela da Phase 2 não conclui esta tarefa nem autoriza ativação de clientes.
 
 ---
 
 ## Phase 2: Protocolo e adaptador experimental
 
-Depende das provas da Phase 1, da revisão técnica de Felipe/Clara e das definições abaixo. Não habilita clientes: create v2 isolado não entrega paridade nem autoridade de leitura completa.
+Fred autorizou antecipar a implementação em paralelo às provas da Phase 1. As dependências abaixo continuam gates das entregas completas e da ativação, não impedem trabalho independente. Não habilita clientes. Create v2 isolado é incremento interno: o primeiro marco funcional inclui criar, reservar, confirmar, cancelar e estornar, com leitura e controles autoritativos.
 
 ### Epic 2.1: Especificação do protocolo e do esquema
 
