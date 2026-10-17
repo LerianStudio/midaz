@@ -599,13 +599,14 @@ recycled during a long outage fails restoration instead of passing.
 On 2026-10-17, both tests passed 20 canonical rounds at `0299b72f71b709887d4a36afc3bb28a73916a004`, in 801.270 s,
 with unchanged source and CLEAN teardown. The canonical plan records evidence and limits. This fault is a replication-proxy
 network cut, not a standby process stop, half-open link or promotion. It does not cover `remote_write`, quorum `ANY`
-or non-zero server timeouts. Task 1.3.1 remains open for positive promotion and replacement-replica recovery.
+or non-zero server timeouts. Task 1.3.1 remains open until positive promotion with replacement-replica recovery passes
+20 canonical rounds per writer.
 
 ## Promotion topology (Task 1.3.1, variant B)
 
 ```bash
 BENCH_FAILOVER_PROJECT=midaz-bench-failover go test -count=1 -p 1 -race -failfast -tags bench \
-  ./tests/bench/engine/ -run '^TestOwner(less)?AsyncLossDetected$' -timeout 12m -v
+  ./tests/bench/engine/ -run '^TestOwner(less)?(AsyncLossDetected|Promotion)$' -timeout 12m -v
 ```
 
 Run them only inside a bounded transient user service: `systemd-run --user` with `KillMode=control-group`,
@@ -614,10 +615,11 @@ an external timeout of 780 s plus 30 s kill grace. Cancelling the test bounds on
 unit's control-group kill and deadline bound a Compose plugin that outlives it, and the daemon may still finish work it
 already accepted.
 
-`TestOwnerlessAsyncLossDetected` and `TestOwnerAsyncLossDetected` (`promotion_test.go`, one shared body, Docker helpers
-in `compose_test.go`) run serially. Each runs up, bind, seed, fault, check and down on `midaz-bench-failover`, using
-`docker-compose.yml` plus `docker-compose.failover.yml`, containers `bench-failover-*`, loopback ports 25432 (primary),
-25434 (client proxy), 25435 (standby) and 28474 (toxiproxy API), 8 GiB without swap per PostgreSQL and 256 MiB for
+The negative controls `TestOwnerlessAsyncLossDetected` and `TestOwnerAsyncLossDetected` and the positive
+`TestOwnerlessPromotion` and `TestOwnerPromotion` (`promotion_test.go`, Docker helpers in `compose_test.go`) run serially.
+Each runs up, bind, seed, fault, check and down on `midaz-bench-failover`, using `docker-compose.yml` plus
+`docker-compose.failover.yml`, containers `bench-failover-*`, loopback ports 25432 (primary), 25434 (client proxy), 25435
+(standby), 25436 (replacement standby) and 28474 (toxiproxy API), 8 GiB without swap per PostgreSQL and 256 MiB for
 toxiproxy. PostgreSQL settings and `standby1` come unchanged from the base file. It never touches `midaz-bench-engine`
 or its 1M fixture. Unset, the opt-in skips; any other value fails before Docker or SQL.
 
@@ -638,11 +640,32 @@ session on the promoted node must find the durable baseline counts, exactly P lo
 unchanged ledger checker and zero publishes. The checks use read-only statements or transactions that roll back; they do
 not request a durable commit.
 
+The positive tests share one prologue. D commits under `on` through standby1. U's financial pass is held on the outbox
+lock, `pg-repl` is cut with no restore, and U's COMMIT is observed in SyncRep. U's pass context is checked live just
+before the kill's revalidation, not at SIGKILL delivery; U answers unknown and that context must then report `Canceled`,
+not its deadline.
+The old writer ran 2 passes. The promoted node holds the baseline and D, not U, and the checker counts 1 approved, 1
+unknown. With no synchronous standby, the ownerless test sends a new transfer W, then D's retry: each waits in SyncRep,
+answers unknown and leaves no backend. W commits locally and D gains one touch. In the owner test, once the old owner's
+lease expires on the promoted clock, owner-b's takeover waits in SyncRep, is cancelled, returns no owner and commits
+epoch 2 locally. No new durable approval or ownership comes from the promoted node alone.
+
+`bench-pg-replacement` starts only then, alone (`up -d --no-deps --pull never`, no `--wait`), as a new `standby1`
+copied with `pg_basebackup` from the promoted node, never through the dead primary or `pg-repl`. Before it, no session may
+wait in SyncRep and the old primary must be exited; after `up`, whatever it returned, the old primary is rechecked. The
+replacement is inspected once by name, then polled by full ID for up to 120 s until bound, healthy and capped, with the
+exact four-container, three-volume set. SQL ties its port to its IP, cluster name, recovery and marker, then requires it
+the only streaming synchronous standby1 of the promoted node, from its own address. Past every cutoff, U resolves
+`expired` without moving money, W and D replay, and a new transfer N, debiting a balance D and U both moved, approves.
+The owner test first waits for owner-b's lease to expire; owner-c then takes epoch 3 and reloads before U, D and N. Final
+tallies: ownerless 2 approved, 3 unknown, 1 expired, 2 replays and W as the one unanswered SQL approval; owner 2 approved,
+1 unknown, 1 expired, 1 replay. Both have no lost approval and zero publishes.
+
 A failure keeps and logs every owned resource; the next run refuses to start while any of it is left, and an operator
 decides its removal after reading that evidence. A pass re-reads the same IDs, starts, health, caps, zero OOM and swap
 counters and the exact resource set, then runs `down -v` once and requires nothing owned left. That end state is the
-fault's: the primary exited by SIGKILL with its bound start, the proxy healthy, and the standby not required healthy, as
-its healthcheck encodes the standby role.
+fault's: the primary exited by SIGKILL with its bound start, the proxy healthy, the standby not required healthy, as
+its healthcheck encodes the standby role, and a started replacement healthy. A slot never started owes no resource.
 
 **S1 topology run (historical), 2026-10-17:** the fault-free `TestPromotionTopology`, since converted into the negative
 control, passed one race-enabled run on the exact source committed as `421c82bcce47f52f7423e8e3d4825f88f2835a2f`. Test
@@ -668,7 +691,7 @@ No owned resource or listener remained. Client peak was 221,982,720 B with zero 
 `/tmp/balance-engine-phase1.A5lpaQ/promotion-s2-live.20261017T172502Z.1389690/`. A preceding hash check used the wrong
 working directory and stopped before launching anything; it was not a failed fault run or a retry.
 
-**S3 paired negative control accepted (current), 2026-10-17:** one development run of both tests passed serially
+**S3 paired negative control accepted (previous), 2026-10-17:** one development run of both tests passed serially
 under `-count=1 -race -failfast`, with no retry, on the exact source committed as
 `c866b7cac4db2f2c758a746e0a68c822afad91dc`. Ownerless test 12.89 s, owner test 15.76 s, package 29.679 s,
 whole service 44.357 s.
@@ -691,10 +714,31 @@ passing cleanup ran once per test and left no owned resource or listener. Client
 and OOM. Evidence: `/tmp/balance-engine-phase1.A5lpaQ/promotion-s3-live.20261017T181613Z.3483575/` and
 `/tmp/balance-engine-phase1.A5lpaQ/runtime-command.Ia22Bh.log`.
 
-Positive B (20 canonical rounds per writer, the replacement standby and no new durable approvals while the promoted
-node lacks one), HTTP, MT, RDS and failure retention remain untested. This run proves neither repeatability nor
-capacity. Since S2, C's commit-setting hook reuses the same helper; since S3, A, C and the writer gates start writers
-through the same `startOn`. Their source was checked; none was live-rerun.
+**S4 positive promotion accepted (current), 2026-10-17:** one development run of all four tests passed serially under
+`-count=1 -race -failfast`, with no retry, on the test source committed as `620c77e6e39236049f3e9d8b7b86fa1ffe5f0227`.
+Ownerless and owner controls took 11.30 s and 14.16 s, ownerless and owner promotion 34.59 s and 16.71 s; package
+77.799 s, whole service 91.745 s.
+
+Each control again found exactly P lost and D intact. In each positive test D survived and U answered unknown before its
+pass deadline. With no synchronous standby, the ownerless W and D's replay answered unknown; the owner takeover returned
+no owner and left epoch 2 local. With the replacement bound as the only synchronous standby1, U resolved `expired`, W
+and D replayed approved and the new N approved, in the owner test after owner-c took epoch 3. The full checker passed
+with zero publishes. These outcomes are asserted: the source plus PASS prove them, and no log records them one by one.
+The log records each writer session's commit setting, container bindings and caps, the controls' LSN positions and the
+replacement times: start through binding and synchronous streaming took 2.733 s and 2.856 s, one sample each, not a
+failover SLO. The host was busy; no load is attributed to this run. All 3,432 source hashes, the shared 14-table digest,
+shared container IDs/PIDs/caps, CLEAN state and the retained dump stayed equal. The passing cleanup ran once per test
+and left no owned resource or listener. Client peak was 495,284,224 B with zero swap and OOM. Evidence:
+`/tmp/balance-engine-phase1.A5lpaQ/promotion-s4-live.20261017T195441Z.2273858/` and
+`/tmp/balance-engine-phase1.A5lpaQ/runtime-command.ycPyfi.log`.
+
+Task 1.3.1 stays open. Next, not yet run: one canonical process of the positive tests only, `-count=20 -p 1 -failfast`
+without race and `-run '^TestOwner(less)?Promotion$'`, with Go `-timeout 35m`, external `timeout -k 30s 2160s` and
+`RuntimeMaxSec=2580`, under the same client caps and shared-stack guards. It passes only with 20 PASS per writer and 40
+top-level results. The negative controls stay at one race-enabled development run per writer, in S3 and S4. HTTP, MT,
+RDS and failure retention remain untested; S4 proves neither repeatability nor capacity. Since S2, C's commit-setting
+hook reuses the same helper; since S3, A, C and the writer gates start writers through the same `startOn`. Their source
+was checked; none was live-rerun.
 
 ## Owner 1M reload (Task 1.3.3)
 
