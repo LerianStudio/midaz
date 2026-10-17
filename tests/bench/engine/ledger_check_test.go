@@ -49,14 +49,15 @@ func (c *captureWriter) Submit(ctx context.Context, req request) result {
 }
 
 // snapshotBaseline runs once per connection after a reset and fixtures, before any request or operation is written.
-// Its temporary tables anchor every balance and control.
+// Analyze the fixed baseline: autovacuum cannot collect statistics for TEMP tables.
 func snapshotBaseline(ctx context.Context, t *testing.T, conn *pgx.Conn) {
 	t.Helper()
 
 	_, err := conn.Exec(ctx, `CREATE TEMP TABLE base_balance AS
 			SELECT id, account_id, available, version, allow_sending, allow_receiving FROM balance;
 		CREATE TEMP TABLE base_control AS
-			SELECT organization_id, ledger_id, account_id, blocked, limit_remaining, version FROM account_control`)
+			SELECT organization_id, ledger_id, account_id, blocked, limit_remaining, version FROM account_control;
+		ANALYZE base_balance, base_control`)
 	require.NoError(t, err)
 }
 

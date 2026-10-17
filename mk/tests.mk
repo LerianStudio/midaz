@@ -352,6 +352,70 @@ test-e2e:
 .PHONY: test-bdd
 test-bdd: test-e2e
 
+# Balance-engine bench cells against the already-running local stack (tests/bench/engine/README.md), one process each.
+# BENCH_MATRIX=quick, or full with BENCH_BLOCK=A; BENCH_WRITER, BENCH_DELAY_MS and BENCH_SHAPE each keep one value.
+# A cell's JSON is accepted only after its process exits 0; the first failure stops the run, without retry.
+BENCH_ENGINE_WRITERS := owner ownerless
+BENCH_ENGINE_DELAYS_MS := 0 1 10
+BENCH_ENGINE_SHAPES := outflow inflow mixed
+
+.PHONY: test-bench-engine
+test-bench-engine: SHELL := bash
+test-bench-engine: export BENCH_PG_PRIMARY_DSN ?= postgresql://bench:bench@127.0.0.1:15432/bench_transaction?sslmode=disable
+test-bench-engine: export BENCH_PG_CLIENT_PROXY_DSN ?= postgresql://bench:bench@127.0.0.1:15434/bench_transaction?sslmode=disable
+test-bench-engine: export BENCH_PG_STANDBY_DSN ?= postgresql://bench:bench@127.0.0.1:15435/bench_transaction?sslmode=disable
+test-bench-engine: export BENCH_TOXIPROXY_URL ?= http://127.0.0.1:18474
+test-bench-engine:
+	$(call print_title,Running balance-engine bench cells)
+	$(call check_command,go,"Install Go from https://golang.org/doc/install")
+	$(call check_command,timeout,"Install GNU coreutils")
+	$(call check_command,git,"Install git")
+	@set -euo pipefail; one() { \
+	  local v=$${!1:-} x; \
+	  if [ -z "$$v" ]; then echo "$$2"; return; fi; \
+	  for x in $$2; do if [ "$$x" = "$$v" ]; then echo "$$v"; return; fi; done; \
+	  echo "[error] $$1=$$v: want one of $$2" >&2; return 1; \
+	}; \
+	case "$${BENCH_MATRIX:-}" in \
+	quick) \
+	  if [ -n "$${BENCH_BLOCK:-}$${BENCH_WRITER:-}$${BENCH_DELAY_MS:-}$${BENCH_SHAPE:-}" ]; then \
+	    echo "[error] BENCH_MATRIX=quick takes no BENCH_BLOCK, BENCH_WRITER, BENCH_DELAY_MS or BENCH_SHAPE" >&2; exit 2; \
+	  fi; \
+	  cells=quick ;; \
+	full) \
+	  if [ "$${BENCH_BLOCK:-}" != A ]; then echo "[error] BENCH_MATRIX=full needs BENCH_BLOCK=A" >&2; exit 2; fi; \
+	  writers=$$(one BENCH_WRITER "$(BENCH_ENGINE_WRITERS)"); \
+	  delays=$$(one BENCH_DELAY_MS "$(BENCH_ENGINE_DELAYS_MS)"); \
+	  shapes=$$(one BENCH_SHAPE "$(BENCH_ENGINE_SHAPES)"); \
+	  cells=; \
+	  for d in $$delays; do for s in $$shapes; do for w in $$writers; do cells+=" $$w,$$d,$$s"; done; done; done ;; \
+	*) echo "[error] set BENCH_MATRIX=quick, or full with BENCH_BLOCK=A" >&2; exit 2 ;; \
+	esac; \
+	root="$(abspath $(TEST_REPORTS_DIR))/bench-engine"; mkdir -p "$$root"; \
+	run=$$(mktemp -d "$$root/$$BENCH_MATRIX-$$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX"); \
+	{ echo "commit $$(git rev-parse HEAD)"; echo "$$(go version)"; echo "GOFLAGS $$(go env GOFLAGS)"; \
+	  echo "cells $$cells"; echo "git status --porcelain:"; git status --porcelain; } > "$$run/provenance.txt"; \
+	echo "run $$run"; \
+	for c in $$cells; do \
+	  if [ "$$c" = quick ]; then \
+	    name=quick; axes=(BENCH_MATRIX=quick); ceiling=960; limit=15m; \
+	  else \
+	    IFS=, read -r w d s <<< "$$c"; name="A-$$w-$${d}ms-$$s"; ceiling=1140; limit=18m; \
+	    axes=(BENCH_MATRIX=full BENCH_BLOCK=A "BENCH_WRITER=$$w" "BENCH_DELAY_MS=$$d" "BENCH_SHAPE=$$s"); \
+	  fi; \
+	  pending="$$run/$$name.pending"; \
+	  echo "== $$name $$(date -u +%FT%TZ)"; \
+	  if env "$${axes[@]}" "BENCH_REPORT=$$pending" timeout "$$ceiling" go test -count=1 -tags bench ./tests/bench/engine/ \
+	      -run '^TestBenchHotAccount$$' -timeout "$$limit" -v 2>&1 | tee "$$run/$$name.log" && [ -s "$$pending" ]; then \
+	    mv "$$pending" "$$run/$$name.json"; \
+	  else \
+	    rm -f "$$pending" "$$pending.tmp"; \
+	    echo "[error] $$name failed, timed out or skipped: no JSON accepted; log $$run/$$name.log. Check the stack before another run." >&2; \
+	    exit 1; \
+	  fi; \
+	done; \
+	echo "accepted: $$run"
+
 # Full CI test matrix — one command, one exit code.
 #
 # Sequences the deterministic, self-contained legs (testcontainers only, no live

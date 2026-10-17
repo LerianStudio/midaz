@@ -533,9 +533,10 @@ Status: accepted (M3B). One canonical 60 s + 20 s run passed; its result below i
 capacity or sustained result. Plan Task 1.2.4 stays open.
 
 `TestBenchHotAccount` in `bench_test.go` runs the cell `BENCH_MATRIX` names. Unset, it skips, so ordinary regression
-selects it and runs nothing; `quick` runs the cell below; any other value fails as not implemented. The cell: one
-owner writer on a fresh 10k-counterpart seed, outflow without fee, 256 closed-loop producers, batch cap 256, the usual
-30 s response and 28 s admission budgets, and 1 ms downstream on `pg-repl`. A 60 s warm-up and a 20 s measured phase,
+selects it and runs nothing; `quick` runs the cell below, `full` one block A cell (next section); anything else fails
+before any database work. The cell: one owner writer on a fresh 10k-counterpart seed, outflow without fee, 256
+closed-loop producers, batch cap 256, the usual 30 s response and 28 s admission budgets, and 1 ms downstream on
+`pg-repl`. A 60 s warm-up and a 20 s measured phase,
 each with its own workload label and recorder, share one process clock, one owner lease, one capture and one Close.
 
 1. Guard, rebuild, seed and record the baseline under a 60 s setup clock. Register cleanup, configure the delay,
@@ -623,6 +624,55 @@ Limits: the boundary query reads PG17 views only. The heap-allocation delta coun
 caches flush, so it is approximate. An abort invalidates the phase; nothing proves it hit only late work. The probe's
 minimum is logged, not asserted; the toxic's read-back is the check. Process death skips cleanup, so check toxics
 before the next run. Lazy dials and prepares fall inside the warm-up.
+
+## Cells, Make and reports
+
+Status: M4 code accepted after independent reviews, contrarian and final verification. The final regression passed
+53 tests and 84 subtests, with only the unselected cell skipped; vet, formatting and pinned lint passed. The default-path
+Make pair passed at 1 s/2 s. No full cell has run; those smokes are not capacity.
+
+`make test-bench-engine` runs cells of `TestBenchHotAccount` against the running stack, one process per cell. It never
+starts, stops or resets containers. The four DSNs default to the loopback addresses above; values already set win.
+
+```bash
+make test-bench-engine BENCH_MATRIX=quick                                                    # the quick cell
+make test-bench-engine BENCH_MATRIX=full BENCH_BLOCK=A                                       # block A, 18 cells
+make test-bench-engine BENCH_MATRIX=full BENCH_BLOCK=A BENCH_DELAY_MS=1 BENCH_SHAPE=outflow  # one matched pair
+```
+
+Block A is closed loop: writer `owner` (one batcher) or `ownerless` (32), downstream delay 0, 1 or 10 ms on `pg-repl`,
+shape `outflow`, `inflow` or `mixed`. Each cell keeps the quick's 10k counterparts, 256 producers, batch cap 256 and
+usual budgets, with a 60 s warm-up and a 120 s measured window; the memory caps stay 16k attempts/s over each window,
+960,000 and 1,920,000. Cells of one shape share the labels `A/<shape>/warmup|measured`, so every writer and delay
+draws the same postings by index; transaction IDs and clocks are per run. `BENCH_WRITER`, `BENCH_DELAY_MS` and
+`BENCH_SHAPE` each keep one value; Make runs owner then ownerless for each delay and shape. Effects of that fixed order remain unmeasured. `quick` takes none of
+them. Any other matrix, block or value fails before a cell starts, and the test rejects it again before database
+work. Direct `go test` needs `BENCH_MATRIX=full` with all four others set.
+
+Ceilings per cell: quick 960 s external and 15 min Go, full 1140 s and 18 min. They are bounds, not predicted
+runtimes. A timeout invalidates the cell and may skip cleanup.
+
+Each invocation creates a new directory `reports/bench-engine/<matrix>-<UTC>-<random>/`; `TEST_REPORTS_DIR` moves its
+root, and git ignores `reports/`. It holds `provenance.txt` and one full `<cell>.log` per cell. Provenance carries
+the commit, `go version`, `GOFLAGS`, the cells and `git status --porcelain`, never the environment or a DSN. A smoke
+passes its overlay in `GOFLAGS`, so provenance records it. The test writes its JSON from the first cleanup it
+registers, which runs last, only when nothing failed or skipped. Make accepts it as `<cell>.json` only after the
+process exits 0. A failure, timeout, skip or `tee` error removes that cell's pending JSON, keeps its log and stops the
+run without retry; earlier accepted cells stay. Check the stack (toxics, standby1, foreign backends) before rerunning.
+
+The JSON holds the cell's configuration, settings and both probes. Each phase carries dispatched, answered, outcomes,
+late, approvals by `dbAckAt` against stop, and its window. Answer and dbAck p50/p99/p99.9/max come with their sample
+count: `null` without samples, never zero. Also present: the warm-up join, measured-window occupancy, writer lifetime
+counters, the checker tally, stage durations (checker included) and what stays unmeasured. The window rate is
+`1e9 * measured.approvalsDbAckBeforeStop / measured.windowNS` in approvals/s. `summary`, `pgSettings` and `s1ToS2` copy log lines as text;
+nothing parses them. `BENCH_REPORT` is the test-to-Make handoff, not an accepted-result path on its own.
+
+The baseline now ends with `ANALYZE base_balance, base_control`, because autovacuum never analyzes temporary tables.
+On TEMP tables rebuilt from the retained quick data, the protection check rejected 2,974,634,808 pairs at its join filter
+in 278.571 s without statistics and 0.164 s with them. Every check stayed effective and no financial data changed.
+That attributes the reproduced cost; it does not re-measure the Go checker. The quick's 244.363 s predates the
+change, and a full cell's checker time is unmeasured. At full caps the capture and recorders take about 1.24 GB
+before the checker, by arithmetic from the quick's 553 MB, not by measurement.
 
 ## How it is built
 
