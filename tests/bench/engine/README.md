@@ -142,6 +142,19 @@ unseeded with eight outbox rows), commits one `feeLeg` request and rolls back an
 payload, the stored `payload::text` and `pg_column_size` for this fixture; these are not general product
 sizes. Trace-carrier and multi-tenant variants, relay and Kafka/CloudEvents record bytes are not measured.
 
+## Throughput figures and the 8k target
+
+The recorded financial runs below measured one hot account: each request debits or credits the same limited balance,
+against four or 10k counterparts. On 2026-10-17 Fred clarified the reference: more than 8k TPS across accounts in ONE
+LEDGER is good; more than 1k TPS on one account is excellent, not a minimum or an SLO. The old attribution of 8k to a
+hot account was wrong. Rates and financial checks remain valid; earlier "below the 8k target" comparisons are void as
+aggregate-capacity judgments. See the [plan correction](../../../docs/plans/2026-09-30-balance-engine-postgres-truth.md#custo-e-alvos-da-bancada).
+
+Fred then requested a large test to find the limit beyond 8k. The next synthetic fixture transfers between two distinct
+ordinary accounts drawn uniformly from 10k in that ledger, with no mandatory hot account. It is not a claim about client
+traffic. Load steps and resource bounds must be declared before execution; no distributed capacity has been measured.
+Correctness and failover requirements are unchanged.
+
 ## Workload and metrics
 
 `writer.go`, `workload.go` and `metrics.go` hold the request contract, the deterministic workload, the open and
@@ -285,7 +298,8 @@ env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=
 
 The first pilot approved all 200,000 requests with no other outcome or error. Run: 195.791 s; checker: 22.104 s;
 test: 218.38 s. The observed local rate was 1,021 durable approvals/s and answer p99 was 609.664 ms. This is below
-the target, not a maximum-capacity or sustained result. The 35,584 batches averaged 5.62 requests, not the cap of 256.
+the target (void as acceptance; see [the target correction](#throughput-figures-and-the-8k-target)), not a
+maximum-capacity or sustained result. The 35,584 batches averaged 5.62 requests, not the cap of 256.
 Peak RSS was 909,460 KiB among the test binary and its reaped children, excluding Postgres; it is not a heap metric.
 Lazy connection dials and prepares remained inside the first batches.
 
@@ -305,7 +319,8 @@ usual 30 s response and 28 s admission budgets.
 *The executor's wait command consumed a CPU core for about 100 s during outflow, violating the no-synthetic-load rule.
 The process ended, and the supervisor removed an orphan pilot log monitor. Outflow's correctness result stands, but
 its timing is excluded from comparison. No rerun hid the violation. The other rates describe one local closed-loop
-run each, all below the target; they do not establish maximum or sustained capacity.
+run each, all below the target (void as acceptance; see [the target correction](#throughput-figures-and-the-8k-target));
+they do not establish maximum or sustained capacity.
 
 An independent read of the retained mixed_fee data on primary and standby found 200,000 approvals/transactions,
 600,000 operations, 1,600,000 pending outbox rows, and an unchanged balance sum of 80,000,000,000. Previous shapes rely
@@ -451,9 +466,10 @@ also shows one pass per batch and no deadlock; the test logs those counts but do
 
 Approvals/s is 200,000 over run seconds: the closed-loop rate of 256 producers, each with one request in flight, in
 one run on a shared, loaded host. It is not a maximum, sustained, open-loop, repeated, RTT-controlled or capacity
-result. Every rate is below the plan's 8k target and every p99 far above its 15 ms hypothesis; method and RTT differ,
-so this gate neither accepts nor rejects either. Mean batch is 200,000 over batches; that run did not log the maximum
-batch, and cap 256 is a limit, not occupancy. The ownerless table above is not a controlled comparison: those runs predate
+result. Every rate is below the plan's 8k target (void as acceptance; see
+[the target correction](#throughput-figures-and-the-8k-target)) and every p99 far above its 15 ms hypothesis; method
+and RTT differ, so this gate neither accepts nor rejects either. Mean batch is 200,000 over batches; that run did not
+log the maximum batch, and cap 256 is a limit, not occupancy. The ownerless table above is not a controlled comparison: those runs predate
 the shared scanner, queue and batch changes and ran under different host conditions.
 
 An independent read-only check of the retained mixed_fee state, on primary and standby, found 200,000 approved
@@ -533,9 +549,9 @@ Status: accepted (M3B). One canonical 60 s + 20 s run passed; its result below i
 capacity or sustained result. Plan Task 1.2.4 stays open.
 
 `TestBenchHotAccount` in `bench_test.go` runs the cell `BENCH_MATRIX` names. Unset, it skips, so ordinary regression
-selects it and runs nothing; `quick` runs the cell below, `full` one block A cell (next section); anything else fails
-before any database work. The cell: one owner writer on a fresh 10k-counterpart seed, outflow without fee, 256
-closed-loop producers, batch cap 256, the usual 30 s response and 28 s admission budgets, and 1 ms downstream on
+selects it and runs nothing; `quick` runs the cell below, `full` one block A cell (next section), `capacity` one
+distributed cell ([Distributed capacity cells](#distributed-capacity-cells)); anything else fails before database work.
+The quick cell: one owner writer on a fresh 10k-counterpart seed, outflow without fee, 256 closed-loop producers, batch cap 256, the usual 30 s response and 28 s admission budgets, and 1 ms downstream on
 `pg-repl`. A 60 s warm-up and a 20 s measured phase,
 each with its own workload label and recorder, share one process clock, one owner lease, one capture and one Close.
 
@@ -556,12 +572,14 @@ The test fails, and prints no rate, on an invalid measurement:
 It also fails on any failed ledger, baseline or answer check, any publish, and any replay, conflict or refusal: new
 identities on funded, unblocked outflow produce none. Expired and unknown answers, and SQL approvals whose caller read
 unknown, are reported, not failed. A rate below 8k/s or a p99 above 15 ms is a measured result, not a failure. The
+log line `below 8k or p99 above 15 ms is a result, not a failure` is a fixed template written before the target
+correction; it is no eligibility gate or acceptance judgment, and the code keeps it unchanged. The
 window rate uses approvals with `dbAckAt` before stop over the 20 s window. A later cleanup failure invalidates a
 printed rate. Measurement starts after the warm-up join, so pipeline refill is inside the measured window.
 
-The caps are 16k attempts/s over each window, twice the target. They bound memory, not capacity: about 553 MB of
-recorders, capture and postings at full caps, before the checker, GC, SQL and slack. Reaching one invalidates the
-phase; nothing raises it or retries.
+The caps are 16k attempts/s over each window, a memory bound rather than a throughput target. They
+bound memory, not capacity: about 553 MB of recorders, capture and postings at full caps, before the checker, GC, SQL
+and slack. Reaching one invalidates the phase; nothing raises it or retries.
 
 The log also carries: both probes; each phase's summary; the warm-up's unknown count, an upper bound on carried-over
 attempts (zero proves none), and queue length at the join, with in-flight work unmeasured; the S1-to-S2 line; writer
@@ -611,8 +629,9 @@ An independent SELECT-only check found the same 148,702 requests and transaction
 PENDING outbox rows on primary and standby. Balance/control totals and operation chains matched the seed and postings.
 The in-memory request/answer payload checks remain evidence from the run; the independent read did not reproduce them.
 
-One 20 s closed-loop observation: below the 8k/s target, p99 far above the 15 ms hypothesis. That is a result, not a
-failure, and not a maximum, sustained, failover or capacity result. It is no controlled comparison with the
+One 20 s closed-loop observation: below the 8k/s target (void as acceptance; see
+[the target correction](#throughput-figures-and-the-8k-target)), p99 far above the 15 ms hypothesis. That is a result,
+not a failure, and not a maximum, sustained, failover or capacity result. It is no controlled comparison with the
 conservation tables above, which ended on their count, on four counterparts, without the injected delay. Process
 figures cover the whole test process, generator, capture, writer, pgx and drain included, not the writer alone;
 nothing here attributes checker time or allocation to a cause. Each bound's margin holds for this run only.
@@ -627,9 +646,11 @@ before the next run. Lazy dials and prepares fall inside the warm-up.
 
 ## Cells, Make and reports
 
-Status: M4 code accepted after independent reviews, contrarian and final verification. The final regression passed
-53 tests and 84 subtests, with only the unselected cell skipped; vet, formatting and pinned lint passed. The default-path
-Make pair passed at 1 s/2 s. No full cell has run; those smokes are not capacity.
+Status: M4 code accepted after independent reviews, contrarian and final verification, shipped in `26ff3bbd0`. The
+final regression passed 53 tests and 84 subtests, with only the unselected cell skipped; vet, formatting and pinned lint
+passed. The default-path Make pair passed at 1 s/2 s; those smokes are not capacity. The first canonical full pair
+then passed (below). Block A is not complete: its other 16 cells were never launched. They stay suspended while the
+next unit prepares the distributed-ledger capacity test Fred requested.
 
 `make test-bench-engine` runs cells of `TestBenchHotAccount` against the running stack, one process per cell. It never
 starts, stops or resets containers. The four DSNs default to the loopback addresses above; values already set win.
@@ -638,6 +659,7 @@ starts, stops or resets containers. The four DSNs default to the loopback addres
 make test-bench-engine BENCH_MATRIX=quick                                                    # the quick cell
 make test-bench-engine BENCH_MATRIX=full BENCH_BLOCK=A                                       # block A, 18 cells
 make test-bench-engine BENCH_MATRIX=full BENCH_BLOCK=A BENCH_DELAY_MS=1 BENCH_SHAPE=outflow  # one matched pair
+make test-bench-engine BENCH_MATRIX=capacity BENCH_WRITER=owner BENCH_PRODUCERS=1024         # one distributed cell
 ```
 
 Block A is closed loop: writer `owner` (one batcher) or `ownerless` (32), downstream delay 0, 1 or 10 ms on `pg-repl`,
@@ -646,8 +668,9 @@ usual budgets, with a 60 s warm-up and a 120 s measured window; the memory caps 
 960,000 and 1,920,000. Cells of one shape share the labels `A/<shape>/warmup|measured`, so every writer and delay
 draws the same postings by index; transaction IDs and clocks are per run. `BENCH_WRITER`, `BENCH_DELAY_MS` and
 `BENCH_SHAPE` each keep one value; Make runs owner then ownerless for each delay and shape. Effects of that fixed order remain unmeasured. `quick` takes none of
-them. Any other matrix, block or value fails before a cell starts, and the test rejects it again before database
-work. Direct `go test` needs `BENCH_MATRIX=full` with all four others set.
+them, nor `BENCH_PRODUCERS`, which only `capacity` takes. Any other matrix, block or value fails before a cell starts,
+and the test rejects it again before database work. For block A, direct `go test` needs `BENCH_MATRIX=full` with all
+four other axes set. Capacity uses only writer and producers, as described below.
 
 Ceilings per cell: quick 960 s external and 15 min Go, full 1140 s and 18 min. They are bounds, not predicted
 runtimes. A timeout invalidates the cell and may skip cleanup.
@@ -671,8 +694,88 @@ The baseline now ends with `ANALYZE base_balance, base_control`, because autovac
 On TEMP tables rebuilt from the retained quick data, the protection check rejected 2,974,634,808 pairs at its join filter
 in 278.571 s without statistics and 0.164 s with them. Every check stayed effective and no financial data changed.
 That attributes the reproduced cost; it does not re-measure the Go checker. The quick's 244.363 s predates the
-change, and a full cell's checker time is unmeasured. At full caps the capture and recorders take about 1.24 GB
+change. The first full pair's checker times are recorded below; cost at larger volumes is still unmeasured.
+At full caps the capture and recorders take about 1.24 GB
 before the checker, by arithmetic from the quick's 553 MB, not by measurement.
+
+### First canonical pair
+
+`make test-bench-engine BENCH_MATRIX=full BENCH_BLOCK=A BENCH_DELAY_MS=1 BENCH_SHAPE=outflow` ran once on `26ff3bbd0`,
+clean tree, empty `GOFLAGS`, with no overlay, race, retry or tuning. Both cells passed, the full checker included.
+
+| Cell | Window approvals | Window rate /s | Answers, both phases | Answer p99 ms | Checker s |
+|---|---:|---:|---:|---:|---:|
+| owner, 1 batcher | 206,603 | 1,721.6916667 | 301,833 | 283.857196 | 39.391109033 |
+| ownerless, 32 | 101,309 | 844.2416667 | 148,555 | 948.190376 | 19.985965009 |
+
+Window approvals have `dbAckAt` before stop, over the 120 s window. Each cell had 256 drain approvals at or after stop,
+excluded from the rate, and no other outcome, late entry, deadlock or publish; all 450,388 answers are approvals the
+checker matched. Configuration and postings per index are the same; only the writer differs. The order was fixed, owner
+first, with no counterbalance, on a shared host whose 1 min load average rose from 165.36 to 233.65; load average is not CPU
+use. The p99 runs from `scheduledAt` and includes the drain answers. A closed loop with a configured delay and
+unmeasured network RTT does not test the 15 ms hypothesis. Both cells measure contention on the hot account; the owner's
+lead here does not rank the writers under another account distribution. The reports sit in the ignored
+`reports/bench-engine/full-20261017T004326Z-Rm4jRG/`; the coordinating session read the full JSON and raw logs. An
+independent read-only verifier refuted no number and corroborated the retained ownerless state on primary and standby;
+the ownerless bootstrap reset the owner's state, which rests on its checker and log.
+
+## Distributed capacity cells
+
+Status: D2 accepted after independent reviews, contrarian and final supervisor verification. The final five focused
+race tests and 54-test/84-subtest non-volume regression passed; only the unselected cell skipped. Vet, formatting,
+pinned lint and cleanup passed. Two 1 s/2 s smokes passed; canonical 60 s/120 s cells are NOT RUN, so no capacity rate exists. The reference
+is the corrected one in [Throughput figures and the 8k target](#throughput-figures-and-the-8k-target):
+more than 8k TPS summed across the accounts of one ledger, not on the hot account the cells above measure.
+
+`BENCH_MATRIX=capacity` selects one cell per process. It needs `BENCH_WRITER=owner|ownerless` and
+`BENCH_PRODUCERS=256|1024|4096|8192`, and refuses `BENCH_BLOCK`, `BENCH_DELAY_MS` and `BENCH_SHAPE`. Make checks this
+before Go starts; the test checks it again before database work. Eight cells exist, `capacity-<writer>-p<producers>`.
+
+```bash
+make test-bench-engine BENCH_MATRIX=capacity BENCH_WRITER=ownerless BENCH_PRODUCERS=4096   # capacity-ownerless-p4096
+```
+
+Each cell: one ledger, a fresh 10k-account seed, and transfers that debit one ordinary account and credit another,
+both drawn uniformly per request (shape `uniform`). Two endpoints per transfer, chosen afresh among the 10k; no hot or
+fee account posts, fee legs off. 1 ms downstream on `pg-repl`, batch cap 256, the existing writers (owner one
+batcher, ownerless 32) and queue, the usual 30 s caller and 28 s admission budgets, a 60 s warm-up and a 120 s
+measured window. Every cell shares the label `capacity/uniform/warmup|measured`, so both writers and every level draw
+the same postings by index. This distribution is a synthetic fixture for the first aggregate test, not client
+traffic. Distinct accounts lower concentration; batches can still overlap on an account.
+
+The caps are 3,840,000 warm-up and 7,680,000 measured attempts, 64k attempts/s over each window: a finite
+preallocation, not pacing and not a rate. Reaching one invalidates its window; nothing throttles quietly.
+The capture and recorders are sized for 11.52M calls before the warm-up. Capture, recorders and two postings per call
+account for about 5 GB at full caps by arithmetic, before checker maps and GC; peak memory is unmeasured.
+
+The cell's JSON carries `checkerTimeoutNS`: 5 min for quick and block A, unchanged, and 30 min for capacity. It is an
+observation budget declared before any run, not a runtime extrapolated from earlier checker times. The checker still
+runs every check over every captured call, without sampling. A timeout is incomplete verification: the cell fails and
+no rate is accepted. Ceilings per capacity cell: Go `-timeout 43m` and external `timeout -k 30s 2640`. They are
+bounds, not predicted runtimes; quick and full keep theirs.
+
+The lifecycle, outcomes and report rules are those of the cells above: setup, one writer and capture across both
+phases, Close, replication, checker, cleanup, and JSON only after the process exits 0. Unknown or expired answers are
+reported, not failed; nonzero means the cell is not clean capacity evidence, not that accounting broke. The first
+failure stops the run, without retry or reset; the failed ledger stays for diagnosis. The settings line also records
+`shared_buffers`, `max_connections` and `work_mem`; nothing changes the Postgres configuration.
+
+A result will be the window rate, `1e9 * measured.approvalsDbAckBeforeStop / measured.windowNS`, with its p99,
+concurrency, after-stop approvals and every outcome. It is closed-loop throughput at one bounded concurrency: not the
+ledger's maximum, and not a sustained arrival rate, which needs the open-loop confirmation after these cells. Memory,
+disk and process limits for a campaign belong to the coordinating session's runner, not to Make.
+
+D2 verification: the non-volume regression passed 54 tests and 84 subtests, with only the unselected cell skipped.
+The Make smokes used fresh overlays at 1 s/2 s, caps 64k/128k and 8,192 producers: owner approved 20,482 calls and
+ownerless 19,785. The full financial checker passed, and separate SQL checks found only ordinary-to-ordinary
+transfers in one ledger, with hot, fee and multikey fixtures untouched. The runs touched 9,843 and 9,819 balances.
+Both drained 8,192 measured approvals after stop; these short windows cannot establish capacity.
+
+Selector and Make mutants failed on wrong mix, producer count, checker budget, invalid axes and acceptance of a
+failed process. A real-stack 1 ns checker-budget probe failed without a report; the mutant using a constant 5 min
+passed, proving the per-cell budget is consumed. Vet, formatting and pinned lint passed. Stack cleanup was clean.
+Checker time varied from 20.88 s to 3.04 s across the smokes; the cause and cost at millions of calls are unproved.
+No memory-pressure, canonical capacity or open-loop confirmation ran in this verification.
 
 ## How it is built
 
@@ -693,6 +796,6 @@ Environment readiness, guarded schema rebuild, deterministic seed fixtures and t
 catalog written outbox-only through the libraries. The synchronous
 standby streams through the proxy and inherits the primary's settings. Seed timing is setup cost,
 not transaction throughput. Financial correctness and unknown replay are proven only where the sections above say:
-the batch and small gates for both writers, the owner lifecycle tests, the five 200k shapes of each writer and the
-quick cell's 148,702 answers.
-Failover survival, a 1M owner reload and capacity remain unproven.
+the batch and small gates for both writers, the owner lifecycle tests, the five 200k shapes of each writer, the
+quick cell's 148,702 answers and the first full pair's 450,388.
+Failover survival, a 1M owner reload and aggregate capacity remain unproven.

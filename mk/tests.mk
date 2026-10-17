@@ -353,11 +353,13 @@ test-e2e:
 test-bdd: test-e2e
 
 # Balance-engine bench cells against the already-running local stack (tests/bench/engine/README.md), one process each.
-# BENCH_MATRIX=quick, or full with BENCH_BLOCK=A; BENCH_WRITER, BENCH_DELAY_MS and BENCH_SHAPE each keep one value.
-# A cell's JSON is accepted only after its process exits 0; the first failure stops the run, without retry.
+# BENCH_MATRIX=quick, full with BENCH_BLOCK=A (BENCH_WRITER, BENCH_DELAY_MS and BENCH_SHAPE each keep one value), or
+# capacity with exactly one BENCH_WRITER and one BENCH_PRODUCERS. A cell's JSON is accepted only after its process
+# exits 0; the first failure stops the run, without retry.
 BENCH_ENGINE_WRITERS := owner ownerless
 BENCH_ENGINE_DELAYS_MS := 0 1 10
 BENCH_ENGINE_SHAPES := outflow inflow mixed
+BENCH_ENGINE_PRODUCERS := 256 1024 4096 8192
 
 .PHONY: test-bench-engine
 test-bench-engine: SHELL := bash
@@ -378,18 +380,26 @@ test-bench-engine:
 	}; \
 	case "$${BENCH_MATRIX:-}" in \
 	quick) \
-	  if [ -n "$${BENCH_BLOCK:-}$${BENCH_WRITER:-}$${BENCH_DELAY_MS:-}$${BENCH_SHAPE:-}" ]; then \
-	    echo "[error] BENCH_MATRIX=quick takes no BENCH_BLOCK, BENCH_WRITER, BENCH_DELAY_MS or BENCH_SHAPE" >&2; exit 2; \
+	  if [ -n "$${BENCH_BLOCK:-}$${BENCH_WRITER:-}$${BENCH_DELAY_MS:-}$${BENCH_SHAPE:-}$${BENCH_PRODUCERS:-}" ]; then \
+	    echo "[error] BENCH_MATRIX=quick takes no BENCH_BLOCK, BENCH_WRITER, BENCH_DELAY_MS, BENCH_SHAPE or BENCH_PRODUCERS" >&2; exit 2; \
 	  fi; \
 	  cells=quick ;; \
+	capacity) \
+	  if [ -n "$${BENCH_BLOCK:-}$${BENCH_DELAY_MS:-}$${BENCH_SHAPE:-}" ] || [ -z "$${BENCH_WRITER:-}" ] || [ -z "$${BENCH_PRODUCERS:-}" ]; then \
+	    echo "[error] BENCH_MATRIX=capacity needs BENCH_WRITER and BENCH_PRODUCERS and takes no BENCH_BLOCK, BENCH_DELAY_MS or BENCH_SHAPE" >&2; exit 2; \
+	  fi; \
+	  writers=$$(one BENCH_WRITER "$(BENCH_ENGINE_WRITERS)"); \
+	  producers=$$(one BENCH_PRODUCERS "$(BENCH_ENGINE_PRODUCERS)"); \
+	  cells="capacity,$$writers,$$producers" ;; \
 	full) \
 	  if [ "$${BENCH_BLOCK:-}" != A ]; then echo "[error] BENCH_MATRIX=full needs BENCH_BLOCK=A" >&2; exit 2; fi; \
+	  if [ -n "$${BENCH_PRODUCERS:-}" ]; then echo "[error] BENCH_MATRIX=full takes no BENCH_PRODUCERS" >&2; exit 2; fi; \
 	  writers=$$(one BENCH_WRITER "$(BENCH_ENGINE_WRITERS)"); \
 	  delays=$$(one BENCH_DELAY_MS "$(BENCH_ENGINE_DELAYS_MS)"); \
 	  shapes=$$(one BENCH_SHAPE "$(BENCH_ENGINE_SHAPES)"); \
 	  cells=; \
 	  for d in $$delays; do for s in $$shapes; do for w in $$writers; do cells+=" $$w,$$d,$$s"; done; done; done ;; \
-	*) echo "[error] set BENCH_MATRIX=quick, or full with BENCH_BLOCK=A" >&2; exit 2 ;; \
+	*) echo "[error] set BENCH_MATRIX=quick, full with BENCH_BLOCK=A, or capacity" >&2; exit 2 ;; \
 	esac; \
 	root="$(abspath $(TEST_REPORTS_DIR))/bench-engine"; mkdir -p "$$root"; \
 	run=$$(mktemp -d "$$root/$$BENCH_MATRIX-$$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX"); \
@@ -397,15 +407,18 @@ test-bench-engine:
 	  echo "cells $$cells"; echo "git status --porcelain:"; git status --porcelain; } > "$$run/provenance.txt"; \
 	echo "run $$run"; \
 	for c in $$cells; do \
-	  if [ "$$c" = quick ]; then \
-	    name=quick; axes=(BENCH_MATRIX=quick); ceiling=960; limit=15m; \
-	  else \
-	    IFS=, read -r w d s <<< "$$c"; name="A-$$w-$${d}ms-$$s"; ceiling=1140; limit=18m; \
-	    axes=(BENCH_MATRIX=full BENCH_BLOCK=A "BENCH_WRITER=$$w" "BENCH_DELAY_MS=$$d" "BENCH_SHAPE=$$s"); \
-	  fi; \
+	  case "$$c" in \
+	  quick) name=quick; axes=(BENCH_MATRIX=quick); ceiling=(960); limit=15m ;; \
+	  capacity,*) \
+	    IFS=, read -r _ w p <<< "$$c"; name="capacity-$$w-p$$p"; ceiling=(-k 30s 2640); limit=43m; \
+	    axes=(BENCH_MATRIX=capacity "BENCH_WRITER=$$w" "BENCH_PRODUCERS=$$p") ;; \
+	  *) \
+	    IFS=, read -r w d s <<< "$$c"; name="A-$$w-$${d}ms-$$s"; ceiling=(1140); limit=18m; \
+	    axes=(BENCH_MATRIX=full BENCH_BLOCK=A "BENCH_WRITER=$$w" "BENCH_DELAY_MS=$$d" "BENCH_SHAPE=$$s") ;; \
+	  esac; \
 	  pending="$$run/$$name.pending"; \
 	  echo "== $$name $$(date -u +%FT%TZ)"; \
-	  if env "$${axes[@]}" "BENCH_REPORT=$$pending" timeout "$$ceiling" go test -count=1 -tags bench ./tests/bench/engine/ \
+	  if env "$${axes[@]}" "BENCH_REPORT=$$pending" timeout "$${ceiling[@]}" go test -count=1 -tags bench ./tests/bench/engine/ \
 	      -run '^TestBenchHotAccount$$' -timeout "$$limit" -v 2>&1 | tee "$$run/$$name.log" && [ -s "$$pending" ]; then \
 	    mv "$$pending" "$$run/$$name.json"; \
 	  else \

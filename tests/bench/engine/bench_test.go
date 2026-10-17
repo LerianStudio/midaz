@@ -24,11 +24,11 @@ import (
 )
 
 // Stage bounds every cell shares; each phase adds its own abort of window + caller budget + two answer graces.
-const cellSetup, cellClose, cellChecker = time.Minute, 30 * time.Second, 5 * time.Minute
+const cellSetup, cellClose = time.Minute, 30 * time.Second
 
-// TestBenchHotAccount runs the cell BENCH_MATRIX selects and skips without one. An invalid measurement or an unexpected
-// outcome fails it; a rate below the target does not. Final PASS, including cleanup, validates a printed rate, and only
-// then does BENCH_REPORT receive the cell's JSON.
+// TestBenchHotAccount runs the cell BENCH_MATRIX selects, a hot-account cell (quick, full) or a distributed one
+// (capacity), and skips without one. An invalid measurement or an unexpected outcome fails it; a low rate does not.
+// Final PASS, including cleanup, validates a printed rate, and only then does BENCH_REPORT receive the cell's JSON.
 func TestBenchHotAccount(t *testing.T) {
 	c, err := selectCell(os.Getenv)
 	if errors.Is(err, errNoCell) {
@@ -58,7 +58,7 @@ func TestBenchHotAccount(t *testing.T) {
 	defer func() {
 		t.Logf("stages%s; bounds: setup %s where calls take a context (migrations after Up only the process), run abort window+%s+2*%s, close %s, boundary read %s, probe %s/%s, toxiproxy SDK 30s per call, standby wait %s, checker %s",
 			rep.stagesLine(), cellSetup, usualBudget.caller, answerGrace, cellClose, snapshotTimeout, probeOuterTimeout, probeInnerTimeout,
-			replicationWait, cellChecker)
+			replicationWait, c.Checker)
 	}()
 
 	conn, broker, inner := startCell(ctx, t, env, c, warm.now, mark, rep)
@@ -216,7 +216,7 @@ func verifyCell(ctx context.Context, t *testing.T, env *benchEnv, conn *pgx.Conn
 
 	mark("probe+removal")
 
-	check, endCheck := context.WithTimeout(ctx, cellChecker)
+	check, endCheck := context.WithTimeout(ctx, c.Checker)
 	defer endCheck()
 	defer mark("checker") // also when a check fails the test
 

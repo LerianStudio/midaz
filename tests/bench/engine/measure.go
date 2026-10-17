@@ -20,10 +20,11 @@ import (
 // snapshotTimeout bounds each settings or boundary read on the verification connection.
 const snapshotTimeout = 10 * time.Second
 
-// pgSettingNames identify the run's durability, WAL timing and checkpoint configuration.
+// pgSettingNames identify the run's durability, WAL timing, checkpoint, memory and connection configuration.
 var pgSettingNames = []string{
 	"server_version_num", "synchronous_commit", "synchronous_standby_names", "wal_sync_method", "full_page_writes",
 	"wal_buffers", "track_wal_io_timing", "checkpoint_timeout", "checkpoint_completion_target", "max_wal_size",
+	"shared_buffers", "max_connections", "work_mem",
 }
 
 // walStats and checkpointStats are PG17 shared counters with a non-NULL stats_reset identity.

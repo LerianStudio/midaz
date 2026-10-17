@@ -37,59 +37,81 @@ type cell struct {
 	Measured    time.Duration `json:"measuredNS"`
 	WarmupCap   int64         `json:"warmupCap"`
 	MeasuredCap int64         `json:"measuredCap"`
+	Checker     time.Duration `json:"checkerTimeoutNS"`
 	Label       string        `json:"workloadLabel"`
 	mix         mix
 }
 
-// Block A's axes; each writer runs that many batchers.
+// Writers' batcher counts and block A's delay and shape axes.
 var (
 	cellWriters = map[string]int{"owner": 1, "ownerless": 32}
 	cellDelays  = map[string]int{"0": 0, "1": 1, "10": 10}
 	cellShapes  = map[string]mix{"outflow": mixOutflow, "inflow": mixInflow, "mixed": mixMixed}
 )
 
-var errNoCell = errors.New("set BENCH_MATRIX=quick, or full with BENCH_BLOCK=A, BENCH_WRITER, BENCH_DELAY_MS and BENCH_SHAPE")
+// cellProducers are the capacity cells' closed-loop levels.
+var cellProducers = map[string]int{"256": 256, "1024": 1024, "4096": 4096, "8192": 8192}
+
+var errNoCell = errors.New("set BENCH_MATRIX=quick, full with BENCH_BLOCK=A, BENCH_WRITER, BENCH_DELAY_MS and BENCH_SHAPE, " +
+	"or capacity with BENCH_WRITER and BENCH_PRODUCERS")
 
 // quickCell keeps the first timed cell and its workload label: owner, 1 ms, outflow, 20 s measured.
-var quickCell = closedCell("quick", "quick", "owner", "outflow", 1, 20*time.Second)
+var quickCell = closedCell("quick", "quick", "owner", "outflow", mixOutflow, 1, 20*time.Second)
 
-// closedCell fixes what closed cells share: 10k counterparts, 256 producers, batch cap 256, a 60 s warm-up and memory
-// ceilings of 16k attempts/s over each window. Reaching a ceiling invalidates the phase.
-func closedCell(name, label, writer, shape string, delayMS int, measured time.Duration) cell {
+// closedCell holds quick and block A's defaults; capacity overrides the producers, count ceilings and checker budget.
+// Reaching a count ceiling invalidates the phase.
+func closedCell(name, label, writer, shape string, m mix, delayMS int, measured time.Duration) cell {
 	const warmup, capPerSecond = 60 * time.Second, 16_000
 
 	return cell{
 		Name: name, Writer: writer, Workers: cellWriters[writer], Shape: shape, DelayMS: delayMS, Ordinary: 10_000,
 		Producers: 256, MaxBatch: 256, Warmup: warmup, Measured: measured, WarmupCap: capPerSecond * int64(warmup/time.Second),
-		MeasuredCap: capPerSecond * int64(measured/time.Second), Label: label, mix: cellShapes[shape],
+		MeasuredCap: capPerSecond * int64(measured/time.Second), Checker: 5 * time.Minute, Label: label, mix: m,
 	}
 }
 
+// capacityCell is one distributed cell: uniform transfers between two of the 10k, no fee, 1 ms downstream, producers
+// from its level, ceilings of 64k attempts/s over each window and a declared 30 min checker budget.
+func capacityCell(writer, producers string) (cell, error) {
+	n, knownProducers := cellProducers[producers]
+	if _, knownWriter := cellWriters[writer]; !knownWriter || !knownProducers {
+		return cell{}, fmt.Errorf("BENCH_MATRIX=capacity BENCH_WRITER=%q BENCH_PRODUCERS=%q: want owner|ownerless and 256|1024|4096|8192", writer, producers)
+	}
+
+	c := closedCell("capacity-"+writer+"-p"+producers, "capacity/uniform", writer, "uniform", mixUniform, 1, 2*time.Minute)
+	c.Producers, c.WarmupCap, c.MeasuredCap, c.Checker = n, 3_840_000, 7_680_000, 30*time.Minute
+
+	return c, nil
+}
+
 // selectCell reads the cell from getenv and fails closed before any database work: quick takes no axis, full takes
-// block A with each axis from its set. Unset BENCH_MATRIX is errNoCell.
+// block A with each axis but producers, capacity only writer and producers. Unset BENCH_MATRIX is errNoCell.
 func selectCell(getenv func(string) string) (cell, error) {
 	block, writer, delay, shape := getenv("BENCH_BLOCK"), getenv("BENCH_WRITER"), getenv("BENCH_DELAY_MS"), getenv("BENCH_SHAPE")
+	producers := getenv("BENCH_PRODUCERS")
 
 	switch matrix := getenv("BENCH_MATRIX"); {
 	case matrix == "":
 		return cell{}, errNoCell
-	case matrix == "quick" && block+writer+delay+shape == "":
+	case matrix == "quick" && block+writer+delay+shape+producers == "":
 		return quickCell, nil
-	case matrix != "full":
-		return cell{}, fmt.Errorf("BENCH_MATRIX=%q with BENCH_BLOCK/WRITER/DELAY_MS/SHAPE %q/%q/%q/%q: want quick without them, or full",
-			matrix, block, writer, delay, shape)
+	case matrix == "capacity" && block+delay+shape == "":
+		return capacityCell(writer, producers)
+	case matrix != "full" || producers != "":
+		return cell{}, fmt.Errorf("BENCH_MATRIX=%q with BENCH_BLOCK/WRITER/DELAY_MS/SHAPE/PRODUCERS %q/%q/%q/%q/%q: "+
+			"want quick without them, full without PRODUCERS, or capacity with WRITER and PRODUCERS only", matrix, block, writer, delay, shape, producers)
 	}
 
 	_, knownWriter := cellWriters[writer]
 	delayMS, knownDelay := cellDelays[delay]
-	_, knownShape := cellShapes[shape]
+	m, knownShape := cellShapes[shape]
 
 	if block != "A" || !knownWriter || !knownDelay || !knownShape {
 		return cell{}, fmt.Errorf("BENCH_MATRIX=full BENCH_BLOCK=%q BENCH_WRITER=%q BENCH_DELAY_MS=%q BENCH_SHAPE=%q: want A, owner|ownerless, 0|1|10 and outflow|inflow|mixed",
 			block, writer, delay, shape)
 	}
 
-	return closedCell(fmt.Sprintf("A-%s-%sms-%s", writer, delay, shape), "A/"+shape, writer, shape, delayMS, 2*time.Minute), nil
+	return closedCell(fmt.Sprintf("A-%s-%sms-%s", writer, delay, shape), "A/"+shape, writer, shape, m, delayMS, 2*time.Minute), nil
 }
 
 // cellReport is one passed cell: structured counts and series, the existing log lines as opaque text, and what stays
@@ -219,29 +241,22 @@ func reportOnPass(t *testing.T, path string, rep any) {
 	})
 }
 
-// Selection fails closed before any database work: quick takes no axis, full takes block A with each axis from its
-// set. The quick keeps its label; the cells of one shape share theirs, whatever the writer or delay.
+// Quick takes no axis; full takes block A's axes but no producers. Selection fails before database work.
+// The quick keeps its label; cells of one shape share theirs, whatever the writer or delay.
 func TestSelectCell(t *testing.T) {
-	getenv := func(kv ...string) func(string) string {
-		m := map[string]string{}
-		for i := 0; i < len(kv); i += 2 {
-			m[kv[i]] = kv[i+1]
-		}
-
-		return func(k string) string { return m[k] }
-	}
 	full := func(writer, delay, shape string) func(string) string {
-		return getenv("BENCH_MATRIX", "full", "BENCH_BLOCK", "A", "BENCH_WRITER", writer, "BENCH_DELAY_MS", delay, "BENCH_SHAPE", shape)
+		return envOf("BENCH_MATRIX", "full", "BENCH_BLOCK", "A", "BENCH_WRITER", writer, "BENCH_DELAY_MS", delay, "BENCH_SHAPE", shape)
 	}
 
-	_, err := selectCell(getenv())
+	_, err := selectCell(envOf())
 	require.ErrorIs(t, err, errNoCell)
 
-	got, err := selectCell(getenv("BENCH_MATRIX", "quick"))
+	got, err := selectCell(envOf("BENCH_MATRIX", "quick"))
 	require.NoError(t, err)
 	assert.Equal(t, cell{
 		Name: "quick", Writer: "owner", Workers: 1, Shape: "outflow", DelayMS: 1, Ordinary: 10_000, Producers: 256, MaxBatch: 256,
-		Warmup: time.Minute, Measured: 20 * time.Second, WarmupCap: 960_000, MeasuredCap: 320_000, Label: "quick", mix: mixOutflow,
+		Warmup: time.Minute, Measured: 20 * time.Second, WarmupCap: 960_000, MeasuredCap: 320_000, Checker: 5 * time.Minute,
+		Label: "quick", mix: mixOutflow,
 	}, got)
 
 	got, err = selectCell(full("ownerless", "10", "mixed"))
@@ -249,7 +264,7 @@ func TestSelectCell(t *testing.T) {
 	assert.Equal(t, cell{
 		Name: "A-ownerless-10ms-mixed", Writer: "ownerless", Workers: 32, Shape: "mixed", DelayMS: 10, Ordinary: 10_000,
 		Producers: 256, MaxBatch: 256, Warmup: time.Minute, Measured: 2 * time.Minute, WarmupCap: 960_000,
-		MeasuredCap: 1_920_000, Label: "A/mixed", mix: mixMixed,
+		MeasuredCap: 1_920_000, Checker: 5 * time.Minute, Label: "A/mixed", mix: mixMixed,
 	}, got)
 
 	names := map[string]bool{}
@@ -270,11 +285,11 @@ func TestSelectCell(t *testing.T) {
 	assert.Len(t, names, 18, "block A's cells")
 
 	for name, env := range map[string]func(string) string{
-		"quick with an axis":   getenv("BENCH_MATRIX", "quick", "BENCH_WRITER", "owner"),
-		"quick with a block":   getenv("BENCH_MATRIX", "quick", "BENCH_BLOCK", "A"),
-		"unknown matrix":       getenv("BENCH_MATRIX", "Quick"),
-		"full without a block": getenv("BENCH_MATRIX", "full", "BENCH_WRITER", "owner", "BENCH_DELAY_MS", "1", "BENCH_SHAPE", "outflow"),
-		"block B":              getenv("BENCH_MATRIX", "full", "BENCH_BLOCK", "B", "BENCH_WRITER", "owner", "BENCH_DELAY_MS", "1", "BENCH_SHAPE", "outflow"),
+		"quick with an axis":   envOf("BENCH_MATRIX", "quick", "BENCH_WRITER", "owner"),
+		"quick with a block":   envOf("BENCH_MATRIX", "quick", "BENCH_BLOCK", "A"),
+		"unknown matrix":       envOf("BENCH_MATRIX", "Quick"),
+		"full without a block": envOf("BENCH_MATRIX", "full", "BENCH_WRITER", "owner", "BENCH_DELAY_MS", "1", "BENCH_SHAPE", "outflow"),
+		"block B":              envOf("BENCH_MATRIX", "full", "BENCH_BLOCK", "B", "BENCH_WRITER", "owner", "BENCH_DELAY_MS", "1", "BENCH_SHAPE", "outflow"),
 		"writer ownerless32":   full("ownerless32", "1", "outflow"),
 		"writer unset":         full("", "1", "outflow"),
 		"delay 5":              full("owner", "5", "outflow"),
@@ -282,6 +297,63 @@ func TestSelectCell(t *testing.T) {
 		"delay unset":          full("owner", "", "outflow"),
 		"shape with fee":       full("owner", "1", "outflow_fee"),
 		"shape unset":          full("owner", "1", ""),
+		"quick with producers": envOf("BENCH_MATRIX", "quick", "BENCH_PRODUCERS", "256"),
+		"full with producers":  envOf("BENCH_MATRIX", "full", "BENCH_BLOCK", "A", "BENCH_WRITER", "owner", "BENCH_DELAY_MS", "1", "BENCH_SHAPE", "outflow", "BENCH_PRODUCERS", "256"),
+	} {
+		_, err := selectCell(env)
+		require.Error(t, err, name)
+		assert.NotErrorIs(t, err, errNoCell, name)
+	}
+}
+
+// envOf serves kv as getenv does; any other key reads empty.
+func envOf(kv ...string) func(string) string {
+	m := map[string]string{}
+	for i := 0; i < len(kv); i += 2 {
+		m[kv[i]] = kv[i+1]
+	}
+
+	return func(k string) string { return m[k] }
+}
+
+// A capacity cell needs a writer and a producer level and nothing else; every level of either writer shares one label.
+func TestSelectCapacityCell(t *testing.T) {
+	capacity := func(writer, producers string, more ...string) func(string) string {
+		return envOf(append([]string{"BENCH_MATRIX", "capacity", "BENCH_WRITER", writer, "BENCH_PRODUCERS", producers}, more...)...)
+	}
+
+	got, err := selectCell(capacity("ownerless", "1024"))
+	require.NoError(t, err)
+	assert.Equal(t, cell{
+		Name: "capacity-ownerless-p1024", Writer: "ownerless", Workers: 32, Shape: "uniform", DelayMS: 1, Ordinary: 10_000,
+		Producers: 1024, MaxBatch: 256, Warmup: time.Minute, Measured: 2 * time.Minute, WarmupCap: 3_840_000,
+		MeasuredCap: 7_680_000, Checker: 30 * time.Minute, Label: "capacity/uniform", mix: mixUniform,
+	}, got)
+
+	names := map[string]bool{}
+
+	for _, writer := range []string{"owner", "ownerless"} {
+		for producers, n := range map[string]int{"256": 256, "1024": 1024, "4096": 4096, "8192": 8192} {
+			c, err := selectCell(capacity(writer, producers))
+			require.NoError(t, err)
+
+			names[c.Name] = true
+
+			assert.Equal(t, []any{"capacity/uniform", mixUniform, n, 30 * time.Minute}, []any{c.Label, c.mix, c.Producers, c.Checker}, c.Name)
+		}
+	}
+
+	assert.Len(t, names, 8, "capacity cells")
+
+	for name, env := range map[string]func(string) string{
+		"producers unset":    capacity("owner", ""),
+		"producers 512":      capacity("owner", "512"),
+		"producers 0256":     capacity("owner", "0256"),
+		"writer unset":       capacity("", "256"),
+		"writer ownerless32": capacity("ownerless32", "256"),
+		"with a block":       capacity("owner", "256", "BENCH_BLOCK", "A"),
+		"with a delay":       capacity("owner", "256", "BENCH_DELAY_MS", "1"),
+		"with a shape":       capacity("owner", "256", "BENCH_SHAPE", "uniform"),
 	} {
 		_, err := selectCell(env)
 		require.Error(t, err, name)
