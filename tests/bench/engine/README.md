@@ -522,6 +522,32 @@ retries. Tracked source hashes matched before/after; teardown was CLEAN with sta
 The client process had an 8 GiB memory limit and no swap, with a reported 211.6 MiB peak. These checks prove the
 owner/fence/reload ordering above, not PostgreSQL failover, reload latency or throughput.
 
+## Lost COMMIT reply (Task 1.3.1, variant A)
+
+`TestOwnerlessLostCommitAck` and `TestOwnerLostCommitAck` (`failover_test.go`) share one fault setup. Only the writer's
+session crosses `pg-client`, under `remote_apply`; fixtures, locks, polls and the checker stay on direct connections.
+The test holds `outbox_events` in SHARE mode until the financial pass waits on it, pauses standby replay, releases the
+lock and observes the COMMIT in SyncRep. It then adds one downstream `timeout=0` toxic, `pg-client-drop`, to the
+verified `pg-client` and resumes replay. The backend turns idle and the standby holds the transaction while the pass's
+own context is still live. A test QueryTracer captures that context on the pass's finalize statement; BEGIN, every
+pass statement and pgx's COMMIT run under it. So the reply was lost, and no deadline of the pass ended the wait. The
+writer answers unknown at its 10 s batch budget, Close wraps `context.DeadlineExceeded`, and pgx's close reaches the
+server through the dropping proxy. Only then is the named toxic removed.
+
+- Ownerless: the same writer redials through the healed proxy; a retry of the identity past its cutoff replays
+  `approved` with its transaction, in one pass.
+- Owner: the lost owner answers a later batch with the first cause and opens no connection. After its lease expires on
+  the database clock, a successor through the healed proxy acquires, reloads, replays the retry and approves a new
+  transfer on the versions the lost COMMIT left.
+
+The full checker reconciles every captured answer with its stored identity, the postings and the baseline; nothing
+reaches the broker. Cleanup removes only `pg-client-drop`, after checking the proxy's identity and that it carried no
+toxic. Any other toxic fails the test and stays.
+
+The canonical plan records development, review and repetition evidence for Task 1.3.1. Its remaining variants stay
+open. This test uses `remote_apply` and the fixture's zero server statement/transaction timeouts; it does not validate
+arbitrary server timeout settings or the guarded `on` durability mode under standby loss.
+
 ## Replication latency and SQL round trip
 
 Status: accepted preparation (M3A); the quick cell below uses it.
