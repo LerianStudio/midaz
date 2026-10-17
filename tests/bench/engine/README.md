@@ -601,6 +601,51 @@ with unchanged source and CLEAN teardown. The canonical plan records evidence an
 network cut, not a standby process stop, half-open link or promotion. It does not cover `remote_write`, quorum `ANY`
 or non-zero server timeouts. Task 1.3.1 remains open for promotion and the negative durability control.
 
+## Promotion topology (Task 1.3.1, variant B)
+
+```bash
+BENCH_FAILOVER_PROJECT=midaz-bench-failover go test -count=1 -p 1 -race -tags bench \
+  ./tests/bench/engine/ -run '^TestPromotionTopology$' -timeout 12m -v
+```
+
+Run it only inside a bounded transient user service: `systemd-run --user` with `KillMode=control-group`,
+`RuntimeMaxSec=900`, `MemoryMax=8G`, `MemorySwapMax=0`, `CPUAffinity=0-3`, `GOMAXPROCS=4` and `GOMEMLIMIT=4GiB`, under
+an external timeout of 780 s plus 30 s kill grace. Cancelling the test bounds only the Docker CLI and its pipes; the
+unit's control-group kill and deadline bound a Compose plugin that outlives it, and the daemon may still finish work it
+already accepted.
+
+`TestPromotionTopology` (`promotion_test.go`, Docker helpers in `compose_test.go`) runs up, bind, seed, check and down
+on a Compose project of its own, `midaz-bench-failover`: `docker-compose.yml` plus `docker-compose.failover.yml`,
+containers `bench-failover-*`, loopback ports 25432 (primary), 25434 (client proxy), 25435 (standby) and 28474
+(toxiproxy API), 8 GiB without swap per PostgreSQL and 256 MiB for toxiproxy. PostgreSQL settings and `standby1` come
+unchanged from the base file. It never touches `midaz-bench-engine` or its 1M fixture. Unset, the opt-in skips; any
+other value fails before Docker or SQL.
+
+Before any mutation it refuses, as an unexpected environment, the `COMPOSE_PROJECT_NAME`, `COMPOSE_FILE`,
+`COMPOSE_PROFILES`, `DOCKER_HOST` and `DOCKER_CONTEXT` variables; then any resource with the owned label or names, an
+owned port that answers and an invalid config. It starts only the three services (`--pull never`, 120 s wait) on
+Docker's default context, logs each container's ID, image, PID, start, labels, ports, network and cgroup, and ties each
+DSN to its container by the server IP Docker reports. Only then does it point the bench DSNs there. The gate's existing
+peer check requires one PostgreSQL system identifier on all three endpoints before any DDL; the test then rebuilds and
+seeds, copies the baseline into `public` in one synchronous transaction, approves one transfer and checks it on a fresh
+connection, with zero publishes.
+
+A failure keeps and logs every owned resource; the next run refuses to start while any of it is left, and an operator
+decides its removal after reading that evidence. A pass re-reads the same IDs, starts, health, caps, zero OOM and swap
+counters and the exact resource set, then runs `down -v` once and requires nothing owned left.
+
+**First live run accepted, 2026-10-17:** one race-enabled run passed on the exact source now committed as
+`421c82bcce47f52f7423e8e3d4825f88f2835a2f`. Test 10.49 s, package 11.528 s, whole service 23.602 s. Up took 6.017 s,
+binding 296 ms, gate setup 500 ms, transfer 25.7 ms, fresh-session checker 25.6 ms and removal 3.026 s. These are
+single-run phase timings, not latency or capacity measurements. The shared primary's 14-table digest was identical
+before and after, including 1,000,004 balances and 1,000,003 controls; container IDs/PIDs/caps and the retained dump
+were unchanged. No owned resources or listeners remained. Client cgroup peak was 602,976,256 B; owned primary,
+standby and proxy peaks were 230,957,056 B, 201,379,840 B and 29,569,024 B, with zero swap and OOM events. Evidence:
+`/tmp/balance-engine-phase1.A5lpaQ/promotion-s1-live.20261017T162859Z.2472227/`.
+
+Static opt-in guards passed before the run. Retention on failure, kill, promotion, replacement and the negative
+durability control remain untested. No HTTP or product-kernel claim follows from this topology proof.
+
 ## Owner 1M reload (Task 1.3.3)
 
 `TestTakeoverReload` is opt-in with `BENCH_BALANCES=1000000`; unset skips and other values fail before DB access.
