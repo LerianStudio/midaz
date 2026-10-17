@@ -25,14 +25,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Opt-in negative control on the owned topology. Approval D commits through standby1 under synchronous_commit=on; with
-// replication cut, probe P then commits under local on the primary alone. The primary is killed and the standby promoted:
-// a fresh session there finds the durable baseline and D in full, and exactly P lost.
-func TestOwnerlessAsyncLossDetected(t *testing.T) {
+func TestOwnerlessAsyncLossDetected(t *testing.T) { asyncLoss(t, false) }
+
+// Owner D closes and its lease expires on the database clock before owner P takes over past the cut.
+func TestOwnerAsyncLossDetected(t *testing.T) { asyncLoss(t, true) }
+
+// Opt-in negative control on the owned topology. D's writer commits D through standby1 under synchronous_commit=on and
+// closes; with replication cut, P's writer starts and commits P under local on the primary alone. The primary is killed
+// and the standby promoted: a fresh session there finds the durable baseline and D in full, and exactly P lost.
+func asyncLoss(t *testing.T, owner bool) {
+	t.Helper()
+
 	o := upOwnedTopology(t)
 
-	setupAt := time.Now()
-	g := newGate(t, false)
+	g := newGate(t, owner)
 	balances, controls := assertSeeded(g.ctx, t, g.conn, 4)
 
 	durable, dg := *g.env, *g
@@ -48,23 +54,22 @@ func TestOwnerlessAsyncLossDetected(t *testing.T) {
 
 	durableReq := batchReq(t, "promotion/durable", "promotion/durable", g.clock.now(), ordinaryOf(0)(-5), ordinaryOf(1)(5))
 	require.Equal(t, []string{"approved+tx"}, summarize(t, []request{durableReq}, submitEach(g.ctx, t, d, []request{durableReq}).wait(t)))
+	require.NoError(t, d.Close(g.ctx), "close the durable writer")
+	awaitPrimary(g.ctx, t, g.conn, "no live lease before P's writer", fenceExpired, benchTenantID)
 
 	local := *g.env
 	local.primary = g.env.primary.Copy()
 	local.primary.RuntimeParams["synchronous_commit"] = "local"
 	local.primary.AfterConnect = requireCommitSetting(t, "local")
-	p := captureCalls(newTestOwnerless(g.ctx, t, &local, g.b, "bench-async-loss", 1, gateMaxBatch), 1)
 
 	// No restore is registered: a pass ends with this primary killed, and a failure keeps the cut as evidence.
-	cutAt := time.Now()
-
 	require.NoError(t, quietProxy(t, g.env, replProxyName, ":5433").Disable(), "disable %s through the toxiproxy API", replProxyName)
 	awaitPrimary(g.ctx, t, g.conn, "the standby's WAL sender is gone", noWalSender)
 
 	var cut, inserted, received string
 	require.NoError(t, g.conn.QueryRow(g.ctx, `SELECT pg_current_wal_insert_lsn()::text`).Scan(&cut))
 
-	probeAt := time.Now()
+	p, _ := g.startOn(t, &local, "bench-async-loss", 1, gateMaxBatch, 1)
 	probe := batchReq(t, "promotion/async-loss", "promotion/async-loss", g.clock.now(), ordinaryOf(1)(-5), ordinaryOf(2)(5))
 	// P overlaps balance 1, so the promoted row must show D's after-state, never P's.
 	require.Equal(t, []string{"approved+tx"}, summarize(t, []request{probe}, submitEach(g.ctx, t, p, []request{probe}).wait(t)))
@@ -87,7 +92,7 @@ func TestOwnerlessAsyncLossDetected(t *testing.T) {
 	require.True(t, behind, "the standby received WAL past the cut")
 	require.False(t, held, "the cut standby holds the probe")
 
-	require.NoError(t, errors.Join(d.Close(g.ctx), p.Close(g.ctx)), "close both writers")
+	require.NoError(t, p.Close(g.ctx), "close the probe writer")
 
 	killAt := time.Now()
 
@@ -104,8 +109,7 @@ func TestOwnerlessAsyncLossDetected(t *testing.T) {
 	assert.Equal(t, []string{probe.id.String()}, lostApprovals(g.ctx, t, promoted, slices.Concat(d.calls, p.calls)), "lost approvals")
 	assert.Equal(t, map[string]int{string(outcomeApproved): 1}, verifyLedger(g.ctx, t, promoted, d.calls))
 	assert.Zero(t, g.broker.publishes.Load(), "obligations stay in the outbox")
-	t.Logf("setup+durable=%s cut+position=%s probe+evidence+close=%s kill=%s promote=%s checks=%s", cutAt.Sub(setupAt), probeAt.Sub(cutAt),
-		killAt.Sub(probeAt), promoteAt.Sub(killAt), checkAt.Sub(promoteAt), time.Since(checkAt))
+	t.Logf("kill=%s promote=%s checks=%s", promoteAt.Sub(killAt), checkAt.Sub(promoteAt), time.Since(checkAt))
 }
 
 // ownedTopology is the bound record of one owned project: its directory and its three inspected containers.

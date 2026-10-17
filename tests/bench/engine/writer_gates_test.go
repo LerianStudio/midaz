@@ -348,19 +348,26 @@ func (g *gate) exec(t *testing.T, query string, id uuid.UUID) {
 	require.NoError(t, err)
 }
 
-// start snapshots the baseline, then starts under capture of n calls workers ownerless sessions named app-<i>, or one
-// owner on a session named app-0, which acquires and reloads the fixtures first.
+// start snapshots the baseline, then starts on the gate's environment.
 func (g *gate) start(t *testing.T, app string, workers, maxBatch, n int) (*captureWriter, *ownerlessWriter) {
 	t.Helper()
 	snapshotBaseline(g.ctx, t, g.conn)
 
+	return g.startOn(t, g.env, app, workers, maxBatch, n)
+}
+
+// startOn starts on env, without a new baseline, under capture of n calls workers ownerless sessions named app-<i>, or
+// one owner on a session named app-0, which acquires and reloads the fixtures first.
+func (g *gate) startOn(t *testing.T, env *benchEnv, app string, workers, maxBatch, n int) (*captureWriter, *ownerlessWriter) {
+	t.Helper()
+
 	if !g.owner {
-		inner := newTestOwnerless(g.ctx, t, g.env, g.b, app, workers, maxBatch)
+		inner := newTestOwnerless(g.ctx, t, env, g.b, app, workers, maxBatch)
 
 		return captureCalls(inner, n), inner
 	}
 
-	inner, err := startOwner(g.ctx, t, namedBatcher(t, g.b, g.env, app+"-0", nil), app, maxBatch).wait(t)
+	inner, err := startOwner(g.ctx, t, namedBatcher(t, g.b, env, app+"-0", nil), app, maxBatch).wait(t)
 	require.NoError(t, err)
 
 	return captureCalls(inner, n), inner
