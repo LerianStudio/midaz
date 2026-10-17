@@ -314,21 +314,7 @@ func loseStandby(t *testing.T, owner bool) (*gate, *captureWriter, *ownerlessWri
 
 	checked, synced := *g.env, *g
 	checked.primary = g.env.primary.Copy()
-	checked.primary.AfterConnect = func(ctx context.Context, c *pgconn.PgConn) error {
-		res, err := c.Exec(ctx, `SHOW synchronous_commit`).ReadAll()
-		if err != nil {
-			return err
-		}
-
-		setting := string(res[0].Rows[0][0])
-		t.Logf("writer session %s pid %d: synchronous_commit=%s", c.ParameterStatus("application_name"), c.PID(), setting)
-
-		if setting != "on" {
-			return fmt.Errorf("writer session synchronous_commit %q, want on", setting)
-		}
-
-		return nil
-	}
+	checked.primary.AfterConnect = requireCommitSetting(t, "on")
 	synced.env = &checked
 
 	w, inner := synced.start(t, standbyLossApp, 1, gateMaxBatch, 3)

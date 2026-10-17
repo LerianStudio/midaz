@@ -163,6 +163,31 @@ func verifyLedger(ctx context.Context, t *testing.T, conn *pgx.Conn, calls []cal
 	return tally
 }
 
+// lostApprovals returns, sorted, the request IDs of captured approvals, new or replayed, for which conn holds no approved
+// identity of the bench tenant with the answered transaction and that transaction's row.
+func lostApprovals(ctx context.Context, t *testing.T, conn *pgx.Conn, calls []call) []string {
+	t.Helper()
+
+	tx, err := conn.Begin(ctx)
+	require.NoError(t, err)
+
+	defer func() { assert.NoError(t, tx.Rollback(ctx), "rollback drops the capture tables") }()
+
+	copyCalls(ctx, t, tx, calls)
+
+	rows, err := tx.Query(ctx, `SELECT a.request_id::text FROM cap_answer a
+		WHERE CASE a.outcome WHEN 'replay' THEN a.original ELSE a.outcome END = 'approved' AND NOT EXISTS
+			(SELECT FROM engine_request r JOIN "transaction" x ON x.id = r.transaction_id WHERE r.tenant_id = $1
+				AND r.request_id = a.request_id AND r.outcome = 'approved' AND r.transaction_id = a.answered_tx)
+		ORDER BY 1`, benchTenantID)
+	require.NoError(t, err)
+
+	lost, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	require.NoError(t, err)
+
+	return lost
+}
+
 // copyCalls loads every answer, and each distinct payload's postings once, into temporary tables of tx.
 func copyCalls(ctx context.Context, t *testing.T, tx pgx.Tx, calls []call) {
 	t.Helper()

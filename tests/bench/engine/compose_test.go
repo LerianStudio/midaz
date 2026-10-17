@@ -111,6 +111,7 @@ type dockerContainer struct {
 		Status    string
 		OOMKilled bool
 		Pid       int
+		ExitCode  int
 		StartedAt string
 		Health    *struct{ Status string }
 	}
@@ -138,9 +139,10 @@ func inspectContainer(ctx context.Context, ref string) (dockerContainer, error) 
 	return got[0], nil
 }
 
-// bound checks c is svc's container in the owned project: running, healthy, never restarted or OOM-killed, without restart
-// policy, capped at svc.memory without swap, published only on its loopback ports and attached only to the owned network.
-func (c dockerContainer) bound(svc ownedService) error {
+// bound checks c is svc's container in the owned project: running, healthy when required, never restarted or OOM-killed,
+// without restart policy, capped at svc.memory without swap, published only on its loopback ports and attached only to
+// the owned network. The standby's healthcheck encodes its standby role, which a cut or a promotion ends.
+func (c dockerContainer) bound(svc ownedService, healthy bool) error {
 	var errs []error
 
 	check := func(ok bool, format string, args ...any) {
@@ -152,7 +154,7 @@ func (c dockerContainer) bound(svc ownedService) error {
 	check(c.Name == "/"+svc.container && c.Config.Labels["com.docker.compose.project"] == failoverProject &&
 		c.Config.Labels["com.docker.compose.service"] == svc.service, "name %q labels %v", c.Name, c.Config.Labels)
 	check(c.State.Status == "running" && !c.State.OOMKilled && c.RestartCount == 0 &&
-		c.State.Health != nil && c.State.Health.Status == "healthy", "state %+v restarts %d", c.State, c.RestartCount)
+		(!healthy || c.State.Health != nil && c.State.Health.Status == "healthy"), "state %+v restarts %d", c.State, c.RestartCount)
 	check(slices.Contains([]string{"", "no"}, c.HostConfig.RestartPolicy.Name) && c.HostConfig.Memory == svc.memory &&
 		c.HostConfig.MemorySwap == svc.memory, "host config %+v, want memory and swap %d", c.HostConfig, svc.memory)
 	check(len(c.NetworkSettings.Ports) == len(svc.ports), "ports %+v", c.NetworkSettings.Ports)
