@@ -200,6 +200,30 @@ Limits: a row visible on the primary is a local commit, never a replicated one. 
 leave standby replay paused: `remote_apply` commits then wait and standby reads go stale, while ordinary
 `synchronous_commit=on` commits still succeed. Resume with `SELECT pg_wal_replay_resume()` on the bench standby only.
 
+## Managed-pool COMMIT
+
+`managed_commit_test.go` proves the library seam a later ledger commit path needs; it adds no product code and leaves
+the SQL session and writers unchanged. One handler is given to the real ST pool (`NewWithNotice`) and the real MT
+tenant pool (`WithOnNotice`, loopback tenant service). Each COMMIT uses a pinned `*sql.Conn` from the primary pool, unwraps
+otelsql inside `Conn.Raw` to the exact pgx connection and stores a fresh notice slot in its `CustomData`; the
+handler fills only that slot. The transaction runs `SET LOCAL client_min_messages = warning`, because `PGOPTIONS`
+hiding warnings reaches every managed dial, and writes a control row plus a lib-commons outbox row in the same
+`*sql.Tx`. A deadline and a cancelled SyncRep wait report unknown; a sibling COMMIT in flight, the reused connection
+and the replacement of the timed-out one commit clean. The test rebuilds the schema:
+
+```bash
+env BENCH_PG_PRIMARY_DSN=... BENCH_PG_CLIENT_PROXY_DSN=... BENCH_PG_STANDBY_DSN=... BENCH_TOXIPROXY_URL=... \
+  timeout 360 go test -count=1 -race -tags bench ./tests/bench/engine/ -run '^TestManagedPoolCommit$' -timeout 5m -v
+```
+
+Limits: a clean commit on the replacement connection does not by itself show its handler; the lib-commons reconnect
+tests do. The MT pool uses one tenant without a schema; the outbox write uses the fixture's empty-tenant resolver,
+not product MT outbox routing. Termination by the server, `transaction_timeout` and standby loss are not exercised.
+The immutable library pins expose the notice API only on their branches; only a bench-tagged build checks this caller.
+On 2026-10-17 the proof passed with race for ST and MT, then within the non-volume suite, with CLEAN teardown.
+Contrarian overlays detected shared slots, hidden warnings, ignored notices and missing driver unwrapping. Starting A
+before sibling B also detects a pool-wide last-writer slot without adding a second scenario. This is not a performance result.
+
 ## Direct financial batch
 
 `batch.go` and `batch_sql.go` run one batch on one SQL session. Each pass claims request identities, touches stored
