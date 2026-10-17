@@ -25,10 +25,10 @@
 
 | Lane | State | Next unit | Exit check |
 |---|---|---|---|
-| Phase 1 measurement | SQL stage attribution committed at `374b8f021`; final 14 offline race tests, vet and explicit-tests lint passed | Preserve interrupted-cell evidence, then a bounded stack smoke before a discriminating experiment | Unchanged financial protocol, full checker, declared window and resource bounds; no new rate measured |
-| Phase 1 failure proofs | Initial preparation reviewed; deterministic stale-owner sequencing under read-only rescreen | Smallest missing 20-round fault unit, followed by failure/reload/transport/soak queue | Recorded identities and durable results; no skipped proof reported as passed |
+| Phase 1 measurement | Attribution at `374b8f021` passed offline checks and two instrumented stack smokes at `0c27027ca`; 1/32 sessions, 4,240/12,034 checked approvals | Discriminating attribution experiment after the reserved fault unit | Smokes are not capacity; tracer cost remains unmeasured; interrupted cell archived before resets |
+| Phase 1 failure proofs | Deterministic stale-owner sequencing screened; Task 1.3.2 ready for implementation | Stale fence-before-claim plus existing in-flight-lock test with real successor reload; 20 rounds reserved after acceptance | Recorded identities and durable results; no skipped proof reported as passed |
 | Phase 2 kernel and early Phase 3 lifecycle | Product integration not implemented; control ownership settled; library prerequisites in progress | Preserve PostgreSQL notices through shared ST/MT pools, then atomic persistence and complete lifecycle | Real HTTP behavior, concurrency/restart checks and one financial authority |
-| Independent review and evidence | Attribution and connector reviews complete, no Critical/High; final lint verification pending | Close mechanical test findings and record raw outcomes before commits | Do not treat a shell success marker as a passing tool exit |
+| Independent review and evidence | Attribution and connector accepted, committed and pushed; no Critical/High | Review the next fault and ST/MT library increments independently | Existing test-lint debt is separate; actual exits and dependency proofs govern acceptance |
 
 **Scheduling:** one writer, one runtime lock. Phase 1 attribution receives the first write slot. API contract analysis runs alongside it. Alternate ready proof and product increments; Phase 2 cannot occupy all slots until its lifecycle finishes. Compile/test commands wait while their source files change. The existing runtime runner serializes all stack use. A blocked capacity run does not block safe fault preparation or product work.
 
@@ -42,7 +42,7 @@
 
 This section records the approved advance; the detailed phase entries below retain their status and evidence. Design/plan reviews are complete and their prerequisites appear above. Global removal of Lua and old writers remains Phase 5, after full coverage and an approved cutover. No PR or client migration is authorized.
 
-**Library prerequisite:** ordinary ST/MT pools did not expose `OnNotice`, and the existing telemetry setup reopened a configured connector by DSN, losing its callback. The additive `sqlobs.SetupConnector` path now preserves the connector in offline tests, including a real pgx driver with a local protocol responder. Full library unit tests with race passed. Final lint cleanup remains in progress. No real PostgreSQL replication test has run for this library change. The following `lib-commons` increment will forward the optional primary notice handler through ST and both MT construction/reconnect paths, preserving per-connection DSN reparse, TLS, telemetry and cleanup. That increment is not implemented yet; product COMMIT classification and recovery remain later proofs.
+**Library prerequisite:** ordinary ST/MT pools did not expose `OnNotice`, and the existing telemetry setup reopened a configured connector by DSN, losing its callback. The additive `sqlobs.SetupConnector` path now preserves the connector in offline tests, including a real pgx driver with a local protocol responder. Full library unit tests with race passed. The accepted library commit `1c4e0345579674e990f3cfdc0db5e81b042245be` is pushed; repo-config lint and new-diff test lint passed. Twenty wider test-lint findings match the immutable existing baseline and remain outside this change. No real PostgreSQL replication test has run for this library change. The `lib-commons` increment is now implementing optional primary notice forwarding through ST and both MT construction/reconnect paths, preserving per-connection DSN reparse, TLS, telemetry and cleanup. It is not accepted yet; product COMMIT classification and recovery remain later proofs.
 
 ## Phase Overview
 
@@ -611,14 +611,19 @@ Controle negativo, uma rodada por escritor: desligar espera síncrona e bloquear
 
 **Context:** dono pausado antes do BEGIN e dono que já mantém lock SQL são situações diferentes.
 
-**Implementation vision:** `TestStaleOwnerFenced` pausa A em `beforeBegin`, sem decisões nem locks; suspende sua renovação e espera expiração observada pelo banco. B adquire apenas após expiry, recebe novo epoch, recarrega e grava 1.000 transações. Ao liberar A, seu UPDATE condicionado por owner/epoch/lease afeta zero linhas antes de claims ou decisões. Nenhuma linha financeira do lote antigo aparece.
+**Implementation vision:** `TestStaleOwnerFenced` suspende a renovação de A enquanto observa seu passe de aquecimento dentro de SQL. O passe termina e aprova; A fica ocioso na fronteira entre lotes. Após expiry observado pelo banco, B adquire novo epoch, recarrega e aprova 1.000 transferências. Só então A recebe o lote stale, com o claim dessa identidade retido pelo teste. O UPDATE de renovação deve afetar zero linhas antes do INSERT de claim, retornando a causa de fence recusada, não timeout. O checker reconcilia 1.001 aprovações e um unknown, sem persistência financeira do lote stale.
 
-`TestOwnerLockSerialization` pausa A depois de adquirir a fence dentro de SQL. Iniciar takeover de B concorrentemente; ele espera o lock, não se exige avanço de B antes de liberar A. Após término de A e lease expirado, B pode assumir e deve carregar o estado resultante. O teste não espera que revogação externa invalide retroativamente uma transação que já detém o lock. Vinte rodadas internas por teste, com reset e waits limitados.
+Essa ordem substitui a pausa em `beforeBegin`: colocar aquisição, reload e 1.000 operações de B dentro do orçamento de 10 s de A era uma premissa não medida. Não aumenta o budget nem reduz as 1.000 operações. O teste prova fence antes do claim, não uma pausa dentro de um lote já retirado da fila atravessando takeover.
+
+Estender `TestOwnerWriterLease`, que já observa o takeover esperando somente o lock de fence do passe em voo. Trocar o adquirente isolado por um sucessor real com application_name distinto. Após o COMMIT de A, B adquire e aprova sobre um saldo que A alterou, provando reload após aquisição. Isso realiza a intenção de `TestOwnerLockSerialization` sem duplicar o teste. Uma transação que já detém o lock não perde validade retroativamente.
+
+Executar vinte rodadas via `-count=20 -failfast`, com reset e waits existentes limitados; sem loop interno ou retry automático. A suíte normal roda uma vez. Os correctness gates da Epic 1.2 já concluídos permitem esta unidade enquanto a medição 1.2.4 continua aberta.
 
 **Files:**
-- Modify: `tests/bench/engine/failover_test.go`
+- Create: `tests/bench/engine/failover_test.go`, pois a Task 1.3.1 ainda não criou esse arquivo
+- Modify: `tests/bench/engine/writer_owner_test.go`, `tests/bench/engine/README.md`
 
-**Verification:** `go test -count=1 -tags bench ./tests/bench/engine/ -run 'TestStaleOwnerFenced|TestOwnerLockSerialization' -timeout 20m -v`.
+**Verification:** `go test -count=20 -race -failfast -tags bench ./tests/bench/engine/ -run '^(TestStaleOwnerFenced|TestOwnerWriterLease)$' -timeout 20m -v`. A rodada canônica usa o mesmo comando sem `-race`, no commit aceito. Timeout externo de 1.260 s. Nenhuma rodada desta nova unidade executada ainda.
 
 **Done when:** takeover prematuro e renovação de lease expirado são recusados; concorrência com lock em voo termina sem deadlock do próprio teste.
 

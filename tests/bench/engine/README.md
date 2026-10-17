@@ -724,8 +724,15 @@ counts are not an exact request cohort. The tracer takes a shared lock twice and
 statement's wait for that lock at its end adds to its duration. That cost is unmeasured: an instrumented cell's rate
 and percentiles are not comparable with an uninstrumented one's. `other` always holds the library's `SET LOCAL
 search_path` work, so its volume signals nothing; an expected stage with no count (begin, commit, outbox insert) is the
-label-mismatch signal, and `sessions` below the cell's writer count is the untraced-session signal. Offline tests prove
-the classification but not that a tracer reaches the dialed connection; no run against the stack has exercised it yet.
+label-mismatch signal, and `sessions` below the cell's writer count is the untraced-session signal.
+
+On 2026-10-17, two instrumented stack smokes on `0c27027ca` passed with the full checker: owner observed 1 session and
+4,240 approvals, ownerless observed 32 sessions and 12,034 approvals. Both used a scratch overlay for 1 s warm-up,
+2 s measured, caps 64,000/128,000 and a 5 min checker; workload, accounting and durability were unchanged. Begin,
+commit and outbox stages were present; no stage errors or crossing queries occurred. These are instrumentation
+checks, not capacity results or a measured tracer cost. A separate untraced `TestSQLSessionCommit` passed timeout and
+SyncRep-warning unknown cases. A traced warning COMMIT remains untested. The interrupted capacity cell was archived
+before the authorized schema resets; its verified dump remains beside the original campaign reports.
 
 ### First canonical pair
 
