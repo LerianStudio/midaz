@@ -65,13 +65,6 @@ func BuildOperationRecordsFromMovements(payload TransactionCompletionPlan, resul
 		before, after, amount := movement.Before, movement.After, movement.Amount
 
 		if lifecycle, grouped := lifecycles[key]; grouped {
-			switch context.CompatibilityPath {
-			case OperationRecordValidatedCancelRelease:
-				before, after, amount = projectValidatedCancelRelease(context, lifecycle.Before)
-			case OperationRecordValidatedCancelCredit:
-				before, after, amount = projectValidatedCancelCredit(context, lifecycle.Before)
-			}
-
 			before.OverdraftUsed, after.OverdraftUsed = lifecycle.Before.OverdraftUsed, lifecycle.After.OverdraftUsed
 		}
 
@@ -145,23 +138,6 @@ func projectedOptionalText(value string) *string {
 	}
 
 	return &value
-}
-
-func projectValidatedCancelRelease(context OperationRecordSpec, before accounting.BalanceState) (accounting.BalanceState, accounting.BalanceState, decimal.Decimal) {
-	after := before
-	after.OnHold = before.OnHold.Sub(context.RequestedAmount)
-	after.Version++
-
-	return before, after, context.RequestedAmount
-}
-
-func projectValidatedCancelCredit(context OperationRecordSpec, initial accounting.BalanceState) (accounting.BalanceState, accounting.BalanceState, decimal.Decimal) {
-	_, before, amount := projectValidatedCancelRelease(context, initial)
-	after := before
-	after.Available = before.Available.Add(amount)
-	after.Version++
-
-	return before, after, amount
 }
 
 func operationOrigin(context OperationRecordSpec) string {
