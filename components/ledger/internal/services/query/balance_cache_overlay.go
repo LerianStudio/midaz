@@ -7,7 +7,6 @@ package query
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	libObservability "github.com/LerianStudio/lib-observability/v4"
 	"github.com/google/uuid"
@@ -22,8 +21,7 @@ import (
 
 // applyBalanceState makes PostgreSQL-sourced balances carry the state posting would
 // use: the cached balance when its key exists, else the row rebuilt from its operation
-// trail. A cache or trail that cannot be read fails the read (0542), never the row;
-// a typed 503 from the rebuild (0513) passes through.
+// trail. A cache or trail that cannot be read fails the read (0542), never the row.
 func (uc *UseCase) applyBalanceState(ctx context.Context, span trace.Span, organizationID, ledgerID uuid.UUID, balances []*mmodel.Balance) error {
 	logger := libObservability.NewLoggerFromContext(ctx)
 
@@ -59,14 +57,11 @@ func (uc *UseCase) applyBalanceState(ctx context.Context, span trace.Span, organ
 		applyBalanceCacheOverlay(b, &cached)
 	}
 
-	err = uc.rebuildStaleBalanceSeeds(ctx, span, organizationID, ledgerID, missing)
-
-	var typed pkg.ServiceUnavailableError
-	if err != nil && !errors.As(err, &typed) {
+	if err := uc.rebuildStaleBalanceSeeds(ctx, span, organizationID, ledgerID, missing); err != nil {
 		return pkg.ValidateBusinessError(constant.ErrBalanceStateUnavailable, constant.EntityBalance)
 	}
 
-	return err
+	return nil
 }
 
 // applyBalanceCacheOverlay overlays the Redis cache state onto a

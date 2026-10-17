@@ -155,41 +155,4 @@ func TestGetAllBalancesByAccountID(t *testing.T) {
 		assert.Contains(t, err.Error(), "database error")
 	})
 
-	t.Run("RedisErrorFailsTheRead", func(t *testing.T) {
-		t.Parallel()
-		ctrl := gomock.NewController(t)
-		t.Cleanup(ctrl.Finish)
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		item := &mmodel.Balance{
-			Alias:     "@user",
-			Key:       "k3",
-			Available: decimal.NewFromInt(7),
-			OnHold:    decimal.NewFromInt(3),
-			Version:   5,
-		}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListAllByAccountID(gomock.Any(), organizationID, ledgerID, accountID, filter.ToCursorPagination()).
-			Return([]*mmodel.Balance{item}, mockCur, nil).
-			Times(1)
-
-		expectedKey := utils.BalanceInternalKey(organizationID, ledgerID, item.Alias+"#"+item.Key)
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), gomock.Eq([]string{expectedKey})).
-			Return(nil, errors.New("redis error")).
-			Times(1)
-
-		uc := UseCase{BalanceRepo: mockBalanceRepo, TransactionRedisRepo: mockRedisRepo}
-		res, cur, err := uc.GetAllBalancesByAccountID(context.TODO(), organizationID, ledgerID, accountID, filter)
-
-		assertBalanceStateUnavailable(t, err)
-		assert.Nil(t, res)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
-	})
-
 }

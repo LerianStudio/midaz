@@ -105,29 +105,6 @@ func TestGetBalanceByID(t *testing.T) {
 		assert.Equal(t, decimal.RequireFromString("6.78"), out.OnHold)
 		assert.Equal(t, int64(9), out.Version)
 	})
-	t.Run("RedisErrorFailsTheRead", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		id := uuid.Must(libCommons.GenerateUUIDv7())
-		orgID := uuid.Must(libCommons.GenerateUUIDv7())
-		ledgerID := uuid.Must(libCommons.GenerateUUIDv7())
-
-		base := &mmodel.Balance{ID: id.String(), Alias: "@bob", Key: "default", AssetCode: "USD", Available: decimal.NewFromInt(10)}
-
-		balanceRepo := balance.NewMockRepository(ctrl)
-		redisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := UseCase{BalanceRepo: balanceRepo, TransactionRedisRepo: redisRepo}
-
-		balanceRepo.EXPECT().Find(gomock.Any(), orgID, ledgerID, id).Return(base, nil)
-		redisRepo.EXPECT().MGet(gomock.Any(), gomock.Any()).Return(nil, errors.New("redis down"))
-
-		out, err := uc.GetBalanceByID(context.Background(), orgID, ledgerID, id)
-
-		assertBalanceStateUnavailable(t, err)
-		assert.Nil(t, out)
-	})
 	t.Run("NotFoundReturnsError", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()

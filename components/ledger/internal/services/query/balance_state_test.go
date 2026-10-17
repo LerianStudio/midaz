@@ -123,43 +123,44 @@ func TestPublicBalanceReads_MissingKeyFollowsTheTrail(t *testing.T) {
 	}
 }
 
-// A trail that cannot be read answers 0542 like the cache; a trail that cannot be
-// rebuilt from keeps its own 503 (0513).
-func TestPublicBalanceReads_TrailFailureFailsTheRead(t *testing.T) {
+// A cache or trail that cannot be read fails every public read with 0542, never a row.
+func TestPublicBalanceReads_UnreadableStateFailsTheRead(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name     string
-		marks    map[string]*operation.Operation
-		lookup   error
-		wantCode string
+		cacheErr error
+		trailErr error
 	}{
-		{"trail lookup error", nil, errors.New("open read-only primary transaction: boom"), "0542"},
-		{"trail cannot rebuild", map[string]*operation.Operation{seedGuardBalanceID.String(): seedGuardHWM(decimal.NewFromInt(150), decimal.Zero, 3, "x")}, nil, "0513"},
+		{"cache read error", errors.New("redis down"), nil},
+		{"trail lookup error", nil, errors.New("open read-only primary transaction: boom")},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	for readName, read := range publicBalanceReads {
+		for _, tc := range cases {
+			t.Run(readName+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			ctrl := gomock.NewController(t)
-			repo := balance.NewMockRepository(ctrl)
-			cache := redis.NewMockRedisRepository(ctrl)
-			cache.EXPECT().MGet(gomock.Any(), gomock.Any()).Return(map[string]string{}, nil)
+				ctrl := gomock.NewController(t)
+				repo := balance.NewMockRepository(ctrl)
+				cache := redis.NewMockRedisRepository(ctrl)
+				trail := operation.NewMockRepository(ctrl)
 
-			trail := operation.NewMockRepository(ctrl)
-			trail.EXPECT().ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(tc.marks, tc.lookup)
+				if tc.cacheErr != nil {
+					cache.EXPECT().MGet(gomock.Any(), gomock.Any()).Return(nil, tc.cacheErr)
+				} else {
+					cache.EXPECT().MGet(gomock.Any(), gomock.Any()).Return(map[string]string{}, nil)
+					trail.EXPECT().ListLatestByBalances(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, tc.trailErr)
+				}
 
-			uc := &UseCase{BalanceRepo: repo, TransactionRedisRepo: cache, OperationRepo: trail}
-			row := seedGuardRow(seedGuardBalanceID, constant.DefaultBalanceKey, decimal.NewFromInt(100), decimal.Zero, decimal.Zero, 1)
+				uc := &UseCase{BalanceRepo: repo, TransactionRedisRepo: cache, OperationRepo: trail}
+				row := seedGuardRow(seedGuardBalanceID, constant.DefaultBalanceKey, decimal.NewFromInt(100), decimal.Zero, decimal.Zero, 1)
 
-			got, err := publicBalanceReads["GetBalanceByID"](uc, repo, row)
+				got, err := read(uc, repo, row)
 
-			assert.Nil(t, got)
-
-			var unavailable pkg.ServiceUnavailableError
-			require.ErrorAs(t, err, &unavailable)
-			assert.Equal(t, tc.wantCode, unavailable.Code)
-		})
+				assertBalanceStateUnavailable(t, err)
+				assert.Nil(t, got)
+			})
+		}
 	}
 }

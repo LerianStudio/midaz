@@ -93,47 +93,6 @@ func TestGetAllBalances(t *testing.T) {
 		assert.Equal(t, int64(5), res[0].Version)
 	})
 
-	t.Run("RedisErrorFailsTheRead", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		bal := &mmodel.Balance{
-			ID:        uuid.New().String(),
-			Alias:     "@alias3",
-			Key:       "k3",
-			AssetCode: "BRL",
-			Available: decimal.NewFromInt(5),
-			OnHold:    decimal.NewFromInt(6),
-		}
-		balances := []*mmodel.Balance{bal}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListAll(gomock.Any(), organizationID, ledgerID, filter.ToCursorPagination()).
-			Return(balances, mockCur, nil).
-			Times(1)
-
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis down")).
-			Times(1)
-
-		res, cur, err := uc.GetAllBalances(context.TODO(), organizationID, ledgerID, filter)
-
-		assertBalanceStateUnavailable(t, err)
-		assert.Nil(t, res)
-		assert.Equal(t, libHTTP.CursorPagination{}, cur)
-	})
-
 	t.Run("InvalidCachePayloadFailsTheRead", func(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -746,48 +705,6 @@ func TestGetAllBalancesByAlias(t *testing.T) {
 		assert.True(t, res[0].Available.Equal(decimal.NewFromInt(999)))
 		assert.True(t, res[0].OnHold.Equal(decimal.NewFromInt(777)))
 		assert.Equal(t, int64(12), res[0].Version)
-	})
-
-	t.Run("RedisErrorFailsTheRead", func(t *testing.T) {
-		ctrl := gomock.NewController(t)
-		defer ctrl.Finish()
-
-		mockBalanceRepo := balance.NewMockRepository(ctrl)
-		mockRedisRepo := redis.NewMockRedisRepository(ctrl)
-
-		uc := &UseCase{
-			BalanceRepo:          mockBalanceRepo,
-			TransactionRedisRepo: mockRedisRepo,
-		}
-
-		balances := []*mmodel.Balance{
-			{
-				ID:        "account-id-3",
-				AccountID: "account-id-3",
-				Alias:     alias,
-				Key:       "default",
-				AssetCode: "BRL",
-				Available: decimal.NewFromInt(10),
-				OnHold:    decimal.NewFromInt(1),
-			},
-		}
-
-		mockBalanceRepo.
-			EXPECT().
-			ListByAliases(gomock.Any(), organizationID, ledgerID, []string{alias}).
-			Return(balances, nil).
-			Times(1)
-
-		mockRedisRepo.
-			EXPECT().
-			MGet(gomock.Any(), gomock.Any()).
-			Return(nil, errors.New("redis down")).
-			Times(1)
-
-		res, err := uc.GetAllBalancesByAlias(context.TODO(), organizationID, ledgerID, alias)
-
-		assertBalanceStateUnavailable(t, err)
-		assert.Nil(t, res)
 	})
 
 	t.Run("NoBalancesFoundForAlias", func(t *testing.T) {
