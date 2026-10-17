@@ -23,25 +23,32 @@ import (
 
 // The owned promotion topology: a Compose project of its own beside midaz-bench-engine, on fixed loopback ports.
 const (
-	failoverProject  = "midaz-bench-failover"
-	failoverNetwork  = failoverProject + "_default"
-	ownedPrimaryPort = "25432"
-	ownedClientPort  = "25434"
-	ownedStandbyPort = "25435"
-	ownedAPIPort     = "28474"
+	failoverProject      = "midaz-bench-failover"
+	failoverNetwork      = failoverProject + "_default"
+	ownedPrimaryPort     = "25432"
+	ownedClientPort      = "25434"
+	ownedStandbyPort     = "25435"
+	ownedReplacementPort = "25436"
+	ownedAPIPort         = "28474"
 )
 
-// ownedService is one owned container: its service, fixed name, published container ports and memory cap.
+// replacementClusterName names the standby1 a positive promotion test starts from the promoted node.
+const replacementClusterName = "bench-pg-replacement"
+
+// ownedService is one owned container: its service, fixed name, published container ports, memory cap and data volume.
 type ownedService struct {
 	service, container string
 	ports              map[string]string
 	memory             int64
+	volume             string // none for the proxy
 }
 
+// The replacement, slot 3, starts only after a promotion.
 var ownedServices = [...]ownedService{
-	{"bench-pg-primary", "bench-failover-pg-primary", map[string]string{"5432/tcp": ownedPrimaryPort}, 8 << 30},
-	{"bench-toxiproxy", "bench-failover-toxiproxy", map[string]string{"5434/tcp": ownedClientPort, "8474/tcp": ownedAPIPort}, 256 << 20},
-	{"bench-pg-standby", "bench-failover-pg-standby", map[string]string{"5432/tcp": ownedStandbyPort}, 8 << 30},
+	{"bench-pg-primary", "bench-failover-pg-primary", map[string]string{"5432/tcp": ownedPrimaryPort}, 8 << 30, "bench-pg-primary-data"},
+	{"bench-toxiproxy", "bench-failover-toxiproxy", map[string]string{"5434/tcp": ownedClientPort, "8474/tcp": ownedAPIPort}, 256 << 20, ""},
+	{"bench-pg-standby", "bench-failover-pg-standby", map[string]string{"5432/tcp": ownedStandbyPort}, 8 << 30, "bench-pg-standby-data"},
+	{"bench-pg-replacement", "bench-failover-pg-replacement", map[string]string{"5432/tcp": ownedReplacementPort}, 8 << 30, "bench-pg-replacement-data"},
 }
 
 // docker runs the CLI on the default context, so no config file picks another daemon; the override's port variables are
@@ -50,7 +57,7 @@ var ownedServices = [...]ownedService{
 func docker(ctx context.Context, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "docker", append([]string{"--context", "default"}, args...)...)
 	cmd.Env = append(os.Environ(), "BENCH_PG_PRIMARY_PORT="+ownedPrimaryPort, "BENCH_PG_CLIENT_PROXY_PORT="+ownedClientPort,
-		"BENCH_PG_STANDBY_PORT="+ownedStandbyPort, "BENCH_TOXIPROXY_PORT="+ownedAPIPort)
+		"BENCH_PG_STANDBY_PORT="+ownedStandbyPort, "BENCH_PG_REPLACEMENT_PORT="+ownedReplacementPort, "BENCH_TOXIPROXY_PORT="+ownedAPIPort)
 	cmd.WaitDelay = 5 * time.Second
 
 	var stdout, stderr bytes.Buffer

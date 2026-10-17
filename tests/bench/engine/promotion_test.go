@@ -112,7 +112,175 @@ func asyncLoss(t *testing.T, owner bool) {
 	t.Logf("kill=%s promote=%s checks=%s", promoteAt.Sub(killAt), checkAt.Sub(promoteAt), time.Since(checkAt))
 }
 
-// ownedTopology is the bound record of one owned project: its directory and its three inspected containers.
+const promotionApp = "bench-promotion" // the gate names the killed primary's writer session promotionApp-0
+
+// Without a synchronous standby the promoted node commits W and D's replay only locally and answers both unknown. With
+// the replacement streaming, past every cutoff, U resolves expired, W and D replay, and a new transfer N approves.
+func TestOwnerlessPromotion(t *testing.T) {
+	o, g, old, durable, lost := losePrimary(t, false)
+	app := promotionApp + "-next-0"
+	window := batchReq(t, "promotion/window", "promotion/window", g.clock.now(), ordinaryOf(1)(-5), ordinaryOf(3)(5))
+	touches := touchOf(g.ctx, t, g.conn, durable)
+	w, inner := g.startOn(t, g.env, promotionApp+"-next", 1, gateMaxBatch, 6)
+
+	for _, req := range []request{window, durable} {
+		answering := submitEach(g.ctx, t, w, []request{req})
+		awaitBackend(g.ctx, t, g.conn, app, "SyncRep")
+		assertUnknown(t, answering.wait(t), commitUnknown)
+		require.False(t, t.Failed(), "retain the failed window proof before another write")
+		awaitPrimary(g.ctx, t, g.conn, "pgx cancelled the wait and closed its connection", noBackend, app)
+	}
+
+	require.Equal(t, 1, countTransactions(g.ctx, t, g.conn, []request{window}), "the cancelled wait committed W locally")
+	require.Equal(t, touches+1, touchOf(g.ctx, t, g.conn, durable), "the waiting replay committed only its touch")
+
+	o.replace(g.ctx, t, g.conn)
+	assert.Equal(t, []string{"expired", "replay/approved+tx", "replay/approved+tx", "approved+tx"},
+		resolveAfter(t, g, w, lost, window, durable))
+	assert.Equal(t, touches+2, touchOf(g.ctx, t, g.conn, durable))
+	require.ErrorIs(t, w.Close(g.ctx), context.DeadlineExceeded, "Close reports W's unknown COMMIT")
+	assert.Equal(t, 6, inner.workers[0].passes, "one pass per batch: nothing retried an unknown COMMIT")
+	assert.Empty(t, lostApprovals(g.ctx, t, g.conn, slices.Concat(old, w.calls)), "lost approvals")
+	assert.Equal(t, map[string]int{"approved": 2, "unknown": 3, "expired": 1, "replay/approved": 2, unansweredApproval: 1},
+		verifyLedger(g.ctx, t, g.conn, slices.Concat(old, w.calls)))
+	assert.Zero(t, g.broker.publishes.Load(), "obligations stay in the outbox")
+}
+
+// A takeover on the promoted node alone commits locally and returns no owner. With the replacement streaming and that
+// lease expired, owner-c takes epoch 3 and reloads: U resolves expired, D replays and N approves on D's after-state.
+func TestOwnerPromotion(t *testing.T) {
+	o, g, old, durable, lost := losePrimary(t, true)
+
+	const abandonedApp, successorApp = promotionApp + "-abandoned", promotionApp + "-successor"
+
+	awaitPrimary(g.ctx, t, g.conn, "the lost owner's last replicated lease expires", fenceExpired, benchTenantID)
+
+	acquiring, cancelAcquire := context.WithTimeout(g.ctx, batchBudget)
+	defer cancelAcquire()
+
+	abandoned := startOwner(acquiring, t, namedBatcher(t, g.b, g.env, abandonedApp, nil), "owner-b", gateMaxBatch)
+	awaitBackend(g.ctx, t, g.conn, abandonedApp, "SyncRep")
+	require.False(t, abandoned.returned(), "no ownership while its takeover COMMIT waits for a standby")
+	cancelAcquire()
+
+	none, err := abandoned.wait(t)
+	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorContains(t, err, "acquire fence: "+commitUnknown)
+	require.Nil(t, none, "a takeover of unknown outcome returns no owner")
+	awaitPrimary(g.ctx, t, g.conn, "pgx cancelled the takeover's wait and closed its connection", noBackend, abandonedApp)
+
+	tok, _ := readFence(g.ctx, t, g.conn)
+	require.Equal(t, ownerToken{owner: "owner-b", epoch: 2}, tok, "the abandoned takeover committed locally")
+
+	o.replace(g.ctx, t, g.conn)
+	awaitPrimary(g.ctx, t, g.conn, "the abandoned takeover's lease expires", fenceExpired, benchTenantID)
+
+	innerC, err := startOwner(g.ctx, t, namedBatcher(t, g.b, g.env, successorApp, nil), "owner-c", gateMaxBatch).wait(t)
+	require.NoError(t, err)
+
+	tok, _ = readFence(g.ctx, t, g.conn)
+	require.Equal(t, ownerToken{owner: "owner-c", epoch: 3}, tok, "a new successor, not the abandoned takeover, owns the fence")
+
+	w := captureCalls(innerC, 3)
+	assert.Equal(t, []string{"expired", "replay/approved+tx", "approved+tx"}, resolveAfter(t, g, w, lost, durable))
+	require.NoError(t, w.Close(g.ctx))
+	assert.Empty(t, lostApprovals(g.ctx, t, g.conn, slices.Concat(old, w.calls)), "lost approvals")
+	assert.Equal(t, map[string]int{"approved": 2, "unknown": 1, "expired": 1, "replay/approved": 1},
+		verifyLedger(g.ctx, t, g.conn, slices.Concat(old, w.calls)))
+	assert.Zero(t, g.broker.publishes.Load(), "obligations stay in the outbox")
+}
+
+// losePrimary is the positive prologue on a fresh owned topology. D commits through standby1 under on; U's COMMIT waits
+// in SyncRep with replication cut when the primary is killed, and its live pass, not its budget, ends unknown. A fresh
+// session on the promoted node finds the baseline and D, never U. It returns the topology, round, old calls, D and U.
+func losePrimary(t *testing.T, owner bool) (*ownedTopology, *gate, []call, request, request) {
+	t.Helper()
+
+	o := upOwnedTopology(t)
+	g := newGate(t, owner)
+	balances, controls := assertSeeded(g.ctx, t, g.conn, 4)
+
+	passes := make(passContexts, 1)
+	synced, sg := *g.env, *g
+	synced.primary = g.env.primary.Copy()
+	synced.primary.AfterConnect = requireCommitSetting(t, "on")
+	synced.sessionTracer = func() pgx.QueryTracer { return passes } // the old writer's session only
+	sg.env = &synced
+	w, inner := sg.start(t, promotionApp, 1, gateMaxBatch, 2)
+	app := promotionApp + "-0"
+
+	// One implicit transaction, committed through standby1 under the guarded synchronous_commit=on.
+	_, err := g.conn.Exec(g.ctx, `CREATE TABLE public.base_balance AS TABLE pg_temp.base_balance;
+		CREATE TABLE public.base_control AS TABLE pg_temp.base_control`)
+	require.NoError(t, err)
+
+	durable := batchReq(t, "promotion/durable", "promotion/durable", g.clock.now(), ordinaryOf(0)(-5), ordinaryOf(1)(5))
+	require.Equal(t, []string{"approved+tx"}, summarize(t, []request{durable}, []result{w.Submit(g.ctx, durable)}))
+	<-passes // D's finalize filled it, and its pass has ended
+
+	lost := batchReq(t, "promotion/lost", "promotion/lost", g.clock.now(), ordinaryOf(1)(-5), ordinaryOf(2)(5))
+	outbox := holdLock(g.ctx, t, g.env, `LOCK TABLE outbox_events IN SHARE MODE`)
+	paying := submitEach(g.ctx, t, w, []request{lost})
+
+	awaitBackend(g.ctx, t, g.conn, app, "relation") // inside its pass, so an owner's idle renewals never meet the cut
+	// No restore is registered: a pass ends with this primary killed, and a failure keeps the cut as evidence.
+	require.NoError(t, quietProxy(t, g.env, replProxyName, ":5433").Disable(), "disable %s through the toxiproxy API", replProxyName)
+	awaitPrimary(g.ctx, t, g.conn, "the standby's WAL sender is gone", noWalSender)
+	require.NoError(t, outbox.Rollback(g.ctx))
+	awaitBackend(g.ctx, t, g.conn, app, "SyncRep") // U's commit record now exists only on this primary
+	require.Len(t, passes, 1, "U's waiting pass finalized its claim")
+
+	pass := <-passes
+	budget, _ := pass.Deadline()
+	killAt := time.Now()
+
+	require.NoError(t, pass.Err(), "U's pass is live when the primary is killed")
+	o.killPrimary(g.ctx, t)
+	assertUnknown(t, paying.wait(t), commitUnknown)
+	require.False(t, t.Failed(), "retain the failed unknown proof before promotion")
+	require.ErrorIs(t, pass.Err(), context.Canceled, "U's pass returned before its budget: the kill, not a deadline, ended its wait")
+	t.Logf("U's budget before kill revalidation=%s revalidation to answer=%s", budget.Sub(killAt), time.Since(killAt))
+	require.ErrorContains(t, w.Close(g.ctx), commitUnknown, "Close reports U's unknown COMMIT")
+	require.Equal(t, 2, inner.workers[0].passes, "one pass per batch: nothing retried the unknown COMMIT")
+
+	promoted := o.promote(g.ctx, t, g.env.standby)
+
+	var base [2]int64
+	require.NoError(t, promoted.QueryRow(g.ctx, `SELECT (SELECT count(*) FROM base_balance), (SELECT count(*) FROM base_control)`).
+		Scan(&base[0], &base[1]))
+	require.Equal(t, [2]int64{balances, controls}, base, "durable baseline read by a session without TEMP copies")
+	require.Empty(t, lostApprovals(g.ctx, t, promoted, w.calls), "lost approvals")
+	require.Zero(t, countTransactions(g.ctx, t, promoted, []request{lost}), "U's local commit died with the primary")
+	require.Equal(t, map[string]int{"approved": 1, "unknown": 1}, verifyLedger(g.ctx, t, promoted, w.calls))
+	require.False(t, t.Failed(), "retain the failed ledger proof before another write")
+
+	env, pg := *g.env, *g // untraced: later writers dial the promoted node under on
+	env.primary = g.env.standby.Copy()
+	env.primary.AfterConnect = requireCommitSetting(t, "on")
+	pg.env, pg.conn = &env, promoted
+
+	return o, &pg, w.calls, durable, lost
+}
+
+// resolveAfter moves the request clock past every original cutoff, submits reqs one by one under fresh response
+// deadlines, then a new transfer N that debits balance 1, which D and U both moved. It summarizes their answers.
+func resolveAfter(t *testing.T, g *gate, w *captureWriter, reqs ...request) []string {
+	t.Helper()
+	g.clock.advance(time.Minute)
+
+	reqs = append(reqs, batchReq(t, "promotion/next", "promotion/next", g.clock.now(), ordinaryOf(1)(-5), ordinaryOf(0)(5)))
+	res := make([]result, len(reqs))
+
+	for i := range reqs {
+		reqs[i].deadline = g.clock.now().Add(usualBudget.caller)
+		res[i] = w.Submit(g.ctx, reqs[i])
+	}
+
+	return summarize(t, reqs, res)
+}
+
+// ownedTopology is the bound record of one owned project: its directory and its inspected containers, the replacement's
+// only once started.
 type ownedTopology struct {
 	dir        string
 	containers [len(ownedServices)]dockerContainer
@@ -144,7 +312,7 @@ func upOwnedTopology(t *testing.T) *ownedTopology {
 	require.NoError(t, err)
 	require.Empty(t, left, "retained resources of %s: an operator decides their removal after reading the evidence", failoverProject)
 
-	for _, port := range [...]string{ownedPrimaryPort, ownedClientPort, ownedStandbyPort, ownedAPIPort} {
+	for _, port := range [...]string{ownedPrimaryPort, ownedClientPort, ownedStandbyPort, ownedReplacementPort, ownedAPIPort} {
 		conn, err := net.DialTimeout("tcp", "127.0.0.1:"+port, time.Second)
 		if err == nil {
 			conn.Close()
@@ -190,49 +358,68 @@ func ownedDSN(port string) string {
 	return "postgresql://bench:bench@127.0.0.1:" + port + "/bench_transaction?sslmode=disable"
 }
 
-// bindDocker inspects each owned container once by name and records it; every later read uses its full ID. The owned
-// resources must then be exactly these containers, their network and the two data volumes.
+// bindDocker inspects each started container once by name and binds it; every later read uses its full ID. The owned
+// resources must then be exactly these containers, their network and their data volumes.
 func (o *ownedTopology) bindDocker(ctx context.Context, t *testing.T) error {
 	t.Helper()
 
-	for i, svc := range ownedServices {
-		c, err := inspectContainer(ctx, svc.container)
+	for i := range 3 {
+		c, err := inspectContainer(ctx, ownedServices[i].container)
 		if err != nil {
 			return err
 		}
 
-		if err := c.bound(svc, true); err != nil {
+		if err := o.bind(t, i, c); err != nil {
 			return err
 		}
-
-		s, err := readScope(c.ID)
-		if err != nil {
-			return err
-		}
-
-		if err := s.capped(svc); err != nil {
-			return err
-		}
-
-		o.containers[i] = c
-		t.Logf("owned %s id=%s image=%s pid=%d startedAt=%s labels=%v ports=%+v networks=%+v cgroup=%+v",
-			svc.service, c.ID, c.Image, c.State.Pid, c.State.StartedAt, c.Config.Labels, c.NetworkSettings.Ports, c.NetworkSettings.Networks, s)
 	}
 
 	return o.sameResources(ctx)
 }
 
-// sameResources compares the owned listing with the bound record, IDs included; anything else owned or labelled fails.
-func (o *ownedTopology) sameResources(ctx context.Context) error {
-	want := []string{
-		fmt.Sprintf("volume %[1]s_bench-pg-primary-data %[1]s_bench-pg-primary-data %[1]s", failoverProject),
-		fmt.Sprintf("volume %[1]s_bench-pg-standby-data %[1]s_bench-pg-standby-data %[1]s", failoverProject),
+// bind records inspected container c as owned slot i once it is bound, healthy and capped, and logs what it bound.
+func (o *ownedTopology) bind(t *testing.T, i int, c dockerContainer) error {
+	t.Helper()
+
+	svc := ownedServices[i]
+
+	if err := c.bound(svc, true); err != nil {
+		return err
 	}
+
+	s, err := readScope(c.ID)
+	if err != nil {
+		return err
+	}
+
+	if err := s.capped(svc); err != nil {
+		return err
+	}
+
+	o.containers[i] = c
+	t.Logf("owned %s id=%s image=%s pid=%d startedAt=%s labels=%v ports=%+v networks=%+v cgroup=%+v",
+		svc.service, c.ID, c.Image, c.State.Pid, c.State.StartedAt, c.Config.Labels, c.NetworkSettings.Ports, c.NetworkSettings.Networks, s)
+
+	return nil
+}
+
+// sameResources compares the owned listing with the bound record, IDs included; anything else owned or labelled fails.
+// A slot never started, the replacement before a promotion, owes no container and no volume.
+func (o *ownedTopology) sameResources(ctx context.Context) error {
+	var want []string
 
 	for i, svc := range ownedServices {
 		c := o.containers[i]
+		if c.ID == "" {
+			continue
+		}
+
 		want = append(want, fmt.Sprintf("container %s %s %s", c.ID, svc.container, failoverProject),
 			fmt.Sprintf("network %s %s %s", c.NetworkSettings.Networks[failoverNetwork].NetworkID, failoverNetwork, failoverProject))
+
+		if svc.volume != "" {
+			want = append(want, fmt.Sprintf("volume %[1]s_%[2]s %[1]s_%[2]s %[1]s", failoverProject, svc.volume))
+		}
 	}
 
 	slices.Sort(want)
@@ -257,31 +444,46 @@ func (o *ownedTopology) bindSQL(ctx context.Context) error {
 		container     int
 		recovery      bool
 	}{{ownedPrimaryPort, primaryClusterName, 0, false}, {ownedClientPort, primaryClusterName, 0, false}, {ownedStandbyPort, standbyClusterName, 2, true}} {
-		cfg, err := parseBenchDSN(node.port, ownedDSN(node.port))
+		conn, err := o.dialBound(ctx, node.port, node.cluster, node.container, node.recovery)
 		if err != nil {
 			return err
 		}
 
-		conn, _, err := connectNode(ctx, cfg, node.cluster, node.recovery)
-		if err != nil {
-			return err
-		}
-
-		var addr string
-
-		err = conn.QueryRow(ctx, `SELECT host(inet_server_addr())`).Scan(&addr)
 		conn.Close(ctx)
-
-		if err != nil {
-			return fmt.Errorf("port %s server address: %w", node.port, err)
-		}
-
-		if want := o.containers[node.container].NetworkSettings.Networks[failoverNetwork].IPAddress; addr != want {
-			return fmt.Errorf("port %s served from %s, want the owned %s", node.port, addr, want)
-		}
 	}
 
 	return nil
+}
+
+// dialBound connects to an owned port, checks the node's identity and that it serves from bound container i's IP.
+func (o *ownedTopology) dialBound(ctx context.Context, port, cluster string, i int, recovery bool) (*pgx.Conn, error) {
+	cfg, err := parseBenchDSN(port, ownedDSN(port))
+	if err != nil {
+		return nil, err
+	}
+
+	conn, _, err := connectNode(ctx, cfg, cluster, recovery)
+	if err != nil {
+		return nil, err
+	}
+
+	var addr string
+
+	err = conn.QueryRow(ctx, `SELECT host(inet_server_addr())`).Scan(&addr)
+	want := o.containers[i].NetworkSettings.Networks[failoverNetwork].IPAddress
+
+	switch {
+	case err != nil:
+		err = fmt.Errorf("port %s server address: %w", port, err)
+	case addr != want:
+		err = fmt.Errorf("port %s served from %s, want the owned %s", port, addr, want)
+	default:
+		return conn, nil
+	}
+
+	conn.Close(ctx)
+
+	return nil, err
 }
 
 // cleanup runs last, after the writer, sessions and leak check. A failed test only records what exists and keeps it. A
@@ -318,11 +520,17 @@ func (o *ownedTopology) cleanup(t *testing.T) {
 }
 
 // unchanged checks, by bound ID, the end state every passing round leaves: the primary killed, the proxy live and healthy,
-// the promoted standby live, and the owned resources still exactly the record.
+// the promoted standby live, a started replacement live and healthy, and the owned resources still exactly the record.
 func (o *ownedTopology) unchanged(ctx context.Context, t *testing.T) error {
 	t.Helper()
 
-	if err := errors.Join(o.exited(ctx), o.live(ctx, t, 1, true), o.live(ctx, t, 2, false)); err != nil {
+	errs := []error{o.exited(ctx), o.live(ctx, t, 1, true), o.live(ctx, t, 2, false)}
+
+	if o.containers[3].ID != "" {
+		errs = append(errs, o.live(ctx, t, 3, true))
+	}
+
+	if err := errors.Join(errs...); err != nil {
 		return err
 	}
 
@@ -440,6 +648,55 @@ func (o *ownedTopology) promote(ctx context.Context, t *testing.T, cfg *pgx.Conn
 	require.True(t, unsent, "no WAL sender on the promoted node")
 
 	return conn
+}
+
+// replace starts only the replacement, a new standby1 copied from the promoted node, while no COMMIT waits for that name
+// and the old primary stays exited whatever up returns. It binds the replacement by full ID within 120 s, then proves it
+// the promoted node's only synchronous standby, streaming from the replacement's own address.
+func (o *ownedTopology) replace(ctx context.Context, t *testing.T, promoted *pgx.Conn) {
+	t.Helper()
+
+	var waiters int
+	require.NoError(t, promoted.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE wait_event = 'SyncRep'`).Scan(&waiters))
+	require.Zero(t, waiters, "commits waiting for standby1 before its name streams again")
+	require.NoError(t, errors.Join(o.exited(ctx), o.live(ctx, t, 2, false)), "the topology before the replacement starts")
+
+	svc, startAt := ownedServices[3], time.Now()
+
+	startCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	upErr := compose(startCtx, o.dir, "up", "-d", "--no-deps", "--pull", "never", svc.service)
+	require.NoError(t, errors.Join(upErr, o.exited(ctx)), "up of the replacement, and the old primary still exited")
+
+	c, err := inspectContainer(startCtx, svc.container)
+	require.NoError(t, err)
+
+	for {
+		if err = c.bound(svc, true); err == nil {
+			break
+		}
+
+		require.NoError(t, backoff.WaitContext(startCtx, time.Second), "%v", err)
+
+		c, err = inspectContainer(startCtx, c.ID)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, o.bind(t, 3, c))
+	require.NoError(t, o.sameResources(ctx))
+
+	repl, err := o.dialBound(ctx, ownedReplacementPort, replacementClusterName, 3, true)
+	require.NoError(t, err)
+
+	defer repl.Close(ctx)
+
+	require.NoError(t, (&verifiedStack{primary: promoted, standby: repl}).awaitStandby(ctx))
+
+	var sender string
+	require.NoError(t, promoted.QueryRow(ctx, `SELECT host(client_addr) FROM pg_stat_replication`).Scan(&sender))
+	require.Equal(t, c.NetworkSettings.Networks[failoverNetwork].IPAddress, sender, "standby1 streams from the replacement")
+	t.Logf("replacement started, bound and streaming in %s", time.Since(startAt))
 }
 
 // requireCommitSetting returns an AfterConnect hook that logs a writer session's synchronous_commit and refuses any value

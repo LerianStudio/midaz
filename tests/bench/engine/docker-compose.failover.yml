@@ -24,3 +24,36 @@ services:
       - "127.0.0.1:${BENCH_PG_STANDBY_PORT:?owned standby port required}:5432"
     mem_limit: 8g
     memswap_limit: 8g
+
+  # Started alone, only after the promotion: a new standby1 copied straight from the promoted node, never the dead
+  # primary or pg-repl. No depends_on, so selecting it starts nothing else; the base file stays unchanged.
+  bench-pg-replacement:
+    container_name: bench-failover-pg-replacement
+    image: postgres:17
+    user: postgres
+    environment:
+      PGPASSWORD: bench
+    command:
+      - bash
+      - -ec
+      - |
+        if [ ! -s "$$PGDATA/PG_VERSION" ]; then
+          pg_basebackup -D "$$PGDATA" -R --no-slot --checkpoint=fast \
+            -d "host=bench-pg-standby port=5432 user=bench application_name=standby1 connect_timeout=10"
+          chmod 0700 "$$PGDATA"
+        fi
+        exec postgres -c cluster_name=bench-pg-replacement
+    ports:
+      - "127.0.0.1:${BENCH_PG_REPLACEMENT_PORT:?owned replacement port required}:5432"
+    volumes:
+      - bench-pg-replacement-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "[ \"$$(psql -U bench -d bench_transaction -tAXc \"select pg_is_in_recovery() and exists (select 1 from pg_stat_wal_receiver where status = 'streaming')\")\" = t ]"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    mem_limit: 8g
+    memswap_limit: 8g
+
+volumes:
+  bench-pg-replacement-data:
