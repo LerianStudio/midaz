@@ -596,9 +596,10 @@ the standby's receiver streams. Cleanup runs it on fresh bounded contexts, since
 failed restoration keeps its error and is not retried. The bench has no replication slot and `wal_keep_size=0`, so WAL
 recycled during a long outage fails restoration instead of passing.
 
-The canonical plan records development evidence and pending acceptance. The 20 canonical rounds per writer have not
-run. This fault is a replication-proxy network cut, not a standby process stop, half-open link or promotion. It does not
-cover `remote_write`, quorum `ANY` or non-zero server timeouts.
+On 2026-10-17, both tests passed 20 canonical rounds at `0299b72f71b709887d4a36afc3bb28a73916a004`, in 801.270 s,
+with unchanged source and CLEAN teardown. The canonical plan records evidence and limits. This fault is a replication-proxy
+network cut, not a standby process stop, half-open link or promotion. It does not cover `remote_write`, quorum `ANY`
+or non-zero server timeouts. Task 1.3.1 remains open for promotion and the negative durability control.
 
 ## Replication latency and SQL round trip
 
