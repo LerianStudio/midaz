@@ -657,10 +657,12 @@ Reviews code/logic/security e contrarian concluíram sem Critical/High/Medium. A
 
 **Context:** medir reload informa a definição 3, mas não escolhe orçamento público nem prova controle concorrente de produto.
 
-**Implementation vision:** `TestTakeoverReload`, `BENCH_BALANCES=1000000`, semeia 1M saldos ordinários e controles, mais extras declarados. Mede aquisição, páginas, renovação, primeiro lote e RSS. Amostra validade do lease pelo relógio do banco. Chave de paginação de controle é composta, sem perder contas entre organizations/ledgers. Falha de página ou renovação aborta tudo. No bench, nenhum writer externo altera controles durante o reload; no produto, snapshots e ordenação de TODOS os writers precisam da prova da Epic 3.2. Lazy loading é alternativa a estudar caso o número não sirva, não fallback aprovado.
+**Implementation vision:** `TestTakeoverReload`, `BENCH_BALANCES=1000000`, semeia 1M saldos ordinários e controles, mais extras declarados. Mede aquisição, páginas, renovação, primeiro lote e RSS. Cada renovação exige lease válido pelo relógio do banco; tempos do cliente não são margem de lease. Chave de paginação de controle é composta, sem perder contas entre organizations/ledgers. Falha de página ou renovação aborta tudo. No bench, nenhum writer externo altera controles durante o reload; no produto, snapshots e ordenação de TODOS os writers precisam da prova da Epic 3.2. Lazy loading é alternativa a estudar caso o número não sirva, não fallback aprovado.
+
+**Preparation, 2026-10-17:** the opt-in test is implemented and statically checked, with no database run or accepted measurement. It reuses the existing guarded bootstrap, seed and owner lifecycle. Five reviews found no Critical/High. The final source passes race compilation, vet, formatting and bench lint; unset opt-in skips and an invalid value fails before database access. It records page rows/times and renewals, preserves raw trace after joined cleanup on failure, and checks one transfer with the full ledger checker. The fixed recorder keeps startup and may truncate later idle statements; page spans include network, server, scan and cache insertion. Retained process heap is measured after Close with the maps reachable, not as cache bytes alone; RSS is process lifetime. No forced GC sits between constructor completion and first approval. Live execution, failure-path trace output, race-freedom with a live session and 1M results remain unverified. This preparation does not complete Task 1.3.3.
 
 **Files:**
-- Modify: `tests/bench/engine/failover_test.go`, `tests/bench/engine/bootstrap.go`
+- Modify: `tests/bench/engine/failover_test.go`
 
 **Verification:** `BENCH_BALANCES=1000000 go test -count=1 -tags bench ./tests/bench/engine/ -run '^TestTakeoverReload$' -timeout 30m -v`, uma rodada completa, com tempo por página e RSS.
 

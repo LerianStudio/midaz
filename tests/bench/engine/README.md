@@ -601,6 +601,20 @@ with unchanged source and CLEAN teardown. The canonical plan records evidence an
 network cut, not a standby process stop, half-open link or promotion. It does not cover `remote_write`, quorum `ANY`
 or non-zero server timeouts. Task 1.3.1 remains open for promotion and the negative durability control.
 
+## Owner 1M reload (prepared, not measured)
+
+`TestTakeoverReload` is opt-in with `BENCH_BALANCES=1000000`; unset skips and other values fail before DB access.
+The existing guarded bootstrap drops and rebuilds `public` in the disposable bench database. Run authorization and
+resource accounting must be checked first: the client memory limit does not cover the PostgreSQL containers.
+The test records acquisition, 21 balance pages and 21 control pages, renewals, first approval and process memory,
+then checks the full ledger. Page times include cache insertion; retained heap is not cache-only and RSS is lifetime.
+Raw trace survives joined failure cleanup. The fixed trace buffer fits startup; later idle statements may be omitted.
+No database run or reload result exists. Only race compilation, vet, lint, the unset skip and invalid-value refusal passed.
+
+```bash
+BENCH_BALANCES=1000000 go test -count=1 -p 1 -tags bench ./tests/bench/engine/ -run '^TestTakeoverReload$' -timeout 30m -v
+```
+
 ## Identity race proof (model evidence)
 
 `TestIdentityRaceProof` (`identity_proof_test.go`) runs candidate idempotency-identity statements on a model table in
