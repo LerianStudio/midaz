@@ -573,6 +573,33 @@ with unchanged source and CLEAN teardown. The canonical plan records the evidenc
 This test uses `remote_apply` and zero server statement/transaction timeouts; it does not validate arbitrary server
 timeouts or the guarded `on` durability mode under standby loss.
 
+## Standby loss at `synchronous_commit=on` (Task 1.3.1, variant C)
+
+`TestOwnerlessStandbyLoss` and `TestOwnerStandbyLoss` (`failover_test.go`) share one fault setup. The writer connects
+directly to the primary at the shipping level, and each of its connections must show `synchronous_commit=on` on its own
+session before use. The test holds `outbox_events` in SHARE mode until the financial pass waits on it. It then disables
+only `pg-repl`, verified enabled, on its configured listener and upstream and without toxics, and waits until the
+primary lists no WAL sender. Restoration is registered before the disable call. Released, the pass's COMMIT is
+observed in SyncRep, the 10 s batch budget ends the wait and the writer answers unknown. The original is visible on
+the primary and absent on the cut standby.
+
+- Ownerless: a retry of the same identity past its cutoff, with a live response budget, waits in SyncRep and answers
+  unknown. Its pass committed one local change, a `durability_touch` on that identity; the ledger totals show nothing
+  else. Restored, the same retry replays `approved`, moving nothing.
+- Owner: the lost owner answers the retry unknown without SQL. After its lease expires, a takeover on its own bounded
+  context commits epoch 2 locally, waits in SyncRep and, cancelled while the standby is still cut, returns no owner.
+  Restored, once that abandoned lease expires, a new successor takes epoch 3, reloads and replays the original, moving
+  nothing.
+
+Restoration re-enables only `pg-repl` and waits up to `replicationWait` (120 s) until standby1 alone streams in sync and
+the standby's receiver streams. Cleanup runs it on fresh bounded contexts, since `t.Context` ends before cleanup; a
+failed restoration keeps its error and is not retried. The bench has no replication slot and `wal_keep_size=0`, so WAL
+recycled during a long outage fails restoration instead of passing.
+
+The canonical plan records development evidence and pending acceptance. The 20 canonical rounds per writer have not
+run. This fault is a replication-proxy network cut, not a standby process stop, half-open link or promotion. It does not
+cover `remote_write`, quorum `ANY` or non-zero server timeouts.
+
 ## Replication latency and SQL round trip
 
 Status: accepted preparation (M3A); the quick cell below uses it.
