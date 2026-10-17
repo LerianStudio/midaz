@@ -27,7 +27,7 @@ import (
 // see v1OpSuffix. A straight v1/v2 mirror reuses the same handler methods and the
 // same input/output types, so only the operation IDs differ between the twins.
 func RegisterBalanceRoutes(api huma.API, h *BalanceHandler, opSuffix string) {
-	const balanceStateDoc = "Returns the current state of each balance. When that state cannot be read, the request answers 503 (0542) and may be retried."
+	const balanceStateDoc = "Returns the current balance state. When that state cannot be read, the request answers 503 (0542) and may be retried."
 
 	const (
 		orgLedger      = "/organizations/{organization_id}/ledgers/{ledger_id}"
