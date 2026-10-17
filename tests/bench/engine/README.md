@@ -601,6 +601,25 @@ with unchanged source and CLEAN teardown. The canonical plan records evidence an
 network cut, not a standby process stop, half-open link or promotion. It does not cover `remote_write`, quorum `ANY`
 or non-zero server timeouts. Task 1.3.1 remains open for promotion and the negative durability control.
 
+## Identity race proof (model evidence)
+
+`TestIdentityRaceProof` (`identity_proof_test.go`) runs candidate idempotency-identity statements on a model table in
+its own schema, `identity_proof`: it refuses an existing one (an earlier run's evidence), drops only its own after
+replay resumes, under `remote_apply`, and never touches `public`. With replay paused it observes lock and SyncRep waits.
+Q1 uses a fixture write to expire a routed row. Replay then returns the new owner's result, or no row if that owner
+is still in flight. Only the no-row case assigns no xid and commits without a replication barrier. Q2 fences a slow
+owner whose zero-row finalize locks the new row until ROLLBACK. That rollback waits for no replication. The losing
+claim does not wait either; the lib-commons managed ST replay touch writes WAL (Q4). NOWAIT refuses held rows and
+purge skips them (Q2, Q5). Negative controls are counterfactual SQL, not product bugs.
+
+```bash
+go test -count=1 -race -failfast -tags bench ./tests/bench/engine/ -run '^TestIdentityRaceProof$' -timeout 7m -v
+```
+
+It is a model: its own keys, literal one-hour expiries, no retention. Unobserved: a replay touch straddling expiry and a
+takeover (reachable; same lock as Q2-4), lock or purge EPQ windows, rollback of financial side effects, socket-only
+loss, MT, the product path and Tracer. Passing adopts no identity protocol; production stays Redis/Lua-authoritative.
+
 ## Replication latency and SQL round trip
 
 Status: accepted preparation (M3A); the quick cell below uses it.
