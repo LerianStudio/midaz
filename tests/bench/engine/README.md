@@ -144,15 +144,16 @@ sizes. Trace-carrier and multi-tenant variants, relay and Kafka/CloudEvents reco
 
 ## Throughput figures and the 8k target
 
-The recorded financial runs below measured one hot account: each request debits or credits the same limited balance,
+Until the distributed cells, the recorded financial runs below measured one hot account: each request debits or credits the same limited balance,
 against four or 10k counterparts. On 2026-10-17 Fred clarified the reference: more than 8k TPS across accounts in ONE
 LEDGER is good; more than 1k TPS on one account is excellent, not a minimum or an SLO. The old attribution of 8k to a
 hot account was wrong. Rates and financial checks remain valid; earlier "below the 8k target" comparisons are void as
 aggregate-capacity judgments. See the [plan correction](../../../docs/plans/2026-09-30-balance-engine-postgres-truth.md#custo-e-alvos-da-bancada).
 
-Fred then requested a large test to find the limit beyond 8k. The next synthetic fixture transfers between two distinct
-ordinary accounts drawn uniformly from 10k in that ledger, with no mandatory hot account. It is not a claim about client
-traffic. Load steps and resource bounds must be declared before execution; no distributed capacity has been measured.
+Fred then requested a large test to find the limit beyond 8k. The distributed synthetic fixture transfers between two
+distinct ordinary accounts drawn uniformly from 10k in that ledger, with no mandatory hot account. It is not a claim
+about client traffic. Load steps and resource bounds are declared before execution. Three closed-loop distributed cells
+have results ([Capacity campaign](#capacity-campaign)); no maximum or sustained capacity has been measured.
 Correctness and failover requirements are unchanged.
 
 ## Workload and metrics
@@ -649,8 +650,8 @@ before the next run. Lazy dials and prepares fall inside the warm-up.
 Status: M4 code accepted after independent reviews, contrarian and final verification, shipped in `26ff3bbd0`. The
 final regression passed 53 tests and 84 subtests, with only the unselected cell skipped; vet, formatting and pinned lint
 passed. The default-path Make pair passed at 1 s/2 s; those smokes are not capacity. The first canonical full pair
-then passed (below). Block A is not complete: its other 16 cells were never launched. They stay suspended while the
-next unit prepares the distributed-ledger capacity test Fred requested.
+then passed (below). Block A is not complete: its other 16 cells were never launched. They stay suspended in favor of
+the distributed-ledger capacity test Fred requested.
 
 `make test-bench-engine` runs cells of `TestBenchHotAccount` against the running stack, one process per cell. It never
 starts, stops or resets containers. The four DSNs default to the loopback addresses above; values already set win.
@@ -723,7 +724,8 @@ the ownerless bootstrap reset the owner's state, which rests on its checker and 
 
 Status: D2 accepted after independent reviews, contrarian and final supervisor verification. The final five focused
 race tests and 54-test/84-subtest non-volume regression passed; only the unselected cell skipped. Vet, formatting,
-pinned lint and cleanup passed. Two 1 s/2 s smokes passed; canonical 60 s/120 s cells are NOT RUN, so no capacity rate exists. The reference
+pinned lint and cleanup passed. Two 1 s/2 s smokes passed; at acceptance no canonical 60 s/120 s cell had run. The
+first campaign is in [Capacity campaign](#capacity-campaign). The reference
 is the corrected one in [Throughput figures and the 8k target](#throughput-figures-and-the-8k-target):
 more than 8k TPS summed across the accounts of one ledger, not on the hot account the cells above measure.
 
@@ -760,7 +762,7 @@ reported, not failed; nonzero means the cell is not clean capacity evidence, not
 failure stops the run, without retry or reset; the failed ledger stays for diagnosis. The settings line also records
 `shared_buffers`, `max_connections` and `work_mem`; nothing changes the Postgres configuration.
 
-A result will be the window rate, `1e9 * measured.approvalsDbAckBeforeStop / measured.windowNS`, with its p99,
+A result is the window rate, `1e9 * measured.approvalsDbAckBeforeStop / measured.windowNS`, with its p99,
 concurrency, after-stop approvals and every outcome. It is closed-loop throughput at one bounded concurrency: not the
 ledger's maximum, and not a sustained arrival rate, which needs the open-loop confirmation after these cells. Memory,
 disk and process limits for a campaign belong to the coordinating session's runner, not to Make.
@@ -776,6 +778,47 @@ failed process. A real-stack 1 ns checker-budget probe failed without a report; 
 passed, proving the per-cell budget is consumed. Vet, formatting and pinned lint passed. Stack cleanup was clean.
 Checker time varied from 20.88 s to 3.04 s across the smokes; the cause and cost at millions of calls are unproved.
 No memory-pressure, canonical capacity or open-loop confirmation ran in this verification.
+
+### Capacity campaign
+
+One campaign ran on `ebe432877`, clean and pushed, with empty `GOFLAGS` and no overlay, race or tuning,
+inside a transient service with a 64 GiB memory ceiling, no swap and a group OOM policy. Its fixed ladder was owner 256,
+ownerless 256, ownerless 1024, owner 1024, then both writers at 4096 and 8192. Three cells completed, one was
+interrupted and four never started. Reports sit in the ignored
+`reports/bench-engine/capacity-campaign-20261017T024350Z-tkWPGS/`.
+
+| Writer | Producers | Window approvals | Checked calls | Window rate /s | Answer p99 ms | Checker s |
+|---|---:|---:|---:|---:|---:|---:|
+| owner, 1 batcher | 256 | 193,667 | 284,665 | 1,613.8916667 | 294.480372 | 40.285921484 |
+| ownerless, 32 | 256 | 612,522 | 900,438 | 5,104.35 | 240.617023 | 117.767281636 |
+| ownerless, 32 | 1024 | 364,316 | 497,125 | 3,035.9666667 | 1,723.694592 | 67.513649706 |
+
+Window approvals are distinct approvals with `dbAckAt` before stop; the rate divides them by the 120 s window. It
+counts neither postings per account nor calls from both phases. The checker matched every captured call, 1,682,228 in
+total across warm-up and measurement; that total is not a rate. The 256, 256 and 1,024 after-stop approvals equal the
+producers and are excluded from the rate, not from the p99. Every answer was an approval: no unknown, expired, refusal, replay, conflict or late entry,
+and no deadlock or publish. Each cell exited 0 with a clean cleanup and a runner-validated JSON.
+
+The highest observed rate, 5,104.35/s, is below the 8k reference. Raising ownerless from 256 to 1024 producers did not
+raise observed throughput. The cause is not isolated: Postgres CPU and memory, lock wait, standby fsync and network RTT
+were not measured, so nothing here attributes the rate to locks, Postgres or the host. Each cell ran once, in fixed
+order, with the default GC and the preallocated capture, on a shared host whose 1 min load average was 177.53 before
+the first cell and 192.15 before the fourth. These are closed-loop observations, not a maximum, a sustained arrival
+rate or a general ranking of the writers.
+
+`capacity-owner-p1024` started at 02:56:54Z on a clean stack. The launch guard required 128 GiB available and saw
+142,966,204 KiB; that check reserves nothing. At 02:59:37Z the kernel ran a host-wide OOM kill (`CONSTRAINT_NONE`,
+`global_oom`) that chose `engine.test` at 7,587,460 kB anonymous RSS, and the group OOM policy ended the campaign;
+systemd recorded `oom-kill` with an 8,101,515,264 B peak. The service never reached its 64 GiB ceiling and its memory
+events stayed zero through the third cell: host memory pressure killed the cell, not the test limit, and no other
+process is attributed. The log ends after the settings and idle probe, and summaries print only after the measured
+window, so the log does not identify the phase at the kill. The in-memory capture was lost: that cell has no full
+verification and no accepted rate.
+
+The failed cell was not retried or reset. Cleanup removed only the residual 1 ms downstream toxic on `pg-repl`, without financial
+SQL, and the stack state checked CLEAN at 03:02:11Z. The interrupted cell's ledger stays for diagnosis. Independent verification
+confirmed the recorded numbers and the host-global-OOM classification. Open-loop confirmation, failover and PG16 remain unrun; plan Task 1.2.4
+stays open.
 
 ## How it is built
 
