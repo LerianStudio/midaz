@@ -10,6 +10,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"runtime"
+	"runtime/metrics"
 	"slices"
 	"strings"
 	"sync"
@@ -400,4 +403,180 @@ func touchOf(ctx context.Context, t *testing.T, conn *pgx.Conn, req request) int
 		benchTenantID, req.id).Scan(&n))
 
 	return n
+}
+
+// Opt-in: one owner takes over the guarded stack seeded with 1M ordinary balances and controls, reloads them in pages
+// and approves one transfer between distant accounts. It logs its session's trace and process memory, then checks the
+// whole ledger. A failed startup, page, renewal or approval fails the test; it never becomes a timing.
+func TestTakeoverReload(t *testing.T) {
+	switch v := os.Getenv("BENCH_BALANCES"); v {
+	case "":
+		t.Skip("set BENCH_BALANCES=1000000 to measure the owner's 1M reload")
+	case "1000000":
+	default:
+		t.Fatalf("BENCH_BALANCES=%q: want 1000000 or unset", v)
+	}
+
+	noLeaks(t)
+	env := requireDB(t)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 25*time.Minute)
+	defer cancel()
+
+	const n = 1_000_000
+
+	require.NoError(t, bootstrapSchema(ctx, env))
+
+	seeded, err := timed(func() error { return seedFixtures(ctx, env, n) })
+	require.NoError(t, err)
+
+	_, emitter, repo, broker := newTestOutbox(ctx, t, env)
+	conn := connectPrimary(ctx, t, env)
+	snapshotBaseline(ctx, t, conn)
+
+	trace := &reloadTrace{}
+
+	t.Cleanup(func() { trace.log(t) }) // registered first, so it runs after the writer joined and its session closed
+
+	env.sessionTracer = func() pgx.QueryTracer { return trace } // the owner's session only
+	clock := newTestClock(time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC))
+	b, err := newBatcher(namedSession(t, env, "bench-takeover-reload", nil), emitter, repo, clock.now)
+	require.NoError(t, err)
+
+	heap0 := liveHeap() // its collection stays outside the constructor's interval
+	before, err := readBoundary(ctx, conn)
+	require.NoError(t, err)
+
+	started := time.Now()
+	inner, err := startOwner(ctx, t, b, "owner-a", gateMaxBatch).wait(t)
+	built := time.Since(started)
+
+	require.NoError(t, err)
+
+	w := captureCalls(inner, 1)
+	first := batchReq(t, "takeover/first", "takeover/first", clock.now(),
+		mv(classOrdinary, n-1, constant.DefaultBalanceKey)(-1), mv(classOrdinary, 0, constant.DefaultBalanceKey)(1))
+	submitted := time.Now()
+	res := w.Submit(ctx, first)
+	answered := time.Since(submitted)
+
+	require.Equal(t, []string{"approved+tx"}, summarize(t, []request{first}, []result{res}))
+
+	after, err := readBoundary(ctx, conn)
+	require.NoError(t, err)
+	require.NoError(t, w.Close(ctx)) // joins the worker: the trace and b.owner are settled
+
+	retained := int64(liveHeap()) - int64(heap0)
+
+	assert.Equal(t, n+len(seedExtras), len(b.owner.balances)) // also keeps the cache reachable through that collection
+	assert.Equal(t, n+extraControls, len(b.owner.controls))
+
+	span, err := before.until(after)
+	require.NoError(t, err, span)
+	t.Logf("n=%d seed=%s constructor=%s firstAnswer=%s heapAfterClose-heapBefore=%dB (live after GC, cache reachable, "+
+		"transfer and trace included: not cache bytes alone) %s", n, seeded, built, answered, retained, span)
+	trace.report(t, n)
+	assert.Equal(t, map[string]int{"approved": 1}, verifyLedger(ctx, t, conn, w.calls))
+	assert.Zero(t, broker.publishes.Load(), "obligations stay in the outbox")
+}
+
+// liveHeap collects, then reads the heap that collection marked live.
+func liveHeap() uint64 {
+	runtime.GC()
+
+	s := []metrics.Sample{{Name: "/gc/heap/live:bytes"}}
+	metrics.Read(s)
+
+	return s[0].Value.Uint64()
+}
+
+// traceLabels names the owner statements a reloadTrace keeps: pgx's BEGIN and COMMIT, the fence writes and the pages.
+var traceLabels = map[string]string{
+	"begin isolation level read committed": "begin", "commit": "commit", acquireFenceSQL: "acquire", renewFenceSQL: "renew",
+	reloadBalancesSQL: "balances page", reloadControlsSQL: "controls page",
+}
+
+// reloadTrace keeps one session's labeled statements in a fixed array: label, client start, time to rows closed
+// (network, server, scan and cache insert), command tag and error, never arguments or rows. Startup comes first and
+// fits; later statements may go unkept.
+type reloadTrace struct {
+	stmts [512]tracedStmt
+	n     int
+}
+
+type tracedStmt struct {
+	label string
+	start time.Time
+	took  time.Duration
+	tag   pgconn.CommandTag
+	err   error
+}
+
+// traceSlot carries a kept statement's index from TraceQueryStart to TraceQueryEnd.
+type traceSlot struct{}
+
+// TraceQueryStart needs no lock: the session's single connection runs one statement at a time, and database/sql
+// closes a cancelled one's rows, on its own goroutine, under the rows lock before releasing that connection.
+func (r *reloadTrace) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	label, ok := traceLabels[data.SQL]
+	if !ok || r.n == len(r.stmts) {
+		return ctx
+	}
+
+	r.stmts[r.n] = tracedStmt{label: label, start: time.Now()}
+	r.n++
+
+	return context.WithValue(ctx, traceSlot{}, r.n-1)
+}
+
+func (r *reloadTrace) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
+	if i, ok := ctx.Value(traceSlot{}).(int); ok {
+		s := &r.stmts[i]
+		s.took, s.tag, s.err = time.Since(s.start), data.CommandTag, data.Err
+	}
+}
+
+// log prints each kept statement with its error, a failed run's included, at its client offset from the first.
+func (r *reloadTrace) log(t *testing.T) {
+	t.Helper()
+
+	s := r.stmts[:r.n]
+	for i, st := range s {
+		t.Logf("trace %3d +%s %s took=%s tag=%q err=%v", i, st.start.Sub(s[0].start), st.label, st.took, st.tag, st.err)
+	}
+}
+
+// report asserts 21 pages of each table holding every seeded row, then logs the startup: from the acquisition's BEGIN
+// to the COMMIT of the first renewal after the last page, each renewal its own transaction. Call it only after a
+// successful startup and the writer's join.
+func (r *reloadTrace) report(t *testing.T, n int) {
+	t.Helper()
+
+	s := r.stmts[:r.n]
+	end := func(i int) time.Time { return s[i].start.Add(s[i].took) }
+	pages, rows := map[string]int{}, map[string]int64{}
+
+	var (
+		last, renewals, ticks int
+		pageSum, pageMax      time.Duration
+	)
+
+	for i, st := range s {
+		switch {
+		case st.label == "renew":
+			renewals++
+		case strings.HasSuffix(st.label, " page"): // a tick renewal precedes a page, so renewals before the last are ticks
+			pages[st.label], rows[st.label], last, ticks = pages[st.label]+1, rows[st.label]+st.tag.RowsAffected(), i, renewals
+			pageSum, pageMax = pageSum+st.took, max(pageMax, st.took)
+		}
+	}
+
+	require.Equal(t, map[string]int{"balances page": 21, "controls page": 21}, pages, "20 full pages and a short one each")
+	require.Equal(t, map[string]int64{"balances page": int64(n + len(seedExtras)), "controls page": int64(n + extraControls)}, rows)
+
+	final := last + slices.IndexFunc(s[last:], func(st tracedStmt) bool { return st.label == "renew" })
+
+	t.Logf("startup trace=%s acquisition=%s pages=%v rows=%v pageSum=%s pageMax=%s (each to rows closed: network, server, "+
+		"scan and cache insert) tickRenewals=%d finalRenewal=%s", end(final+1).Sub(s[0].start), end(2).Sub(s[0].start),
+		pages, rows, pageSum, pageMax, ticks, end(final+1).Sub(s[final-1].start))
 }
